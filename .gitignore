@@ -1,0 +1,30 @@
+# Build output
+/bin/
+/dist/
+rendercv-go
+
+# Go
+*.test
+*.out
+/coverage.out
+
+# Local scratch
+/tmp/
+/rendercv_output/
+*.local.*
+
+# Editors
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Claude Code local overrides
+.claude/settings.local.json
+
+# Golden regeneration workspace (goldens themselves ARE committed)
+/testdata/.work/
+
+# Python side of the conformance harness
+__pycache__/
+.venv/
