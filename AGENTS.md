@@ -193,6 +193,9 @@ before running anything.
 
 ## 8. Commands
 
+Requires [`just`](https://github.com/casey/just) (`brew install just` / `pacman -S just` /
+`cargo install just`) and [`uv`](https://docs.astral.sh/uv/). `just setup` installs the rest.
+
 ```bash
 just setup          # deps, submodule init, gopls, uv sync of the upstream submodule
 just build          # go build ./... -> bin/rendercv-go
