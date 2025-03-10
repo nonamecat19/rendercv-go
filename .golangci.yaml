@@ -1,0 +1,45 @@
+version: "2"
+
+run:
+  timeout: 5m
+  build-tags:
+    - conformance
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - copyloopvar
+    - errorlint
+    - exhaustive
+    - gocritic
+    - misspell
+    - nilerr
+    - revive
+    - unconvert
+    - usestdlibvars
+    - whitespace
+  exclusions:
+    rules:
+      # Golden-comparison helpers legitimately shuttle bytes around.
+      - path: internal/conformance/
+        linters: [gocritic]
+  settings:
+    errorlint:
+      asserts: true
+      comparison: true
+    exhaustive:
+      default-signifies-exhaustive: true
+    revive:
+      rules:
+        - name: exported
+          arguments: [checkPrivateReceivers]
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
