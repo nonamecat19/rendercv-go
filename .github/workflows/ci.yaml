@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build & unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+      - run: go build ./...
+      - run: go vet ./...
+      - run: go test ./...
+
+  lint:
+    name: Lint & format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+      - name: gofumpt
+        run: |
+          go install mvdan.cc/gofumpt@latest
+          out=$(gofumpt -l .)
+          if [ -n "$out" ]; then echo "gofumpt would reformat:"; echo "$out"; exit 1; fi
+
+  parity:
+    name: Parity suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Sync vendored upstream
+        run: cd third_party/rendercv && uv sync --frozen --all-extras
+      - name: Run the parity suite
+        run: go test -tags conformance ./...
+
+      # Goldens are a committed contract. If regenerating them from the pinned
+      # upstream produces different bytes, either the generator or the pin moved
+      # without review — both are failures.
+      - name: Verify golden fixtures against the pinned upstream
+        run: go run ./tools/gengolden -verify
+
+  guardrails:
+    name: Contract guardrails
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: false
+
+      - name: third_party must not be modified in-tree
+        run: |
+          if git diff --name-only origin/${{ github.base_ref || 'main' }}...HEAD \
+             | grep -v '^third_party/rendercv$' | grep -q '^third_party/'; then
+            echo "::error::files under third_party/ were edited; the vendored upstream is read-only (AGENTS.md §10.4)"
+            exit 1
+          fi
+
+      - name: Divergences and submodule bumps need a human gate
+        if: github.event_name == 'pull_request'
+        run: |
+          changed=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+          if echo "$changed" | grep -qE '^(specs/divergences\.md|third_party/rendercv)$'; then
+            echo "::warning::this PR changes the divergence register or the upstream pin — both require explicit human approval (AGENTS.md §5)"
+          fi
