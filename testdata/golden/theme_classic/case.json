@@ -1,0 +1,8 @@
+{
+  "args": [
+    "render",
+    "cv.yaml"
+  ],
+  "axis": "artifacts",
+  "name": "theme_classic"
+}

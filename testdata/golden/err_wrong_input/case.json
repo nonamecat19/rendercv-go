@@ -1,0 +1,8 @@
+{
+  "args": [
+    "render",
+    "wrong_input.yaml"
+  ],
+  "axis": "errors",
+  "name": "err_wrong_input"
+}

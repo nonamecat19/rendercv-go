@@ -1,0 +1,5 @@
+rendercv_output/Alice_Chen_CV.html
+rendercv_output/Alice_Chen_CV.md
+rendercv_output/Alice_Chen_CV.pdf
+rendercv_output/Alice_Chen_CV.typ
+rendercv_output/Alice_Chen_CV_1.png

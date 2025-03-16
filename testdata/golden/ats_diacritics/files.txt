@@ -1,0 +1,5 @@
+rendercv_output/Jose_Garcia-Lopez_CV.html
+rendercv_output/Jose_Garcia-Lopez_CV.md
+rendercv_output/Jose_Garcia-Lopez_CV.pdf
+rendercv_output/Jose_Garcia-Lopez_CV.typ
+rendercv_output/Jose_Garcia-Lopez_CV_1.png

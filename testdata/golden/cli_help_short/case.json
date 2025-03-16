@@ -1,0 +1,7 @@
+{
+  "args": [
+    "-h"
+  ],
+  "axis": "cli",
+  "name": "cli_help_short"
+}

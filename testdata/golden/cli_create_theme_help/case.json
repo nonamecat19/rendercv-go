@@ -1,0 +1,8 @@
+{
+  "args": [
+    "create-theme",
+    "--help"
+  ],
+  "axis": "cli",
+  "name": "cli_create_theme_help"
+}

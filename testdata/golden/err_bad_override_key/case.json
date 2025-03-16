@@ -1,0 +1,10 @@
+{
+  "args": [
+    "render",
+    "cv.yaml",
+    "--cv.no_such_field",
+    "x"
+  ],
+  "axis": "errors",
+  "name": "err_bad_override_key"
+}

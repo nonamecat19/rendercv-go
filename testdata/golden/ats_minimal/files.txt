@@ -1,0 +1,5 @@
+rendercv_output/Bob_Smith_CV.html
+rendercv_output/Bob_Smith_CV.md
+rendercv_output/Bob_Smith_CV.pdf
+rendercv_output/Bob_Smith_CV.typ
+rendercv_output/Bob_Smith_CV_1.png

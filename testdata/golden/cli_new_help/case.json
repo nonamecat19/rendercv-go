@@ -1,0 +1,8 @@
+{
+  "args": [
+    "new",
+    "--help"
+  ],
+  "axis": "cli",
+  "name": "cli_new_help"
+}

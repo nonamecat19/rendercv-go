@@ -1,0 +1,10 @@
+{
+  "args": [
+    "new",
+    "John Doe",
+    "--theme",
+    "engineeringresumes"
+  ],
+  "axis": "cli",
+  "name": "new_theme_engineeringresumes"
+}

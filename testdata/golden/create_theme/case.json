@@ -1,0 +1,8 @@
+{
+  "args": [
+    "create-theme",
+    "mytheme"
+  ],
+  "axis": "cli",
+  "name": "create_theme"
+}

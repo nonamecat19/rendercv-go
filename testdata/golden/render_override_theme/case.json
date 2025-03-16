@@ -1,0 +1,14 @@
+{
+  "args": [
+    "render",
+    "cv.yaml",
+    "--design.theme",
+    "moderncv",
+    "-nopdf",
+    "-nopng",
+    "-nohtml",
+    "-nomd"
+  ],
+  "axis": "cli",
+  "name": "render_override_theme"
+}

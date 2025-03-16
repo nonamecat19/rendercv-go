@@ -1,0 +1,8 @@
+{
+  "args": [
+    "new",
+    "John Doe"
+  ],
+  "axis": "cli",
+  "name": "new_default"
+}

@@ -1,0 +1,10 @@
+{
+  "args": [
+    "new",
+    "John Doe",
+    "--locale",
+    "japanese"
+  ],
+  "axis": "cli",
+  "name": "new_locale_japanese"
+}

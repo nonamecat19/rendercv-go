@@ -1,0 +1,8 @@
+{
+  "args": [
+    "render",
+    "does_not_exist.yaml"
+  ],
+  "axis": "errors",
+  "name": "err_missing_file"
+}

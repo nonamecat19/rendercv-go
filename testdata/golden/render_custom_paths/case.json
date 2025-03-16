@@ -1,0 +1,15 @@
+{
+  "args": [
+    "render",
+    "cv.yaml",
+    "-typ",
+    "out/custom.typ",
+    "-md",
+    "out/nested/custom.md",
+    "-nopdf",
+    "-nopng",
+    "-nohtml"
+  ],
+  "axis": "cli",
+  "name": "render_custom_paths"
+}

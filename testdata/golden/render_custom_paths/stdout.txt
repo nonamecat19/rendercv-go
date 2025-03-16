@@ -1,0 +1,4 @@
+╭─ Your CV is ready ───────────────────────────────────────────────────────────╮
+│ ✓ <duration> Generated Typst:           ./out/custom.typ                       │
+│ ✓ <duration> Generated Markdown:        ./out/nested/custom.md                 │
+╰──────────────────────────────────────────────────────────────────────────────╯

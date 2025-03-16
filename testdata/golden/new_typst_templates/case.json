@@ -1,0 +1,9 @@
+{
+  "args": [
+    "new",
+    "John Doe",
+    "--create-typst-templates"
+  ],
+  "axis": "cli",
+  "name": "new_typst_templates"
+}

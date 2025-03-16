@@ -1,0 +1,61 @@
+                                                                                
+ Usage: rendercv render [OPTIONS] INPUT_FILE_NAME                               
+                                                                                
+ Render a YAML input file. Example: rendercv render John_Doe_CV.yaml. Details:  
+ rendercv render --help                                                         
+                                                                                
+╭─ Arguments ──────────────────────────────────────────────────────────────────╮
+│ *    input_file_name      PATH  The YAML input file. [required]              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ --output-folder           -o           PATH  Base output folder for all      │
+│                                              generated files. Replaces the   │
+│                                              default 'rendercv_output'       │
+│                                              folder.                         │
+│ --design                  -d           PATH  The "design" field's YAML input │
+│                                              file.                           │
+│ --locale-catalog          -lc          PATH  The "locale" field's YAML input │
+│                                              file.                           │
+│ --settings                -s           PATH  The "settings" field's YAML     │
+│                                              input file.                     │
+│ --typst-path              -typ         PATH  Save the generated Typst file   │
+│                                              to the specified path, relative │
+│                                              to the input file.              │
+│ --pdf-path                -pdf         PATH  Save the generated PDF file to  │
+│                                              the specified path, relative to │
+│                                              the input file.                 │
+│ --markdown-path           -md          PATH  Save the generated Markdown     │
+│                                              file to the specified path,     │
+│                                              relative to the input file.     │
+│ --html-path               -html        PATH  Save the generated HTML file to │
+│                                              the specified path, relative to │
+│                                              the input file.                 │
+│ --png-path                -png         PATH  Save the generated PNG files to │
+│                                              the specified path, relative to │
+│                                              the input file.                 │
+│ --dont-generate-markdown  -nomd              If provided, the Markdown file  │
+│                                              will not be generated.          │
+│                                              Disabling Markdown generation   │
+│                                              implicitly disables HTML.       │
+│ --dont-generate-html      -nohtml            If provided, the HTML file will │
+│                                              not be generated.               │
+│ --dont-generate-typst     -notyp             If provided, the Typst file     │
+│                                              will not be generated.          │
+│                                              Disabling Typst generation      │
+│                                              implicitly disables PDF and     │
+│                                              PNG.                            │
+│ --dont-generate-pdf       -nopdf             If provided, the PDF file will  │
+│                                              not be generated.               │
+│ --dont-generate-png       -nopng             If provided, the PNG file will  │
+│                                              not be generated.               │
+│ --watch                   -w                 If provided, RenderCV will      │
+│                                              automatically re-run when the   │
+│                                              input file is updated.          │
+│ --quiet                   -q                 If provided, RenderCV will not  │
+│                                              print any messages.             │
+│ --YAMLLOCATION                         TEXT  Overrides the value of          │
+│                                              YAMLLOCATION. For example,      │
+│                                              --cv.phone "123-456-7890".      │
+│ --help                    -h                 Show this message and exit.     │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
