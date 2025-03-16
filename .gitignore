@@ -1,7 +1,8 @@
 # Build output
 /bin/
 /dist/
-rendercv-go
+# The binary when built in place; not cmd/rendercv-go/, which is source.
+/rendercv-go
 
 # Go
 *.test
