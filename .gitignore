@@ -35,3 +35,6 @@
 # Python side of the conformance harness
 __pycache__/
 .venv/
+
+# Stray binaries from `go build ./...`
+/gengolden
