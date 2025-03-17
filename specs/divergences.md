@@ -23,24 +23,38 @@ Each entry: what differs · upstream citation · why parity is impossible or und
 
 ---
 
-## D-002 — Custom themes cannot execute user Python
+## D-002 — Custom themes are scripted in Lua, not Python
 
-**Status:** approved in principle, replacement design pending (iteration 6)
+**Status:** approved · **Replacement:** embedded Lua (iteration 6)
 
 - **Differs:** upstream loads and executes a custom theme's `__init__.py` during validation, using
   the resulting pydantic class as the theme's option schema.
 - **Upstream:** `src/rendercv/schema/models/design/design.py` — `validate_design()`, the
   `importlib.util.spec_from_file_location` block; also
-  `src/rendercv/cli/create_theme_command/create_init_file_for_theme.py`.
-- **Why impossible:** Go has no runtime Python interpreter, and embedding one would defeat the
-  single-static-binary goal. There is no equivalent of importing arbitrary user code.
-- **Instead:** a declarative theme manifest — `<theme>/options.yaml` — describing option names,
-  types, defaults, and constraints. `rendercv-go create-theme` emits it; validation reads it.
-  Upstream's other custom-theme requirements are preserved unchanged: lowercase-alphanumeric
-  theme name, folder must sit beside the input file, folder must contain ≥1 `*.j2.typ`.
+  `src/rendercv/cli/create_theme_command/create_init_file_for_theme.py`, which generates the file
+  by copying `classic_theme.py` and rewriting the class name and the `theme` literal.
+- **Why impossible as-is:** Go has no runtime Python interpreter, and embedding one would defeat
+  the single-static-binary goal.
+- **Instead:** the same capability, in **Lua**, via an embedded pure-Go interpreter
+  (`github.com/yuin/gopher-lua` — Lua 5.1, no CGO). A custom theme provides `<theme>/init.lua`
+  returning a table with the theme name, its option defaults, and an optional `validate` function.
+  This keeps upstream's actual feature — themes that *compute* and *check* their own options —
+  rather than downgrading it to a static manifest.
+  - `rendercv-go create-theme <name>` generates `init.lua` from the classic theme's option tree,
+    mirroring upstream's copy-and-rename behavior.
+  - A theme folder with no `init.lua` falls back to the classic theme's defaults with
+    `theme = <name>`, exactly as upstream does when `__init__.py` is absent.
+  - Upstream's other custom-theme rules are preserved unchanged: lowercase-alphanumeric theme
+    name, folder beside the input file, folder must contain ≥1 `*.j2.typ`.
+  - **Sandboxed.** The Lua state is opened without `io`, `os`, `package`, `debug` or `dofile`.
+    A theme describes a design; it has no business touching the filesystem or the network.
+    Upstream's `__init__.py` had no such limit — this divergence is strictly safer.
+  - Error parity where it can be kept: a Lua syntax error and a missing theme table produce the
+    upstream messages with `__init__.py` replaced by `init.lua`. Upstream's `ImportError` branch
+    has no analogue and is dropped, since `package`/`require` are unavailable.
 - **User notices:** a custom theme written for Python RenderCV needs its `__init__.py` translated
-  into `options.yaml`. Themes with no `__init__.py` (templates only) work unchanged.
-- **Open:** the manifest schema is specified in iteration 6, not before.
+  into `init.lua`. Themes with no `__init__.py` (templates only) work unchanged.
+- **Open:** the exact table shape and the generated `init.lua` are specified in iteration 6.
 
 ---
 

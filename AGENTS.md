@@ -49,6 +49,7 @@ Go replaces each stage:
 | JSON Schema | `src/rendercv/schema/json_schema_generator.py` | `internal/schema/jsonschema` | hand-built, diffed against upstream |
 | Template | `src/rendercv/renderer/templater/**` | `internal/renderer/templater` | **pongo2** + an adaptation layer (§6) |
 | Typst → PDF/PNG | `src/rendercv/renderer/pdf_png.py` | `internal/renderer/typstc` | **typst compiled to WASI, run on wazero** (pure Go, no CGO) |
+| Custom theme scripts | `<theme>/__init__.py` (Python) | `internal/schema/luatheme` | **`gopher-lua`**, sandboxed (D-002) |
 | HTML / Markdown | `renderer/html.py`, `renderer/markdown.py` | `internal/renderer/{html,markdown}` | stdlib + `goldmark` |
 | CLI | `src/rendercv/cli/**` (typer) | `internal/cli` | `cobra` |
 
@@ -161,8 +162,9 @@ Discovered during upstream investigation. These are the parts most likely to sil
 4. **Template override loader order**: input-file directory first, then built-in templates
    (`templater.py:34-45`). User overrides are a real feature; preserve it.
 5. **Custom themes execute user Python.** `schema/models/design/design.py:validate_design`
-   imports `<theme>/__init__.py` at validation time. Go cannot do this. A declarative
-   replacement is required and is already logged in `specs/divergences.md`.
+   imports `<theme>/__init__.py` at validation time. Go cannot do this, so custom themes are
+   scripted in **Lua** instead — an embedded, sandboxed `gopher-lua` state loading
+   `<theme>/init.lua`. Logged as D-002 in `specs/divergences.md`; designed in iteration 6.
 6. **Font provisioning.** Upstream depends on the `rendercv-fonts` package. The WASI typst build
    must be fed the same font set or PDFs will differ in metrics.
 

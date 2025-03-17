@@ -55,6 +55,11 @@ problem and a parity dead end.
 3. Compare page dimensions, then page count, then extracted text. Report the first that differs.
 4. Only then look at the compiler.
 
+## Not yours
+
+Custom-theme scripting is a separate embedded runtime — sandboxed Lua via `gopher-lua`
+(D-002, iteration 6). Different problem, different owner.
+
 ## Non-negotiables
 
 `AGENTS.md` §10 applies to you too: never hand-write a golden, never edit `third_party/`, never

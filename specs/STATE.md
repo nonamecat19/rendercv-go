@@ -20,7 +20,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 3 | Entry types (9) | — | — | 0 / 9 |
 | 4 | Validation-error parity | — | — | 0 |
 | 5 | JSON Schema generator | — | — | 0 / 1 |
-| 6 | Design & themes (9) + declarative custom-theme manifest | — | — | 0 / 9 |
+| 6 | Design & themes (9) + Lua-scripted custom themes (D-002) | — | — | 0 / 9 |
 | 7 | Locale (English + 21 catalogs) + date formatting | — | — | 0 / 22 |
 | 8 | Templater (pongo2 env, filters, markdown→typst, processors) | — | — | 0 |
 | 9 | Typst renderer (`.typ` emission) | — | — | 0 / 18 |
