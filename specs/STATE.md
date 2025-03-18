@@ -16,7 +16,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 |---|---|---|---|---|
 | 0 | Bootstrap (layout, AGENTS.md, submodule, agents, skills, CI) | — | green | n/a |
 | 1 | Conformance harness (corpus, gengolden, helpers) | [001](001-conformance-harness/spec.md) | green | n/a (42 cases red by design) |
-| 2 | YAML reader + core model (RenderCVModel, CV, Section) | — | — | 0 |
+| 2 | YAML reader + core model (RenderCVModel, CV, Section) | [002](002-yaml-and-core-model/spec.md) | spec | n/a (gated on unit tests, spec §7.2) |
 | 3 | Entry types (9) | — | — | 0 / 9 |
 | 4 | Validation-error parity | — | — | 0 |
 | 5 | JSON Schema generator | — | — | 0 / 1 |
