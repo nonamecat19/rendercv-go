@@ -2,6 +2,7 @@ package yamlreader
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/goccy/go-yaml/ast"
 	"github.com/goccy/go-yaml/lexer"
@@ -57,10 +58,7 @@ func buildNode(n ast.Node) *yamldoc.Node {
 }
 
 func buildPlainScalar(tok *token.Token) *yamldoc.Node {
-	raw := tok.Origin
-	if raw == "" {
-		raw = tok.Value
-	}
+	raw := scalarRaw(tok)
 	style := scalarStyle(tok)
 	kind := ResolveScalar(raw, style)
 	return &yamldoc.Node{
@@ -162,10 +160,7 @@ func firstToken(n ast.Node) *token.Token {
 }
 
 func buildScalar(n ast.Node, kind yamldoc.Kind, tok *token.Token) *yamldoc.Node {
-	raw := tok.Origin
-	if raw == "" {
-		raw = tok.Value
-	}
+	raw := scalarRaw(tok)
 	return &yamldoc.Node{
 		Kind:  kind,
 		Raw:   raw,
@@ -192,6 +187,17 @@ func buildLiteral(n *ast.LiteralNode) *yamldoc.Node {
 			End:   yamldoc.Position{Line: tok.Position.Line, Column: tok.Position.Column},
 		},
 	}
+}
+
+// scalarRaw is the scalar's value without the surrounding layout that goccy
+// keeps in Origin: a token origin carries the indentation and line break around
+// the value, which is not part of the scalar and must not reach classification
+// (resolve.go) or the models.
+func scalarRaw(tok *token.Token) string {
+	if tok.Value != "" {
+		return tok.Value
+	}
+	return strings.TrimSpace(tok.Origin)
 }
 
 func scalarStyle(tok *token.Token) yamldoc.ScalarStyle {

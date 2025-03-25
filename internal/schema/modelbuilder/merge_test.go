@@ -2,7 +2,6 @@ package modelbuilder
 
 import (
 	"errors"
-	"strings"
 	"testing"
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
@@ -18,12 +17,6 @@ func mustBuild(t *testing.T, mainYaml string, args BuildArguments) *BuildResult 
 		t.Fatalf("BuildDictionary: %v", err)
 	}
 	return result
-}
-
-// scalar trims the reader's verbatim token origin, which keeps surrounding
-// whitespace (yamlreader/build.go:58-62), down to the value itself.
-func scalar(node *yamldoc.Node) string {
-	return strings.TrimSpace(node.Raw)
 }
 
 func get(t *testing.T, node *yamldoc.Node, path ...string) *yamldoc.Node {
@@ -71,7 +64,7 @@ func TestOverlayReplacesWholesale(t *testing.T) {
 	if len(design.Items) != 1 || design.Items[0].Key != "theme" {
 		t.Fatalf("design = %+v, want exactly {theme}", design.Items)
 	}
-	if got := scalar(design.Items[0].Value); got != "sb2nov" {
+	if got := design.Items[0].Value.Raw; got != "sb2nov" {
 		t.Errorf("design.theme = %q, want %q", got, "sb2nov")
 	}
 }
@@ -81,7 +74,7 @@ func TestEmptyOverlayIsSkipped(t *testing.T) {
 	main := minimalCV + "design:\n  theme: classic\n"
 	result := mustBuild(t, main, BuildArguments{DesignYaml: ""})
 
-	if got := scalar(get(t, result.Document, "design", "theme")); got != "classic" {
+	if got := get(t, result.Document, "design", "theme").Raw; got != "classic" {
 		t.Errorf("design.theme = %q, want %q", got, "classic")
 	}
 	if len(result.OverlaySources) != 0 {
@@ -174,7 +167,7 @@ func TestRenderCommandOverridesWritten(t *testing.T) {
 		if !ok {
 			t.Fatalf("%s not written", tc.key)
 		}
-		if scalar(value) != tc.want || value.Kind != tc.kind {
+		if value.Raw != tc.want || value.Kind != tc.kind {
 			t.Errorf("%s = %+v, want raw %q kind %v", tc.key, value, tc.want, tc.kind)
 		}
 	}
@@ -189,10 +182,10 @@ func TestFalsyOverridesAreDropped(t *testing.T) {
 	})
 
 	renderCommand := get(t, result.Document, "settings", "render_command")
-	if got := scalar(get(t, renderCommand, "dont_generate_pdf")); got != "true" {
+	if got := get(t, renderCommand, "dont_generate_pdf").Raw; got != "true" {
 		t.Errorf("dont_generate_pdf = %q, want the YAML value %q", got, "true")
 	}
-	if got := scalar(get(t, renderCommand, "output_folder")); got != "from_yaml" {
+	if got := get(t, renderCommand, "output_folder").Raw; got != "from_yaml" {
 		t.Errorf("output_folder = %q, want the YAML value %q", got, "from_yaml")
 	}
 }
@@ -202,7 +195,7 @@ func TestDottedOverridesAreANoOpHook(t *testing.T) {
 	result := mustBuild(t, minimalCV, BuildArguments{
 		Overrides: map[string]string{"cv.name": "Jane Doe"},
 	})
-	if got := scalar(get(t, result.Document, "cv", "name")); got != "John Doe" {
+	if got := get(t, result.Document, "cv", "name").Raw; got != "John Doe" {
 		t.Errorf("cv.name = %q, want the untouched %q", got, "John Doe")
 	}
 }
