@@ -72,14 +72,14 @@ func TestCharacteristicFields(t *testing.T) {
 	chars := r.Characteristic()
 
 	expected := map[entries.TypeName]map[string]struct{}{
-		"OneLineEntry":           {"details": {}, "label": {}},
-		"NormalEntry":            {"name": {}},
-		"ExperienceEntry":        {"company": {}, "position": {}},
-		"EducationEntry":         {"area": {}, "degree": {}, "institution": {}},
-		"PublicationEntry":       {"authors": {}, "doi": {}, "journal": {}, "title": {}, "url": {}},
-		"BulletEntry":            {"bullet": {}},
-		"NumberedEntry":          {"number": {}},
-		"ReversedNumberedEntry":  {"reversed_number": {}},
+		"OneLineEntry":          {"details": {}, "label": {}},
+		"NormalEntry":           {"name": {}},
+		"ExperienceEntry":       {"company": {}, "position": {}},
+		"EducationEntry":        {"area": {}, "degree": {}, "institution": {}},
+		"PublicationEntry":      {"authors": {}, "doi": {}, "journal": {}, "title": {}, "url": {}},
+		"BulletEntry":           {"bullet": {}},
+		"NumberedEntry":         {"number": {}},
+		"ReversedNumberedEntry": {"reversed_number": {}},
 	}
 
 	for name, want := range expected {

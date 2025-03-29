@@ -159,19 +159,6 @@ func firstToken(n ast.Node) *token.Token {
 	}
 }
 
-func buildScalar(n ast.Node, kind yamldoc.Kind, tok *token.Token) *yamldoc.Node {
-	raw := scalarRaw(tok)
-	return &yamldoc.Node{
-		Kind:  kind,
-		Raw:   raw,
-		Style: scalarStyle(tok),
-		Span: yamldoc.Span{
-			Start: yamldoc.Position{Line: tok.Position.Line, Column: tok.Position.Column},
-			End:   yamldoc.Position{Line: tok.Position.Line, Column: tok.Position.Column},
-		},
-	}
-}
-
 func buildLiteral(n *ast.LiteralNode) *yamldoc.Node {
 	tok := n.Start
 	raw := tok.Origin

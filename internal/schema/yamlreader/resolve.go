@@ -8,6 +8,8 @@ import (
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
 )
 
+// ResolveScalar classifies a scalar's text into a node kind. Timestamps are
+// deliberately left unresolved: upstream keeps them as strings (spec §3.11).
 func ResolveScalar(raw string, style yamldoc.ScalarStyle) yamldoc.Kind {
 	if style != yamldoc.StylePlain {
 		return yamldoc.KindString
@@ -82,7 +84,7 @@ func isHexInteger(s string) bool {
 	}
 	s = strings.ReplaceAll(s, "_", "")
 	for _, ch := range s {
-		if !((ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F')) {
+		if (ch < '0' || ch > '9') && (ch < 'a' || ch > 'f') && (ch < 'A' || ch > 'F') {
 			return false
 		}
 	}

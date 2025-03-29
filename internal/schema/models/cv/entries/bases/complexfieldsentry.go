@@ -138,13 +138,15 @@ func (e *BaseEntryWithComplexFields) adjustDates(
 		return nil
 	}
 
-	// Step 4: the ordering check, the only step that can fail.
-	start, err := GetDateObject(e.StartDate, e.startDateIsInteger, reference)
-	if err != nil {
-		return nil
-	}
-	end, err := GetDateObject(e.EndDate, e.endDateIsInteger, reference)
-	if err != nil {
+	// Step 4: the ordering check, the only step that can fail. A date that did
+	// not parse has already been reported against its own field, so it takes no
+	// part here — the ordering check is skipped rather than reported twice.
+	start, startErr := GetDateObject(e.StartDate, e.startDateIsInteger, reference)
+	end, endErr := GetDateObject(e.EndDate, e.endDateIsInteger, reference)
+	if startErr != nil || endErr != nil {
+		//nolint:nilerr // deliberate: the failure was already reported against
+		// the field it came from, so the ordering check is skipped rather than
+		// reporting the same date twice.
 		return nil
 	}
 	if !start.After(end) {
