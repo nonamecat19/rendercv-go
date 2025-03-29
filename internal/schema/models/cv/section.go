@@ -14,6 +14,7 @@ var stopWords = map[string]bool{
 	"when": true, "with": true, "yet": true,
 }
 
+// TitleFromKey formats a section key into its title (spec §3.62-§3.64).
 func TitleFromKey(key string) string {
 	if strings.Contains(key, " ") || containsUpper(key) {
 		return key
@@ -33,6 +34,8 @@ func TitleFromKey(key string) string {
 	return strings.Join(words, " ")
 }
 
+// SnakeCaseTitle is a title lowercased with spaces replaced by underscores
+// (spec §3.66).
 func SnakeCaseTitle(title string) string {
 	return strings.ReplaceAll(strings.ToLower(title), " ", "_")
 }

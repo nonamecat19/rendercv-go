@@ -88,6 +88,8 @@ func spanOf(node *yamldoc.Node) *yamldoc.Span {
 	return &span
 }
 
+// EntryTypeInSnakeCase derives an entry type's snake-case name by inserting an
+// underscore before each uppercase letter that is not first (spec §3.68).
 func EntryTypeInSnakeCase(name string) string {
 	var result strings.Builder
 	for i, r := range name {
