@@ -59,8 +59,15 @@ func TestCapitalizationUnicode(t *testing.T) {
 		key   string
 		title string
 	}{
+		// Spec §5.10: all four cases, verified against CPython's
+		// str.capitalize(). The first two exercise Unicode's full
+		// Titlecase_Mapping, where one rune maps to several.
+		{"ßeta", "Sseta"},
+		{"ﬁle", "File"},
 		{"ǆab", "ǅab"},
 		{"çay", "Çay"},
+		{"ǳip", "ǲip"},
+		{"ŉx", "ʼNx"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.key, func(t *testing.T) {
