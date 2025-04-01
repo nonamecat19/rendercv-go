@@ -37,6 +37,7 @@ fmt:
     gofumpt -w .
 
 fmt-check:
+    @command -v gofumpt >/dev/null || { echo "gofumpt not installed; run 'just setup'"; exit 1; }
     @out=$(gofumpt -l .); if [ -n "$out" ]; then echo "gofumpt would reformat:"; echo "$out"; exit 1; fi
 
 vet:
