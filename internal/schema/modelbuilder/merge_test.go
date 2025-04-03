@@ -229,3 +229,16 @@ func TestOverlaySyntaxErrorCarriesOverlaySource(t *testing.T) {
 		t.Errorf("yaml source = %q, want %q", got, schemaerr.SourceLocale)
 	}
 }
+
+// Spec §5.28 — a `design` overlay leaves a `locale` in the main document alone.
+func TestOverlaysAreIndependent(t *testing.T) {
+	main := minimalCV + "locale:\n  language: tr\ndesign:\n  theme: classic\n"
+	result := mustBuild(t, main, BuildArguments{DesignYaml: "design:\n  theme: sb2nov\n"})
+
+	if got := get(t, result.Document, "design", "theme").Raw; got != "sb2nov" {
+		t.Errorf("design.theme = %q, want %q", got, "sb2nov")
+	}
+	if got := get(t, result.Document, "locale", "language").Raw; got != "tr" {
+		t.Errorf("locale.language = %q, want the main document's %q", got, "tr")
+	}
+}

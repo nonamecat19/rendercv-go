@@ -203,3 +203,42 @@ func TestTypeNamedIsTheResolvedOne(t *testing.T) {
 		t.Fatalf("errs = %+v, want one error with one child", errs)
 	}
 }
+
+// Spec §5.7 — a mixed education/experience section resolves to the first
+// entry's type and reports the other entries against it.
+func TestMixedSectionNamesFirstResolvedType(t *testing.T) {
+	restore := cv.SetEntryValidatorForTest(func(
+		node *yamldoc.Node, entryType entries.TypeName, location []string, source schemaerr.YamlSource,
+	) []schemaerr.ValidationError {
+		// Stand-in for the concrete types of iteration 3: an entry belongs to
+		// the decided type only if it carries that type's characteristic field.
+		field := map[entries.TypeName]string{
+			"EducationEntry":  "institution",
+			"ExperienceEntry": "company",
+		}[entryType]
+		if _, ok := cv.MappingKey(node, field); ok {
+			return nil
+		}
+		return []schemaerr.ValidationError{{
+			Code: "missing", SchemaLocation: location, YamlSource: source, Message: "Field required",
+		}}
+	})
+	defer restore()
+
+	entryType, errs := cv.ValidateSection(
+		section(t, "  - institution: MIT\n    degree: BS\n  - company: Acme\n    position: Engineer\n"),
+		fixtureRegistry(), []string{"cv", "sections", "mixed"}, schemaerr.SourceMain,
+	)
+
+	if entryType != "EducationEntry" {
+		t.Fatalf("entry type = %q, want EducationEntry", entryType)
+	}
+	want := "There are problems with the entries. RenderCV detected the entry type of this" +
+		" section to be EducationEntry. The problems are shown below."
+	if len(errs) != 1 || errs[0].Message != want {
+		t.Fatalf("errs = %+v, want one §4.12 naming EducationEntry", errs)
+	}
+	if len(errs[0].Children) != 1 {
+		t.Errorf("children = %+v, want the experience entry's failure nested", errs[0].Children)
+	}
+}

@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/goccy/go-yaml/token"
+
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 )
 
@@ -128,3 +130,25 @@ func TestParserMessageNormalization(t *testing.T) {
 		})
 	}
 }
+
+// Spec §3.85 — a parser failure carrying no position yields an absent YAML
+// location rather than a fabricated one.
+func TestParserErrorWithoutMarks(t *testing.T) {
+	record := yamlSyntaxValidationError(marklessParserError{}, schemaerr.SourceMain)
+
+	if record.YamlLocation != nil {
+		t.Errorf("yaml location = %+v, want absent", record.YamlLocation)
+	}
+	if record.Message != "This is not a valid YAML file. no marks here." {
+		t.Errorf("message = %q", record.Message)
+	}
+}
+
+// marklessParserError is a parser error with no offending token, which is how
+// upstream's "neither mark" case reaches the location extractor.
+type marklessParserError struct{}
+
+func (marklessParserError) Error() string                { return "no marks here" }
+func (marklessParserError) GetMessage() string           { return "no marks here" }
+func (marklessParserError) GetToken() *token.Token       { return nil }
+func (marklessParserError) FormatError(_, _ bool) string { return "no marks here" }
