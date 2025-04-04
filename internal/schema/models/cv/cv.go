@@ -2,6 +2,8 @@ package cv
 
 import (
 	"github.com/nonamecat19/rendercv-go/internal/schema/binder"
+	"github.com/nonamecat19/rendercv-go/internal/schema/models"
+	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv/entries"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
 )
@@ -40,6 +42,10 @@ type Cv struct {
 	CustomConnections *yamldoc.Node
 	Sections          *yamldoc.Node
 
+	// PhotoValue is the resolved `photo` union (spec §3.46), set when a photo
+	// was supplied.
+	PhotoValue *Photo
+
 	// keyOrder mirrors `_key_order` (cv.py:166, :173): the input mapping's key
 	// order with null-valued keys dropped, empty for a non-mapping input. It
 	// drives the order header connections are rendered in (cv.py:124-126).
@@ -71,6 +77,7 @@ func Validate(
 	node *yamldoc.Node,
 	location []string,
 	source schemaerr.YamlSource,
+	opts Options,
 ) (*Cv, []schemaerr.ValidationError) {
 	result, errs := binder.Bind(
 		node,
@@ -91,5 +98,86 @@ func Validate(
 	model.CustomConnections, _ = result.Value("custom_connections")
 	model.Sections, _ = result.Value("sections")
 
+	errs = append(errs, model.validateFields(location, source, opts)...)
 	return model, errs
+}
+
+// Options carries what the field validators need beyond the document: the
+// entry-type registry section discrimination runs against, and the validation
+// context path resolution uses.
+type Options struct {
+	Registry *entries.Registry
+	Context  *models.ValidationContext
+}
+
+// validateFields runs the per-field validators the model owns. `design`,
+// `locale` and `settings` have no models yet (iterations 6 and 7), and the
+// top-level model cannot call this one — `models` would import `cv`, which
+// already imports `models` for the context and path types. Connecting those two
+// is iteration 3's, when the concrete entry types arrive.
+func (c *Cv) validateFields(
+	location []string,
+	source schemaerr.YamlSource,
+	opts Options,
+) []schemaerr.ValidationError {
+	var errs []schemaerr.ValidationError
+
+	// Spec §3.47: the shared scalar-or-list rule, in upstream's field order.
+	for _, field := range ScalarOrListFields() {
+		node, _ := c.fieldNode(field)
+		fieldErrs, err := ValidateScalarOrList(field, node, fieldLocation(location, field), source)
+		if err != nil {
+			// The internal error of spec §4.7 cannot arise here: the field name
+			// always comes from ScalarOrListFields.
+			continue
+		}
+		errs = append(errs, fieldErrs...)
+	}
+
+	// Spec §3.46: the photo union, path interpretation first.
+	if c.Photo != nil && c.Photo.Kind != yamldoc.KindNull {
+		c.PhotoValue = ResolvePhoto(c.Photo.Raw, opts.Context)
+	}
+
+	if c.SocialNetworks != nil && c.SocialNetworks.Kind == yamldoc.KindSequence {
+		base := fieldLocation(location, "social_networks")
+		for i, elem := range c.SocialNetworks.Elems {
+			_, elemErrs := ValidateSocialNetwork(elem, indexLocation(base, i), source)
+			errs = append(errs, elemErrs...)
+		}
+	}
+
+	if c.CustomConnections != nil && c.CustomConnections.Kind == yamldoc.KindSequence {
+		base := fieldLocation(location, "custom_connections")
+		for i, elem := range c.CustomConnections.Elems {
+			_, elemErrs := ValidateCustomConnection(elem, indexLocation(base, i), source)
+			errs = append(errs, elemErrs...)
+		}
+	}
+
+	// Spec §3.53–§3.61: every section, in input order.
+	if c.Sections != nil && c.Sections.Kind == yamldoc.KindMapping && opts.Registry != nil {
+		base := fieldLocation(location, "sections")
+		for _, item := range c.Sections.Items {
+			_, sectionErrs := ValidateSection(
+				item.Value, opts.Registry, fieldLocation(base, item.Key), source,
+			)
+			errs = append(errs, sectionErrs...)
+		}
+	}
+
+	return errs
+}
+
+func (c *Cv) fieldNode(name string) (*yamldoc.Node, bool) {
+	switch name {
+	case "email":
+		return c.Email, c.Email != nil
+	case "phone":
+		return c.Phone, c.Phone != nil
+	case "website":
+		return c.Website, c.Website != nil
+	default:
+		return nil, false
+	}
 }
