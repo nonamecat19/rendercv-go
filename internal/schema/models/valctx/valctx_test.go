@@ -1,14 +1,14 @@
-package models_test
+package valctx_test
 
 import (
 	"testing"
 	"time"
 
-	"github.com/nonamecat19/rendercv-go/internal/schema/models"
+	"github.com/nonamecat19/rendercv-go/internal/schema/models/valctx"
 )
 
 func TestValidationContextNil(t *testing.T) {
-	var c *models.ValidationContext
+	var c *valctx.ValidationContext
 	path, ok := c.InputPath()
 	if ok || path != "" {
 		t.Errorf("nil context InputPath() = (%q, %v), want (\"\", false)", path, ok)
@@ -20,7 +20,7 @@ func TestValidationContextNil(t *testing.T) {
 }
 
 func TestValidationContextEmpty(t *testing.T) {
-	c := &models.ValidationContext{}
+	c := &valctx.ValidationContext{}
 	path, ok := c.InputPath()
 	if ok || path != "" {
 		t.Errorf("empty context InputPath() = (%q, %v), want (\"\", false)", path, ok)
@@ -28,7 +28,7 @@ func TestValidationContextEmpty(t *testing.T) {
 }
 
 func TestValidationContextInputPath(t *testing.T) {
-	c := &models.ValidationContext{InputFilePath: "/test/file.yaml"}
+	c := &valctx.ValidationContext{InputFilePath: "/test/file.yaml"}
 	path, ok := c.InputPath()
 	if !ok || path != "/test/file.yaml" {
 		t.Errorf("InputPath() = (%q, %v), want (/test/file.yaml, true)", path, ok)
@@ -36,7 +36,7 @@ func TestValidationContextInputPath(t *testing.T) {
 }
 
 func TestValidationContextTodayLiteral(t *testing.T) {
-	c := &models.ValidationContext{CurrentDate: "today"}
+	c := &valctx.ValidationContext{CurrentDate: "today"}
 	today := c.Today()
 	expected := time.Now()
 	if today.Year() != expected.Year() || today.Month() != expected.Month() || today.Day() != expected.Day() {
@@ -46,7 +46,7 @@ func TestValidationContextTodayLiteral(t *testing.T) {
 
 func TestValidationContextTodayRealDate(t *testing.T) {
 	d := time.Date(2008, 1, 15, 0, 0, 0, 0, time.UTC)
-	c := &models.ValidationContext{CurrentDate: d}
+	c := &valctx.ValidationContext{CurrentDate: d}
 	got := c.Today()
 	if !got.Equal(d) {
 		t.Errorf("Today() with real date = %v, want %v", got, d)
@@ -54,7 +54,7 @@ func TestValidationContextTodayRealDate(t *testing.T) {
 }
 
 func TestValidationContextTodayFallback(t *testing.T) {
-	c := &models.ValidationContext{CurrentDate: "yesterday"}
+	c := &valctx.ValidationContext{CurrentDate: "yesterday"}
 	today := c.Today()
 	expected := time.Now()
 	if today.Year() != expected.Year() || today.Month() != expected.Month() || today.Day() != expected.Day() {

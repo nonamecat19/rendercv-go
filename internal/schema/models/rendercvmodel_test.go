@@ -5,6 +5,7 @@ import (
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/binder"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models"
+	"github.com/nonamecat19/rendercv-go/internal/schema/models/valctx"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamlreader"
@@ -87,12 +88,12 @@ func TestJSONSchemaRequiredMarker(t *testing.T) {
 func TestInputFilePathRecording(t *testing.T) {
 	tests := []struct {
 		name string
-		ctx  *models.ValidationContext
+		ctx  *valctx.ValidationContext
 		want string
 	}{
 		{name: "no context", ctx: nil},
-		{name: "empty context", ctx: &models.ValidationContext{}},
-		{name: "path supplied", ctx: &models.ValidationContext{InputFilePath: "/tmp/CV.yaml"}, want: "/tmp/CV.yaml"},
+		{name: "empty context", ctx: &valctx.ValidationContext{}},
+		{name: "path supplied", ctx: &valctx.ValidationContext{InputFilePath: "/tmp/CV.yaml"}, want: "/tmp/CV.yaml"},
 	}
 
 	for _, tc := range tests {

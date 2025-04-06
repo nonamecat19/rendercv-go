@@ -7,11 +7,12 @@ import (
 	"testing"
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/models"
+	"github.com/nonamecat19/rendercv-go/internal/schema/models/valctx"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 )
 
 func TestResolutionBaseWithInputFile(t *testing.T) {
-	ctx := &models.ValidationContext{InputFilePath: "/tmp/somewhere/input.yaml"}
+	ctx := &valctx.ValidationContext{InputFilePath: "/tmp/somewhere/input.yaml"}
 	base, err := models.ResolutionBase(ctx)
 	if err != nil {
 		t.Fatalf("ResolutionBase() error = %v", err)
@@ -42,7 +43,7 @@ func TestResolutionBaseWithoutInputFile(t *testing.T) {
 func TestExistingPathVariousRelativeFormats(t *testing.T) {
 	tmp := t.TempDir()
 	inputFile := filepath.Join(tmp, "input.yaml")
-	ctx := &models.ValidationContext{InputFilePath: inputFile}
+	ctx := &valctx.ValidationContext{InputFilePath: inputFile}
 
 	cases := []struct {
 		name     string
@@ -81,7 +82,7 @@ func TestExistingPathVariousRelativeFormats(t *testing.T) {
 func TestPlannedPathVariousRelativeFormats(t *testing.T) {
 	tmp := t.TempDir()
 	inputFile := filepath.Join(tmp, "input.yaml")
-	ctx := &models.ValidationContext{InputFilePath: inputFile}
+	ctx := &valctx.ValidationContext{InputFilePath: inputFile}
 
 	cases := []string{"output/result.pdf", "../build/output.html", "./generated/doc.md"}
 	for _, relative := range cases {
@@ -122,7 +123,7 @@ func TestAbsolutePathLeftUnchanged(t *testing.T) {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 
-	ctx := &models.ValidationContext{InputFilePath: filepath.Join(tmp, "input.yaml")}
+	ctx := &valctx.ValidationContext{InputFilePath: filepath.Join(tmp, "input.yaml")}
 
 	gotExisting, err := models.ResolveExistingPath(existing, ctx)
 	if err != nil {
@@ -142,7 +143,7 @@ func TestAbsolutePathLeftUnchanged(t *testing.T) {
 }
 
 func TestEmptyPathShortCircuits(t *testing.T) {
-	ctx := &models.ValidationContext{InputFilePath: "/nonexistent/root/input.yaml"}
+	ctx := &valctx.ValidationContext{InputFilePath: "/nonexistent/root/input.yaml"}
 
 	got, err := models.ResolveExistingPath("", ctx)
 	if err != nil {
@@ -165,7 +166,7 @@ func TestEmptyPathShortCircuits(t *testing.T) {
 // the path relative to the resolution base, not the resolved absolute path.
 func TestExistingPathMissingFile(t *testing.T) {
 	tmp := t.TempDir()
-	ctx := &models.ValidationContext{InputFilePath: filepath.Join(tmp, "input.yaml")}
+	ctx := &valctx.ValidationContext{InputFilePath: filepath.Join(tmp, "input.yaml")}
 
 	_, err := models.ResolveExistingPath("nonexistent.txt", ctx)
 	if err == nil {
@@ -189,7 +190,7 @@ func TestExistingPathNotAFile(t *testing.T) {
 	if err := os.Mkdir(dir, 0o755); err != nil {
 		t.Fatalf("Mkdir() error = %v", err)
 	}
-	ctx := &models.ValidationContext{InputFilePath: filepath.Join(tmp, "input.yaml")}
+	ctx := &valctx.ValidationContext{InputFilePath: filepath.Join(tmp, "input.yaml")}
 
 	_, err := models.ResolveExistingPath("new_dir", ctx)
 	if err == nil {
@@ -210,7 +211,7 @@ func TestExistingPathNotAFile(t *testing.T) {
 // never fails on a nonexistent path.
 func TestPlannedPathAcceptsNonexistent(t *testing.T) {
 	tmp := t.TempDir()
-	ctx := &models.ValidationContext{InputFilePath: filepath.Join(tmp, "input.yaml")}
+	ctx := &valctx.ValidationContext{InputFilePath: filepath.Join(tmp, "input.yaml")}
 
 	got, err := models.ResolvePlannedPath("does_not_exist.txt", ctx)
 	if err != nil {

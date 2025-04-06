@@ -2,6 +2,7 @@ package models
 
 import (
 	"github.com/nonamecat19/rendercv-go/internal/schema/binder"
+	"github.com/nonamecat19/rendercv-go/internal/schema/models/valctx"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
 )
@@ -72,7 +73,7 @@ func (m *RenderCVModel) InputFilePath() (string, bool) {
 // validates (spec §3.28).
 func Validate(
 	node *yamldoc.Node,
-	ctx *ValidationContext,
+	ctx *valctx.ValidationContext,
 	source schemaerr.YamlSource,
 ) (*RenderCVModel, []schemaerr.ValidationError) {
 	result, errs := binder.Bind(

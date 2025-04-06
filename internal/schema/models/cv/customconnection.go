@@ -3,6 +3,7 @@ package cv
 import (
 	"github.com/nonamecat19/rendercv-go/internal/schema/binder"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models"
+	"github.com/nonamecat19/rendercv-go/internal/schema/models/valctx"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
 )
@@ -98,7 +99,7 @@ type Photo struct {
 // accepted as a URL. Wiring this into `Cv.Validate` is deferred the same way
 // scalar-or-list routing was in T18 — the resolver exists and is tested on
 // its own; the spine connects it to the model when the renderer needs it.
-func ResolvePhoto(raw string, ctx *models.ValidationContext) *Photo {
+func ResolvePhoto(raw string, ctx *valctx.ValidationContext) *Photo {
 	if path, err := models.ResolveExistingPath(raw, ctx); err == nil {
 		return &Photo{Kind: PhotoKindPath, Path: path}
 	}
