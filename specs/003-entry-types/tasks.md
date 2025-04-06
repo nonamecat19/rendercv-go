@@ -4,6 +4,13 @@
 that must land red does so behind `//go:build conformance`, so the untagged suite stays green while
 `go test -tags conformance ./...` shows the red (as in tasks 002 T8).
 
+**No golden refresh.** There is deliberately no `just golden` task and no human gate for one: all
+nine entry types are already exercised by the existing 42-case corpus, so a regeneration would
+change the contract for no coverage gain (spec §7.1, §9). Nothing here writes to
+`testdata/golden/`. The combinations the corpus misses (spec §5.1) are covered by the differential
+unit tests of spec §7.4, which are **not** hand-written goldens — a porter unsure of the
+distinction should read spec §7.4 before writing the test.
+
 **Marks.** `[parallel]` tasks within the same wave read none of each other's output and write no
 shared file, so they may be fanned out to porters. `[sequential]` tasks are on the pipeline spine
 and stay with one owner (`AGENTS.md` §5, the stop rule). Waves are strictly ordered.
@@ -123,36 +130,47 @@ Spec §3.3, §5.19.
 ### T12 — `NormalEntry` · `[parallel]`
 `entries/normal.go`. Own field `name` (required text) then the six inherited; order
 `name, date, start_date, end_date, location, summary, highlights`.
-Spec §3.7, §5.21. Plan §3.1.
-Extra test: spec 002 §5.23's date rejection and acceptance tables reached through this concrete
+Spec §3.7, §5.21, §5.25. Plan §3.1.
+Extra tests: spec 002 §5.23's date rejection and acceptance tables reached through this concrete
 type (spec §5.21) — at least `start_date: aaa`, `start_date: 2023-01-01`/`end_date: 2021-01-01`,
-`date: 2020-20-20`, and the four accepting forms.
+`date: 2020-20-20`, and the four accepting forms. Plus a non-blank `summary` retained verbatim
+(spec §5.25).
 
 ### T13 — `ExperienceEntry` · `[parallel]`
 `entries/experience.go`. Own fields `company`, `position` then the six; order per spec §3.8.
-Spec §3.8, §5.14.
-Extra test: `{company: …, location: …, date: "No."}` reports only the missing `position`
-(spec §5.14).
+Spec §3.8, §5.14, §5.23, §5.25.
+Extra tests: `{company: …, location: …, date: "No."}` reports only the missing `position`
+(spec §5.14). Plus the two combinations no golden covers: a real bare `date` alongside
+`start_date`/`end_date` reaching spec 002 §3.77 step 1, and a non-blank `summary`
+(spec §5.23, §5.25, §7.4).
 
 ### T14 — `EducationEntry` · `[parallel]`
 `entries/education.go`. Own fields `institution`, `area`, `degree` (`degree` optional) then the
 six; order per spec §3.9.
-Spec §3.9, §4.8, §5.8, §5.18.
+Spec §3.9, §4.8, §5.8, §5.18, §5.22, §5.23, §5.25.
 Extra tests: `{}` reports `institution` then `area`, in that order (spec §5.8); a `degree`-less
-entry is valid (spec §5.18).
+entry is valid (spec §5.18) and reports `degree` **absent**, not empty text — the branch no golden
+covers (spec §5.22, §7.4). Plus a real bare `date` alongside `start_date`/`end_date` reaching
+spec 002 §3.77 step 1, and a non-blank `summary` (spec §5.23, §5.25).
 
 ### T15 — `PublicationEntry` · `[parallel]` (reads T7)
 `entries/publication.go`. Six own fields in order `title, authors, summary, doi, url, journal`,
 then `date` **last**; base `BaseEntryWithDate`; no `start_date`, `end_date`, `location`,
 `highlights`. The three model-level rules of plan §6. `url` bound as `ValueAny` with a
 `TODO(iteration-4)` naming spec §7.3.
-Spec §3.10, §3.11, §3.12, §4.1, §4.2, §4.6, §4.9–§4.13, §5.2–§5.6. Plan §6.
+Spec §3.10, §3.11, §3.12, §4.1, §4.2, §4.6, §4.9–§4.13, §5.2–§5.6, §5.24, §5.25. Plan §6.
+**The riskiest task in the iteration for a reason unrelated to its size:** no golden case sets
+`url` at all and none omits `doi`, so `ignore_url_if_doi_is_given` and `validate_doi_url` are
+covered by this task's unit tests and by nothing else, ever (spec §5.24, plan §7 hazard 5). Spec
+§8's four-state doi/url table is mandatory, using upstream's own two literals from
+`tests/renderer/conftest.py:282-283`.
 Extra tests: the `doi` rejection produces §4.1 with the pattern text verbatim; `doi_url` for
 `10.1109/TASC.2023.3340648` and for absent (spec §5.3); `doi_url` byte-preserving for
 `10. spaced ?`, `10.###`, `10.5\n`; `doi = "10." + 2100×"a"` → §4.2 with an **empty** schema
 location; `{doi, url}` → `url` absent, no error; `authors: "scalar"` → §4.5 plus §4.3 on `title`,
 in that order; `authors: [1, 2]` → two §4.4 at indices 0 and 1; `start_date: not-a-date` accepted
-and retained with no error (spec §5.6); `doi_url` absent from the field order.
+and retained with no error (spec §5.6); a non-blank `summary` retained verbatim (spec §5.25);
+`doi_url` absent from the field order.
 
 ### T16 — `TextEntry` · `[parallel]`
 No new model — spec §3.14 and plan §3.2 forbid one. This task adds the tests that pin the ninth
@@ -197,7 +215,9 @@ behavior 43 is reachable and distinguishable without matching message text.
 `entryValidator` defaults to `entries.Validate`, `ValidateSection` gains the reference parameter,
 and `cv.validateFields` threads `Options.Context.Today()`. The stub disappears; the
 `SetEntryValidatorForTest` seam stays, for tests only.
-Spec §3.19 behavior 45. Plan §3.4.
+The reference date itself is existing, already-ported behavior with its own precedence ladder
+(spec §3.13 behavior 26a); this task only threads it and must not re-derive it.
+Spec §3.13 behavior 26a, §3.19 behavior 45. Plan §3.4.
 Tests: a section of invalid entries now produces spec 002 §4.12 with real children; no production
 path reaches an accept-everything validator (assert by giving `cv.Validate` a bad entry and
 requiring a non-empty error list).

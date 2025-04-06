@@ -606,6 +606,61 @@ https://doi.org/
     (`tests/schema/models/cv/entries/bases/test_entry_with_complex_fields.py`); this iteration
     must show at least one concrete type reaching the same outcomes.
 
+### 5.1 Optional-field combinations no upstream fixture covers
+
+The existing 42-case corpus already exercises all nine types — one shared `cv:` block does it,
+byte-identical across the nine theme example files, reaching 16 golden cases
+(`examples/John_Doe_ClassicTheme_CV.yaml:16-183`; section keys at `:17-21` TextEntry, `:22-45`
+Education, `:46-101` Experience, `:102-120` Normal, `:121-159` Publication, `:160-165` Bullet,
+`:166-174` OneLine, `:175-178` Numbered, `:179-183` ReversedNumbered). `NormalEntry`,
+`NumberedEntry` and `ReversedNumberedEntry` appear **only** in that block; the `ats_*` cases repeat
+Education, Experience, OneLine, Bullet and Publication.
+
+The combinations below occur in **no YAML file anywhere in the submodule**, so no golden output
+exists for them and none can be generated. Each is an acceptance criterion in §8.
+
+22. **`EducationEntry` with `degree` omitted.** Every education entry in the submodule sets it
+    (`examples/John_Doe_ClassicTheme_CV.yaml:25`, `:37`;
+    `tests/…/minimal.yaml:19`; `standard_full.yaml:51`, `:59`; `diacritics.yaml:35`, `:41`;
+    `academic.yaml:21`, `:29`, `:35`). `degree` is the only optional own field in the iteration
+    (edge case 18), so its absent branch is entirely unexercised.
+23. **A bare `date` on an education or experience entry.** The key is present but always blank
+    (`examples/John_Doe_ClassicTheme_CV.yaml:26`, `:38`). Bare `date` with a real value is
+    exercised for `NormalEntry` only — the "NeuralPrune" entry, `date: '2021'`
+    (`examples/John_Doe_ClassicTheme_CV.yaml:113-115`). So spec 002 §3.77 step 1 (`date` silently
+    clears the range fields) is never reached on a type that also carries `start_date`/`end_date`
+    in a golden.
+24. **`PublicationEntry.url` with a real value.** `doi` is set on every publication in the
+    submodule (`examples/John_Doe_ClassicTheme_CV.yaml:128`, `:137`, `:147`, `:156`;
+    `academic.yaml:71`, `:79`, `:86`, `:93`, `:99`) and `url` is always blank or absent — the only
+    non-blank `url:` values anywhere in the submodule's YAML are a CI workflow,
+    `error_dictionary.yaml` and `mkdocs.yaml`. **Consequence: behavior 21
+    (`ignore_url_if_doi_is_given`) and behavior 23 (`validate_doi_url`) are exercised by no golden
+    case at all**, and neither is the URL normalization of edge case 5. Their parity rests
+    entirely on unit tests. See §7.3.
+25. **A non-blank `summary` on an education, experience or publication entry.** Always blank or
+    absent; only `NormalEntry` carries real summaries
+    (`examples/John_Doe_ClassicTheme_CV.yaml:108`, `:117`).
+26. **`end_date: present` is covered** and needs nothing added
+    (`examples/John_Doe_ClassicTheme_CV.yaml:51`, `:104-106`; `minimal.yaml:12`;
+    `diacritics.yaml:20`; `academic.yaml:45`).
+27. **Upstream's only mechanism for this matrix is dead code in the pinned tree.**
+    `create_combinations_of_entry_type` (`tests/renderer/conftest.py:342-383`) with
+    `return_value_for_field` (`:215-339`, which does define both
+    `"doi": "10.1007/978-3-319-69626-3_101-1"` and `"url": "https://example.com"` at `:282-283`)
+    is consumed only by the `full_rendercv_model` fixture (`:124-212`, calling it at `:174-177`),
+    and nothing in the pinned tree consumes that fixture — it matches only its own file. It builds
+    Python model instances directly, never serializes them to YAML, and never runs the CLI, so
+    there is **no upstream output to lift**. How these combinations are covered instead is §7.4.
+28. **A stop-word-free multi-word section key.** `ats_academic` uses `academic_positions` for a
+    structurally-`ExperienceEntry` list (`academic.yaml:41-63`), which exercises
+    `dictionary_key_to_proper_section_title` (spec 002 §3.62) on a key where no word is in the
+    28-word stop list. Already covered by a golden; recorded so it is not re-tested here.
+29. **`err_wrong_input` is not type coverage.** `wrong_input.yaml:17-56` is entry-shaped, but every
+    entry is deliberately malformed and the case asserts exit 1. It is validation-error-path
+    coverage and belongs to iteration 4; this iteration uses it only for the locations-and-codes
+    differential of §8's last criterion.
+
 ---
 
 ## 6. Ordering and whitespace guarantees
@@ -650,11 +705,15 @@ Carried items from `specs/STATE.md` → *Cut scope → Iteration 2*:
   corpus — belong to **iteration 4** and are deliberately not absorbed here. This iteration must
   not touch `internal/schema/yamlreader` or `cv.phone`.
 
-Three decisions recorded so they are not relitigated:
+Four decisions recorded so they are not relitigated:
 
-**7.1 The gate is unit tests, not conformance cases.** As in spec 002 §7.2: no corpus case can
-pass until the renderer exists. The parity suite stays at its 42 red cases, and that redness is
-not a failure of this iteration. §9 adds no `tools/gengolden` cases.
+**7.1 The gate is unit tests, not conformance cases, and there is no golden refresh.** As in
+spec 002 §7.2: no corpus case can pass until the renderer exists, so the parity suite stays at its
+42 red cases and that redness is not a failure of this iteration. Beyond that, **all nine entry
+types are already exercised by the existing 42-case corpus** (§5.1's opening paragraph), so
+iteration 3 needs no new corpus case and **must not run `just golden`**. There is deliberately no
+golden-refresh task in `tasks.md` and no human gate for one; regenerating `testdata/golden/` here
+would change the contract for no coverage gain (`AGENTS.md` §5).
 
 **7.2 The registry stays inverted.** Upstream computes the characteristic table at import time
 from the classes (`section.py:36-42`, `:77`). The port keeps spec 002 §7.1's registry and merely
@@ -668,6 +727,26 @@ propose a divergence, this iteration keeps `url` bound as a raw value behind the
 hook pattern iteration 2 used for `email`, `phone` and `website`, so the HTTP-URL decision is made
 once, in iteration 4, for all four fields. **If iteration 4 concludes the normalization cannot be
 reproduced, that is a divergence entry and a human gate — not something this spec authorizes.**
+
+Note the coverage consequence, which **raises** the bar on that decision rather than lowering it:
+`PublicationEntry.url` is exercised by **no golden case whatsoever** (§5.24), so nothing in the
+parity suite will ever catch a wrong URL decision. Axis 1 is silent here. Whatever iteration 4
+chooses must be justified against upstream directly, and its unit tests are the only gate it will
+ever have.
+
+**7.4 The uncovered combinations of §5.1 are covered by differential unit tests, and that is not a
+hand-written golden.** Upstream has no fixture for them (§5.27), so there is nothing to generate
+from. They are therefore covered the way iteration 2 covered its unpinned cases: a Go unit test
+whose expectation was derived by running the vendored Python on the same input and recording what
+it produced, with the input and the observed result both written into the test.
+
+The distinction from `AGENTS.md` §10.1 is worth stating plainly, because a later reviewer will
+otherwise misread it. §10.1 forbids hand-*editing* a file under `testdata/golden/`: those files are
+the artifact-parity contract, they are produced mechanically by `tools/gengolden`, and a hand-edited
+one silently invalidates every case that reads it. Nothing here writes to `testdata/golden/`,
+nothing here claims artifact parity, and every expectation is a differentially-obtained value in a
+unit test that names its provenance. Spec 002 §5.3, §5.6, §5.8, §5.21 and §5.22 are all the same
+pattern, and iteration 2 shipped green on them.
 
 ---
 
@@ -725,6 +804,31 @@ Each is a unit test. None requires the conformance suite.
       (behavior 21, edge case 4).
 - [ ] `doi_url` does not appear in the field order (behavior 22).
 
+**Combinations no golden covers** (§5.1; expectations differentially obtained per §7.4, each test
+naming its provenance)
+
+- [ ] An `EducationEntry` with `degree` omitted validates with zero errors and reports `degree`
+      absent — not empty text (§5.22).
+- [ ] An `EducationEntry` and an `ExperienceEntry` each carrying a real bare `date` alongside
+      `start_date` and `end_date` reach spec 002 §3.77 step 1: `date` is kept, both range fields
+      are cleared, no diagnostic (§5.23).
+- [ ] A `NormalEntry`, `ExperienceEntry`, `EducationEntry` and `PublicationEntry` each with a
+      non-blank `summary` validate with zero errors and retain the text verbatim (§5.25).
+- [ ] The `doi`/`url` interaction across all four states (§5.24, behaviors 21–23), as one table
+      test:
+
+      | `doi` | `url` | Expected |
+      |---|---|---|
+      | absent | absent | both absent, `doi_url` absent |
+      | `10.1007/978-3-319-69626-3_101-1` | absent | `doi` kept, `url` absent, `doi_url` set |
+      | absent | `https://example.com` | `url` kept, `doi` absent, `doi_url` absent |
+      | `10.1007/978-3-319-69626-3_101-1` | `https://example.com` | `doi` kept, `url` silently cleared, `doi_url` set, **no error** |
+
+      The two values are upstream's own (`tests/renderer/conftest.py:282-283`), taken from the dead
+      fixture of §5.27 so the port's inputs match the only inputs upstream ever chose.
+- [ ] `end_date: present` needs no new test — it is golden-covered (§5.26). A criterion asserting
+      it here is redundant and should not be added.
+
 **Discrimination and section wiring**
 
 - [ ] The characteristic table computed from the real registry equals behavior 34 exactly, and the
@@ -769,8 +873,11 @@ Each is a unit test. None requires the conformance suite.
 
 ## 9. Corpus additions
 
-**None for `tools/gengolden`.** Per §7.1 no corpus case can exercise this iteration until the
-renderer exists, and the goldens are not regenerated (that is a human gate, `AGENTS.md` §5).
+**None, and no golden refresh.** Two independent reasons, per §7.1: no corpus case can be *checked*
+until the renderer exists, and every one of the nine entry types is already *exercised* by the
+existing 42 cases (§5.1). `tools/gengolden` is not run, `testdata/golden/` is not touched, and no
+human gate is requested. The uncovered optional-field combinations of §5.1 are covered by the
+differential unit tests of §7.4, not by fixtures.
 
 One **read-only submodule fixture** is added instead, per §8's last criterion:
 `tests/schema/testdata/test_pydantic_error_handling/wrong_input.yaml` is consumed directly from
