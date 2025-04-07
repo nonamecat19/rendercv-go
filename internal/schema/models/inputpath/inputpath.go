@@ -1,6 +1,6 @@
-// Package models mirrors src/rendercv/schema/models/path.py: the two
+// Package inputpath mirrors src/rendercv/schema/models/path.py: the two
 // relative-to-input path types and their resolution and serialization rules.
-package models
+package inputpath
 
 import (
 	"fmt"

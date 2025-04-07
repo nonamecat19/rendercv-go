@@ -2,7 +2,7 @@ package cv
 
 import (
 	"github.com/nonamecat19/rendercv-go/internal/schema/binder"
-	"github.com/nonamecat19/rendercv-go/internal/schema/models"
+	"github.com/nonamecat19/rendercv-go/internal/schema/models/inputpath"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/valctx"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
@@ -83,7 +83,7 @@ const (
 // HTTP URL.
 type Photo struct {
 	Kind PhotoKind
-	Path models.ExistingPathRelativeToInput
+	Path inputpath.ExistingPathRelativeToInput
 	URL  string
 }
 
@@ -100,7 +100,7 @@ type Photo struct {
 // scalar-or-list routing was in T18 — the resolver exists and is tested on
 // its own; the spine connects it to the model when the renderer needs it.
 func ResolvePhoto(raw string, ctx *valctx.ValidationContext) *Photo {
-	if path, err := models.ResolveExistingPath(raw, ctx); err == nil {
+	if path, err := inputpath.ResolveExistingPath(raw, ctx); err == nil {
 		return &Photo{Kind: PhotoKindPath, Path: path}
 	}
 	return &Photo{Kind: PhotoKindURL, URL: raw}
