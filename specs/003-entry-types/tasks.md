@@ -167,8 +167,9 @@ covered by this task's unit tests and by nothing else, ever (spec §5.24, plan �
 Extra tests: the `doi` rejection produces §4.1 with the pattern text verbatim; `doi_url` for
 `10.1109/TASC.2023.3340648` and for absent (spec §5.3); `doi_url` byte-preserving for
 `10. spaced ?`, `10.###`, `10.5\n`; `doi = "10." + 2100×"a"` → §4.2 with an **empty** schema
-location; `{doi, url}` → `url` absent, no error; `authors: "scalar"` → §4.5 plus §4.3 on `title`,
-in that order; `authors: [1, 2]` → two §4.4 at indices 0 and 1; `start_date: not-a-date` accepted
+location; `{doi, url}` → `url` absent, no error; `authors: "scalar"` → §4.3 on `title` **then**
+§4.5 on `authors`, in that order — declaration order, as spec §5.10 says and as T3 measured
+against the vendored Python (an earlier draft of this line had the two reversed); `authors: [1, 2]` → two §4.4 at indices 0 and 1; `start_date: not-a-date` accepted
 and retained with no error (spec §5.6); a non-blank `summary` retained verbatim (spec §5.25);
 `doi_url` absent from the field order.
 
