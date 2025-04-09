@@ -1,0 +1,150 @@
+{
+  "_generated": "GENERATED FILE — never hand-edit (AGENTS.md §10.1). Produced by tools/entryprobe from third_party/rendercv; regenerate with `just entryprobe`.",
+  "available_entry_type_names": [
+    "OneLineEntry",
+    "NormalEntry",
+    "ExperienceEntry",
+    "EducationEntry",
+    "PublicationEntry",
+    "BulletEntry",
+    "NumberedEntry",
+    "ReversedNumberedEntry",
+    "TextEntry"
+  ],
+  "field_orders": [
+    {
+      "type": "OneLineEntry",
+      "fields": [
+        "label",
+        "details"
+      ]
+    },
+    {
+      "type": "NormalEntry",
+      "fields": [
+        "name",
+        "date",
+        "start_date",
+        "end_date",
+        "location",
+        "summary",
+        "highlights"
+      ]
+    },
+    {
+      "type": "ExperienceEntry",
+      "fields": [
+        "company",
+        "position",
+        "date",
+        "start_date",
+        "end_date",
+        "location",
+        "summary",
+        "highlights"
+      ]
+    },
+    {
+      "type": "EducationEntry",
+      "fields": [
+        "institution",
+        "area",
+        "degree",
+        "date",
+        "start_date",
+        "end_date",
+        "location",
+        "summary",
+        "highlights"
+      ]
+    },
+    {
+      "type": "PublicationEntry",
+      "fields": [
+        "title",
+        "authors",
+        "summary",
+        "doi",
+        "url",
+        "journal",
+        "date"
+      ]
+    },
+    {
+      "type": "BulletEntry",
+      "fields": [
+        "bullet"
+      ]
+    },
+    {
+      "type": "NumberedEntry",
+      "fields": [
+        "number"
+      ]
+    },
+    {
+      "type": "ReversedNumberedEntry",
+      "fields": [
+        "reversed_number"
+      ]
+    }
+  ],
+  "characteristic_entry_fields": [
+    {
+      "type": "OneLineEntry",
+      "fields": [
+        "details",
+        "label"
+      ]
+    },
+    {
+      "type": "NormalEntry",
+      "fields": [
+        "name"
+      ]
+    },
+    {
+      "type": "ExperienceEntry",
+      "fields": [
+        "company",
+        "position"
+      ]
+    },
+    {
+      "type": "EducationEntry",
+      "fields": [
+        "area",
+        "degree",
+        "institution"
+      ]
+    },
+    {
+      "type": "PublicationEntry",
+      "fields": [
+        "authors",
+        "doi",
+        "journal",
+        "title",
+        "url"
+      ]
+    },
+    {
+      "type": "BulletEntry",
+      "fields": [
+        "bullet"
+      ]
+    },
+    {
+      "type": "NumberedEntry",
+      "fields": [
+        "number"
+      ]
+    },
+    {
+      "type": "ReversedNumberedEntry",
+      "fields": [
+        "reversed_number"
+      ]
+    }
+  ]
+}
