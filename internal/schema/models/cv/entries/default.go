@@ -8,10 +8,21 @@ package entries
 // `get_entry_type_name_and_section_model` iterates `characteristic_entry_fields`
 // and takes the first type whose characteristic fields intersect the entry's keys
 // (`section.py:148-154`). It is deliberately **not** the import order at
-// `section.py:11-18`, which is alphabetical by module filename.
+// `section.py:11-18`, which is alphabetical by module filename — porting that
+// order instead would change which type an ambiguous entry resolves to.
 //
-// TODO(iteration-3): T17 fills this in. It is empty on purpose so that T6's
-// conformance test lands red against the generated fixture, per tasks 003 T6.
+// The descriptors are listed literally rather than collected through per-file
+// `init()` registration: `init()` runs in filename order within a package, which
+// is exactly the alphabetical order this must not be (plan §8).
 func Default() *Registry {
-	return NewRegistry()
+	return NewRegistry(
+		OneLineDescriptor(),
+		NormalDescriptor(),
+		ExperienceDescriptor(),
+		EducationDescriptor(),
+		PublicationDescriptor(),
+		BulletDescriptor(),
+		NumberedDescriptor(),
+		ReversedNumberedDescriptor(),
+	)
 }
