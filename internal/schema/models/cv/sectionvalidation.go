@@ -3,6 +3,7 @@ package cv
 import (
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv/entries"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
@@ -30,21 +31,39 @@ const (
 
 // EntryValidator validates one entry against a decided entry type.
 //
-// TODO(iteration-3): the eight concrete entry types are iteration 3's (spec
-// §7). Until they exist, the registered validator accepts everything, so the
-// inference and error-shaping rules of spec §3.53–§3.61 can be tested on their
-// own.
+// reference is the date `present` resolves to (spec 002 §3.73 case 5), taken
+// from the validation context rather than the clock so that a pinned
+// `settings.current_date` gives reproducible output.
 type EntryValidator func(
 	node *yamldoc.Node,
 	entryType entries.TypeName,
 	location []string,
 	source schemaerr.YamlSource,
+	reference time.Time,
 ) []schemaerr.ValidationError
 
+// entryValidator is the real dispatcher as of iteration 3 T19. Iteration 2
+// registered an accept-everything stub here so the inference and error-shaping
+// rules of spec §3.53-§3.61 could be tested before the concrete types existed;
+// that stub is gone, and the only remaining swap is the test seam in
+// export_test.go.
+//
+// An unregistered type name is a programming error rather than user input, so it
+// surfaces as a panic instead of being folded into the returned errors: the
+// caller has already discriminated the type, so this cannot be reached by any
+// document.
 var entryValidator EntryValidator = func(
-	*yamldoc.Node, entries.TypeName, []string, schemaerr.YamlSource,
+	node *yamldoc.Node,
+	entryType entries.TypeName,
+	location []string,
+	source schemaerr.YamlSource,
+	reference time.Time,
 ) []schemaerr.ValidationError {
-	return nil
+	errs, err := entries.Validate(node, entryType, location, source, reference)
+	if err != nil {
+		panic(err)
+	}
+	return errs
 }
 
 // InferEntryType mirrors the per-entry inference of spec §3.58
@@ -96,6 +115,7 @@ func ValidateSection(
 	registry *entries.Registry,
 	location []string,
 	source schemaerr.YamlSource,
+	reference time.Time,
 ) (entries.TypeName, []schemaerr.ValidationError) {
 	// Spec §3.53: a section value must be a list.
 	if node == nil || node.Kind != yamldoc.KindSequence {
@@ -135,7 +155,7 @@ func ValidateSection(
 	for i, elem := range node.Elems {
 		children = append(
 			children,
-			entryValidator(elem, entryType, elemLocation(location, i), source)...,
+			entryValidator(elem, entryType, elemLocation(location, i), source, reference)...,
 		)
 	}
 	if len(children) > 0 {

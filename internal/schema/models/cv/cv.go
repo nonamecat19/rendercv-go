@@ -111,10 +111,14 @@ type Options struct {
 }
 
 // validateFields runs the per-field validators the model owns. `design`,
-// `locale` and `settings` have no models yet (iterations 6 and 7), and the
-// top-level model cannot call this one — `models` would import `cv`, which
-// already imports `models` for the context and path types. Connecting those two
-// is iteration 3's, when the concrete entry types arrive.
+// `locale` and `settings` have no models yet (iterations 6 and 7). The top-level
+// model reaches this through models.Validate as of iteration 3 T20: the import
+// cycle that used to block it is gone, because the context and path types moved
+// to models/valctx and models/inputpath (T1, T2).
+//
+// The reference date comes from the context rather than the clock, so a pinned
+// `settings.current_date` renders reproducibly. A nil context yields today,
+// which is what upstream's get_current_date does (validation_context.py:36-58).
 func (c *Cv) validateFields(
 	location []string,
 	source schemaerr.YamlSource,
@@ -161,6 +165,7 @@ func (c *Cv) validateFields(
 		for _, item := range c.Sections.Items {
 			_, sectionErrs := ValidateSection(
 				item.Value, opts.Registry, fieldLocation(base, item.Key), source,
+				opts.Context.Today(),
 			)
 			errs = append(errs, sectionErrs...)
 		}

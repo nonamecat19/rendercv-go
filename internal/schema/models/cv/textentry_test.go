@@ -3,6 +3,7 @@ package cv_test
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv/entries/bases"
@@ -27,6 +28,7 @@ func TestTextEntryValidatesWithZeroErrors(t *testing.T) {
 			fixtureRegistry(),
 			[]string{"cv", "sections", "x"},
 			schemaerr.SourceMain,
+			time.Date(2025, 11, 3, 0, 0, 0, 0, time.UTC),
 		)
 		if len(errs) != 0 {
 			t.Errorf("ValidateSection(%q) errs = %+v, want none", src, errs)

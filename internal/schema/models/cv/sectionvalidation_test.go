@@ -2,12 +2,18 @@ package cv_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv/entries"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
 )
+
+// sectionReference is the date `present` resolves to in these tests. Fixed
+// rather than time.Now(), so a section carrying `end_date: present` is
+// reproducible (spec 002 §3.73 case 5).
+var sectionReference = time.Date(2025, 11, 3, 0, 0, 0, 0, time.UTC)
 
 // fixtureRegistry is the real registry (spec §3.56, §7.1). Iteration 2 stood in
 // a hand-written one here because the concrete entry types did not exist yet;
@@ -25,7 +31,7 @@ func section(t *testing.T, src string) *yamldoc.Node {
 // Spec §3.53, §4.8 — a section value must be a list.
 func TestSectionMustBeAList(t *testing.T) {
 	for _, src := range []string{"  a: 1\n", "  just text\n"} {
-		_, errs := cv.ValidateSection(section(t, src), fixtureRegistry(), []string{"cv", "sections", "x"}, schemaerr.SourceMain)
+		_, errs := cv.ValidateSection(section(t, src), fixtureRegistry(), []string{"cv", "sections", "x"}, schemaerr.SourceMain, sectionReference)
 		if len(errs) != 1 {
 			t.Fatalf("errs = %+v, want exactly one", errs)
 		}
@@ -38,7 +44,7 @@ func TestSectionMustBeAList(t *testing.T) {
 
 // Spec §3.54 — an empty list infers nothing and produces no error.
 func TestEmptySection(t *testing.T) {
-	entryType, errs := cv.ValidateSection(section(t, "  []\n"), fixtureRegistry(), nil, schemaerr.SourceMain)
+	entryType, errs := cv.ValidateSection(section(t, "  []\n"), fixtureRegistry(), nil, schemaerr.SourceMain, sectionReference)
 	if len(errs) != 0 {
 		t.Fatalf("errs = %+v, want none", errs)
 	}
@@ -97,27 +103,45 @@ func TestDiscriminationPriority(t *testing.T) {
 	}
 }
 
-// Spec §3.59, §5.6 — the first resolvable entry decides; a null entry is skipped,
-// so §4.10 never surfaces here.
+// Spec §3.59, §5.6 — the first resolvable entry decides; a null entry is skipped
+// during inference, so §4.10 never surfaces here.
+//
+// Inference skipping the null does not make the null valid: every entry is then
+// validated against the decided type, and the null fails as a non-mapping.
+// Verified upstream — this exact section reports
+// `rendercv_entry_validation_error`, not the null-entry error. Iteration 2
+// asserted no errors here only because the registered validator accepted
+// everything (T19 replaced it).
 func TestFirstResolvableEntryWins(t *testing.T) {
 	entryType, errs := cv.ValidateSection(
 		section(t, "  - null\n  - institution: MIT\n"),
-		fixtureRegistry(), nil, schemaerr.SourceMain,
+		fixtureRegistry(), nil, schemaerr.SourceMain, sectionReference,
 	)
-	if len(errs) != 0 {
-		t.Fatalf("errs = %+v, want none", errs)
-	}
 	if entryType != "EducationEntry" {
 		t.Errorf("entry type = %q, want EducationEntry", entryType)
 	}
+
+	if len(errs) != 1 {
+		t.Fatalf("errs = %+v, want exactly the entry-problems wrapper", errs)
+	}
+	if errs[0].Message == messageNullEntryText {
+		t.Errorf("errs[0] is the null-entry error, which inference must have skipped")
+	}
+	if len(errs[0].Children) == 0 {
+		t.Errorf("wrapper carries no children, want the per-entry failures")
+	}
 }
+
+// messageNullEntryText is spec 002 §4.10, the error inference must never produce
+// for a skipped null (section.py:167-171).
+const messageNullEntryText = "The entry cannot be None."
 
 // Spec §3.60, §4.11, §5.6 — nothing resolves, including the `[null]` case.
 func TestNoEntryResolves(t *testing.T) {
 	want := "RenderCV couldn't match this section with any entry types." +
 		" Please check the entries and make sure they are provided correctly."
 	for _, src := range []string{"  - null\n", "  - x: 1\n", "  - x: 1\n  - y: 2\n"} {
-		_, errs := cv.ValidateSection(section(t, src), fixtureRegistry(), nil, schemaerr.SourceMain)
+		_, errs := cv.ValidateSection(section(t, src), fixtureRegistry(), nil, schemaerr.SourceMain, sectionReference)
 		if len(errs) != 1 {
 			t.Fatalf("%q: errs = %+v, want exactly one", src, errs)
 		}
@@ -131,7 +155,8 @@ func TestNoEntryResolves(t *testing.T) {
 // failures are re-raised with the type named and the children preserved.
 func TestEntryProblemsAreNested(t *testing.T) {
 	restore := cv.SetEntryValidatorForTest(func(
-		node *yamldoc.Node, entryType entries.TypeName, location []string, source schemaerr.YamlSource,
+		node *yamldoc.Node, entryType entries.TypeName, location []string,
+		source schemaerr.YamlSource, _ time.Time,
 	) []schemaerr.ValidationError {
 		if node.Kind != yamldoc.KindMapping {
 			return nil
@@ -147,7 +172,7 @@ func TestEntryProblemsAreNested(t *testing.T) {
 
 	_, errs := cv.ValidateSection(
 		section(t, "  - bullet: A point\n  - x: 1\n"),
-		fixtureRegistry(), []string{"cv", "sections", "x"}, schemaerr.SourceMain,
+		fixtureRegistry(), []string{"cv", "sections", "x"}, schemaerr.SourceMain, sectionReference,
 	)
 	if len(errs) != 1 {
 		t.Fatalf("errs = %+v, want exactly one", errs)
@@ -169,7 +194,8 @@ func TestEntryProblemsAreNested(t *testing.T) {
 // the next one that does, and the bad entry is then reported against that type.
 func TestTypeNamedIsTheResolvedOne(t *testing.T) {
 	restore := cv.SetEntryValidatorForTest(func(
-		node *yamldoc.Node, _ entries.TypeName, location []string, source schemaerr.YamlSource,
+		node *yamldoc.Node, _ entries.TypeName, location []string,
+		source schemaerr.YamlSource, _ time.Time,
 	) []schemaerr.ValidationError {
 		if _, ok := cv.MappingKey(node, "bullet"); ok {
 			return nil
@@ -182,7 +208,7 @@ func TestTypeNamedIsTheResolvedOne(t *testing.T) {
 
 	entryType, errs := cv.ValidateSection(
 		section(t, "  - x: 1\n  - bullet: A point\n"),
-		fixtureRegistry(), nil, schemaerr.SourceMain,
+		fixtureRegistry(), nil, schemaerr.SourceMain, sectionReference,
 	)
 	if entryType != "BulletEntry" {
 		t.Fatalf("entry type = %q, want BulletEntry", entryType)
@@ -196,7 +222,8 @@ func TestTypeNamedIsTheResolvedOne(t *testing.T) {
 // entry's type and reports the other entries against it.
 func TestMixedSectionNamesFirstResolvedType(t *testing.T) {
 	restore := cv.SetEntryValidatorForTest(func(
-		node *yamldoc.Node, entryType entries.TypeName, location []string, source schemaerr.YamlSource,
+		node *yamldoc.Node, entryType entries.TypeName, location []string,
+		source schemaerr.YamlSource, _ time.Time,
 	) []schemaerr.ValidationError {
 		// Stand-in for the concrete types of iteration 3: an entry belongs to
 		// the decided type only if it carries that type's characteristic field.
@@ -215,7 +242,7 @@ func TestMixedSectionNamesFirstResolvedType(t *testing.T) {
 
 	entryType, errs := cv.ValidateSection(
 		section(t, "  - institution: MIT\n    degree: BS\n  - company: Acme\n    position: Engineer\n"),
-		fixtureRegistry(), []string{"cv", "sections", "mixed"}, schemaerr.SourceMain,
+		fixtureRegistry(), []string{"cv", "sections", "mixed"}, schemaerr.SourceMain, sectionReference,
 	)
 
 	if entryType != "EducationEntry" {
@@ -228,5 +255,37 @@ func TestMixedSectionNamesFirstResolvedType(t *testing.T) {
 	}
 	if len(errs[0].Children) != 1 {
 		t.Errorf("children = %+v, want the experience entry's failure nested", errs[0].Children)
+	}
+}
+
+// T19's guarantee: the validator reached through cv.Validate is the real
+// dispatcher, not iteration 2's accept-everything stub. Asserted by giving a
+// production path an entry that must fail and requiring that it does — a stub
+// would return no errors and this test would catch it.
+//
+// The reference date defaults through a nil context to today, matching
+// get_current_date (validation_context.py:36-58).
+func TestProductionPathRejectsABadEntry(t *testing.T) {
+	_, errs := cv.Validate(
+		parse(t, "sections:\n  education:\n    - institution: MIT\n"),
+		[]string{"cv"}, schemaerr.SourceMain, testOptions(),
+	)
+	if len(errs) == 0 {
+		t.Fatal("errs is empty: an EducationEntry without `area` must fail, so the" +
+			" registered validator is still accepting everything")
+	}
+
+	var sawMissingArea bool
+	for _, err := range errs {
+		for _, child := range err.Children {
+			if child.Code == "missing" &&
+				len(child.SchemaLocation) > 0 &&
+				child.SchemaLocation[len(child.SchemaLocation)-1] == "area" {
+				sawMissingArea = true
+			}
+		}
+	}
+	if !sawMissingArea {
+		t.Errorf("errs = %+v, want a nested `missing` on `area`", errs)
 	}
 }
