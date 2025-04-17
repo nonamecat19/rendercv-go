@@ -1,6 +1,7 @@
 package models_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/binder"
@@ -129,5 +130,95 @@ func TestKnownKeysBind(t *testing.T) {
 		if node == nil {
 			t.Errorf("%s = nil, want a bound node", name)
 		}
+	}
+}
+
+// Spec 003 §3.19 behavior 44, §6.3, §6.4 — `cv` is validated through the
+// top-level model. Iteration 2 could not do this: models/cv imported models for
+// the context and path types, so the call would have closed an import cycle
+// (specs/STATE.md, iteration 2 carried item 2).
+//
+// Every row was measured against the vendored Python with
+// RenderCVModel.model_validate.
+func TestValidateValidatesCv(t *testing.T) {
+	tests := []struct {
+		name      string
+		src       string
+		wantCodes []schemaerr.Code
+		wantPath  string
+	}{
+		{
+			// Upstream: `RenderCVModel.model_validate({})` validates. Every field
+			// has a default (spec §3.28).
+			name: "an absent cv is not an error",
+			src:  "design:\n  theme: classic\n",
+		},
+		{
+			// Upstream reports model_type at ('cv',) — and nothing else.
+			name:      "a null cv is a model-type error",
+			src:       "cv: null\n",
+			wantCodes: []schemaerr.Code{"model_type"},
+			wantPath:  "cv",
+		},
+		{
+			// Upstream reports rendercv_entry_validation_error at
+			// ('cv', 'sections', 'education').
+			name:      "a bad section reports through the top level",
+			src:       "cv:\n  sections:\n    education:\n      - institution: MIT\n",
+			wantCodes: []schemaerr.Code{"rendercv_other_error"},
+			wantPath:  "cv.sections.education",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, errs := models.Validate(
+				parse(t, test.src), &valctx.ValidationContext{}, schemaerr.SourceMain,
+			)
+
+			if len(errs) != len(test.wantCodes) {
+				t.Fatalf("errs = %+v, want %d", errs, len(test.wantCodes))
+			}
+			for i, code := range test.wantCodes {
+				if errs[i].Code != code {
+					t.Errorf("errs[%d].Code = %q, want %q", i, errs[i].Code, code)
+				}
+			}
+			if test.wantPath != "" {
+				if got := strings.Join(errs[0].SchemaLocation, "."); got != test.wantPath {
+					t.Errorf("location = %q, want %q", got, test.wantPath)
+				}
+			}
+		})
+	}
+}
+
+// The bound `cv` is reachable, not merely validated and discarded.
+func TestValidateExposesTheBoundCv(t *testing.T) {
+	model, errs := models.Validate(
+		parse(t, "cv:\n  name: John Doe\n"), &valctx.ValidationContext{}, schemaerr.SourceMain,
+	)
+	if len(errs) != 0 {
+		t.Fatalf("errs = %+v, want none", errs)
+	}
+	if model.CvModel == nil {
+		t.Fatal("CvModel is nil, want the bound cv")
+	}
+	if model.Cv == nil {
+		t.Error("Cv is nil, want the raw node kept beside the bound model")
+	}
+}
+
+// An absent `cv` leaves the bound model nil rather than an empty one, so a caller
+// can tell "not supplied" from "supplied and empty".
+func TestValidateLeavesAnAbsentCvNil(t *testing.T) {
+	model, errs := models.Validate(
+		parse(t, "design:\n  theme: classic\n"), &valctx.ValidationContext{}, schemaerr.SourceMain,
+	)
+	if len(errs) != 0 {
+		t.Fatalf("errs = %+v, want none", errs)
+	}
+	if model.CvModel != nil {
+		t.Errorf("CvModel = %+v, want nil", model.CvModel)
 	}
 }
