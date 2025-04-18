@@ -49,9 +49,15 @@ func codeFor(message string) (schemaerr.Code, bool) {
 	// The two interpolated messages cannot be table keys.
 	switch {
 	case strings.HasPrefix(message, "There are problems with the entries."):
-		return "rendercv_other_error", true
+		// section.py:230 raises entry_validation, not other — the one section
+		// error that differs. Verified: all seven wrappers in this fixture carry
+		// rendercv_entry_validation_error.
+		return "rendercv_entry_validation_error", true
 	case strings.HasPrefix(message, "`start_date` cannot be after `end_date`."):
-		return "value_error", true
+		// entry_with_complex_fields.py:161-169 raises PydanticCustomError(other),
+		// not a bare ValueError, so this is rendercv_other_error and not
+		// value_error. Verified against the vendored Python.
+		return "rendercv_other_error", true
 	}
 	return "", false
 }

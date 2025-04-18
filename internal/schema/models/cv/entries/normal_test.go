@@ -150,16 +150,24 @@ func TestNormalNullNameIsStringType(t *testing.T) {
 // Spec §5.21 — spec 002 §5.23's rejection table reached through this concrete
 // type rather than through a bare BaseEntryWithComplexFields.
 func TestNormalDateRejections(t *testing.T) {
+	// The codes differ per row and that is upstream's doing, not an accident:
+	// `start_date`/`end_date` failures are raised as
+	// PydanticCustomError(CustomPydanticErrorTypes.other)
+	// (entry_with_complex_fields.py:31-36, :161-169), while the arbitrary `date`
+	// lets a bare ValueError through (entry_with_date.py:26-29), which pydantic
+	// reports as value_error. Measured on all three rows.
 	tests := []struct {
 		name     string
 		input    string
 		location []string
+		code     schemaerr.Code
 		message  string
 	}{
 		{
 			name:     "start_date aaa",
 			input:    "name: n\nstart_date: aaa\n",
 			location: append(normalLocation(), "start_date"),
+			code:     bases.CodeDateOther,
 			message: "This is not a valid date! Please use either YYYY-MM-DD, YYYY-MM," +
 				" or YYYY format.",
 		},
@@ -167,6 +175,7 @@ func TestNormalDateRejections(t *testing.T) {
 			name:     "start_date after end_date",
 			input:    "name: n\nstart_date: 2023-01-01\nend_date: 2021-01-01\n",
 			location: normalLocation(),
+			code:     bases.CodeDateOther,
 			message: "`start_date` cannot be after `end_date`. The `start_date` is 2023-01-01" +
 				" and the `end_date` is 2021-01-01.",
 		},
@@ -174,6 +183,7 @@ func TestNormalDateRejections(t *testing.T) {
 			name:     "date 2020-20-20",
 			input:    "name: n\ndate: 2020-20-20\n",
 			location: append(normalLocation(), "date"),
+			code:     bases.CodeDateValue,
 			message:  "month must be in 1..12",
 		},
 	}
@@ -184,8 +194,8 @@ func TestNormalDateRejections(t *testing.T) {
 			if len(errs) != 1 {
 				t.Fatalf("errs = %+v, want exactly one", errs)
 			}
-			if errs[0].Code != bases.CodeDateValue {
-				t.Errorf("code = %q, want %q", errs[0].Code, bases.CodeDateValue)
+			if errs[0].Code != test.code {
+				t.Errorf("code = %q, want %q", errs[0].Code, test.code)
 			}
 			if errs[0].Message != test.message {
 				t.Errorf("message = %q, want %q", errs[0].Message, test.message)

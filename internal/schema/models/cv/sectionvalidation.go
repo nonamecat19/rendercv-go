@@ -14,9 +14,22 @@ import (
 // a model (spec §3.57, section.py:37-39).
 const TextEntry entries.TypeName = "TextEntry"
 
-// CodeSection marks every section-level failure. Upstream raises them all as
-// the same custom pydantic error type (section.py:159, :170, :215, :231, :241).
+// CodeSection marks a section-level failure. Four of the five section errors
+// use it: `section.py:158`, `:169`, `:214` and `:240` all raise
+// `CustomPydanticErrorTypes.other`.
 const CodeSection schemaerr.Code = "rendercv_other_error"
+
+// CodeEntryProblems marks the entry-problems wrapper, which is the one section
+// error upstream raises as a *different* type —
+// `CustomPydanticErrorTypes.entry_validation` (`section.py:230`), not `.other`.
+//
+// The distinction is load-bearing rather than cosmetic: iteration 4's error
+// pipeline keys off this type to unpack `ctx["caused_by"]` into child rows
+// (`pydantic_error_handling.py:158-165`), and raises an internal error when a
+// wrapper of this type arrives without that context (`:153-157`). Verified
+// against the vendored Python, where all seven wrappers produced by
+// `wrong_input.yaml` carry `rendercv_entry_validation_error`.
+const CodeEntryProblems schemaerr.Code = "rendercv_entry_validation_error"
 
 // The five section messages of spec §4.8–§4.12, verbatim.
 const (
@@ -160,6 +173,7 @@ func ValidateSection(
 	}
 	if len(children) > 0 {
 		problems := sectionError(fmt.Sprintf(messageEntryProblems, entryType), node, location, source)
+		problems.Code = CodeEntryProblems
 		problems.Children = children
 		return entryType, []schemaerr.ValidationError{problems}
 	}
