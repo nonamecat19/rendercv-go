@@ -1077,6 +1077,19 @@ This is not a valid date! Please use either YYYY-MM-DD, YYYY-MM, or YYYY format.
     filtered away by §3.3, they dedup to one, and the surviving message matches no dictionary row
     (row 2's key is longer than the message, and containment runs the other way). `date: true`
     is **accepted**.
+11a. **A non-scalar `date` and a non-scalar `start_date` produce different surviving messages.**
+    §3.9b behaviors 33d–33f. `date: {a: 1}` reports `Input should be a valid integer.` and
+    `start_date: {a: 1}` reports `Input should be a valid string.`, from a two-record collapse in
+    each case, because the two fields declare their union arms in opposite orders. This is the
+    single best test that §3.3's filter and §3.8's dedup are both implemented: any port that
+    short-cuts to one record per field gets one of the two wrong.
+11b. **A non-scalar `end_date` produces three raw failures and one record.** §3.9b behavior 33d.
+    All three collapse to `("end_date",)` and §3.5's override replaces the message with §4.12, so
+    the union order is unobservable here.
+11c. **Entry failures come in the entry's declared field order, with date failures interleaved.**
+    §3.9a behavior 33a's four-row table. Iteration 3 emitted all four backwards
+    (`specs/STATE.md` → *Cut scope* → *Iteration 3*, item 1) and §3.9a behavior 33c is why that is
+    a correctness bug rather than a presentation one.
 12. **`highlights` given a scalar reports the list message.** Measured: `highlights: nope` →
     §5's row for `Input should be a valid list` → `This field should contain a list of items but
     it doesn't.` Same as `expected_errors.yaml:135-139` for `authors`.
@@ -1128,6 +1141,12 @@ This is not a valid date! Please use either YYYY-MM-DD, YYYY-MM, or YYYY format.
    `internal/schema/binder/binder.go:177`, and it is measured, not inferred.
 3. **A wrapper's record precedes its children's, and its children keep their own order.** §3.7
    behavior 21.
+3a. **Within one entry, failures follow the entry's declared field order, with date failures
+   interleaved at their declared position.** §3.9a. This is the order iteration 3 got backwards,
+   and §3.9a behavior 33c makes it a prerequisite of rule 4 rather than a sibling of it.
+3b. **Within one field's union, branch failures follow the declared arm order** — `int` then `str`
+   for `date`, `str` then `int` for `start_date`. §3.9b behavior 33d. Observable only through
+   rule 4, which is the point.
 4. **Deduplication is order-preserving and keeps the first.** §3.8 behavior 27.
 5. **The dictionary is scanned in file order** and the first containment match wins. Two rows map
    to the same replacement (rows 9 and 10), so their relative order is unobservable; every other
@@ -1174,17 +1193,27 @@ Carried items from `specs/STATE.md` → *Cut scope → Iteration 2*, resolved he
   Go-side expectations) — assigned here, because §7.2's decision makes the probe's output the
   source of the coordinate fixture.
 
-Iteration 3's carried item, resolved here:
+Carried items from `specs/STATE.md` → *Cut scope* → *Iteration 3*, resolved here:
 
-- `PublicationEntry.url` normalization was flagged, not diverged (spec 003 §7.3). §7.1 settles
+- **Item 1 — entry error ordering.** The composed binder field order is `[base fields] ++ [own
+  fields]`, the reverse of what upstream produces, and date failures are appended after all bind
+  failures rather than emitted at their declared position. §3.9a is the normative behavior and
+  §3.9a behavior 33c is why it must land **before** anything consumes the error list: §3.8's dedup
+  keeps the first record at a location, so a wrongly-ordered list makes it keep the wrong one. The
+  descriptors already carry the correct order (spec 003 §3.2), so part of the fix is feeding the
+  binder the descriptor order; interleaving the date failures touches all three base binders plus
+  `publication.go`.
+- **Item 2 — a non-scalar `date` / `start_date` / `end_date` produces no failure at all.** §3.9b is
+  the normative behavior. It is cheaper here than in iteration 3 because the correct end state is
+  *one* record per field, reached by emitting the union-branch pair in declared order and letting
+  §3.3's filter and §3.8's dedup run — not by hand-picking a message.
+- **`PublicationEntry.url` normalization** was flagged, not diverged (spec 003 §7.3). §7.1 settles
   it: it is reproducible, no divergence is needed, and the registered seam at
   `internal/schema/models/cv/entries/publication.go:53` gets its one real implementation.
-
-**Iteration 3's own verification is in flight at the time of writing.** Everything in this
-section that depends on iteration 3 depends only on the *seams* it registered
-(`httpURLValidators`, `entryValidator`) and on the `TODO(iteration-4)` markers enumerated in
-`tasks.md`. If iteration 3 is re-scoped, only this paragraph and the affected `tasks.md` rows need
-amending; no behavior in §3–§6 is contingent on it.
+- **The three error codes iteration 3 shipped wrong** were fixed in `9ddd896`. §3.9c records the
+  measured values this iteration dispatches on and warns that **any code asserted in the existing
+  Go tests is suspect until measured** — three of iteration 3's own tests asserted the port's codes
+  rather than upstream's, which is how the defect stayed green.
 
 Nine decisions recorded so they are not relitigated:
 
@@ -1354,6 +1383,28 @@ differential; everything else is a unit test.
 - [ ] §3.9 behavior 32's six-part ordering rule, with the measured seven-record sequence of
       step 3 as a table test. No sort appears anywhere in the implementation.
 - [ ] `sections` failures follow document order within the field (behavior 33).
+
+**Entry-internal ordering, non-scalar dates, and codes** (the two iteration-3 cut items)
+
+- [ ] §3.9a behavior 33a's four-row table, as a table test on the raw list, **before** the pipeline
+      runs. All four currently fail.
+- [ ] A date failure appears at the date field's declared position, not appended
+      (behavior 33b) — asserted with the three-error `ExperienceEntry` row.
+- [ ] Every one of the eight entry types reports its failures in the declared order of spec 003
+      §3.3–§3.10, as one table test over the eight, so the composition fix cannot be applied to
+      some types and not others.
+- [ ] §3.9b behavior 33d's three-row raw-branch table: `date` emits int-then-str, `start_date`
+      emits str-then-int, `end_date` emits three.
+- [ ] §3.9b behavior 33e's four-row end-to-end table: exactly one record per field, with
+      `Input should be a valid integer.` for `date`, `Input should be a valid string.` for
+      `start_date`, and §4.12 for `end_date` (§5.11a, §5.11b).
+- [ ] `date: true` is accepted (behavior 33g).
+- [ ] §3.9c behavior 33h's six-row code table, measured against the vendored Python and not copied
+      from the existing Go tests.
+- [ ] Only `rendercv_entry_validation_error` triggers §3.7's unpacking, and only the literal
+      `missing` triggers §3.10's truncation (behavior 33i).
+- [ ] `value_error` messages lose the `Value error, ` prefix and `rendercv_other_error` messages
+      are unchanged by §3.2 step 1 (behavior 33j).
 
 **Coordinates and input**
 
