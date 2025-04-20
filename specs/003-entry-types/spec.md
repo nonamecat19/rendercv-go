@@ -398,7 +398,11 @@ It resolves to `TextEntry` with no model and no fields.
 
 42. Section-level failures all carry `rendercv_other_error`, except the entry-problems wrapper
     which carries `rendercv_entry_validation_error` (`models/custom_error_types.py:4-6`;
-    used at `section.py:158`, `:169`, `:214`, `:230`, `:240`). Iteration 2 already emits both.
+    used at `section.py:158`, `:169`, `:214`, `:230`, `:240`). **Correction, recorded after
+    verification:** an earlier draft of this behavior said "Iteration 2 already emits both". It
+    did not — iteration 2 emitted only `rendercv_other_error` for all five, and the wrapper's
+    type was fixed inside iteration 3 (commit `9ddd896`). Exactly one of the five raise sites,
+    `:230`, is `entry_validation`; the other four are `.other`.
 43. Entry-level failures carry pydantic's own codes, which iteration 4 uses to look up rewrite
     rules. The five this iteration emits are `missing`, `string_type`, `list_type`,
     `string_pattern_mismatch` and `url_too_long`. Verified by running the vendored Python; the
@@ -409,7 +413,7 @@ It resolves to `TextEntry` with no model and no fields.
 44. `models.Validate` must call `cv.Validate` (spec 002 §3.27–§3.31 describe a top-level model
     whose `cv` member is validated; iteration 2 left the call unmade for a package-cycle reason
     recorded in `specs/STATE.md`). After this iteration, validating a document validates its `cv`
-    block, its sections, and its entries in one pass, in document order.
+    block, its sections, and its entries in one pass, in field-declaration order (pydantic's emission order, which is **not** document order).
 45. The entry validator seam iteration 2 injected as a test stub
     (`internal/schema/models/cv/sectionvalidation.go`) must dispatch to the real types. No
     production code path may retain the accept-everything stub.
@@ -718,8 +722,12 @@ would change the contract for no coverage gain (`AGENTS.md` §5).
 **7.2 The registry stays inverted.** Upstream computes the characteristic table at import time
 from the classes (`section.py:36-42`, `:77`). The port keeps spec 002 §7.1's registry and merely
 populates it (behavior 36). Iteration 2's fixture registry is deleted in the same commit that
-adds the real one, and every iteration-2 section test must pass unchanged (behavior 35). This
-changes no observable behavior and gets no entry in `specs/divergences.md`.
+adds the real one. **Correction, recorded after verification:** this section originally required
+that every iteration-2 section test pass unchanged. Three did not, and could not: their fixtures
+were ones the accept-everything stub let pass and that upstream genuinely rejects, so their
+expectations were corrected against the vendored Python. See `specs/STATE.md`, iteration 3 cut
+scope, item 3. This changes no observable behavior and gets no entry in
+`specs/divergences.md`.
 
 **7.3 One parity risk is flagged, not diverged.** `PublicationEntry.url` normalization (§5.5) is
 user-visible in rendered output and Go's standard library does not reproduce it. Rather than
@@ -833,8 +841,10 @@ naming its provenance)
 
 - [ ] The characteristic table computed from the real registry equals behavior 34 exactly, and the
       common set is exactly `{date, start_date, end_date, location, summary, highlights}`.
-- [ ] Every section test iteration 2 wrote passes against the real registry with no edit to the
-      test (behavior 35). The fixture registry is gone from the tree.
+- [ ] The fixture registry is gone from the tree and every iteration-2 section test runs against
+      the real registry. **Not** "with no edit to the test": three tests asserted outcomes only the
+      stub produced and were corrected against upstream (`specs/STATE.md`, iteration 3 cut scope,
+      item 3).
 - [ ] The registry's order is behavior 2's, asserted positionally, not as a set.
 - [ ] The seven `(entry_type_name, section_model_name)` pairs of edge case 15 hold, both from a
       raw mapping and from a constructed entry.
@@ -847,7 +857,7 @@ naming its provenance)
 **Wiring (closes carried items 2 and 6)**
 
 - [ ] `models.Validate` on a document with a `cv` block reports that block's field errors,
-      section errors and entry errors in document order (behavior 44). A stubbed or absent call
+      section errors and entry errors in field-declaration order (pydantic's emission order, which is **not** document order) (behavior 44). A stubbed or absent call
       is a failing criterion.
 - [ ] No production code path reaches the accept-everything entry validator; the injectable seam
       exists only for tests (behavior 45).

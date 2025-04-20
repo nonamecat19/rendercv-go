@@ -18,7 +18,16 @@ import (
 // Spec 003 §3.14 behavior 27, §4 — a string entry is always valid: its
 // validator is the identity, so a section of strings produces no errors.
 func TestTextEntryValidatesWithZeroErrors(t *testing.T) {
+	// The first row is upstream's own `text_entry` fixture
+	// (tests/schema/models/cv/conftest.py:121-128), verbatim, so this test uses the
+	// same bytes upstream does rather than an invented string. The rest cover the
+	// multi-entry and empty-string shapes.
+	const upstreamFixture = "This is a *TextEntry*. It is only a text and can be useful for" +
+		" sections like **Summary**. To showcase the TextEntry completely, this" +
+		" sentence is added, but it doesn't contain any information."
+
 	for _, src := range []string{
+		"  - " + upstreamFixture + "\n",
 		"  - just text\n",
 		"  - first\n  - second\n",
 		"  - \"\"\n",
