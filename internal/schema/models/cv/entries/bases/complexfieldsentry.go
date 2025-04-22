@@ -70,8 +70,17 @@ func BindEntryWithComplexFields(
 	source schemaerr.YamlSource,
 	reference time.Time,
 ) (*BaseEntryWithComplexFields, []schemaerr.ValidationError) {
-	fields := append(append([]binder.Field(nil), complexFields...), extraFields...)
-	withDate, errs := BindEntryWithDate(node, fields, location, source)
+	// Upstream's order for `class X(BaseEntryWithComplexFields, BaseX)`: the own
+	// fields, then the inherited `date`, then the five complex fields
+	// (spec 003 §3.2, verified per type against `model_fields.keys()`). Iteration 3
+	// composed base-first and reversed the two groups; spec 004 §3.9a behavior 33a
+	// is the corrected table.
+	fields := make([]binder.Field, 0, len(extraFields)+len(dateFields)+len(complexFields))
+	fields = append(fields, extraFields...)
+	fields = append(fields, dateFields...)
+	fields = append(fields, complexFields...)
+
+	withDate, errs := bindEntryWithDateFields(node, fields, location, source)
 
 	entry := &BaseEntryWithComplexFields{BaseEntryWithDate: *withDate}
 	entry.Location, _ = withDate.Field("location")
