@@ -18,7 +18,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 1 | Conformance harness (corpus, gengolden, helpers) | [001](001-conformance-harness/spec.md) | green | n/a (42 cases red by design) |
 | 2 | YAML reader + core model (RenderCVModel, CV, Section) | [002](002-yaml-and-core-model/spec.md) | green (with cut scope, see below) | n/a (gated on unit tests, spec §7.2) |
 | 3 | Entry types (9) | [003](003-entry-types/spec.md) | green (with cut scope, see below) | n/a (gated on unit tests, spec §7.1) |
-| 4 | Validation-error parity | — | spec | 0 |
+| 4 | Validation-error parity | [004](004-validation-errors/spec.md) | spec | 0 |
 | 5 | JSON Schema generator | — | — | 0 / 1 |
 | 6 | Design & themes (9) + Lua-scripted custom themes (D-002) | — | — | 0 / 9 |
 | 7 | Locale (English + 21 catalogs) + date formatting | — | — | 0 / 22 |
