@@ -38,6 +38,11 @@ const (
 	CodeModelType      schemaerr.Code = "model_type"
 	CodeStringType     schemaerr.Code = "string_type"
 	CodeListType       schemaerr.Code = "list_type"
+
+	// CodeDateValue is the arbitrary `date` field's code; CodeDateOther is
+	// `start_date`/`end_date`'s. See ValueType.dateCode.
+	CodeDateValue schemaerr.Code = "value_error"
+	CodeDateOther schemaerr.Code = "rendercv_other_error"
 )
 
 const (
@@ -65,6 +70,27 @@ type Field struct {
 	// value is bound as a raw node and never checked, which is what every field
 	// declared before spec 003 §3.13 did.
 	Value ValueType
+
+	// Scalar is an additional per-field check on a scalar value, run at the
+	// field's declared position and only after its shape check passed. It is a
+	// hook rather than a call into the validating package because the date parsers
+	// and the DOI matcher live in models/cv/entries/**, which imports this package
+	// — the dependency only runs one way.
+	//
+	// raw is the scalar as written; isInteger reports that the YAML reader
+	// resolved it to an integer, which upstream distinguishes because
+	// `get_date_object` treats `int` and `str` differently
+	// (entry_with_complex_fields.py:67-68).
+	//
+	// Set for the three date shapes and for `PublicationEntry.doi`'s pattern. Its
+	// failures carry ScalarCode when that is set, and the value type's own date
+	// code otherwise.
+	Scalar func(raw string, isInteger bool) error
+
+	// ScalarCode overrides the code a Scalar failure carries. Needed because
+	// `doi`'s pattern failure is `string_pattern_mismatch` while a date's is one
+	// of the two date codes.
+	ScalarCode schemaerr.Code
 }
 
 // ValueType is the declared shape of a field's value. It is deliberately not a
@@ -79,7 +105,45 @@ const (
 	ValueString
 	// ValueStringList is Python's `list[str]`.
 	ValueStringList
+
+	// The three date shapes. They are value types rather than post-hoc checks so
+	// that Bind's single declaration-order pass emits them in place — upstream
+	// reports a bad `date` between the own fields and `location`, which an
+	// appended check cannot do (spec 004 §3.9a behavior 33a, plan §2.5).
+	//
+	// Each names its own declared arm order, which is what a non-scalar value
+	// needs: `date` is `int | str` and reports `int` first, `start_date` is
+	// `str | int` and reports `str` first (spec 004 §3.9b behavior 33d).
+
+	// ValueArbitraryDate is `ArbitraryDate = int | str` with a lenient validator
+	// (entry_with_date.py:34-36). Its failures are `value_error`, because upstream
+	// lets a bare ValueError escape.
+	ValueArbitraryDate
+	// ValueExactDate is `ExactDate = str | int` with a strict validator
+	// (entry_with_complex_fields.py:40). Its failures are `rendercv_other_error`,
+	// because upstream raises PydanticCustomError.
+	ValueExactDate
+	// ValueExactDateOrPresent is `ExactDate | Literal["present"]`
+	// (entry_with_complex_fields.py:98). Same code as ValueExactDate; the extra
+	// literal arm only shows up in the non-scalar branch list.
+	ValueExactDateOrPresent
 )
+
+// isDate reports whether a value type is one of the three date shapes.
+func (v ValueType) isDate() bool {
+	return v == ValueArbitraryDate || v == ValueExactDate || v == ValueExactDateOrPresent
+}
+
+// dateCode is the error code a date shape's failures carry. The split is
+// upstream's: `entry_with_date.py:26-29` lets a bare ValueError through, while
+// `entry_with_complex_fields.py:31-36` raises PydanticCustomError(other). Measured
+// on both paths (spec 004 §3.9c behavior 33h).
+func (v ValueType) dateCode() schemaerr.Code {
+	if v == ValueArbitraryDate {
+		return CodeDateValue
+	}
+	return CodeDateOther
+}
 
 // Spec is a model's field set plus its extra-key policy.
 type Spec struct {
@@ -220,6 +284,10 @@ func checkValue(
 		return nil
 	}
 
+	if field.Value.isDate() {
+		return checkScalar(field, value, location, source)
+	}
+
 	switch field.Value {
 	case ValueString:
 		if isNull || !isTextKind(value.Kind) {
@@ -227,6 +295,9 @@ func checkValue(
 				valueError(CodeStringType, messageStringType, locationWith(location, field.Name), value, source),
 			}
 		}
+		// The shape held, so an additional per-field constraint runs here, at the
+		// field's declared position (spec 004 §3.9a behavior 33a).
+		return checkScalar(field, value, location, source)
 	case ValueStringList:
 		if isNull || value.Kind != yamldoc.KindSequence {
 			return []schemaerr.ValidationError{
@@ -245,11 +316,52 @@ func checkValue(
 			errs = append(errs, valueError(CodeStringType, messageStringType, elementLocation, element, source))
 		}
 		return errs
-	case ValueAny:
+	case ValueAny, ValueArbitraryDate, ValueExactDate, ValueExactDateOrPresent:
 		// Handled above; listed so the switch stays exhaustive.
 	}
 
 	return nil
+}
+
+// checkScalar runs a field's additional scalar constraint at its declared
+// position.
+//
+// A non-scalar value is deliberately not handled for the date shapes — upstream
+// reports it as a pair of union-branch failures rather than one error, and that
+// lands with spec 004 A4.
+func checkScalar(
+	field Field,
+	value *yamldoc.Node,
+	location []string,
+	source schemaerr.YamlSource,
+) []schemaerr.ValidationError {
+	if field.Scalar == nil || value == nil {
+		return nil
+	}
+	if value.Kind == yamldoc.KindMapping || value.Kind == yamldoc.KindSequence {
+		return nil
+	}
+	if value.Kind == yamldoc.KindNull {
+		return nil
+	}
+
+	err := field.Scalar(value.Raw, value.Kind == yamldoc.KindInt)
+	if err == nil {
+		return nil
+	}
+
+	code := field.ScalarCode
+	if code == "" {
+		code = field.Value.dateCode()
+	}
+	return []schemaerr.ValidationError{{
+		Code:           code,
+		SchemaLocation: locationWith(location, field.Name),
+		YamlLocation:   spanOf(value),
+		YamlSource:     source,
+		Message:        err.Error(),
+		Input:          value.Raw,
+	}}
 }
 
 // isTextKind reports whether a node's kind binds to a Python `str`.

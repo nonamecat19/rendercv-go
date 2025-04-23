@@ -31,6 +31,18 @@ func TestOwnFieldErrorsPrecedeBaseFieldErrors(t *testing.T) {
 			src:  "position: p\nhighlights: x\n",
 			want: []string{"company:missing", "highlights:list_type"},
 		},
+		{
+			// Row 3, the one an appended date check cannot produce. Upstream:
+			// ('position',) missing, ('date',) value_error, ('location',)
+			// string_type — `date` sits between the own fields and `location`.
+			name: "a bad date lands between the own fields and location",
+			src:  "company: c\ndate: 2020-13-01\nlocation:\n  a: 1\n",
+			want: []string{
+				"position:missing",
+				"date:value_error",
+				"location:string_type",
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -57,6 +69,36 @@ func TestOwnFieldErrorsPrecedeBaseFieldErrors(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// Row 4 of the same table, on PublicationEntry: the `doi` pattern is an enforced
+// field constraint, so its failure precedes `journal`'s. Upstream: ('doi',)
+// string_pattern_mismatch, then ('journal',) string_type. Iteration 3 appended
+// the pattern check after the whole field pass and reported them reversed.
+func TestDOIPatternFailureLandsAtItsField(t *testing.T) {
+	node := parseNode(t, "title: T\nauthors:\n  - J\ndoi: bad\njournal:\n  a: 1\n")
+	errs, err := entries.Validate(
+		node, "PublicationEntry", nil, schemaerr.SourceMain,
+		time.Date(2025, 11, 3, 0, 0, 0, 0, time.UTC),
+	)
+	if err != nil {
+		t.Fatalf("internal error: %v", err)
+	}
+
+	got := make([]string, 0, len(errs))
+	for _, e := range errs {
+		got = append(got, lastElement(e.SchemaLocation)+":"+string(e.Code))
+	}
+	want := []string{"doi:string_pattern_mismatch", "journal:string_type"}
+
+	if len(got) != len(want) {
+		t.Fatalf("errors = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("errors = %v, want %v", got, want)
+		}
 	}
 }
 

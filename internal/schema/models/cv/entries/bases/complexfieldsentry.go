@@ -22,11 +22,28 @@ import (
 // them: they are `str | int` upstream, so an int is legal and the date checks of
 // spec §3.71 report the failures.
 var complexFields = []binder.Field{
-	{Name: "start_date"},
-	{Name: "end_date"},
+	{Name: "start_date", Value: binder.ValueExactDate},
+	{Name: "end_date", Value: binder.ValueExactDateOrPresent},
 	{Name: "location", Value: binder.ValueString},
 	{Name: "summary", Value: binder.ValueString},
 	{Name: "highlights", Value: binder.ValueStringList},
+}
+
+// complexFieldsWith returns the five fields with the two exact-date validators
+// bound to a reference date. The validators cannot live in the package-level
+// declaration because `present` resolves against the reference
+// (entry_with_complex_fields.py:78-83), which is per-validation.
+func complexFieldsWith(reference time.Time) []binder.Field {
+	fields := append([]binder.Field(nil), complexFields...)
+	for i := range fields {
+		switch fields[i].Name {
+		case "start_date", "end_date":
+			fields[i].Scalar = func(raw string, isInteger bool) error {
+				return ValidateExactDate(raw, isInteger, reference)
+			}
+		}
+	}
+	return fields
 }
 
 // ComplexFieldNames returns the five field names in declaration order
@@ -78,7 +95,7 @@ func BindEntryWithComplexFields(
 	fields := make([]binder.Field, 0, len(extraFields)+len(dateFields)+len(complexFields))
 	fields = append(fields, extraFields...)
 	fields = append(fields, dateFields...)
-	fields = append(fields, complexFields...)
+	fields = append(fields, complexFieldsWith(reference)...)
 
 	withDate, errs := bindEntryWithDateFields(node, fields, location, source)
 
@@ -107,16 +124,12 @@ func BindEntryWithComplexFields(
 		*field.value = node.Raw
 		*field.isInteger = node.Kind == yamldoc.KindInt
 
-		if err := ValidateExactDate(node.Raw, *field.isInteger, reference); err != nil {
-			errs = append(errs, schemaerr.ValidationError{
-				Code:           CodeDateOther,
-				SchemaLocation: fieldLocation(location, field.name),
-				YamlLocation:   spanOf(node),
-				YamlSource:     source,
-				Message:        err.Error(),
-				Input:          node.Raw,
-			})
-			// An unparseable date cannot take part in the ordering check.
+		// The failure itself is emitted by the binder at the field's declared
+		// position (spec 004 §3.9a behavior 33a). What remains here is the
+		// consequence: a date that did not parse cannot take part in the
+		// start-after-end comparison, which is a cross-field rule and stays after
+		// the field pass.
+		if ValidateExactDate(node.Raw, *field.isInteger, reference) != nil {
 			*field.value = ""
 		}
 	}

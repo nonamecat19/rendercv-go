@@ -89,20 +89,6 @@ func (e *BaseEntry) ExtraKeys() []string {
 	return keys
 }
 
-func fieldLocation(location []string, key string) []string {
-	out := make([]string, 0, len(location)+1)
-	out = append(out, location...)
-	return append(out, key)
-}
-
-func spanOf(node *yamldoc.Node) *yamldoc.Span {
-	if node == nil {
-		return nil
-	}
-	span := node.Span
-	return &span
-}
-
 // EntryTypeInSnakeCase derives an entry type's snake-case name by inserting an
 // underscore before each uppercase letter that is not first (spec §3.68).
 func EntryTypeInSnakeCase(name string) string {
