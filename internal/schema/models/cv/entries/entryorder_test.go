@@ -9,8 +9,8 @@ import (
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 )
 
-// The entry-internal ordering fixture: spec 004 §3.9a behavior 33a's four rows,
-// in one table.
+// The entry-internal ordering fixture: spec 004 §3.9a behavior 33a's four rows
+// and §3.9b behavior 33d's three, in one table.
 //
 // It runs on the **raw** failure list, before the error pipeline of spec 004 §3
 // touches it, and asserts the whole location and the whole order. Both of those
@@ -28,6 +28,8 @@ import (
 // constants. Iteration 3's ordering defect survived a green suite precisely
 // because its assertions were written from the port's own behavior.
 func TestEntryFailureOrder(t *testing.T) {
+	const wrapper = "function-after[validate_exact_date(), union[str,int]]"
+
 	tests := []struct {
 		name string
 		// entryType and src are the input; want is upstream's measured output as
@@ -78,6 +80,34 @@ func TestEntryFailureOrder(t *testing.T) {
 			entryType: "PublicationEntry",
 			src:       "title: T\nauthors:\n  - J\ndoi: bad\njournal:\n  a: 1\n",
 			want:      []string{"doi:string_pattern_mismatch", "journal:string_type"},
+		},
+
+		// §3.9b behavior 33d. A mapping fits no arm of a date field's union, so
+		// each arm reports separately, in declared arm order. The arm order
+		// differs between the fields and is observable once the filter and the
+		// dedup run (behavior 33f), so these rows assert the synthetic elements
+		// too.
+		{
+			name:      "a non-scalar date reports int then str",
+			entryType: "NormalEntry",
+			src:       "name: n\ndate:\n  a: 1\n",
+			want:      []string{"date.int:int_type", "date.str:string_type"},
+		},
+		{
+			name:      "a non-scalar start_date reports str then int",
+			entryType: "ExperienceEntry",
+			src:       "company: c\nposition: p\nstart_date:\n  a: 1\n",
+			want:      []string{"start_date.str:string_type", "start_date.int:int_type"},
+		},
+		{
+			name:      "a non-scalar end_date reports three arms",
+			entryType: "ExperienceEntry",
+			src:       "company: c\nposition: p\nend_date:\n  a: 1\n",
+			want: []string{
+				"end_date." + wrapper + ".str:string_type",
+				"end_date." + wrapper + ".int:int_type",
+				"end_date.literal['present']:literal_error",
+			},
 		},
 	}
 

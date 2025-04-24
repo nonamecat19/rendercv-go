@@ -39,6 +39,10 @@ const (
 	CodeStringType     schemaerr.Code = "string_type"
 	CodeListType       schemaerr.Code = "list_type"
 
+	// The two codes only a date field's union arms produce (ValueType.branches).
+	CodeIntType      schemaerr.Code = "int_type"
+	CodeLiteralError schemaerr.Code = "literal_error"
+
 	// CodeDateValue is the arbitrary `date` field's code; CodeDateOther is
 	// `start_date`/`end_date`'s. See ValueType.dateCode.
 	CodeDateValue schemaerr.Code = "value_error"
@@ -54,6 +58,13 @@ const (
 	// text as well, and belong with the borrowed strings of spec 002 §7.3.
 	messageStringType = "Input should be a valid string"
 	messageListType   = "Input should be a valid list"
+
+	// The union-arm texts of ValueType.branches, pydantic's own as well.
+	// `literalPresent` is the location element, not a message: pydantic spells the
+	// arm with Python's repr of the literal, single quotes included.
+	messageIntType        = "Input should be a valid integer"
+	messageLiteralPresent = "Input should be 'present'"
+	literalPresent        = "literal['present']"
 )
 
 // Field is one declared model field. Spec §3.34: there are no aliases, so the
@@ -143,6 +154,60 @@ func (v ValueType) dateCode() schemaerr.Code {
 		return CodeDateValue
 	}
 	return CodeDateOther
+}
+
+// dateBranch is one arm of a date field's declared union, as pydantic reports
+// it for a value that fits no arm at all.
+//
+// suffix is appended to the field's location. These are the **only** synthetic
+// location elements the port constructs, and they are not decoration: spec 004
+// §3.9b behavior 33f is the argument for them. `date` is declared `int | str`
+// and `start_date` is declared `str | int`, so the two fields survive spec §3.3's
+// filter and §3.8's dedup with *different* messages — "Input should be a valid
+// integer." for `date`, "Input should be a valid string." for `start_date`.
+// Emitting one hand-picked record per field gets one of the two wrong; emitting
+// the arms in declared order and letting the filter and the dedup run gets both
+// right. Do not collapse these to a single record.
+type dateBranch struct {
+	suffix  []string
+	code    schemaerr.Code
+	message string
+}
+
+// exactDateWrapper is the name pydantic gives the `function-after` step wrapping
+// `end_date`'s union, and it appears verbatim in that field's locations
+// (spec 004 §3.9b behavior 33d, measured).
+const exactDateWrapper = "function-after[validate_exact_date(), union[str,int]]"
+
+// branches lists a date shape's union arms in declared order. Measured against
+// the vendored Python for a mapping and for a sequence value; both give the same
+// list.
+func (v ValueType) branches() []dateBranch {
+	switch v {
+	case ValueArbitraryDate:
+		// `ArbitraryDate = int | str` (entry_with_date.py:34-36) — `int` first.
+		return []dateBranch{
+			{suffix: []string{"int"}, code: CodeIntType, message: messageIntType},
+			{suffix: []string{"str"}, code: CodeStringType, message: messageStringType},
+		}
+	case ValueExactDate:
+		// `ExactDate = str | int` (entry_with_complex_fields.py:40) — `str` first.
+		return []dateBranch{
+			{suffix: []string{"str"}, code: CodeStringType, message: messageStringType},
+			{suffix: []string{"int"}, code: CodeIntType, message: messageIntType},
+		}
+	case ValueExactDateOrPresent:
+		// `ExactDate | Literal["present"]` (entry_with_complex_fields.py:98). The
+		// two `ExactDate` arms sit under the after-validator's wrapper name; the
+		// literal arm does not.
+		return []dateBranch{
+			{suffix: []string{exactDateWrapper, "str"}, code: CodeStringType, message: messageStringType},
+			{suffix: []string{exactDateWrapper, "int"}, code: CodeIntType, message: messageIntType},
+			{suffix: []string{literalPresent}, code: CodeLiteralError, message: messageLiteralPresent},
+		}
+	case ValueAny, ValueString, ValueStringList:
+	}
+	return nil
 }
 
 // Spec is a model's field set plus its extra-key policy.
@@ -285,6 +350,9 @@ func checkValue(
 	}
 
 	if field.Value.isDate() {
+		if isNonScalar(value) {
+			return dateBranchErrors(field, value, location, source)
+		}
 		return checkScalar(field, value, location, source)
 	}
 
@@ -323,12 +391,38 @@ func checkValue(
 	return nil
 }
 
+// isNonScalar reports whether a value is a mapping or a sequence — the two
+// kinds that fit no arm of a date field's union.
+func isNonScalar(value *yamldoc.Node) bool {
+	return value != nil &&
+		(value.Kind == yamldoc.KindMapping || value.Kind == yamldoc.KindSequence)
+}
+
+// dateBranchErrors reports one failure per declared union arm. See dateBranch
+// for why the port emits the whole list rather than the one record that
+// survives.
+func dateBranchErrors(
+	field Field,
+	value *yamldoc.Node,
+	location []string,
+	source schemaerr.YamlSource,
+) []schemaerr.ValidationError {
+	fieldLocation := locationWith(location, field.Name)
+
+	branches := field.Value.branches()
+	errs := make([]schemaerr.ValidationError, 0, len(branches))
+	for _, branch := range branches {
+		branchLocation := fieldLocation
+		for _, element := range branch.suffix {
+			branchLocation = locationWith(branchLocation, element)
+		}
+		errs = append(errs, valueError(branch.code, branch.message, branchLocation, value, source))
+	}
+	return errs
+}
+
 // checkScalar runs a field's additional scalar constraint at its declared
-// position.
-//
-// A non-scalar value is deliberately not handled for the date shapes — upstream
-// reports it as a pair of union-branch failures rather than one error, and that
-// lands with spec 004 A4.
+// position. Non-scalar values never reach it: dateBranchErrors handles those.
 func checkScalar(
 	field Field,
 	value *yamldoc.Node,
@@ -338,10 +432,7 @@ func checkScalar(
 	if field.Scalar == nil || value == nil {
 		return nil
 	}
-	if value.Kind == yamldoc.KindMapping || value.Kind == yamldoc.KindSequence {
-		return nil
-	}
-	if value.Kind == yamldoc.KindNull {
+	if isNonScalar(value) || value.Kind == yamldoc.KindNull {
 		return nil
 	}
 
