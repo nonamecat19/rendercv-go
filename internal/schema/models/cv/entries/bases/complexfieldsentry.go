@@ -29,12 +29,33 @@ var complexFields = []binder.Field{
 	{Name: "highlights", Value: binder.ValueStringList},
 }
 
-// complexFieldsWith returns the five fields with the two exact-date validators
-// bound to a reference date. The validators cannot live in the package-level
-// declaration because `present` resolves against the reference
-// (entry_with_complex_fields.py:78-83), which is per-validation.
-func complexFieldsWith(reference time.Time) []binder.Field {
-	fields := append([]binder.Field(nil), complexFields...)
+// ComplexSpec is the full declared field set of an entry built on
+// BaseEntryWithComplexFields: its own fields, then the inherited `date`, then
+// the five complex fields.
+//
+// That is upstream's order for `class X(BaseEntryWithComplexFields, BaseX)` —
+// own fields first, because pydantic emits the last-listed base's fields first
+// (spec 003 §3.2, verified per type against `model_fields.keys()`).
+//
+// It is a shared builder rather than an inline `append` at each site because the
+// descriptor and the binder must read the *same* order, and nothing but shared
+// construction guarantees that. Iteration 3 composed the two separately and one
+// of them came out backwards (spec 004 §3.9a behavior 33a); behavior 33c makes
+// the order a prerequisite of dedup rather than a cosmetic property, so the
+// drift is closed here by construction instead of by a test downstream.
+func ComplexSpec(own []binder.Field) []binder.Field {
+	fields := make([]binder.Field, 0, len(own)+len(dateFields)+len(complexFields))
+	fields = append(fields, own...)
+	fields = append(fields, dateFields...)
+	return append(fields, complexFields...)
+}
+
+// withExactDateValidators binds the two exact-date checks to a reference date.
+// They cannot live in the package-level declaration because `present` resolves
+// against the reference (entry_with_complex_fields.py:78-83), which is
+// per-validation.
+func withExactDateValidators(spec []binder.Field, reference time.Time) []binder.Field {
+	fields := append([]binder.Field(nil), spec...)
 	for i := range fields {
 		switch fields[i].Name {
 		case "start_date", "end_date":
@@ -46,14 +67,12 @@ func complexFieldsWith(reference time.Time) []binder.Field {
 	return fields
 }
 
-// ComplexFieldNames returns the five field names in declaration order
-// (spec §3.79).
+// ComplexFieldNames returns the five field names in declaration order.
+//
+// TODO(spec 004 A2): superseded by FieldNames once the descriptors read the
+// shared field set.
 func ComplexFieldNames() []string {
-	names := make([]string, 0, len(complexFields))
-	for _, field := range complexFields {
-		names = append(names, field.Name)
-	}
-	return names
+	return FieldNames(complexFields)
 }
 
 // BaseEntryWithComplexFields mirrors BaseEntryWithComplexFields
@@ -80,24 +99,19 @@ type BaseEntryWithComplexFields struct {
 // BindEntryWithComplexFields binds an entry carrying the five complex fields
 // plus the inherited `date`, validates each exact date (spec §3.71), then runs
 // the four precedence steps of spec §3.77.
+// spec is the entry's whole declared field set, as ComplexSpec builds it — the
+// same value its descriptor is projected from, so the binder cannot be fed a
+// different order than the one the descriptor advertises.
 func BindEntryWithComplexFields(
 	node *yamldoc.Node,
-	extraFields []binder.Field,
+	spec []binder.Field,
 	location []string,
 	source schemaerr.YamlSource,
 	reference time.Time,
 ) (*BaseEntryWithComplexFields, []schemaerr.ValidationError) {
-	// Upstream's order for `class X(BaseEntryWithComplexFields, BaseX)`: the own
-	// fields, then the inherited `date`, then the five complex fields
-	// (spec 003 §3.2, verified per type against `model_fields.keys()`). Iteration 3
-	// composed base-first and reversed the two groups; spec 004 §3.9a behavior 33a
-	// is the corrected table.
-	fields := make([]binder.Field, 0, len(extraFields)+len(dateFields)+len(complexFields))
-	fields = append(fields, extraFields...)
-	fields = append(fields, dateFields...)
-	fields = append(fields, complexFieldsWith(reference)...)
-
-	withDate, errs := bindEntryWithDateFields(node, fields, location, source)
+	withDate, errs := bindEntryWithDateFields(
+		node, withExactDateValidators(spec, reference), location, source,
+	)
 
 	entry := &BaseEntryWithComplexFields{BaseEntryWithDate: *withDate}
 	entry.Location, _ = withDate.Field("location")

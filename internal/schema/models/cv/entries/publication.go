@@ -142,6 +142,12 @@ var publicationOwnFields = []binder.Field{
 	{Name: "journal", Value: binder.ValueString},
 }
 
+// publicationFields is the entry's whole declared field set, in upstream's
+// order. See normalFields for why the descriptor and the binder share it.
+func publicationFields() []binder.Field {
+	return bases.DateSpec(publicationOwnFields)
+}
+
 // PublicationDescriptor is PublicationEntry's registration. Its field set is its
 // six own fields then `date`, the only field BaseEntryWithDate contributes
 // (publication.py:100, spec §3.10 behavior 15). DOIURL is a method, not a field,
@@ -163,7 +169,7 @@ func ValidatePublicationEntry(
 	source schemaerr.YamlSource,
 	_ time.Time,
 ) (*PublicationEntry, []schemaerr.ValidationError) {
-	base, errs := bases.BindEntryWithDate(node, publicationOwnFields, location, source)
+	base, errs := bases.BindEntryWithDate(node, publicationFields(), location, source)
 
 	entry := &PublicationEntry{BaseEntryWithDate: *base}
 	for _, field := range []struct {

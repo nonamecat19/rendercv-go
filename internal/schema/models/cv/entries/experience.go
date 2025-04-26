@@ -27,11 +27,19 @@ var experienceOwnFields = []binder.Field{
 	{Name: "position", Required: true, Value: binder.ValueString},
 }
 
+// experienceFields is the entry's whole declared field set, in upstream's order.
+// Both the descriptor and the binder read this one value, so the order the
+// registry advertises is by construction the order errors come out in
+// (spec 004 §3.9a behavior 33c).
+func experienceFields() []binder.Field {
+	return bases.ComplexSpec(experienceOwnFields)
+}
+
 // ExperienceDescriptor is ExperienceEntry's registration. Its field set is its
 // two own fields, then the inherited `date`, then the five complex fields —
 // the verified runtime order of spec §3.8.
 func ExperienceDescriptor() Descriptor {
-	fields := make([]string, 0, len(experienceOwnFields))
+	fields := make([]string, 0, len(experienceOwnFields)+1+len(bases.ComplexFieldNames()))
 	for _, field := range experienceOwnFields {
 		fields = append(fields, field.Name)
 	}
@@ -51,7 +59,7 @@ func ValidateExperienceEntry(
 	reference time.Time,
 ) (*ExperienceEntry, []schemaerr.ValidationError) {
 	base, errs := bases.BindEntryWithComplexFields(
-		node, experienceOwnFields, location, source, reference,
+		node, experienceFields(), location, source, reference,
 	)
 
 	entry := &ExperienceEntry{BaseEntryWithComplexFields: *base}

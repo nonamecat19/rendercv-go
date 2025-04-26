@@ -11,14 +11,15 @@ import (
 func bind(t *testing.T, src string) (*bases.BaseEntryWithComplexFields, []schemaerr.ValidationError) {
 	t.Helper()
 	return bases.BindEntryWithComplexFields(
-		parse(t, src), nil, []string{"cv", "sections", "x", "0"}, schemaerr.SourceMain, reference,
+		parse(t, src), bases.ComplexSpec(nil),
+		[]string{"cv", "sections", "x", "0"}, schemaerr.SourceMain, reference,
 	)
 }
 
 // Spec §3.79 — the five fields, in declaration order after the inherited `date`.
 func TestComplexFieldNames(t *testing.T) {
 	want := []string{"start_date", "end_date", "location", "summary", "highlights"}
-	got := bases.ComplexFieldNames()
+	got := bases.FieldNames(bases.ComplexSpec(nil))[1:]
 	if len(got) != len(want) {
 		t.Fatalf("field names = %v, want %v", got, want)
 	}
