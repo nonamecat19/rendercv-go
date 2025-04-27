@@ -153,11 +153,7 @@ func publicationFields() []binder.Field {
 // (publication.py:100, spec §3.10 behavior 15). DOIURL is a method, not a field,
 // so it does not appear here (spec §3.12 behavior 22).
 func PublicationDescriptor() Descriptor {
-	fields := make([]string, 0, len(publicationOwnFields)+1)
-	for _, field := range publicationOwnFields {
-		fields = append(fields, field.Name)
-	}
-	return Descriptor{Name: "PublicationEntry", Fields: append(fields, bases.DateFieldNames()...)}
+	return Descriptor{Name: "PublicationEntry", Fields: bases.FieldNames(publicationFields())}
 }
 
 // ValidatePublicationEntry binds and validates one publication entry

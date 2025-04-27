@@ -34,11 +34,7 @@ var numberedOwnFields = []binder.Field{
 // is the own fields alone, because BaseEntry contributes none
 // (entries/bases/entry.py:11-18).
 func NumberedDescriptor() Descriptor {
-	fields := make([]string, 0, len(numberedOwnFields))
-	for _, field := range numberedOwnFields {
-		fields = append(fields, field.Name)
-	}
-	return Descriptor{Name: "NumberedEntry", Fields: fields}
+	return Descriptor{Name: "NumberedEntry", Fields: bases.FieldNames(numberedOwnFields)}
 }
 
 // ValidateNumberedEntry binds and validates one numbered entry. The reference

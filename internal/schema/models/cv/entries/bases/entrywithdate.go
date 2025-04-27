@@ -41,14 +41,6 @@ func DateSpec(own []binder.Field) []binder.Field {
 	return append(fields, dateFields...)
 }
 
-// DateFieldNames returns the field names this base contributes.
-//
-// TODO(spec 004 A2): superseded by FieldNames once the descriptors read the
-// shared field set.
-func DateFieldNames() []string {
-	return FieldNames(dateFields)
-}
-
 // FieldNames projects a field set onto its declared name order. It is how a
 // Descriptor is derived from the very field set the binder is given, so the two
 // cannot disagree.

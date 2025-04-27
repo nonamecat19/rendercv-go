@@ -26,11 +26,7 @@ var bulletOwnFields = []binder.Field{
 // BulletDescriptor is BulletEntry's registration. Its field set is exactly its
 // own fields, because BaseEntry declares none (bullet.py:6, spec §3.4).
 func BulletDescriptor() Descriptor {
-	fields := make([]string, 0, len(bulletOwnFields))
-	for _, field := range bulletOwnFields {
-		fields = append(fields, field.Name)
-	}
-	return Descriptor{Name: "BulletEntry", Fields: fields}
+	return Descriptor{Name: "BulletEntry", Fields: bases.FieldNames(bulletOwnFields)}
 }
 
 // ValidateBulletEntry binds and validates one bullet entry

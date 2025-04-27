@@ -40,13 +40,7 @@ func normalFields() []binder.Field {
 // runtime order `name, date, start_date, end_date, location, summary,
 // highlights` (spec §3.7).
 func NormalDescriptor() Descriptor {
-	fields := make([]string, 0, len(normalOwnFields)+1+len(bases.ComplexFieldNames()))
-	for _, field := range normalOwnFields {
-		fields = append(fields, field.Name)
-	}
-	fields = append(fields, bases.DateFieldNames()...)
-	fields = append(fields, bases.ComplexFieldNames()...)
-	return Descriptor{Name: "NormalEntry", Fields: fields}
+	return Descriptor{Name: "NormalEntry", Fields: bases.FieldNames(normalFields())}
 }
 
 // ValidateNormalEntry binds and validates one normal entry (normal.py:14-15).

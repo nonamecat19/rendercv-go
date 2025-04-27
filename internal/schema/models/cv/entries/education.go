@@ -46,13 +46,7 @@ func educationFields() []binder.Field {
 // upstream lists the bases in that order (education.py:25). So the field set is
 // the three own fields, then `date`, then the five complex fields (spec §3.9).
 func EducationDescriptor() Descriptor {
-	fields := make([]string, 0, len(educationOwnFields)+1+len(bases.ComplexFieldNames()))
-	for _, field := range educationOwnFields {
-		fields = append(fields, field.Name)
-	}
-	fields = append(fields, bases.DateFieldNames()...)
-	fields = append(fields, bases.ComplexFieldNames()...)
-	return Descriptor{Name: "EducationEntry", Fields: fields}
+	return Descriptor{Name: "EducationEntry", Fields: bases.FieldNames(educationFields())}
 }
 
 // ValidateEducationEntry binds and validates one education entry

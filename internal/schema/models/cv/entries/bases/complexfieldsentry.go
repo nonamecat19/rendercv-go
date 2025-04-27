@@ -67,14 +67,6 @@ func withExactDateValidators(spec []binder.Field, reference time.Time) []binder.
 	return fields
 }
 
-// ComplexFieldNames returns the five field names in declaration order.
-//
-// TODO(spec 004 A2): superseded by FieldNames once the descriptors read the
-// shared field set.
-func ComplexFieldNames() []string {
-	return FieldNames(complexFields)
-}
-
 // BaseEntryWithComplexFields mirrors BaseEntryWithComplexFields
 // (entry_with_complex_fields.py:89-171).
 //
