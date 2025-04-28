@@ -75,8 +75,14 @@ func buildPlainScalar(tok *token.Token) *yamldoc.Node {
 func buildMapping(n *ast.MappingNode) *yamldoc.Node {
 	node := &yamldoc.Node{Kind: yamldoc.KindMapping}
 	for _, mv := range n.Values {
-		key := mv.Key.String()
 		keyTok := mv.Key.GetToken()
+		// The token's value, not the node's source form: `mv.Key.String()` keeps
+		// the quotes a quoted key was written with, so `"name": John` would bind
+		// the field `"name"` and then report it as an unknown key. Upstream's
+		// ruamel unquotes it (measured: `{"name": …, 'email': …}` reads back as
+		// `['name', 'email']`), and scalar *values* already go through the same
+		// token here — only keys were reading the source text.
+		key := scalarRaw(keyTok)
 		valEnd := valueEndPosition(mv.Value, keyTok)
 
 		keySpan := yamldoc.Span{

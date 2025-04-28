@@ -250,6 +250,30 @@ func TestKeyOrderRoundTrips(t *testing.T) {
 	}
 }
 
+// A quoted key is the same key. The reader took mapping keys from the node's
+// source form, which kept the quotes, so `"name": John` bound a field called
+// `"name"` — which no model declares, so it was reported as an unknown key
+// instead of binding. Scalar *values* never had the problem; they already read
+// the token.
+//
+// Upstream's ruamel unquotes both styles: `{"name": …, 'email': …}` reads back
+// as `['name', 'email']` (measured against the vendored Python).
+func TestQuotedKeysAreUnquoted(t *testing.T) {
+	doc, err := yamlreader.ReadString("\"name\": John\n'email': a@b.com\nplain: 1\n")
+	if err != nil {
+		t.Fatalf("ReadString = %v", err)
+	}
+	want := []string{"name", "email", "plain"}
+	if len(doc.Items) != len(want) {
+		t.Fatalf("keys = %+v, want %v", doc.Items, want)
+	}
+	for i, key := range want {
+		if doc.Items[i].Key != key {
+			t.Errorf("key[%d] = %q, want %q", i, doc.Items[i].Key, key)
+		}
+	}
+}
+
 func value(t *testing.T, node *yamldoc.Node, key string) *yamldoc.Node {
 	t.Helper()
 	for _, item := range node.Items {
