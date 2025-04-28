@@ -12,12 +12,49 @@ package errorpipeline
 // first match wins (pydantic_error_handling.py:89-92).
 type dictionaryRow struct{ Old, New string }
 
-// dictionary is `error_dictionary.yaml` in file order.
+// dictionary is `error_dictionary.yaml` in file order, byte for byte.
 //
 // A slice and never a map: Go randomizes map iteration order, and
 // first-match-wins over a randomized order is nondeterministic. Order is
 // contractual (spec 004 §6 rule 5).
 //
-// TODO(spec 004 T2): the thirteen rows. Empty until then, which is what keeps
-// dictionary_conformance_test.go red.
-var dictionary = []dictionaryRow{}
+// **Five of the thirteen rows are unreachable** in the pinned tree
+// (spec 004 §3.4 behavior 12), and they are kept anyway, unaltered, because
+// reachability is upstream's to decide and not the port's:
+//
+//	1  pre-empted — §3.5's `end_date` override always replaces the message first
+//	2  no int-only field exists; every int-typed field is `int | str`
+//	3  dead twice over, see below
+//	4  dead, see below
+//	10 no measured input produces it, and it maps to row 9's value anyway
+//
+// Rows 3 and 4 are dead because **their keys carry doubled backslashes and
+// pydantic's messages carry single ones**. The YAML scalars are plain, so YAML
+// performs no escape processing and the keys literally read `'\\b10\\..*'`.
+// Measured: an invalid `doi` produces `String should match pattern '\b10\..*'`,
+// which row 4's key does not contain, so the message survives to the output
+// unreplaced. The Go literals below are raw strings so they carry the same two
+// backslashes — writing `\b10\..*` here would make a dead row live and break
+// parity in the opposite direction from the obvious mistake. Row 3 is dead for a
+// second, independent reason: no field declares a pydantic `pattern=` of
+// `\d{4}-\d{2}(-\d{2})?` at all, because the date formats are checked with
+// `re.fullmatch` inside hand-written validators that raise their own messages.
+//
+// Row 13's key matches a longer message: `value is not a valid color: string not
+// recognised as a valid color` contains it, so the whole message is replaced
+// (behavior 14).
+var dictionary = []dictionaryRow{
+	{`Input should be 'present'`, "This is not a valid `end_date`. Please use either YYYY-MM-DD, YYYY-MM, or YYYY format or 'present'."},
+	{`Input should be a valid integer, unable to parse string as an integer`, "This is not a valid date. Please use either YYYY-MM-DD, YYYY-MM, or YYYY format."},
+	{`String should match pattern '\\d{4}-\\d{2}(-\\d{2})?'`, "This is not a valid date. Please use either YYYY-MM-DD, YYYY-MM, or YYYY format."},
+	{`String should match pattern '\\b10\\..*'`, `A DOI prefix should always start with "10.". For example, "10.1109/TASC.2023.3340648".`},
+	{`Input should be a valid URL`, "This is not a valid URL."},
+	{`Field required`, "This field is required."},
+	{`value is not a valid phone number`, "This is not a valid phone number."},
+	{`month must be in 1..12`, "The month must be between 1 and 12."},
+	{`day is out of range for month`, "The day is out of range for the month."},
+	{`must be in range`, "The day is out of range for the month."},
+	{`Extra inputs are not permitted`, "This field is unknown for this object. Please remove it."},
+	{`Input should be a valid list`, "This field should contain a list of items but it doesn't."},
+	{`value is not a valid color`, `This is not a valid color. Here are some examples of valid colors: "red", "#ff0000", "rgb(255, 0, 0)", "hsl(0, 100%, 50%)"`},
+}
