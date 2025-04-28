@@ -7,6 +7,8 @@
 // can be exercised on hand-built records with no model involved.
 package errorpipeline
 
+import "strings"
+
 // dictionaryRow is one row of `schema/error_dictionary.yaml`. Old is matched by
 // **substring containment** against the raw message, not by equality, and the
 // first match wins (pydantic_error_handling.py:89-92).
@@ -57,4 +59,20 @@ var dictionary = []dictionaryRow{
 	{`Extra inputs are not permitted`, "This field is unknown for this object. Please remove it."},
 	{`Input should be a valid list`, "This field should contain a list of items but it doesn't."},
 	{`value is not a valid color`, `This is not a valid color. Here are some examples of valid colors: "red", "#ff0000", "rgb(255, 0, 0)", "hsl(0, 100%, 50%)"`},
+}
+
+// substitute applies the dictionary to a raw message
+// (pydantic_error_handling.py:89-92): **substring containment**, in file order,
+// first match wins. It is not equality — `Input should be a valid URL` also
+// matches `Input should be a valid URL, relative URL without a base` and every
+// other parse-failure reason, flattening them all to one message.
+//
+// A message no row matches is returned unchanged.
+func substitute(message string) string {
+	for _, row := range dictionary {
+		if strings.Contains(message, row.Old) {
+			return row.New
+		}
+	}
+	return message
 }
