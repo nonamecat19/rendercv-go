@@ -1,6 +1,6 @@
 [
   {
-    "file": "empty_mapping_value.yaml",
+    "file": "internal/schema/yamlreader/testdata/coords/empty_mapping_value.yaml",
     "data": {
       "key": [
         0,
@@ -11,7 +11,7 @@
     }
   },
   {
-    "file": "flow_mapping.yaml",
+    "file": "internal/schema/yamlreader/testdata/coords/flow_mapping.yaml",
     "data": {
       "a": [
         0,
@@ -34,7 +34,7 @@
     }
   },
   {
-    "file": "flow_sequence.yaml",
+    "file": "internal/schema/yamlreader/testdata/coords/flow_sequence.yaml",
     "data": {
       "block": [
         2,
@@ -123,7 +123,7 @@
     }
   },
   {
-    "file": "indented_empty_value.yaml",
+    "file": "internal/schema/yamlreader/testdata/coords/indented_empty_value.yaml",
     "data": {
       "nested": [
         3,
@@ -164,7 +164,7 @@
     }
   },
   {
-    "file": "nested_mapping.yaml",
+    "file": "internal/schema/yamlreader/testdata/coords/nested_mapping.yaml",
     "data": {
       "a": [
         0,
@@ -199,7 +199,7 @@
     }
   },
   {
-    "file": "sequence_of_mappings.yaml",
+    "file": "internal/schema/yamlreader/testdata/coords/sequence_of_mappings.yaml",
     "data": {
       "items": [
         0,
@@ -242,7 +242,7 @@
     }
   },
   {
-    "file": "sequence_of_scalars.yaml",
+    "file": "internal/schema/yamlreader/testdata/coords/sequence_of_scalars.yaml",
     "data": {
       ".0": [
         0,
@@ -255,6 +255,3080 @@
       ".2": [
         2,
         2
+      ]
+    }
+  },
+  {
+    "file": "third_party/rendercv/examples/John_Doe_ClassicTheme_CV.yaml",
+    "data": {
+      "cv": [
+        1,
+        0,
+        2,
+        2
+      ],
+      "cv.custom_connections": [
+        14,
+        2,
+        15,
+        2
+      ],
+      "cv.email": [
+        5,
+        2,
+        5,
+        9
+      ],
+      "cv.headline": [
+        3,
+        2,
+        4,
+        2
+      ],
+      "cv.location": [
+        4,
+        2,
+        4,
+        12
+      ],
+      "cv.name": [
+        2,
+        2,
+        2,
+        8
+      ],
+      "cv.phone": [
+        7,
+        2,
+        8,
+        2
+      ],
+      "cv.photo": [
+        6,
+        2,
+        7,
+        2
+      ],
+      "cv.sections": [
+        15,
+        2,
+        16,
+        4
+      ],
+      "cv.sections.Welcome to RenderCV": [
+        16,
+        4,
+        17,
+        6
+      ],
+      "cv.sections.Welcome to RenderCV.0": [
+        17,
+        8
+      ],
+      "cv.sections.Welcome to RenderCV.1": [
+        18,
+        8
+      ],
+      "cv.sections.Welcome to RenderCV.2": [
+        19,
+        8
+      ],
+      "cv.sections.Welcome to RenderCV.3": [
+        20,
+        8
+      ],
+      "cv.sections.education": [
+        21,
+        4,
+        22,
+        6
+      ],
+      "cv.sections.education.0": [
+        22,
+        8
+      ],
+      "cv.sections.education.0.area": [
+        23,
+        8,
+        23,
+        14
+      ],
+      "cv.sections.education.0.date": [
+        25,
+        8,
+        26,
+        8
+      ],
+      "cv.sections.education.0.degree": [
+        24,
+        8,
+        24,
+        16
+      ],
+      "cv.sections.education.0.end_date": [
+        27,
+        8,
+        27,
+        18
+      ],
+      "cv.sections.education.0.highlights": [
+        30,
+        8,
+        31,
+        10
+      ],
+      "cv.sections.education.0.highlights.0": [
+        31,
+        12
+      ],
+      "cv.sections.education.0.highlights.1": [
+        32,
+        12
+      ],
+      "cv.sections.education.0.highlights.2": [
+        33,
+        12
+      ],
+      "cv.sections.education.0.institution": [
+        22,
+        8,
+        22,
+        21
+      ],
+      "cv.sections.education.0.location": [
+        28,
+        8,
+        28,
+        18
+      ],
+      "cv.sections.education.0.start_date": [
+        26,
+        8,
+        26,
+        20
+      ],
+      "cv.sections.education.0.summary": [
+        29,
+        8,
+        30,
+        8
+      ],
+      "cv.sections.education.1": [
+        34,
+        8
+      ],
+      "cv.sections.education.1.area": [
+        35,
+        8,
+        35,
+        14
+      ],
+      "cv.sections.education.1.date": [
+        37,
+        8,
+        38,
+        8
+      ],
+      "cv.sections.education.1.degree": [
+        36,
+        8,
+        36,
+        16
+      ],
+      "cv.sections.education.1.end_date": [
+        39,
+        8,
+        39,
+        18
+      ],
+      "cv.sections.education.1.highlights": [
+        42,
+        8,
+        43,
+        10
+      ],
+      "cv.sections.education.1.highlights.0": [
+        43,
+        12
+      ],
+      "cv.sections.education.1.highlights.1": [
+        44,
+        12
+      ],
+      "cv.sections.education.1.institution": [
+        34,
+        8,
+        34,
+        21
+      ],
+      "cv.sections.education.1.location": [
+        40,
+        8,
+        40,
+        18
+      ],
+      "cv.sections.education.1.start_date": [
+        38,
+        8,
+        38,
+        20
+      ],
+      "cv.sections.education.1.summary": [
+        41,
+        8,
+        42,
+        8
+      ],
+      "cv.sections.experience": [
+        45,
+        4,
+        46,
+        6
+      ],
+      "cv.sections.experience.0": [
+        46,
+        8
+      ],
+      "cv.sections.experience.0.company": [
+        46,
+        8,
+        46,
+        17
+      ],
+      "cv.sections.experience.0.date": [
+        48,
+        8,
+        49,
+        8
+      ],
+      "cv.sections.experience.0.end_date": [
+        50,
+        8,
+        50,
+        18
+      ],
+      "cv.sections.experience.0.highlights": [
+        53,
+        8,
+        54,
+        10
+      ],
+      "cv.sections.experience.0.highlights.0": [
+        54,
+        12
+      ],
+      "cv.sections.experience.0.highlights.1": [
+        55,
+        12
+      ],
+      "cv.sections.experience.0.highlights.2": [
+        56,
+        12
+      ],
+      "cv.sections.experience.0.highlights.3": [
+        57,
+        12
+      ],
+      "cv.sections.experience.0.location": [
+        51,
+        8,
+        51,
+        18
+      ],
+      "cv.sections.experience.0.position": [
+        47,
+        8,
+        47,
+        18
+      ],
+      "cv.sections.experience.0.start_date": [
+        49,
+        8,
+        49,
+        20
+      ],
+      "cv.sections.experience.0.summary": [
+        52,
+        8,
+        53,
+        8
+      ],
+      "cv.sections.experience.1": [
+        58,
+        8
+      ],
+      "cv.sections.experience.1.company": [
+        58,
+        8,
+        58,
+        17
+      ],
+      "cv.sections.experience.1.date": [
+        60,
+        8,
+        61,
+        8
+      ],
+      "cv.sections.experience.1.end_date": [
+        62,
+        8,
+        62,
+        18
+      ],
+      "cv.sections.experience.1.highlights": [
+        65,
+        8,
+        66,
+        10
+      ],
+      "cv.sections.experience.1.highlights.0": [
+        66,
+        12
+      ],
+      "cv.sections.experience.1.highlights.1": [
+        67,
+        12
+      ],
+      "cv.sections.experience.1.location": [
+        63,
+        8,
+        63,
+        18
+      ],
+      "cv.sections.experience.1.position": [
+        59,
+        8,
+        59,
+        18
+      ],
+      "cv.sections.experience.1.start_date": [
+        61,
+        8,
+        61,
+        20
+      ],
+      "cv.sections.experience.1.summary": [
+        64,
+        8,
+        65,
+        8
+      ],
+      "cv.sections.experience.2": [
+        68,
+        8
+      ],
+      "cv.sections.experience.2.company": [
+        68,
+        8,
+        68,
+        17
+      ],
+      "cv.sections.experience.2.date": [
+        70,
+        8,
+        71,
+        8
+      ],
+      "cv.sections.experience.2.end_date": [
+        72,
+        8,
+        72,
+        18
+      ],
+      "cv.sections.experience.2.highlights": [
+        75,
+        8,
+        76,
+        10
+      ],
+      "cv.sections.experience.2.highlights.0": [
+        76,
+        12
+      ],
+      "cv.sections.experience.2.highlights.1": [
+        77,
+        12
+      ],
+      "cv.sections.experience.2.location": [
+        73,
+        8,
+        73,
+        18
+      ],
+      "cv.sections.experience.2.position": [
+        69,
+        8,
+        69,
+        18
+      ],
+      "cv.sections.experience.2.start_date": [
+        71,
+        8,
+        71,
+        20
+      ],
+      "cv.sections.experience.2.summary": [
+        74,
+        8,
+        75,
+        8
+      ],
+      "cv.sections.experience.3": [
+        81,
+        8
+      ],
+      "cv.sections.experience.3.company": [
+        81,
+        8,
+        81,
+        17
+      ],
+      "cv.sections.experience.3.date": [
+        83,
+        8,
+        84,
+        8
+      ],
+      "cv.sections.experience.3.end_date": [
+        85,
+        8,
+        85,
+        18
+      ],
+      "cv.sections.experience.3.highlights": [
+        88,
+        8,
+        89,
+        10
+      ],
+      "cv.sections.experience.3.highlights.0": [
+        89,
+        12
+      ],
+      "cv.sections.experience.3.highlights.1": [
+        90,
+        12
+      ],
+      "cv.sections.experience.3.location": [
+        86,
+        8,
+        86,
+        18
+      ],
+      "cv.sections.experience.3.position": [
+        82,
+        8,
+        82,
+        18
+      ],
+      "cv.sections.experience.3.start_date": [
+        84,
+        8,
+        84,
+        20
+      ],
+      "cv.sections.experience.3.summary": [
+        87,
+        8,
+        88,
+        8
+      ],
+      "cv.sections.experience.4": [
+        91,
+        8
+      ],
+      "cv.sections.experience.4.company": [
+        91,
+        8,
+        91,
+        17
+      ],
+      "cv.sections.experience.4.date": [
+        93,
+        8,
+        94,
+        8
+      ],
+      "cv.sections.experience.4.end_date": [
+        95,
+        8,
+        95,
+        18
+      ],
+      "cv.sections.experience.4.highlights": [
+        98,
+        8,
+        99,
+        10
+      ],
+      "cv.sections.experience.4.highlights.0": [
+        99,
+        12
+      ],
+      "cv.sections.experience.4.highlights.1": [
+        100,
+        12
+      ],
+      "cv.sections.experience.4.location": [
+        96,
+        8,
+        96,
+        18
+      ],
+      "cv.sections.experience.4.position": [
+        92,
+        8,
+        92,
+        18
+      ],
+      "cv.sections.experience.4.start_date": [
+        94,
+        8,
+        94,
+        20
+      ],
+      "cv.sections.experience.4.summary": [
+        97,
+        8,
+        98,
+        8
+      ],
+      "cv.sections.invited_talks": [
+        178,
+        4,
+        179,
+        6
+      ],
+      "cv.sections.invited_talks.0": [
+        179,
+        8
+      ],
+      "cv.sections.invited_talks.0.reversed_number": [
+        179,
+        8,
+        179,
+        25
+      ],
+      "cv.sections.invited_talks.1": [
+        180,
+        8
+      ],
+      "cv.sections.invited_talks.1.reversed_number": [
+        180,
+        8,
+        180,
+        25
+      ],
+      "cv.sections.invited_talks.2": [
+        181,
+        8
+      ],
+      "cv.sections.invited_talks.2.reversed_number": [
+        181,
+        8,
+        181,
+        25
+      ],
+      "cv.sections.invited_talks.3": [
+        182,
+        8
+      ],
+      "cv.sections.invited_talks.3.reversed_number": [
+        182,
+        8,
+        182,
+        25
+      ],
+      "cv.sections.patents": [
+        174,
+        4,
+        175,
+        6
+      ],
+      "cv.sections.patents.0": [
+        175,
+        8
+      ],
+      "cv.sections.patents.0.number": [
+        175,
+        8,
+        175,
+        16
+      ],
+      "cv.sections.patents.1": [
+        176,
+        8
+      ],
+      "cv.sections.patents.1.number": [
+        176,
+        8,
+        176,
+        16
+      ],
+      "cv.sections.patents.2": [
+        177,
+        8
+      ],
+      "cv.sections.patents.2.number": [
+        177,
+        8,
+        177,
+        16
+      ],
+      "cv.sections.projects": [
+        101,
+        4,
+        102,
+        6
+      ],
+      "cv.sections.projects.0": [
+        102,
+        8
+      ],
+      "cv.sections.projects.0.date": [
+        103,
+        8,
+        104,
+        8
+      ],
+      "cv.sections.projects.0.end_date": [
+        105,
+        8,
+        105,
+        18
+      ],
+      "cv.sections.projects.0.highlights": [
+        108,
+        8,
+        109,
+        10
+      ],
+      "cv.sections.projects.0.highlights.0": [
+        109,
+        12
+      ],
+      "cv.sections.projects.0.highlights.1": [
+        110,
+        12
+      ],
+      "cv.sections.projects.0.location": [
+        106,
+        8,
+        107,
+        8
+      ],
+      "cv.sections.projects.0.name": [
+        102,
+        8,
+        102,
+        14
+      ],
+      "cv.sections.projects.0.start_date": [
+        104,
+        8,
+        104,
+        20
+      ],
+      "cv.sections.projects.0.summary": [
+        107,
+        8,
+        107,
+        17
+      ],
+      "cv.sections.projects.1": [
+        111,
+        8
+      ],
+      "cv.sections.projects.1.date": [
+        112,
+        8,
+        112,
+        14
+      ],
+      "cv.sections.projects.1.end_date": [
+        114,
+        8,
+        115,
+        8
+      ],
+      "cv.sections.projects.1.highlights": [
+        117,
+        8,
+        118,
+        10
+      ],
+      "cv.sections.projects.1.highlights.0": [
+        118,
+        12
+      ],
+      "cv.sections.projects.1.highlights.1": [
+        119,
+        12
+      ],
+      "cv.sections.projects.1.location": [
+        115,
+        8,
+        116,
+        8
+      ],
+      "cv.sections.projects.1.name": [
+        111,
+        8,
+        111,
+        14
+      ],
+      "cv.sections.projects.1.start_date": [
+        113,
+        8,
+        114,
+        8
+      ],
+      "cv.sections.projects.1.summary": [
+        116,
+        8,
+        116,
+        17
+      ],
+      "cv.sections.publications": [
+        120,
+        4,
+        121,
+        6
+      ],
+      "cv.sections.publications.0": [
+        121,
+        8
+      ],
+      "cv.sections.publications.0.authors": [
+        122,
+        8,
+        123,
+        10
+      ],
+      "cv.sections.publications.0.authors.0": [
+        123,
+        12
+      ],
+      "cv.sections.publications.0.authors.1": [
+        124,
+        12
+      ],
+      "cv.sections.publications.0.authors.2": [
+        125,
+        12
+      ],
+      "cv.sections.publications.0.date": [
+        130,
+        8,
+        130,
+        14
+      ],
+      "cv.sections.publications.0.doi": [
+        127,
+        8,
+        127,
+        13
+      ],
+      "cv.sections.publications.0.journal": [
+        129,
+        8,
+        129,
+        17
+      ],
+      "cv.sections.publications.0.summary": [
+        126,
+        8,
+        127,
+        8
+      ],
+      "cv.sections.publications.0.title": [
+        121,
+        8,
+        121,
+        15
+      ],
+      "cv.sections.publications.0.url": [
+        128,
+        8,
+        129,
+        8
+      ],
+      "cv.sections.publications.1": [
+        131,
+        8
+      ],
+      "cv.sections.publications.1.authors": [
+        132,
+        8,
+        133,
+        10
+      ],
+      "cv.sections.publications.1.authors.0": [
+        133,
+        12
+      ],
+      "cv.sections.publications.1.authors.1": [
+        134,
+        12
+      ],
+      "cv.sections.publications.1.date": [
+        139,
+        8,
+        139,
+        14
+      ],
+      "cv.sections.publications.1.doi": [
+        136,
+        8,
+        136,
+        13
+      ],
+      "cv.sections.publications.1.journal": [
+        138,
+        8,
+        138,
+        17
+      ],
+      "cv.sections.publications.1.summary": [
+        135,
+        8,
+        136,
+        8
+      ],
+      "cv.sections.publications.1.title": [
+        131,
+        8,
+        131,
+        15
+      ],
+      "cv.sections.publications.1.url": [
+        137,
+        8,
+        138,
+        8
+      ],
+      "cv.sections.publications.2": [
+        140,
+        8
+      ],
+      "cv.sections.publications.2.authors": [
+        141,
+        8,
+        142,
+        10
+      ],
+      "cv.sections.publications.2.authors.0": [
+        142,
+        12
+      ],
+      "cv.sections.publications.2.authors.1": [
+        143,
+        12
+      ],
+      "cv.sections.publications.2.authors.2": [
+        144,
+        12
+      ],
+      "cv.sections.publications.2.date": [
+        149,
+        8,
+        149,
+        14
+      ],
+      "cv.sections.publications.2.doi": [
+        146,
+        8,
+        146,
+        13
+      ],
+      "cv.sections.publications.2.journal": [
+        148,
+        8,
+        148,
+        17
+      ],
+      "cv.sections.publications.2.summary": [
+        145,
+        8,
+        146,
+        8
+      ],
+      "cv.sections.publications.2.title": [
+        140,
+        8,
+        140,
+        15
+      ],
+      "cv.sections.publications.2.url": [
+        147,
+        8,
+        148,
+        8
+      ],
+      "cv.sections.publications.3": [
+        150,
+        8
+      ],
+      "cv.sections.publications.3.authors": [
+        151,
+        8,
+        152,
+        10
+      ],
+      "cv.sections.publications.3.authors.0": [
+        152,
+        12
+      ],
+      "cv.sections.publications.3.authors.1": [
+        153,
+        12
+      ],
+      "cv.sections.publications.3.date": [
+        158,
+        8,
+        158,
+        14
+      ],
+      "cv.sections.publications.3.doi": [
+        155,
+        8,
+        155,
+        13
+      ],
+      "cv.sections.publications.3.journal": [
+        157,
+        8,
+        157,
+        17
+      ],
+      "cv.sections.publications.3.summary": [
+        154,
+        8,
+        155,
+        8
+      ],
+      "cv.sections.publications.3.title": [
+        150,
+        8,
+        150,
+        15
+      ],
+      "cv.sections.publications.3.url": [
+        156,
+        8,
+        157,
+        8
+      ],
+      "cv.sections.selected_honors": [
+        159,
+        4,
+        160,
+        6
+      ],
+      "cv.sections.selected_honors.0": [
+        160,
+        8
+      ],
+      "cv.sections.selected_honors.0.bullet": [
+        160,
+        8,
+        160,
+        16
+      ],
+      "cv.sections.selected_honors.1": [
+        161,
+        8
+      ],
+      "cv.sections.selected_honors.1.bullet": [
+        161,
+        8,
+        161,
+        16
+      ],
+      "cv.sections.selected_honors.2": [
+        162,
+        8
+      ],
+      "cv.sections.selected_honors.2.bullet": [
+        162,
+        8,
+        162,
+        16
+      ],
+      "cv.sections.selected_honors.3": [
+        163,
+        8
+      ],
+      "cv.sections.selected_honors.3.bullet": [
+        163,
+        8,
+        163,
+        16
+      ],
+      "cv.sections.selected_honors.4": [
+        164,
+        8
+      ],
+      "cv.sections.selected_honors.4.bullet": [
+        164,
+        8,
+        164,
+        16
+      ],
+      "cv.sections.skills": [
+        165,
+        4,
+        166,
+        6
+      ],
+      "cv.sections.skills.0": [
+        166,
+        8
+      ],
+      "cv.sections.skills.0.details": [
+        167,
+        8,
+        167,
+        17
+      ],
+      "cv.sections.skills.0.label": [
+        166,
+        8,
+        166,
+        15
+      ],
+      "cv.sections.skills.1": [
+        168,
+        8
+      ],
+      "cv.sections.skills.1.details": [
+        169,
+        8,
+        169,
+        17
+      ],
+      "cv.sections.skills.1.label": [
+        168,
+        8,
+        168,
+        15
+      ],
+      "cv.sections.skills.2": [
+        170,
+        8
+      ],
+      "cv.sections.skills.2.details": [
+        171,
+        8,
+        171,
+        17
+      ],
+      "cv.sections.skills.2.label": [
+        170,
+        8,
+        170,
+        15
+      ],
+      "cv.sections.skills.3": [
+        172,
+        8
+      ],
+      "cv.sections.skills.3.details": [
+        173,
+        8,
+        173,
+        17
+      ],
+      "cv.sections.skills.3.label": [
+        172,
+        8,
+        172,
+        15
+      ],
+      "cv.social_networks": [
+        9,
+        2,
+        10,
+        4
+      ],
+      "cv.social_networks.0": [
+        10,
+        6
+      ],
+      "cv.social_networks.0.network": [
+        10,
+        6,
+        10,
+        15
+      ],
+      "cv.social_networks.0.username": [
+        11,
+        6,
+        11,
+        16
+      ],
+      "cv.social_networks.1": [
+        12,
+        6
+      ],
+      "cv.social_networks.1.network": [
+        12,
+        6,
+        12,
+        15
+      ],
+      "cv.social_networks.1.username": [
+        13,
+        6,
+        13,
+        16
+      ],
+      "cv.website": [
+        8,
+        2,
+        8,
+        11
+      ],
+      "design": [
+        183,
+        0,
+        184,
+        2
+      ],
+      "design.theme": [
+        184,
+        2,
+        184,
+        9
+      ],
+      "locale": [
+        315,
+        0,
+        316,
+        2
+      ],
+      "locale.language": [
+        316,
+        2,
+        316,
+        12
+      ],
+      "settings": [
+        351,
+        0,
+        352,
+        2
+      ],
+      "settings.bold_keywords": [
+        367,
+        2,
+        367,
+        17
+      ],
+      "settings.current_date": [
+        352,
+        2,
+        352,
+        16
+      ],
+      "settings.pdf_title": [
+        368,
+        2,
+        368,
+        13
+      ],
+      "settings.render_command": [
+        353,
+        2,
+        354,
+        4
+      ],
+      "settings.render_command.design": [
+        355,
+        4,
+        356,
+        4
+      ],
+      "settings.render_command.dont_generate_html": [
+        363,
+        4,
+        363,
+        24
+      ],
+      "settings.render_command.dont_generate_markdown": [
+        362,
+        4,
+        362,
+        28
+      ],
+      "settings.render_command.dont_generate_pdf": [
+        365,
+        4,
+        365,
+        23
+      ],
+      "settings.render_command.dont_generate_png": [
+        366,
+        4,
+        366,
+        23
+      ],
+      "settings.render_command.dont_generate_typst": [
+        364,
+        4,
+        364,
+        25
+      ],
+      "settings.render_command.html_path": [
+        360,
+        4,
+        360,
+        15
+      ],
+      "settings.render_command.locale": [
+        356,
+        4,
+        357,
+        4
+      ],
+      "settings.render_command.markdown_path": [
+        359,
+        4,
+        359,
+        19
+      ],
+      "settings.render_command.output_folder": [
+        354,
+        4,
+        354,
+        19
+      ],
+      "settings.render_command.pdf_path": [
+        358,
+        4,
+        358,
+        14
+      ],
+      "settings.render_command.png_path": [
+        361,
+        4,
+        361,
+        14
+      ],
+      "settings.render_command.typst_path": [
+        357,
+        4,
+        357,
+        16
+      ]
+    }
+  },
+  {
+    "file": "third_party/rendercv/tests/schema/testdata/test_pydantic_error_handling/expected_errors.yaml",
+    "data": {
+      "expected_errors": [
+        0,
+        0,
+        1,
+        2
+      ],
+      "expected_errors.0": [
+        1,
+        4
+      ],
+      "expected_errors.0.input": [
+        3,
+        4,
+        3,
+        11
+      ],
+      "expected_errors.0.message": [
+        2,
+        4,
+        2,
+        13
+      ],
+      "expected_errors.0.schema_location": [
+        1,
+        4,
+        1,
+        21
+      ],
+      "expected_errors.0.schema_location.0": [
+        1,
+        22
+      ],
+      "expected_errors.0.schema_location.1": [
+        1,
+        28
+      ],
+      "expected_errors.0.schema_location.2": [
+        1,
+        37
+      ],
+      "expected_errors.0.yaml_location": [
+        4,
+        4,
+        4,
+        19
+      ],
+      "expected_errors.0.yaml_location.0": [
+        4,
+        20
+      ],
+      "expected_errors.0.yaml_location.0.0": [
+        4,
+        21
+      ],
+      "expected_errors.0.yaml_location.0.1": [
+        4,
+        24
+      ],
+      "expected_errors.0.yaml_location.1": [
+        4,
+        28
+      ],
+      "expected_errors.0.yaml_location.1.0": [
+        4,
+        29
+      ],
+      "expected_errors.0.yaml_location.1.1": [
+        4,
+        32
+      ],
+      "expected_errors.0.yaml_source": [
+        5,
+        4,
+        5,
+        17
+      ],
+      "expected_errors.1": [
+        7,
+        4
+      ],
+      "expected_errors.1.input": [
+        9,
+        4,
+        9,
+        11
+      ],
+      "expected_errors.1.message": [
+        8,
+        4,
+        8,
+        13
+      ],
+      "expected_errors.1.schema_location": [
+        7,
+        4,
+        7,
+        21
+      ],
+      "expected_errors.1.schema_location.0": [
+        7,
+        22
+      ],
+      "expected_errors.1.schema_location.1": [
+        7,
+        28
+      ],
+      "expected_errors.1.schema_location.2": [
+        7,
+        37
+      ],
+      "expected_errors.1.yaml_location": [
+        10,
+        4,
+        10,
+        19
+      ],
+      "expected_errors.1.yaml_location.0": [
+        10,
+        20
+      ],
+      "expected_errors.1.yaml_location.0.0": [
+        10,
+        21
+      ],
+      "expected_errors.1.yaml_location.0.1": [
+        10,
+        24
+      ],
+      "expected_errors.1.yaml_location.1": [
+        10,
+        28
+      ],
+      "expected_errors.1.yaml_location.1.0": [
+        10,
+        29
+      ],
+      "expected_errors.1.yaml_location.1.1": [
+        10,
+        32
+      ],
+      "expected_errors.1.yaml_source": [
+        11,
+        4,
+        11,
+        17
+      ],
+      "expected_errors.10": [
+        62,
+        4
+      ],
+      "expected_errors.10.input": [
+        64,
+        4,
+        64,
+        11
+      ],
+      "expected_errors.10.message": [
+        63,
+        4,
+        63,
+        13
+      ],
+      "expected_errors.10.schema_location": [
+        62,
+        4,
+        62,
+        21
+      ],
+      "expected_errors.10.schema_location.0": [
+        62,
+        22
+      ],
+      "expected_errors.10.schema_location.1": [
+        62,
+        28
+      ],
+      "expected_errors.10.schema_location.2": [
+        62,
+        40
+      ],
+      "expected_errors.10.schema_location.3": [
+        62,
+        71
+      ],
+      "expected_errors.10.schema_location.4": [
+        62,
+        76
+      ],
+      "expected_errors.10.yaml_location": [
+        65,
+        4,
+        65,
+        19
+      ],
+      "expected_errors.10.yaml_location.0": [
+        65,
+        20
+      ],
+      "expected_errors.10.yaml_location.0.0": [
+        65,
+        21
+      ],
+      "expected_errors.10.yaml_location.0.1": [
+        65,
+        25
+      ],
+      "expected_errors.10.yaml_location.1": [
+        65,
+        29
+      ],
+      "expected_errors.10.yaml_location.1.0": [
+        65,
+        30
+      ],
+      "expected_errors.10.yaml_location.1.1": [
+        65,
+        34
+      ],
+      "expected_errors.10.yaml_source": [
+        66,
+        4,
+        66,
+        17
+      ],
+      "expected_errors.11": [
+        68,
+        4
+      ],
+      "expected_errors.11.input": [
+        70,
+        4,
+        70,
+        11
+      ],
+      "expected_errors.11.message": [
+        69,
+        4,
+        69,
+        13
+      ],
+      "expected_errors.11.schema_location": [
+        68,
+        4,
+        68,
+        21
+      ],
+      "expected_errors.11.schema_location.0": [
+        68,
+        22
+      ],
+      "expected_errors.11.schema_location.1": [
+        68,
+        28
+      ],
+      "expected_errors.11.schema_location.2": [
+        68,
+        40
+      ],
+      "expected_errors.11.yaml_location": [
+        71,
+        4,
+        71,
+        19
+      ],
+      "expected_errors.11.yaml_location.0": [
+        71,
+        20
+      ],
+      "expected_errors.11.yaml_location.0.0": [
+        71,
+        21
+      ],
+      "expected_errors.11.yaml_location.0.1": [
+        71,
+        25
+      ],
+      "expected_errors.11.yaml_location.1": [
+        71,
+        29
+      ],
+      "expected_errors.11.yaml_location.1.0": [
+        71,
+        30
+      ],
+      "expected_errors.11.yaml_location.1.1": [
+        71,
+        34
+      ],
+      "expected_errors.11.yaml_source": [
+        72,
+        4,
+        72,
+        17
+      ],
+      "expected_errors.12": [
+        74,
+        4
+      ],
+      "expected_errors.12.input": [
+        76,
+        4,
+        76,
+        11
+      ],
+      "expected_errors.12.message": [
+        75,
+        4,
+        75,
+        13
+      ],
+      "expected_errors.12.schema_location": [
+        74,
+        4,
+        74,
+        21
+      ],
+      "expected_errors.12.schema_location.0": [
+        74,
+        22
+      ],
+      "expected_errors.12.schema_location.1": [
+        74,
+        28
+      ],
+      "expected_errors.12.schema_location.2": [
+        74,
+        40
+      ],
+      "expected_errors.12.schema_location.3": [
+        74,
+        71
+      ],
+      "expected_errors.12.schema_location.4": [
+        74,
+        76
+      ],
+      "expected_errors.12.yaml_location": [
+        77,
+        4,
+        77,
+        19
+      ],
+      "expected_errors.12.yaml_location.0": [
+        77,
+        20
+      ],
+      "expected_errors.12.yaml_location.0.0": [
+        77,
+        21
+      ],
+      "expected_errors.12.yaml_location.0.1": [
+        77,
+        25
+      ],
+      "expected_errors.12.yaml_location.1": [
+        77,
+        29
+      ],
+      "expected_errors.12.yaml_location.1.0": [
+        77,
+        30
+      ],
+      "expected_errors.12.yaml_location.1.1": [
+        77,
+        34
+      ],
+      "expected_errors.12.yaml_source": [
+        78,
+        4,
+        78,
+        17
+      ],
+      "expected_errors.13": [
+        80,
+        4
+      ],
+      "expected_errors.13.input": [
+        82,
+        4,
+        82,
+        11
+      ],
+      "expected_errors.13.message": [
+        81,
+        4,
+        81,
+        13
+      ],
+      "expected_errors.13.schema_location": [
+        80,
+        4,
+        80,
+        21
+      ],
+      "expected_errors.13.schema_location.0": [
+        80,
+        22
+      ],
+      "expected_errors.13.schema_location.1": [
+        80,
+        28
+      ],
+      "expected_errors.13.schema_location.2": [
+        80,
+        40
+      ],
+      "expected_errors.13.yaml_location": [
+        83,
+        4,
+        83,
+        19
+      ],
+      "expected_errors.13.yaml_location.0": [
+        83,
+        20
+      ],
+      "expected_errors.13.yaml_location.0.0": [
+        83,
+        21
+      ],
+      "expected_errors.13.yaml_location.0.1": [
+        83,
+        25
+      ],
+      "expected_errors.13.yaml_location.1": [
+        83,
+        29
+      ],
+      "expected_errors.13.yaml_location.1.0": [
+        83,
+        30
+      ],
+      "expected_errors.13.yaml_location.1.1": [
+        83,
+        34
+      ],
+      "expected_errors.13.yaml_source": [
+        84,
+        4,
+        84,
+        17
+      ],
+      "expected_errors.14": [
+        86,
+        4
+      ],
+      "expected_errors.14.input": [
+        88,
+        4,
+        88,
+        11
+      ],
+      "expected_errors.14.message": [
+        87,
+        4,
+        87,
+        13
+      ],
+      "expected_errors.14.schema_location": [
+        86,
+        4,
+        86,
+        21
+      ],
+      "expected_errors.14.schema_location.0": [
+        86,
+        22
+      ],
+      "expected_errors.14.schema_location.1": [
+        86,
+        28
+      ],
+      "expected_errors.14.schema_location.2": [
+        86,
+        40
+      ],
+      "expected_errors.14.schema_location.3": [
+        86,
+        71
+      ],
+      "expected_errors.14.schema_location.4": [
+        86,
+        76
+      ],
+      "expected_errors.14.yaml_location": [
+        89,
+        4,
+        89,
+        19
+      ],
+      "expected_errors.14.yaml_location.0": [
+        89,
+        20
+      ],
+      "expected_errors.14.yaml_location.0.0": [
+        89,
+        21
+      ],
+      "expected_errors.14.yaml_location.0.1": [
+        89,
+        25
+      ],
+      "expected_errors.14.yaml_location.1": [
+        89,
+        29
+      ],
+      "expected_errors.14.yaml_location.1.0": [
+        89,
+        30
+      ],
+      "expected_errors.14.yaml_location.1.1": [
+        89,
+        34
+      ],
+      "expected_errors.14.yaml_source": [
+        90,
+        4,
+        90,
+        17
+      ],
+      "expected_errors.15": [
+        92,
+        4
+      ],
+      "expected_errors.15.input": [
+        94,
+        4,
+        94,
+        11
+      ],
+      "expected_errors.15.message": [
+        93,
+        4,
+        93,
+        13
+      ],
+      "expected_errors.15.schema_location": [
+        92,
+        4,
+        92,
+        21
+      ],
+      "expected_errors.15.schema_location.0": [
+        92,
+        22
+      ],
+      "expected_errors.15.schema_location.1": [
+        92,
+        28
+      ],
+      "expected_errors.15.schema_location.2": [
+        92,
+        40
+      ],
+      "expected_errors.15.yaml_location": [
+        95,
+        4,
+        95,
+        19
+      ],
+      "expected_errors.15.yaml_location.0": [
+        95,
+        20
+      ],
+      "expected_errors.15.yaml_location.0.0": [
+        95,
+        21
+      ],
+      "expected_errors.15.yaml_location.0.1": [
+        95,
+        25
+      ],
+      "expected_errors.15.yaml_location.1": [
+        95,
+        29
+      ],
+      "expected_errors.15.yaml_location.1.0": [
+        95,
+        30
+      ],
+      "expected_errors.15.yaml_location.1.1": [
+        95,
+        34
+      ],
+      "expected_errors.15.yaml_source": [
+        96,
+        4,
+        96,
+        17
+      ],
+      "expected_errors.16": [
+        98,
+        4
+      ],
+      "expected_errors.16.input": [
+        100,
+        4,
+        100,
+        11
+      ],
+      "expected_errors.16.message": [
+        99,
+        4,
+        99,
+        13
+      ],
+      "expected_errors.16.schema_location": [
+        98,
+        4,
+        98,
+        21
+      ],
+      "expected_errors.16.schema_location.0": [
+        98,
+        22
+      ],
+      "expected_errors.16.schema_location.1": [
+        98,
+        28
+      ],
+      "expected_errors.16.schema_location.2": [
+        98,
+        40
+      ],
+      "expected_errors.16.schema_location.3": [
+        98,
+        71
+      ],
+      "expected_errors.16.schema_location.4": [
+        98,
+        76
+      ],
+      "expected_errors.16.yaml_location": [
+        101,
+        4,
+        101,
+        19
+      ],
+      "expected_errors.16.yaml_location.0": [
+        101,
+        20
+      ],
+      "expected_errors.16.yaml_location.0.0": [
+        101,
+        21
+      ],
+      "expected_errors.16.yaml_location.0.1": [
+        101,
+        25
+      ],
+      "expected_errors.16.yaml_location.1": [
+        101,
+        29
+      ],
+      "expected_errors.16.yaml_location.1.0": [
+        101,
+        30
+      ],
+      "expected_errors.16.yaml_location.1.1": [
+        101,
+        34
+      ],
+      "expected_errors.16.yaml_source": [
+        102,
+        4,
+        102,
+        17
+      ],
+      "expected_errors.17": [
+        104,
+        4
+      ],
+      "expected_errors.17.input": [
+        106,
+        4,
+        106,
+        11
+      ],
+      "expected_errors.17.message": [
+        105,
+        4,
+        105,
+        13
+      ],
+      "expected_errors.17.schema_location": [
+        104,
+        4,
+        104,
+        21
+      ],
+      "expected_errors.17.schema_location.0": [
+        104,
+        22
+      ],
+      "expected_errors.17.schema_location.1": [
+        104,
+        28
+      ],
+      "expected_errors.17.schema_location.2": [
+        104,
+        40
+      ],
+      "expected_errors.17.yaml_location": [
+        107,
+        4,
+        107,
+        19
+      ],
+      "expected_errors.17.yaml_location.0": [
+        107,
+        20
+      ],
+      "expected_errors.17.yaml_location.0.0": [
+        107,
+        21
+      ],
+      "expected_errors.17.yaml_location.0.1": [
+        107,
+        25
+      ],
+      "expected_errors.17.yaml_location.1": [
+        107,
+        29
+      ],
+      "expected_errors.17.yaml_location.1.0": [
+        107,
+        30
+      ],
+      "expected_errors.17.yaml_location.1.1": [
+        107,
+        34
+      ],
+      "expected_errors.17.yaml_source": [
+        108,
+        4,
+        108,
+        17
+      ],
+      "expected_errors.18": [
+        110,
+        4
+      ],
+      "expected_errors.18.input": [
+        112,
+        4,
+        112,
+        11
+      ],
+      "expected_errors.18.message": [
+        111,
+        4,
+        111,
+        13
+      ],
+      "expected_errors.18.schema_location": [
+        110,
+        4,
+        110,
+        21
+      ],
+      "expected_errors.18.schema_location.0": [
+        110,
+        22
+      ],
+      "expected_errors.18.schema_location.1": [
+        110,
+        28
+      ],
+      "expected_errors.18.schema_location.2": [
+        110,
+        40
+      ],
+      "expected_errors.18.schema_location.3": [
+        110,
+        71
+      ],
+      "expected_errors.18.schema_location.4": [
+        110,
+        76
+      ],
+      "expected_errors.18.yaml_location": [
+        113,
+        4,
+        113,
+        19
+      ],
+      "expected_errors.18.yaml_location.0": [
+        113,
+        20
+      ],
+      "expected_errors.18.yaml_location.0.0": [
+        113,
+        21
+      ],
+      "expected_errors.18.yaml_location.0.1": [
+        113,
+        25
+      ],
+      "expected_errors.18.yaml_location.1": [
+        113,
+        29
+      ],
+      "expected_errors.18.yaml_location.1.0": [
+        113,
+        30
+      ],
+      "expected_errors.18.yaml_location.1.1": [
+        113,
+        34
+      ],
+      "expected_errors.18.yaml_source": [
+        114,
+        4,
+        114,
+        17
+      ],
+      "expected_errors.19": [
+        116,
+        4
+      ],
+      "expected_errors.19.input": [
+        118,
+        4,
+        118,
+        11
+      ],
+      "expected_errors.19.message": [
+        117,
+        4,
+        117,
+        13
+      ],
+      "expected_errors.19.schema_location": [
+        116,
+        4,
+        116,
+        21
+      ],
+      "expected_errors.19.schema_location.0": [
+        116,
+        22
+      ],
+      "expected_errors.19.schema_location.1": [
+        116,
+        28
+      ],
+      "expected_errors.19.schema_location.2": [
+        116,
+        40
+      ],
+      "expected_errors.19.yaml_location": [
+        119,
+        4,
+        119,
+        19
+      ],
+      "expected_errors.19.yaml_location.0": [
+        119,
+        20
+      ],
+      "expected_errors.19.yaml_location.0.0": [
+        119,
+        21
+      ],
+      "expected_errors.19.yaml_location.0.1": [
+        119,
+        25
+      ],
+      "expected_errors.19.yaml_location.1": [
+        119,
+        29
+      ],
+      "expected_errors.19.yaml_location.1.0": [
+        119,
+        30
+      ],
+      "expected_errors.19.yaml_location.1.1": [
+        119,
+        34
+      ],
+      "expected_errors.19.yaml_source": [
+        120,
+        4,
+        120,
+        17
+      ],
+      "expected_errors.2": [
+        13,
+        4
+      ],
+      "expected_errors.2.input": [
+        15,
+        4,
+        15,
+        11
+      ],
+      "expected_errors.2.message": [
+        14,
+        4,
+        14,
+        13
+      ],
+      "expected_errors.2.schema_location": [
+        13,
+        4,
+        13,
+        21
+      ],
+      "expected_errors.2.schema_location.0": [
+        13,
+        22
+      ],
+      "expected_errors.2.schema_location.1": [
+        13,
+        28
+      ],
+      "expected_errors.2.yaml_location": [
+        16,
+        4,
+        16,
+        19
+      ],
+      "expected_errors.2.yaml_location.0": [
+        16,
+        20
+      ],
+      "expected_errors.2.yaml_location.0.0": [
+        16,
+        21
+      ],
+      "expected_errors.2.yaml_location.0.1": [
+        16,
+        24
+      ],
+      "expected_errors.2.yaml_location.1": [
+        16,
+        28
+      ],
+      "expected_errors.2.yaml_location.1.0": [
+        16,
+        29
+      ],
+      "expected_errors.2.yaml_location.1.1": [
+        16,
+        32
+      ],
+      "expected_errors.2.yaml_source": [
+        17,
+        4,
+        17,
+        17
+      ],
+      "expected_errors.20": [
+        122,
+        4
+      ],
+      "expected_errors.20.input": [
+        124,
+        4,
+        124,
+        11
+      ],
+      "expected_errors.20.message": [
+        123,
+        4,
+        123,
+        13
+      ],
+      "expected_errors.20.schema_location": [
+        122,
+        4,
+        122,
+        21
+      ],
+      "expected_errors.20.schema_location.0": [
+        122,
+        22
+      ],
+      "expected_errors.20.schema_location.1": [
+        122,
+        28
+      ],
+      "expected_errors.20.schema_location.2": [
+        122,
+        40
+      ],
+      "expected_errors.20.schema_location.3": [
+        122,
+        71
+      ],
+      "expected_errors.20.yaml_location": [
+        125,
+        4,
+        125,
+        19
+      ],
+      "expected_errors.20.yaml_location.0": [
+        125,
+        20
+      ],
+      "expected_errors.20.yaml_location.0.0": [
+        125,
+        21
+      ],
+      "expected_errors.20.yaml_location.0.1": [
+        125,
+        25
+      ],
+      "expected_errors.20.yaml_location.1": [
+        125,
+        29
+      ],
+      "expected_errors.20.yaml_location.1.0": [
+        125,
+        30
+      ],
+      "expected_errors.20.yaml_location.1.1": [
+        125,
+        34
+      ],
+      "expected_errors.20.yaml_source": [
+        126,
+        4,
+        126,
+        17
+      ],
+      "expected_errors.21": [
+        128,
+        4
+      ],
+      "expected_errors.21.input": [
+        130,
+        4,
+        130,
+        11
+      ],
+      "expected_errors.21.message": [
+        129,
+        4,
+        129,
+        13
+      ],
+      "expected_errors.21.schema_location": [
+        128,
+        4,
+        128,
+        21
+      ],
+      "expected_errors.21.schema_location.0": [
+        128,
+        22
+      ],
+      "expected_errors.21.schema_location.1": [
+        128,
+        28
+      ],
+      "expected_errors.21.schema_location.2": [
+        128,
+        40
+      ],
+      "expected_errors.21.yaml_location": [
+        131,
+        4,
+        131,
+        19
+      ],
+      "expected_errors.21.yaml_location.0": [
+        131,
+        20
+      ],
+      "expected_errors.21.yaml_location.0.0": [
+        131,
+        21
+      ],
+      "expected_errors.21.yaml_location.0.1": [
+        131,
+        25
+      ],
+      "expected_errors.21.yaml_location.1": [
+        131,
+        29
+      ],
+      "expected_errors.21.yaml_location.1.0": [
+        131,
+        30
+      ],
+      "expected_errors.21.yaml_location.1.1": [
+        131,
+        34
+      ],
+      "expected_errors.21.yaml_source": [
+        132,
+        4,
+        132,
+        17
+      ],
+      "expected_errors.22": [
+        134,
+        4
+      ],
+      "expected_errors.22.input": [
+        136,
+        4,
+        136,
+        11
+      ],
+      "expected_errors.22.message": [
+        135,
+        4,
+        135,
+        13
+      ],
+      "expected_errors.22.schema_location": [
+        134,
+        4,
+        134,
+        21
+      ],
+      "expected_errors.22.schema_location.0": [
+        134,
+        22
+      ],
+      "expected_errors.22.schema_location.1": [
+        134,
+        28
+      ],
+      "expected_errors.22.schema_location.2": [
+        134,
+        40
+      ],
+      "expected_errors.22.schema_location.3": [
+        134,
+        71
+      ],
+      "expected_errors.22.schema_location.4": [
+        134,
+        76
+      ],
+      "expected_errors.22.yaml_location": [
+        137,
+        4,
+        137,
+        19
+      ],
+      "expected_errors.22.yaml_location.0": [
+        137,
+        20
+      ],
+      "expected_errors.22.yaml_location.0.0": [
+        137,
+        21
+      ],
+      "expected_errors.22.yaml_location.0.1": [
+        137,
+        25
+      ],
+      "expected_errors.22.yaml_location.1": [
+        137,
+        29
+      ],
+      "expected_errors.22.yaml_location.1.0": [
+        137,
+        30
+      ],
+      "expected_errors.22.yaml_location.1.1": [
+        137,
+        34
+      ],
+      "expected_errors.22.yaml_source": [
+        138,
+        4,
+        138,
+        17
+      ],
+      "expected_errors.23": [
+        140,
+        4
+      ],
+      "expected_errors.23.input": [
+        142,
+        4,
+        142,
+        11
+      ],
+      "expected_errors.23.message": [
+        141,
+        4,
+        141,
+        13
+      ],
+      "expected_errors.23.schema_location": [
+        140,
+        4,
+        140,
+        21
+      ],
+      "expected_errors.23.schema_location.0": [
+        140,
+        22
+      ],
+      "expected_errors.23.schema_location.1": [
+        140,
+        32
+      ],
+      "expected_errors.23.yaml_location": [
+        143,
+        4,
+        143,
+        19
+      ],
+      "expected_errors.23.yaml_location.0": [
+        143,
+        20
+      ],
+      "expected_errors.23.yaml_location.0.0": [
+        143,
+        21
+      ],
+      "expected_errors.23.yaml_location.0.1": [
+        143,
+        25
+      ],
+      "expected_errors.23.yaml_location.1": [
+        143,
+        29
+      ],
+      "expected_errors.23.yaml_location.1.0": [
+        143,
+        30
+      ],
+      "expected_errors.23.yaml_location.1.1": [
+        143,
+        34
+      ],
+      "expected_errors.23.yaml_source": [
+        144,
+        4,
+        144,
+        17
+      ],
+      "expected_errors.24": [
+        146,
+        4
+      ],
+      "expected_errors.24.input": [
+        148,
+        4,
+        148,
+        11
+      ],
+      "expected_errors.24.message": [
+        147,
+        4,
+        147,
+        13
+      ],
+      "expected_errors.24.schema_location": [
+        146,
+        4,
+        146,
+        21
+      ],
+      "expected_errors.24.schema_location.0": [
+        146,
+        22
+      ],
+      "expected_errors.24.schema_location.1": [
+        146,
+        34
+      ],
+      "expected_errors.24.yaml_location": [
+        149,
+        4,
+        149,
+        19
+      ],
+      "expected_errors.24.yaml_location.0": [
+        149,
+        20
+      ],
+      "expected_errors.24.yaml_location.0.0": [
+        149,
+        21
+      ],
+      "expected_errors.24.yaml_location.0.1": [
+        149,
+        25
+      ],
+      "expected_errors.24.yaml_location.1": [
+        149,
+        29
+      ],
+      "expected_errors.24.yaml_location.1.0": [
+        149,
+        30
+      ],
+      "expected_errors.24.yaml_location.1.1": [
+        149,
+        34
+      ],
+      "expected_errors.24.yaml_source": [
+        150,
+        4,
+        150,
+        17
+      ],
+      "expected_errors.3": [
+        19,
+        4
+      ],
+      "expected_errors.3.input": [
+        21,
+        4,
+        21,
+        11
+      ],
+      "expected_errors.3.message": [
+        20,
+        4,
+        20,
+        13
+      ],
+      "expected_errors.3.schema_location": [
+        19,
+        4,
+        19,
+        21
+      ],
+      "expected_errors.3.schema_location.0": [
+        19,
+        22
+      ],
+      "expected_errors.3.schema_location.1": [
+        19,
+        28
+      ],
+      "expected_errors.3.yaml_location": [
+        22,
+        4,
+        22,
+        19
+      ],
+      "expected_errors.3.yaml_location.0": [
+        22,
+        20
+      ],
+      "expected_errors.3.yaml_location.0.0": [
+        22,
+        21
+      ],
+      "expected_errors.3.yaml_location.0.1": [
+        22,
+        24
+      ],
+      "expected_errors.3.yaml_location.1": [
+        22,
+        28
+      ],
+      "expected_errors.3.yaml_location.1.0": [
+        22,
+        29
+      ],
+      "expected_errors.3.yaml_location.1.1": [
+        22,
+        32
+      ],
+      "expected_errors.3.yaml_source": [
+        23,
+        4,
+        23,
+        17
+      ],
+      "expected_errors.4": [
+        25,
+        4
+      ],
+      "expected_errors.4.input": [
+        27,
+        4,
+        27,
+        11
+      ],
+      "expected_errors.4.message": [
+        26,
+        4,
+        26,
+        13
+      ],
+      "expected_errors.4.schema_location": [
+        25,
+        4,
+        25,
+        21
+      ],
+      "expected_errors.4.schema_location.0": [
+        25,
+        22
+      ],
+      "expected_errors.4.schema_location.1": [
+        25,
+        28
+      ],
+      "expected_errors.4.yaml_location": [
+        28,
+        4,
+        28,
+        19
+      ],
+      "expected_errors.4.yaml_location.0": [
+        28,
+        20
+      ],
+      "expected_errors.4.yaml_location.0.0": [
+        28,
+        21
+      ],
+      "expected_errors.4.yaml_location.0.1": [
+        28,
+        24
+      ],
+      "expected_errors.4.yaml_location.1": [
+        28,
+        28
+      ],
+      "expected_errors.4.yaml_location.1.0": [
+        28,
+        29
+      ],
+      "expected_errors.4.yaml_location.1.1": [
+        28,
+        32
+      ],
+      "expected_errors.4.yaml_source": [
+        29,
+        4,
+        29,
+        17
+      ],
+      "expected_errors.5": [
+        31,
+        4
+      ],
+      "expected_errors.5.input": [
+        33,
+        4,
+        33,
+        11
+      ],
+      "expected_errors.5.message": [
+        32,
+        4,
+        32,
+        13
+      ],
+      "expected_errors.5.schema_location": [
+        31,
+        4,
+        31,
+        21
+      ],
+      "expected_errors.5.schema_location.0": [
+        31,
+        22
+      ],
+      "expected_errors.5.schema_location.1": [
+        31,
+        28
+      ],
+      "expected_errors.5.schema_location.2": [
+        31,
+        47
+      ],
+      "expected_errors.5.schema_location.3": [
+        31,
+        52
+      ],
+      "expected_errors.5.yaml_location": [
+        34,
+        4,
+        34,
+        19
+      ],
+      "expected_errors.5.yaml_location.0": [
+        34,
+        20
+      ],
+      "expected_errors.5.yaml_location.0.0": [
+        34,
+        21
+      ],
+      "expected_errors.5.yaml_location.0.1": [
+        34,
+        25
+      ],
+      "expected_errors.5.yaml_location.1": [
+        34,
+        29
+      ],
+      "expected_errors.5.yaml_location.1.0": [
+        34,
+        30
+      ],
+      "expected_errors.5.yaml_location.1.1": [
+        34,
+        34
+      ],
+      "expected_errors.5.yaml_source": [
+        35,
+        4,
+        35,
+        17
+      ],
+      "expected_errors.6": [
+        37,
+        4
+      ],
+      "expected_errors.6.input": [
+        39,
+        4,
+        39,
+        11
+      ],
+      "expected_errors.6.message": [
+        38,
+        4,
+        38,
+        13
+      ],
+      "expected_errors.6.schema_location": [
+        37,
+        4,
+        37,
+        21
+      ],
+      "expected_errors.6.schema_location.0": [
+        37,
+        22
+      ],
+      "expected_errors.6.schema_location.1": [
+        37,
+        28
+      ],
+      "expected_errors.6.schema_location.2": [
+        37,
+        47
+      ],
+      "expected_errors.6.schema_location.3": [
+        37,
+        52
+      ],
+      "expected_errors.6.yaml_location": [
+        40,
+        4,
+        40,
+        19
+      ],
+      "expected_errors.6.yaml_location.0": [
+        40,
+        20
+      ],
+      "expected_errors.6.yaml_location.0.0": [
+        40,
+        21
+      ],
+      "expected_errors.6.yaml_location.0.1": [
+        40,
+        25
+      ],
+      "expected_errors.6.yaml_location.1": [
+        40,
+        29
+      ],
+      "expected_errors.6.yaml_location.1.0": [
+        40,
+        30
+      ],
+      "expected_errors.6.yaml_location.1.1": [
+        40,
+        34
+      ],
+      "expected_errors.6.yaml_source": [
+        41,
+        4,
+        41,
+        17
+      ],
+      "expected_errors.7": [
+        43,
+        4
+      ],
+      "expected_errors.7.input": [
+        45,
+        4,
+        45,
+        11
+      ],
+      "expected_errors.7.message": [
+        44,
+        4,
+        44,
+        13
+      ],
+      "expected_errors.7.schema_location": [
+        43,
+        4,
+        43,
+        21
+      ],
+      "expected_errors.7.schema_location.0": [
+        43,
+        22
+      ],
+      "expected_errors.7.schema_location.1": [
+        43,
+        28
+      ],
+      "expected_errors.7.schema_location.2": [
+        43,
+        40
+      ],
+      "expected_errors.7.yaml_location": [
+        46,
+        4,
+        46,
+        19
+      ],
+      "expected_errors.7.yaml_location.0": [
+        46,
+        20
+      ],
+      "expected_errors.7.yaml_location.0.0": [
+        46,
+        21
+      ],
+      "expected_errors.7.yaml_location.0.1": [
+        46,
+        25
+      ],
+      "expected_errors.7.yaml_location.1": [
+        46,
+        29
+      ],
+      "expected_errors.7.yaml_location.1.0": [
+        46,
+        30
+      ],
+      "expected_errors.7.yaml_location.1.1": [
+        46,
+        34
+      ],
+      "expected_errors.7.yaml_source": [
+        47,
+        4,
+        47,
+        17
+      ],
+      "expected_errors.8": [
+        49,
+        4
+      ],
+      "expected_errors.8.input": [
+        51,
+        4,
+        51,
+        11
+      ],
+      "expected_errors.8.message": [
+        50,
+        4,
+        50,
+        13
+      ],
+      "expected_errors.8.schema_location": [
+        49,
+        4,
+        49,
+        21
+      ],
+      "expected_errors.8.schema_location.0": [
+        49,
+        22
+      ],
+      "expected_errors.8.schema_location.1": [
+        49,
+        28
+      ],
+      "expected_errors.8.schema_location.2": [
+        49,
+        40
+      ],
+      "expected_errors.8.yaml_location": [
+        52,
+        4,
+        52,
+        19
+      ],
+      "expected_errors.8.yaml_location.0": [
+        52,
+        20
+      ],
+      "expected_errors.8.yaml_location.0.0": [
+        52,
+        21
+      ],
+      "expected_errors.8.yaml_location.0.1": [
+        52,
+        25
+      ],
+      "expected_errors.8.yaml_location.1": [
+        52,
+        29
+      ],
+      "expected_errors.8.yaml_location.1.0": [
+        52,
+        30
+      ],
+      "expected_errors.8.yaml_location.1.1": [
+        52,
+        34
+      ],
+      "expected_errors.8.yaml_source": [
+        53,
+        4,
+        53,
+        17
+      ],
+      "expected_errors.9": [
+        55,
+        4
+      ],
+      "expected_errors.9.input": [
+        58,
+        4,
+        58,
+        11
+      ],
+      "expected_errors.9.message": [
+        57,
+        4,
+        57,
+        13
+      ],
+      "expected_errors.9.schema_location": [
+        55,
+        4,
+        56,
+        6
+      ],
+      "expected_errors.9.schema_location.0": [
+        56,
+        7
+      ],
+      "expected_errors.9.schema_location.1": [
+        56,
+        13
+      ],
+      "expected_errors.9.schema_location.2": [
+        56,
+        25
+      ],
+      "expected_errors.9.schema_location.3": [
+        56,
+        56
+      ],
+      "expected_errors.9.schema_location.4": [
+        56,
+        61
+      ],
+      "expected_errors.9.yaml_location": [
+        59,
+        4,
+        59,
+        19
+      ],
+      "expected_errors.9.yaml_location.0": [
+        59,
+        20
+      ],
+      "expected_errors.9.yaml_location.0.0": [
+        59,
+        21
+      ],
+      "expected_errors.9.yaml_location.0.1": [
+        59,
+        25
+      ],
+      "expected_errors.9.yaml_location.1": [
+        59,
+        29
+      ],
+      "expected_errors.9.yaml_location.1.0": [
+        59,
+        30
+      ],
+      "expected_errors.9.yaml_location.1.1": [
+        59,
+        34
+      ],
+      "expected_errors.9.yaml_source": [
+        60,
+        4,
+        60,
+        17
       ]
     }
   }
