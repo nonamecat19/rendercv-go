@@ -34,6 +34,47 @@
     }
   },
   {
+    "file": "indented_empty_value.yaml",
+    "data": {
+      "nested": [
+        3,
+        0,
+        4,
+        2
+      ],
+      "nested.deep": [
+        4,
+        2,
+        5,
+        4
+      ],
+      "nested.deep.leaf": [
+        5,
+        4,
+        6,
+        0
+      ],
+      "outer": [
+        0,
+        0,
+        1,
+        2
+      ],
+      "outer.after": [
+        2,
+        2,
+        2,
+        9
+      ],
+      "outer.inner": [
+        1,
+        2,
+        2,
+        2
+      ]
+    }
+  },
+  {
     "file": "nested_mapping.yaml",
     "data": {
       "a": [
