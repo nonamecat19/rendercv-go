@@ -22,6 +22,7 @@ func main() {
 		"empty_mapping_value.yaml",
 		"flow_mapping.yaml",
 		"indented_empty_value.yaml",
+		"flow_sequence.yaml",
 	}
 
 	type coordEntry struct {
