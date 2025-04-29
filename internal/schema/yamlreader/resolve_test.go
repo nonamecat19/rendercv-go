@@ -1,80 +1,104 @@
 package yamlreader_test
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamlreader"
 )
 
+type scalarRow struct {
+	Raw   string `json:"raw"`
+	Style string `json:"style"`
+	Kind  string `json:"kind"`
+}
+
+// Scalar resolution, diffed against upstream's own reader.
+//
+// This table used to be written by hand on the Go side, which meant it stated
+// what the port does and called it what upstream does — the same shape of
+// mistake that let iteration 3 ship three wrong error codes behind a green
+// suite. `tools/scalarprobe` now feeds each candidate through
+// `rendercv.schema.yaml_reader.read_yaml` and records the Python type that
+// comes back, so every expectation here is measured.
+//
+// The fixture is committed, so the test runs without the submodule; regenerate
+// it with `go run ./tools/scalarprobe`.
 func TestResolveScalar(t *testing.T) {
-	tests := []struct {
-		raw   string
-		style yamldoc.ScalarStyle
-		want  yamldoc.Kind
-	}{
-		{"", yamldoc.StylePlain, yamldoc.KindNull},
-		{"~", yamldoc.StylePlain, yamldoc.KindNull},
-		{"null", yamldoc.StylePlain, yamldoc.KindNull},
-		{"Null", yamldoc.StylePlain, yamldoc.KindNull},
-		{"NULL", yamldoc.StylePlain, yamldoc.KindNull},
-		{"true", yamldoc.StylePlain, yamldoc.KindBool},
-		{"True", yamldoc.StylePlain, yamldoc.KindBool},
-		{"TRUE", yamldoc.StylePlain, yamldoc.KindBool},
-		{"false", yamldoc.StylePlain, yamldoc.KindBool},
-		{"False", yamldoc.StylePlain, yamldoc.KindBool},
-		{"FALSE", yamldoc.StylePlain, yamldoc.KindBool},
-		{".inf", yamldoc.StylePlain, yamldoc.KindFloat},
-		{".Inf", yamldoc.StylePlain, yamldoc.KindFloat},
-		{".INF", yamldoc.StylePlain, yamldoc.KindFloat},
-		{"+.inf", yamldoc.StylePlain, yamldoc.KindFloat},
-		{"-.inf", yamldoc.StylePlain, yamldoc.KindFloat},
-		{".nan", yamldoc.StylePlain, yamldoc.KindFloat},
-		{".NaN", yamldoc.StylePlain, yamldoc.KindFloat},
-		{".NAN", yamldoc.StylePlain, yamldoc.KindFloat},
-		{"0", yamldoc.StylePlain, yamldoc.KindInt},
-		{"42", yamldoc.StylePlain, yamldoc.KindInt},
-		{"-7", yamldoc.StylePlain, yamldoc.KindInt},
-		{"+7", yamldoc.StylePlain, yamldoc.KindInt},
-		{"0x1F", yamldoc.StylePlain, yamldoc.KindInt},
-		{"0o17", yamldoc.StylePlain, yamldoc.KindInt},
-		{"1_000", yamldoc.StylePlain, yamldoc.KindInt},
-		{"00123", yamldoc.StylePlain, yamldoc.KindInt},
-		{"3.14", yamldoc.StylePlain, yamldoc.KindFloat},
-		{"1e10", yamldoc.StylePlain, yamldoc.KindFloat},
-		{"2020", yamldoc.StylePlain, yamldoc.KindInt},
-		{"2020-09", yamldoc.StylePlain, yamldoc.KindString},
-		{"2020-09-24", yamldoc.StylePlain, yamldoc.KindString},
-		{"2020-09-24T10:00:00Z", yamldoc.StylePlain, yamldoc.KindString},
-		{"hello", yamldoc.StylePlain, yamldoc.KindString},
-		{"yes", yamldoc.StylePlain, yamldoc.KindString},
-		{"no", yamldoc.StylePlain, yamldoc.KindString},
-		{"on", yamldoc.StylePlain, yamldoc.KindString},
-		{"off", yamldoc.StylePlain, yamldoc.KindString},
-		{"null", yamldoc.StyleDoubleQuoted, yamldoc.KindString},
-		{"true", yamldoc.StyleSingleQuoted, yamldoc.KindString},
-		{"2020", yamldoc.StyleDoubleQuoted, yamldoc.KindString},
+	raw, err := os.ReadFile(filepath.Join("testdata", "scalars", "scalars.json"))
+	if err != nil {
+		t.Fatalf("reading the scalar fixture: %v", err)
+	}
+	var rows []scalarRow
+	if err := json.Unmarshal(raw, &rows); err != nil {
+		t.Fatalf("parsing the scalar fixture: %v", err)
+	}
+	if len(rows) < 150 {
+		t.Fatalf("the scalar corpus has %d rows, want the full set — has"+
+			" tools/scalarprobe lost entries?", len(rows))
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.raw+"_"+styleName(tt.style), func(t *testing.T) {
-			got := yamlreader.ResolveScalar(tt.raw, tt.style)
-			if got != tt.want {
-				t.Errorf("ResolveScalar(%q, %v) = %v, want %v", tt.raw, tt.style, got, tt.want)
+	// Every kind the port can produce must appear, or the corpus could pass by
+	// only ever exercising strings.
+	seen := map[string]bool{}
+
+	for _, row := range rows {
+		style, ok := styleFromName(row.Style)
+		if !ok {
+			t.Errorf("fixture row %+v has an unknown style", row)
+			continue
+		}
+		want, ok := kindFromName(row.Kind)
+		if !ok {
+			t.Errorf("fixture row %+v has an unknown kind", row)
+			continue
+		}
+		seen[row.Kind] = true
+
+		t.Run(row.Style+"/"+row.Raw, func(t *testing.T) {
+			if got := yamlreader.ResolveScalar(row.Raw, style); got != want {
+				t.Errorf("ResolveScalar(%q, %s) = %v, want %v",
+					row.Raw, row.Style, got, want)
 			}
 		})
 	}
+
+	for _, kind := range []string{"null", "bool", "int", "float", "string"} {
+		if !seen[kind] {
+			t.Errorf("no fixture row resolves to %s", kind)
+		}
+	}
 }
 
-func styleName(s yamldoc.ScalarStyle) string {
-	switch s {
-	case yamldoc.StylePlain:
-		return "plain"
-	case yamldoc.StyleSingleQuoted:
-		return "single"
-	case yamldoc.StyleDoubleQuoted:
-		return "double"
+func styleFromName(name string) (yamldoc.ScalarStyle, bool) {
+	switch name {
+	case "plain":
+		return yamldoc.StylePlain, true
+	case "single":
+		return yamldoc.StyleSingleQuoted, true
+	case "double":
+		return yamldoc.StyleDoubleQuoted, true
 	default:
-		return "other"
+		return 0, false
+	}
+}
+
+func kindFromName(name string) (yamldoc.Kind, bool) {
+	switch name {
+	case "null":
+		return yamldoc.KindNull, true
+	case "bool":
+		return yamldoc.KindBool, true
+	case "int":
+		return yamldoc.KindInt, true
+	case "float":
+		return yamldoc.KindFloat, true
+	case "string":
+		return yamldoc.KindString, true
+	default:
+		return 0, false
 	}
 }
