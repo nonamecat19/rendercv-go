@@ -63,6 +63,10 @@ func isInteger(s string) bool {
 			return isHexInteger(s[2:])
 		case 'o', 'O':
 			return isOctalInteger(s[2:])
+		case 'b', 'B':
+			// YAML 1.1's binary form, which ruamel still resolves: `0b101` reads
+			// back as the integer 5, not as a string (measured).
+			return isBinaryInteger(s[2:])
 		}
 	}
 
@@ -98,6 +102,19 @@ func isOctalInteger(s string) bool {
 	s = strings.ReplaceAll(s, "_", "")
 	for _, ch := range s {
 		if ch < '0' || ch > '7' {
+			return false
+		}
+	}
+	return true
+}
+
+func isBinaryInteger(s string) bool {
+	if s == "" {
+		return false
+	}
+	s = strings.ReplaceAll(s, "_", "")
+	for _, ch := range s {
+		if ch != '0' && ch != '1' {
 			return false
 		}
 	}
