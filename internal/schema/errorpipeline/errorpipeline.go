@@ -95,14 +95,20 @@ func Parse(raw []schemaerr.ValidationError) []schemaerr.ValidationError {
 // **the order is the contract**: reordering any two changes observable output,
 // and a reader has to be able to see the sequence at a glance.
 //
-// TODO(spec 004 T9-T20): steps 2 through 7 and 9 through 11. Only step 1 and
-// step 8 are here, which is why this cannot yet be called from the model
-// builder.
+// TODO(spec 004 T10-T20): steps 3 through 7 and 9 through 11. Only steps 1, 2
+// and 8 are here, which is why this cannot yet be called from the model builder.
 func parseOne(raw schemaerr.ValidationError) schemaerr.ValidationError {
 	final := raw
 
 	// Step 1: strip the unwanted message prefixes.
 	final.Message = stripPrefixes(final.Message)
+
+	// Step 2: drop the discriminated union's branch element. Skipped for a
+	// record whose validator pinned its own location — that is what step 3's
+	// `ctx["loc"]` override means, and re-deriving would undo it.
+	if !final.LocationIsFinal {
+		final.SchemaLocation = skipDiscriminator(final.SchemaLocation)
+	}
 
 	// Step 8: the trailing period. Last, always.
 	final.Message = appendPeriod(final.Message)
