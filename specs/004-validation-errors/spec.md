@@ -111,7 +111,7 @@ That whole file — 25 records for that one input — is the normative fixture f
 
    | # | Step | Citation | Why the position matters |
    |---|---|---|---|
-   | 1 | strip unwanted message prefixes | `:23`, `:50-51` | must precede the dictionary, or `value is not a valid phone number` never matches (§3.4 row 7) |
+   | 1 | strip unwanted message prefixes | `:23`, `:50-51` | upstream's order; **unobservable** on every measured message — see behavior 3a |
    | 2 | drop the discriminator element for `design` / `locale` | `:53-55` | must precede the context override, which re-pins `design.theme` (§3.5) |
    | 3 | context overrides `input`, then `loc` | `:57-62` | must precede location building (§3.5) |
    | 4 | build `location`, dropping synthetic elements | `:64-68` | must precede the two special cases, which read `location[-1]` |
@@ -122,6 +122,27 @@ That whole file — 25 records for that one input — is the normative fixture f
    | 9 | choose `yaml_source` and the coordinate document | `:97-104` | reads `location[0]`, so it follows step 4 |
    | 10 | resolve coordinates, truncating the path for a missing key | `:106-119` | §3.10 |
    | 11 | render `input` as text | `:122-126` | §3.11 |
+
+3a. **Correction to row 1 of the table above.** It previously read "must precede the dictionary, or
+   `value is not a valid phone number` never matches (§3.4 row 7)". That reason does not hold, and
+   the correction is recorded rather than silently edited because a test was written against the
+   wrong claim before it was caught.
+
+   Two independent reasons the ordering is unobservable:
+
+   - The phone message carries **no prefix at all**. Measured: `phone: bad` reports
+     `value is not a valid phone number`, bare, as a `PydanticCustomError`. There is nothing for
+     step 1 to strip, so row 7 matches with or without it.
+   - More generally, substitution matches by **containment** and replaces the **whole** message,
+     so a prefix can only ever *add* a match, never remove one. Neither prefix contains a
+     dictionary key, so it adds none either. Measured across all five prefixed messages the port
+     can produce: the matching row is identical before and after the strip.
+
+   The port still runs step 1 first, because the order is upstream's and a future dictionary row
+   could depend on it. What changes is only the justification — and
+   `errorpipeline.TestPrefixStripDoesNotChangeWhichRowMatches` now asserts the unobservability, so
+   if a later row makes the order matter, that test fails and this behavior is re-measured rather
+   than quietly wrong.
 
 4. **Step 1 strips two prefixes, unconditionally and by substring replacement, not by prefix
    test** (`:23`, `:50-51`):
