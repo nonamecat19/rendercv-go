@@ -122,6 +122,9 @@ func parseOne(raw schemaerr.ValidationError) schemaerr.ValidationError {
 	final.SchemaLocation = stripCurrentDateSuffix(final.SchemaLocation)
 	final.Message = overrideCurrentDate(final.SchemaLocation, final.Message)
 
+	// Step 7: dictionary substitution, first containment match wins.
+	final.Message = substitute(final.Message)
+
 	// Step 8: the trailing period. Last, always.
 	final.Message = appendPeriod(final.Message)
 

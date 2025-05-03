@@ -112,16 +112,19 @@ func TestStripPrefixes(t *testing.T) {
 	}
 }
 
-// The two steps compose in the documented order, and the period is genuinely
-// last: stripping after appending would leave `month must be in 1..12` without
-// its period on the value-error row.
+// The steps compose, and the first row goes through both the strip and the
+// dictionary: `Value error, month must be in 1..12` comes out as row 8's
+// replacement.
+//
+// It does **not** prove step 1 precedes step 7 — see
+// TestPrefixStripDoesNotChangeWhichRowMatches for why nothing can.
 func TestParseAppliesStripThenPeriod(t *testing.T) {
 	got := Parse([]schemaerr.ValidationError{
 		{Code: "value_error", Message: "Value error, month must be in 1..12"},
 		{Code: "string_type", Message: "Input should be a valid string"},
 	})
 
-	want := []string{"month must be in 1..12.", "Input should be a valid string."}
+	want := []string{"The month must be between 1 and 12.", "Input should be a valid string."}
 	if len(got) != len(want) {
 		t.Fatalf("Parse returned %d records, want %d", len(got), len(want))
 	}
