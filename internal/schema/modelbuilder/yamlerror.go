@@ -55,7 +55,7 @@ func yamlSyntaxValidationError(
 		// verbatim. Deciding what rendercv-go emits is iteration 4's call and
 		// needs the human gate if the answer is a divergence.
 		Message: fmt.Sprintf("This is not a valid YAML file. %s", parserMessage(parserErr.Error())),
-		Input:   "...",
+		Input:   schemaerr.InputEllipsis,
 	}
 }
 

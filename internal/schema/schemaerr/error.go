@@ -80,3 +80,39 @@ type InternalError struct {
 func (e *InternalError) Error() string {
 	return e.Message
 }
+
+// RenderInput is step 11 of the error pipeline (pydantic_error_handling.py:122-126):
+// the offending value as text.
+//
+// Three cases, all measured:
+//
+//   - a mapping or a sequence renders as the literal three dots, never as its
+//     contents — a missing field's input is the whole enclosing mapping, so it
+//     renders `...` (`expected_errors.yaml:59`, `:65`, `:77`);
+//   - a null renders `None`, Python's spelling, whatever the YAML wrote it as
+//     (`null`, `~`, or nothing at all);
+//   - anything else renders as the user typed it.
+//
+// It lives here, beside the record, rather than in `errorpipeline`, because the
+// port's records carry input as **text** while upstream's carry the value: by
+// the time the pipeline sees a record the kind is gone. So producers render at
+// construction and the pipeline has nothing left to do for step 11. The rule is
+// still in one place, which is what stops the three cases drifting apart across
+// call sites.
+func RenderInput(node *yamldoc.Node) string {
+	if node == nil {
+		return "None"
+	}
+	switch node.Kind {
+	case yamldoc.KindMapping, yamldoc.KindSequence:
+		return InputEllipsis
+	case yamldoc.KindNull:
+		return "None"
+	case yamldoc.KindBool, yamldoc.KindInt, yamldoc.KindFloat, yamldoc.KindString:
+	}
+	return node.Raw
+}
+
+// InputEllipsis is what a mapping or a sequence renders as
+// (pydantic_error_handling.py:126, spec 004 §4.15).
+const InputEllipsis = "..."

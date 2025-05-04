@@ -460,7 +460,7 @@ func checkScalar(
 		YamlLocation:   spanOf(value),
 		YamlSource:     source,
 		Message:        err.Error(),
-		Input:          value.Raw,
+		Input:          schemaerr.RenderInput(value),
 	}}
 }
 
@@ -534,9 +534,8 @@ func spanOf(node *yamldoc.Node) *yamldoc.Span {
 	return &span
 }
 
+// inputOf renders a node as the record's input text (spec 004 §3.11). The rule
+// lives in schemaerr so every producer renders the same way.
 func inputOf(node *yamldoc.Node) string {
-	if node == nil {
-		return ""
-	}
-	return node.Raw
+	return schemaerr.RenderInput(node)
 }

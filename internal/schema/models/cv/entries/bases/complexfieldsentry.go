@@ -199,6 +199,6 @@ func (e *BaseEntryWithComplexFields) adjustDates(
 				" `end_date` is %s.",
 			e.StartDate, e.EndDate,
 		),
-		Input: "...",
+		Input: schemaerr.InputEllipsis,
 	}
 }
