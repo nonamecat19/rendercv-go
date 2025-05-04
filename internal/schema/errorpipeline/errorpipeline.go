@@ -103,13 +103,22 @@ func parseOne(raw schemaerr.ValidationError) schemaerr.ValidationError {
 	// Step 1: strip the unwanted message prefixes.
 	final.Message = stripPrefixes(final.Message)
 
-	// Step 2: drop the discriminated union's branch element.
-	// Step 4: drop the synthetic elements — and, as it happens, any real key
-	//         containing one of the seven substrings. See unwantedLocations.
+	// Step 3: the context overrides, `input` then `loc`
+	// (pydantic_error_handling.py:57-62).
 	//
-	// Both are skipped for a record whose validator pinned its own location —
-	// that is what step 3's `ctx["loc"]` override means, and re-deriving would
-	// undo it.
+	// There is no separate context map to read here. Upstream's `ctx` carries
+	// two things and the port carries both on the record itself: an overriding
+	// `input` is simply the Input the validator wrote, and an overriding `loc` is
+	// LocationIsFinal. Exactly one producer sets either — the theme-name failure
+	// of spec 004 §4.27, whose raw location is `("design",)` and whose final one
+	// is `("design", "theme")`.
+	//
+	// So step 3 is not a statement but a condition on the two that follow: a
+	// pinned location must not be re-derived, or the override is undone.
+	//
+	// Steps 2 and 4: drop the discriminated union's branch element, then the
+	// synthetic elements — and, as it happens, any real key containing one of
+	// the seven substrings. See unwantedLocations.
 	if !final.LocationIsFinal {
 		final.SchemaLocation = filterLocation(skipDiscriminator(final.SchemaLocation))
 	}

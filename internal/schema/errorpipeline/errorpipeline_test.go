@@ -170,8 +170,14 @@ func messagesOf(records []schemaerr.ValidationError) []string {
 	return out
 }
 
-// A record whose validator pinned its own location keeps it: the pipeline must
-// not re-derive what the override already decided (spec 004 §3.2 step 3).
+// Step 3, in the shape the port gives it. The one producer that needs it is the
+// theme-name failure of spec 004 §4.27: its raw location is `("design",)` and
+// its final one is `("design", "theme")`, pinned at
+// `expected_errors.yaml:141-145`.
+//
+// `design` is a discriminated root, so without the flag step 2 would drop
+// `theme` as a branch value — the unpinned half below is what makes the pinned
+// half mean something.
 func TestParseSkipsTheDiscriminatorForAPinnedLocation(t *testing.T) {
 	pinned := schemaerr.ValidationError{
 		Message:         "nope",
@@ -189,5 +195,26 @@ func TestParseSkipsTheDiscriminatorForAPinnedLocation(t *testing.T) {
 	unpinned.LocationIsFinal = false
 	if got := Parse([]schemaerr.ValidationError{unpinned})[0]; len(got.SchemaLocation) != 1 {
 		t.Errorf("location = %v, want the branch element dropped", got.SchemaLocation)
+	}
+}
+
+// The other half of step 3: an overriding input. Upstream reads it from `ctx`;
+// the port has no context map, so the validator writes Input directly and the
+// pipeline carries it through untouched.
+//
+// §4.27 is the measured case — the record shows the theme *name*, not the whole
+// `design` mapping, which is what an unoverridden input would render as `...`
+// (`expected_errors.yaml:143`).
+func TestParseCarriesAnOverriddenInput(t *testing.T) {
+	got := Parse([]schemaerr.ValidationError{{
+		Code:            "rendercv_other_error",
+		SchemaLocation:  []string{"design", "theme"},
+		LocationIsFinal: true,
+		Message:         "The theme `nope` is not available",
+		Input:           "nope",
+	}})[0]
+
+	if got.Input != "nope" {
+		t.Errorf("input = %q, want the validator's own value", got.Input)
 	}
 }
