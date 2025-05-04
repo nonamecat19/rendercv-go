@@ -135,7 +135,7 @@ func selectSource(
 // **the order is the contract**: reordering any two changes observable output,
 // and a reader has to be able to see the sequence at a glance.
 //
-// TODO(spec 004 T15-T16): steps 10 and 11. Everything else is here.
+// TODO(spec 004 T16): step 11. Everything else is here.
 func parseOne(
 	raw schemaerr.ValidationError,
 	doc *yamldoc.Node,
@@ -181,8 +181,22 @@ func parseOne(
 	final.Message = appendPeriod(final.Message)
 
 	// Steps 9 and 12: the source literal and the document coordinates resolve
-	// against. The document is not stored on the record; step 10 consumes it.
-	final.YamlSource, _ = selectSource(final.SchemaLocation, doc, overlays)
+	// against.
+	source, coordinateDoc := selectSource(final.SchemaLocation, doc, overlays)
+	final.YamlSource = source
+
+	// Step 10: resolve the coordinates by walking that document.
+	//
+	// A walk that misses is an internal failure — the document is the user's own,
+	// so a miss means the location was built wrong, not that the input was bad.
+	// It cannot be reported as a validation error without inventing a message, so
+	// the record keeps whatever span its producer attached.
+	//
+	// TODO(spec 004 T20): surface the internal failure at the call site rather
+	// than falling back, once the model builder owns the call.
+	if span, err := resolveCoordinates(coordinateDoc, coordinatePath(final.SchemaLocation, final.Code)); err == nil && span != nil {
+		final.YamlLocation = span
+	}
 
 	return final
 }
