@@ -112,7 +112,7 @@ func TestParseAppliesTheTwoOverrides(t *testing.T) {
 			got := Parse([]schemaerr.ValidationError{{
 				SchemaLocation: test.location,
 				Message:        "This is not a valid date! Please use either YYYY-MM-DD, YYYY-MM, or YYYY format.",
-			}})[0]
+			}}, nil, nil)[0]
 
 			if got.Message != test.want {
 				t.Errorf("message =\n  %q\nwant\n  %q", got.Message, test.want)
@@ -130,7 +130,7 @@ func TestBothEndDateBranchesReduceAlike(t *testing.T) {
 	got := Parse([]schemaerr.ValidationError{
 		{SchemaLocation: []string{"cv", "end_date", wrapper}, Message: "branch one"},
 		{SchemaLocation: []string{"cv", "end_date", "literal['present']"}, Message: "branch two"},
-	})
+	}, nil, nil)
 
 	if strings.Join(got[0].SchemaLocation, ".") != "cv.end_date" ||
 		strings.Join(got[1].SchemaLocation, ".") != "cv.end_date" {

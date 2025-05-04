@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
+	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
 )
 
 // Spec 004 §3.6's four-row table, for the rows reachable with only steps 1 and 8
@@ -122,7 +123,7 @@ func TestParseAppliesStripThenPeriod(t *testing.T) {
 	got := Parse([]schemaerr.ValidationError{
 		{Code: "value_error", Message: "Value error, month must be in 1..12"},
 		{Code: "string_type", Message: "Input should be a valid string"},
-	})
+	}, nil, nil)
 
 	want := []string{"The month must be between 1 and 12.", "Input should be a valid string."}
 	if len(got) != len(want) {
@@ -140,7 +141,7 @@ func TestParseAppliesStripThenPeriod(t *testing.T) {
 func TestParseKeepsRawOrder(t *testing.T) {
 	got := Parse([]schemaerr.ValidationError{
 		{Message: "zebra"}, {Message: "alpha"}, {Message: "middle"},
-	})
+	}, nil, nil)
 
 	want := []string{"zebra.", "alpha.", "middle."}
 	for i := range want {
@@ -155,7 +156,7 @@ func TestParseKeepsRawOrder(t *testing.T) {
 // would corrupt the second pass.
 func TestParseLeavesTheRawRecordsAlone(t *testing.T) {
 	raw := []schemaerr.ValidationError{{Message: "Value error, boom"}}
-	Parse(raw)
+	Parse(raw, nil, nil)
 
 	if raw[0].Message != "Value error, boom" {
 		t.Errorf("raw record was mutated: %q", raw[0].Message)
@@ -184,7 +185,7 @@ func TestParseSkipsTheDiscriminatorForAPinnedLocation(t *testing.T) {
 		SchemaLocation:  []string{"design", "theme"},
 		LocationIsFinal: true,
 	}
-	if got := Parse([]schemaerr.ValidationError{pinned})[0]; len(got.SchemaLocation) != 2 ||
+	if got := Parse([]schemaerr.ValidationError{pinned}, nil, nil)[0]; len(got.SchemaLocation) != 2 ||
 		got.SchemaLocation[1] != "theme" {
 		t.Errorf("location = %v, want it left alone", got.SchemaLocation)
 	}
@@ -193,7 +194,7 @@ func TestParseSkipsTheDiscriminatorForAPinnedLocation(t *testing.T) {
 	// makes the assertion above mean something.
 	unpinned := pinned
 	unpinned.LocationIsFinal = false
-	if got := Parse([]schemaerr.ValidationError{unpinned})[0]; len(got.SchemaLocation) != 1 {
+	if got := Parse([]schemaerr.ValidationError{unpinned}, nil, nil)[0]; len(got.SchemaLocation) != 1 {
 		t.Errorf("location = %v, want the branch element dropped", got.SchemaLocation)
 	}
 }
@@ -212,9 +213,105 @@ func TestParseCarriesAnOverriddenInput(t *testing.T) {
 		LocationIsFinal: true,
 		Message:         "The theme `nope` is not available",
 		Input:           "nope",
-	}})[0]
+	}}, nil, nil)[0]
 
 	if got.Input != "nope" {
 		t.Errorf("input = %q, want the validator's own value", got.Input)
+	}
+}
+
+// Steps 9 and 12. All three conditions must hold to leave the main document:
+// overlays supplied, a non-empty location, and a first element that names one.
+func TestSelectSource(t *testing.T) {
+	main := &yamldoc.Node{Kind: yamldoc.KindMapping}
+	design := &yamldoc.Node{Kind: yamldoc.KindMapping}
+	locale := &yamldoc.Node{Kind: yamldoc.KindMapping}
+	overlays := map[schemaerr.OverlayKey]*yamldoc.Node{
+		schemaerr.OverlayDesign: design,
+		schemaerr.OverlayLocale: locale,
+	}
+
+	tests := []struct {
+		name       string
+		location   []string
+		overlays   map[schemaerr.OverlayKey]*yamldoc.Node
+		wantSource schemaerr.YamlSource
+		wantDoc    *yamldoc.Node
+	}{
+		{
+			name:       "no overlays, so the main file whatever the root",
+			location:   []string{"design", "theme"},
+			overlays:   nil,
+			wantSource: schemaerr.SourceMain,
+			wantDoc:    main,
+		},
+		{
+			name:       "an overlay root with that overlay supplied",
+			location:   []string{"design", "theme"},
+			overlays:   overlays,
+			wantSource: schemaerr.SourceDesign,
+			wantDoc:    design,
+		},
+		{
+			name:       "the other overlay",
+			location:   []string{"locale", "month"},
+			overlays:   overlays,
+			wantSource: schemaerr.SourceLocale,
+			wantDoc:    locale,
+		},
+		{
+			name:       "a cv-rooted record keeps the main document",
+			location:   []string{"cv", "name"},
+			overlays:   overlays,
+			wantSource: schemaerr.SourceMain,
+			wantDoc:    main,
+		},
+		{
+			// `settings` is an overlay key, but no settings overlay was supplied
+			// here — the map lookup, not the key list, is what decides.
+			name:       "an overlay key with no document supplied",
+			location:   []string{"settings", "current_date"},
+			overlays:   overlays,
+			wantSource: schemaerr.SourceMain,
+			wantDoc:    main,
+		},
+		{
+			// The filter can empty a location entirely.
+			name:       "an empty location",
+			location:   nil,
+			overlays:   overlays,
+			wantSource: schemaerr.SourceMain,
+			wantDoc:    main,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			source, doc := selectSource(test.location, main, test.overlays)
+			if source != test.wantSource {
+				t.Errorf("source = %q, want %q", source, test.wantSource)
+			}
+			if doc != test.wantDoc {
+				t.Errorf("document = %p, want %p", doc, test.wantDoc)
+			}
+		})
+	}
+}
+
+// The source lands on the record, and it is chosen after step 4 — a `design`
+// record whose branch element step 2 dropped still roots at `design`.
+func TestParseSetsTheOverlaySource(t *testing.T) {
+	design := &yamldoc.Node{Kind: yamldoc.KindMapping}
+	got := Parse(
+		[]schemaerr.ValidationError{{
+			SchemaLocation: []string{"design", "classic", "page", "top_margin"},
+			Message:        "nope",
+		}},
+		&yamldoc.Node{Kind: yamldoc.KindMapping},
+		map[schemaerr.OverlayKey]*yamldoc.Node{schemaerr.OverlayDesign: design},
+	)[0]
+
+	if got.YamlSource != schemaerr.SourceDesign {
+		t.Errorf("source = %q, want %q", got.YamlSource, schemaerr.SourceDesign)
 	}
 }
