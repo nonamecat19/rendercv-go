@@ -18,10 +18,10 @@ func TestSpliceChildren(t *testing.T) {
 			// Behavior 22's measured child: the leading `entries` goes and the
 			// wrapper's location is prepended.
 			{Code: "missing", SchemaLocation: []string{"entries", "1", "institution"}, Message: "Field required"},
-			// Behavior 24: an empty location splices to the wrapper's own, so the
-			// record lands at the entry rather than at a field. This is how the
-			// start-after-end rule reports.
-			{Code: "rendercv_other_error", SchemaLocation: nil, Message: "start after end"},
+			// Behavior 24: a model-level failure carries only `("entries", i)`, so
+			// it splices to the entry rather than to a field. This is how the
+			// start-after-end rule and the generated-URL length check report.
+			{Code: "rendercv_other_error", SchemaLocation: []string{"entries", "0"}, Message: "start after end"},
 		},
 	}
 
@@ -31,7 +31,7 @@ func TestSpliceChildren(t *testing.T) {
 		// The wrapper's own record is kept, first.
 		"cv.sections.welcome_to_rendercv_tests_2",
 		"cv.sections.welcome_to_rendercv_tests_2.1.institution",
-		"cv.sections.welcome_to_rendercv_tests_2",
+		"cv.sections.welcome_to_rendercv_tests_2.0",
 	}
 	if len(got) != len(want) {
 		t.Fatalf("got %d records, want %d", len(got), len(want))
@@ -143,4 +143,31 @@ func locationsOf(records []schemaerr.ValidationError) []string {
 		out = append(out, strings.Join(r.SchemaLocation, "."))
 	}
 	return out
+}
+
+// A child whose location is empty even before the `entries` element is dropped
+// splices to the wrapper's own location, and dedup then drops it as a duplicate
+// of the wrapper.
+//
+// No upstream input produces such a child — every `caused_by` entry carries at
+// least `("entries", i)` — so this pins what the port does with one rather than
+// claiming upstream behavior. It matters because the splice and dedup interact:
+// a porter who "fixed" the collapse by special-casing an empty tail would emit a
+// record upstream never emits.
+func TestAChildWithNoLocationCollapsesIntoTheWrapper(t *testing.T) {
+	got := mustParse(t, []schemaerr.ValidationError{{
+		Code:           CodeEntryValidation,
+		SchemaLocation: []string{"cv", "sections", "x"},
+		Message:        "problems",
+		Children: []schemaerr.ValidationError{
+			{Code: "rendercv_other_error", SchemaLocation: nil, Message: "no location"},
+		},
+	}}, nil, nil)
+
+	if len(got) != 1 {
+		t.Fatalf("got %d records, want 1: %v", len(got), locationsOf(got))
+	}
+	if got[0].Message != "problems." {
+		t.Errorf("message = %q, want the wrapper's — dedup keeps the first", got[0].Message)
+	}
 }

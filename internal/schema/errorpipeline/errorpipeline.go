@@ -91,8 +91,6 @@ func appendPeriod(message string) string {
 //
 // A wrapped entry failure contributes its own record **and** one per child,
 // spliced in immediately after it — see spliceChildren.
-//
-// TODO(spec 004 T18-T19): the deduplication.
 func Parse(
 	raw []schemaerr.ValidationError,
 	doc *yamldoc.Node,
@@ -111,7 +109,49 @@ func Parse(
 		}
 		final = append(final, children...)
 	}
-	return final, nil
+	return dedup(final), nil
+}
+
+// dedup is pydantic_error_handling.py:167-176.
+//
+// **On the schema location only** — not on the message, not on the code. Two
+// genuinely different failures at one location collapse to the first, and that
+// is load-bearing rather than incidental at three sites (spec 004 §3.8
+// behavior 28):
+//
+//	end_date: invalid_date        two records at ("end_date",)          → 1
+//	settings.current_date: todady two at ("settings","current_date")    → 1
+//	photo: photo_doesnt_exist.jpg the path failure, then a URL failure  → 1
+//
+// The `photo` row is the one where the surviving *message* differs: the second
+// record would report a URL parse failure, and dedup is the only thing
+// suppressing it.
+//
+// First occurrence wins and the survivors keep their relative order, so this is
+// an ordered set and not a map (spec 004 §6 rule 4).
+func dedup(records []schemaerr.ValidationError) []schemaerr.ValidationError {
+	seen := make(map[string]struct{}, len(records))
+	kept := make([]schemaerr.ValidationError, 0, len(records))
+
+	for _, record := range records {
+		key := locationKey(record.SchemaLocation)
+		if _, already := seen[key]; already {
+			continue
+		}
+		seen[key] = struct{}{}
+		kept = append(kept, record)
+	}
+	return kept
+}
+
+// locationKey flattens a location into a map key.
+//
+// The separator is NUL rather than a dot because a section key is a user-chosen
+// string that may contain dots: joining `("cv", "a.b")` and `("cv", "a", "b")`
+// with a dot would make two different locations collide and silently drop the
+// second record. NUL cannot appear in a YAML key.
+func locationKey(location []string) string {
+	return strings.Join(location, "\x00")
 }
 
 // CodeEntryValidation is the one code that carries child failures
