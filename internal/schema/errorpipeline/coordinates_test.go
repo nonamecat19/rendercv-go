@@ -2,6 +2,7 @@ package errorpipeline
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
@@ -135,5 +136,66 @@ func TestResolveCoordinatesForAnEmptyPath(t *testing.T) {
 	if span == nil || span.Start.Line != 0 || span.Start.Column != 0 ||
 		span.End.Line != 0 || span.End.Column != 0 {
 		t.Errorf("span = %+v, want the zero span", span)
+	}
+}
+
+// Upstream's own two cases, with its own inputs and its own assertion
+// substrings (`tests/schema/test_pydantic_error_handling.py:233-246`).
+//
+// They are ported as a pair because they are the only upstream tests of the
+// walk's failure paths, and because §4.17 and §4.18's exact text is part of the
+// contract even though neither is reachable from a valid location.
+func TestUpstreamsOwnWalkFailureCases(t *testing.T) {
+	t.Run("an index out of range", func(t *testing.T) {
+		doc, err := yamlreader.ReadString("items:\n  - first\n  - second\n")
+		if err != nil {
+			t.Fatalf("ReadString: %v", err)
+		}
+
+		_, err = resolveCoordinates(doc, []string{"items", "10"})
+		var internal *schemaerr.InternalError
+		if !errors.As(err, &internal) {
+			t.Fatalf("err = %v (%T), want *schemaerr.InternalError", err, err)
+		}
+		if !strings.Contains(internal.Message, "Index 10 is out of range") {
+			t.Errorf("message = %q, want it to contain %q",
+				internal.Message, "Index 10 is out of range")
+		}
+	})
+
+	t.Run("a key that is not there", func(t *testing.T) {
+		doc, err := yamlreader.ReadString("name: John\n")
+		if err != nil {
+			t.Fatalf("ReadString: %v", err)
+		}
+
+		_, err = resolveCoordinates(doc, []string{"nonexistent"})
+		var internal *schemaerr.InternalError
+		if !errors.As(err, &internal) {
+			t.Fatalf("err = %v (%T), want *schemaerr.InternalError", err, err)
+		}
+		if !strings.Contains(internal.Message, "Key 'nonexistent' not found") {
+			t.Errorf("message = %q, want it to contain %q",
+				internal.Message, "Key 'nonexistent' not found")
+		}
+	})
+}
+
+// The failure reaches the caller rather than being swallowed. A fallback span
+// would turn a port bug — a location the user's document cannot answer — into a
+// wrong coordinate nobody notices.
+func TestParseSurfacesAFailedWalk(t *testing.T) {
+	doc, err := yamlreader.ReadString(walkDocument)
+	if err != nil {
+		t.Fatalf("ReadString: %v", err)
+	}
+
+	_, err = Parse([]schemaerr.ValidationError{{
+		SchemaLocation: []string{"cv", "nope"}, Message: "boom",
+	}}, doc, nil)
+
+	var internal *schemaerr.InternalError
+	if !errors.As(err, &internal) {
+		t.Fatalf("err = %v (%T), want *schemaerr.InternalError", err, err)
 	}
 }

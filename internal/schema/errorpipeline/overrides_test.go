@@ -131,10 +131,10 @@ func TestParseAppliesTheTwoOverrides(t *testing.T) {
 func TestBothEndDateBranchesReduceAlike(t *testing.T) {
 	const wrapper = "function-after[validate_exact_date(), union[str,int]]"
 
-	first := parseOne(schemaerr.ValidationError{
+	first, _ := parseOne(schemaerr.ValidationError{
 		SchemaLocation: []string{"cv", "end_date", wrapper}, Message: "branch one",
 	}, nil, nil)
-	second := parseOne(schemaerr.ValidationError{
+	second, _ := parseOne(schemaerr.ValidationError{
 		SchemaLocation: []string{"cv", "end_date", "literal['present']"}, Message: "branch two",
 	}, nil, nil)
 

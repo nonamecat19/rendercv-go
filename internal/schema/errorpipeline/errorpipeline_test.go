@@ -5,6 +5,7 @@ import (
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
+	"github.com/nonamecat19/rendercv-go/internal/schema/yamlreader"
 )
 
 // Spec 004 §3.6's four-row table, for the rows reachable with only steps 1 and 8
@@ -305,13 +306,21 @@ func TestSelectSource(t *testing.T) {
 // The source lands on the record, and it is chosen after step 4 — a `design`
 // record whose branch element step 2 dropped still roots at `design`.
 func TestParseSetsTheOverlaySource(t *testing.T) {
-	design := &yamldoc.Node{Kind: yamldoc.KindMapping}
+	design, err := yamlreader.ReadString("design:\n  page:\n    top_margin: 2cm\n")
+	if err != nil {
+		t.Fatalf("ReadString: %v", err)
+	}
+	main, err := yamlreader.ReadString("cv:\n  name: John\n")
+	if err != nil {
+		t.Fatalf("ReadString: %v", err)
+	}
+
 	got := mustParse(t,
 		[]schemaerr.ValidationError{{
 			SchemaLocation: []string{"design", "classic", "page", "top_margin"},
 			Message:        "nope",
 		}},
-		&yamldoc.Node{Kind: yamldoc.KindMapping},
+		main,
 		map[schemaerr.OverlayKey]*yamldoc.Node{schemaerr.OverlayDesign: design},
 	)[0]
 

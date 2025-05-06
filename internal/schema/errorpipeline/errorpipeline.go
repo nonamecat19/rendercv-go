@@ -98,7 +98,11 @@ func Parse(
 ) ([]schemaerr.ValidationError, error) {
 	final := make([]schemaerr.ValidationError, 0, len(raw))
 	for _, record := range raw {
-		final = append(final, parseOne(record, doc, overlays))
+		parsed, err := parseOne(record, doc, overlays)
+		if err != nil {
+			return nil, err
+		}
+		final = append(final, parsed)
 
 		if record.Code != CodeEntryValidation {
 			continue
@@ -204,7 +208,11 @@ func spliceChildren(
 		located.SchemaLocation = append(located.SchemaLocation, tail...)
 		located.Children = nil
 
-		spliced = append(spliced, parseOne(located, doc, overlays))
+		parsed, err := parseOne(located, doc, overlays)
+		if err != nil {
+			return nil, err
+		}
+		spliced = append(spliced, parsed)
 	}
 	return spliced, nil
 }
@@ -247,12 +255,15 @@ func selectSource(
 // **the order is the contract**: reordering any two changes observable output,
 // and a reader has to be able to see the sequence at a glance.
 //
-// TODO(spec 004 T16): step 11. Everything else is here.
+// A failed coordinate walk is returned as an error rather than swallowed: it is
+// an internal failure, meaning the port built a location the user's document
+// cannot answer, and hiding it behind a fallback span would turn a port bug into
+// a wrong coordinate nobody notices.
 func parseOne(
 	raw schemaerr.ValidationError,
 	doc *yamldoc.Node,
 	overlays map[schemaerr.OverlayKey]*yamldoc.Node,
-) schemaerr.ValidationError {
+) (schemaerr.ValidationError, error) {
 	final := raw
 
 	// Step 1: strip the unwanted message prefixes.
@@ -298,17 +309,13 @@ func parseOne(
 	final.YamlSource = source
 
 	// Step 10: resolve the coordinates by walking that document.
-	//
-	// A walk that misses is an internal failure — the document is the user's own,
-	// so a miss means the location was built wrong, not that the input was bad.
-	// It cannot be reported as a validation error without inventing a message, so
-	// the record keeps whatever span its producer attached.
-	//
-	// TODO(spec 004 T20): surface the internal failure at the call site rather
-	// than falling back, once the model builder owns the call.
-	if span, err := resolveCoordinates(coordinateDoc, coordinatePath(final.SchemaLocation, final.Code)); err == nil && span != nil {
+	span, err := resolveCoordinates(coordinateDoc, coordinatePath(final.SchemaLocation, final.Code))
+	if err != nil {
+		return schemaerr.ValidationError{}, err
+	}
+	if span != nil {
 		final.YamlLocation = span
 	}
 
-	return final
+	return final, nil
 }
