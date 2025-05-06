@@ -619,8 +619,13 @@ observable result correct, which is why neither may be simplified away.
     base` (for `example.com`, `not a url`, `//example.com`), `empty host` (for `https://`),
     `invalid international domain name` (for `https://exa mple.com`). **The reason text is
     therefore unobservable** and the port need not reproduce it.
-46. **The length limit is checked on the input string, before parsing, at 2083 characters
-    inclusive.** Measured: a 2083-character input passes; 2084 fails; a 420-character input whose
+46. **The length limit is checked on the input string, before parsing, at 2083 **UTF-8 bytes**
+    inclusive.** *(Corrected: this behavior previously read "characters". The check lives in
+    pydantic-core, which is Rust and counts bytes; Python's `len()` on a `str` counts characters,
+    which is where the wrong reading came from. The two coincide for ASCII, so every measurement
+    below is unaffected. Measured by bisection on a non-ASCII path: 1051 characters — 2082 bytes —
+    pass, and 1052 — 2084 bytes — fail. A port using a rune count would accept URLs upstream
+    rejects.)* Measured: a 2083-character input passes; 2084 fails; a 420-character input whose
     serialized form is 2420 characters passes; and `https://exa mple.com/` + 3000 characters
     reports `url_too_long`, not `url_parsing`, proving the length check runs first.
 
