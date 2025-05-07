@@ -3,6 +3,7 @@ package cv_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/binder"
@@ -112,7 +113,10 @@ func TestResolvePhotoTriesPathBeforeURL(t *testing.T) {
 
 	ctx := &valctx.ValidationContext{InputFilePath: inputFile}
 
-	photo := cv.ResolvePhoto("photo.jpg", ctx)
+	photo, failure := cv.ResolvePhoto("photo.jpg", ctx)
+	if failure != nil {
+		t.Fatalf("failure = %+v, want none", failure)
+	}
 	if photo.Kind != cv.PhotoKindPath {
 		t.Fatalf("Kind = %v, want PhotoKindPath (an existing path is also a valid placeholder URL string)", photo.Kind)
 	}
@@ -126,11 +130,41 @@ func TestResolvePhotoFallsBackToURL(t *testing.T) {
 	inputFile := filepath.Join(dir, "input.yaml")
 	ctx := &valctx.ValidationContext{InputFilePath: inputFile}
 
-	photo := cv.ResolvePhoto("https://example.com/photo.jpg", ctx)
+	photo, failure := cv.ResolvePhoto("https://example.com/photo.jpg", ctx)
+	if failure != nil {
+		t.Fatalf("failure = %+v, want none — a URL that parses is a success", failure)
+	}
 	if photo.Kind != cv.PhotoKindURL {
 		t.Fatalf("Kind = %v, want PhotoKindURL", photo.Kind)
 	}
 	if photo.URL != "https://example.com/photo.jpg" {
 		t.Errorf("URL = %q, want the raw value", photo.URL)
+	}
+}
+
+// Spec 004 §3.8 behavior 29 and plan §2.2 consequence 2, on the one site where
+// the surviving message differs between the two union arms.
+//
+// Upstream emits the path failure and then a URL parse failure, both at
+// `("cv", "photo")`, and dedup keeps the first. The port emits the survivor
+// directly, so a URL record here would be strictly wrong: it cannot be
+// suppressed later.
+func TestResolvePhotoReportsOnlyThePathFailure(t *testing.T) {
+	dir := t.TempDir()
+	ctx := &valctx.ValidationContext{InputFilePath: filepath.Join(dir, "input.yaml")}
+
+	photo, failure := cv.ResolvePhoto("photo_doesnt_exist.jpg", ctx)
+	if failure == nil {
+		t.Fatalf("photo = %+v, want a failure: neither arm accepts the value", photo)
+	}
+
+	// §4.25's message, and never §4.9's.
+	want := "The file `photo_doesnt_exist.jpg` does not exist."
+	if failure.Message != want {
+		t.Errorf("message = %q, want %q", failure.Message, want)
+	}
+	if strings.Contains(failure.Message, "URL") {
+		t.Errorf("message = %q, which is the URL branch's — dedup is not available"+
+			" to suppress it here", failure.Message)
 	}
 }

@@ -43,7 +43,10 @@ func TestEveryFieldAccepted(t *testing.T) {
 		"headline: Engineer\n" +
 		"location: Istanbul\n" +
 		"email: john@example.com\n" +
-		"photo: photo.jpg\n" +
+		// A URL rather than a path: `photo` is a real union now, and a relative
+		// path would have to exist on disk for this fixture to mean "accepted".
+		// TestResolvePhotoReportsOnlyThePathFailure covers the path arm.
+		"photo: https://example.com/photo.jpg\n" +
 		"phone: \"+905419999999\"\n" +
 		"website: https://example.com\n" +
 		"social_networks:\n  - network: GitHub\n    username: johndoe\n" +
