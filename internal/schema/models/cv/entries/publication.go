@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/binder"
+	"github.com/nonamecat19/rendercv-go/internal/schema/httpurl"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv/entries/bases"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
@@ -25,11 +26,12 @@ const (
 // (publication.py:94, spec §4.13).
 const DOIURLPrefix = "https://doi.org/"
 
-// Error codes of spec §4.1 and §4.2. Both are pydantic's own discriminators.
-const (
-	CodeStringPatternMismatch schemaerr.Code = "string_pattern_mismatch"
-	CodeURLTooLong            schemaerr.Code = "url_too_long"
-)
+// CodeStringPatternMismatch is the `doi` pattern failure's discriminator, which
+// is pydantic's own (spec §4.1).
+//
+// The URL-too-long code lives in `httpurl` now, so the generated-DOI-URL check
+// below and `cv.website` share one constant.
+const CodeStringPatternMismatch schemaerr.Code = "string_pattern_mismatch"
 
 const (
 	// doiPatternSource is the pattern as written at publication.py:34. It appears
@@ -38,14 +40,11 @@ const (
 	// matchDOIPattern evaluates it (see doipattern.go).
 	doiPatternSource = `\b10\..*`
 
-	// maxURLLength is the length limit pydantic's URL type enforces, reached here
-	// through the generated DOI URL (spec §3.12 behavior 23).
-	maxURLLength = 2083
-
-	// TODO(iteration-4): spec §7.3 - both messages are pydantic's text, not
-	// RenderCV's, and are pinned so a later decision to diverge shows as a diff.
+	// The `doi` pattern message is pydantic's text, not RenderCV's. It is pinned
+	// here so a later decision to diverge shows as a diff — and note that the
+	// backslashes make it unreachable by dictionary row 4 (spec 004 §3.4
+	// behavior 13), so this is what the user sees.
 	messageDOIPatternMismatch = "String should match pattern '" + doiPatternSource + "'"
-	messageURLTooLong         = "URL should have at most 2083 characters"
 )
 
 // errDOIPattern is the `doi` pattern failure, carried through the binder's Scalar
@@ -56,43 +55,6 @@ const (
 //
 //nolint:staticcheck // ST1005: the capital is upstream's. This is pydantic's own
 var errDOIPattern = errors.New(messageDOIPatternMismatch)
-
-// HTTPURLValidator validates one field declared `pydantic.HttpUrl`. The node is
-// the value as written; location is its schema location.
-//
-// TODO(iteration-4): spec §7.3 - the real validator is HTTP-URL parsing and
-// normalization (`https://example.com` gains a trailing slash,
-// `HTTPS://Example.COM/Path` lowercases scheme and host), plus the `url_parsing`
-// error of spec §4.6. It is deferred so the decision is made once for
-// `PublicationEntry.url`, `cv.website`, `cv.email` and `cv.phone` together.
-// Iteration 3 registers a pass-through so the doi/url rules below can be tested
-// on their own.
-type HTTPURLValidator func(
-	node *yamldoc.Node,
-	location []string,
-	source schemaerr.YamlSource,
-) []schemaerr.ValidationError
-
-// httpURLValidators maps a field declared as an HTTP URL to its validator,
-// mirroring the shape iteration 2 used for `{website, email, phone}`
-// (internal/schema/models/cv/scalarorlist.go's elementValidators). It is a
-// registration table rather than a call site so iteration 4 replaces one
-// implementation instead of four.
-//
-// This seam carries more weight than its size suggests: no golden case sets
-// `PublicationEntry.url` at all (spec §5.24), so the conformance suite is
-// permanently blind to whatever iteration 4 decides here.
-var httpURLValidators = map[string]HTTPURLValidator{
-	"url": passThroughHTTPURL,
-}
-
-func passThroughHTTPURL(
-	*yamldoc.Node,
-	[]string,
-	schemaerr.YamlSource,
-) []schemaerr.ValidationError {
-	return nil
-}
 
 // PublicationEntry mirrors PublicationEntry (entries/publication.py:100-101) and
 // its own-field base BasePublicationEntry (entries/publication.py:12-96).
@@ -138,7 +100,22 @@ var publicationOwnFields = []binder.Field{
 		},
 		ScalarCode: CodeStringPatternMismatch,
 	},
-	{Name: "url", Value: binder.ValueAny},
+	{
+		Name: "url",
+		// Declared `pydantic.HttpUrl`, and upstream parses it during **field**
+		// validation, so its failure lands at `url`'s declared position —
+		// between `doi` and `journal`, not appended after every other field.
+		// Measured: `{summary: {}, doi: bad, url: "not a url", journal: {}}`
+		// reports summary, doi, url, journal in that order.
+		//
+		// No ScalarCode: a URL fails in three distinguishable ways and the error
+		// carries whichever applies.
+		Value: binder.ValueString,
+		Scalar: func(raw string, _ bool) error {
+			_, err := httpurl.Validate(raw)
+			return err
+		},
+	},
 	{Name: "journal", Value: binder.ValueString},
 }
 
@@ -185,15 +162,6 @@ func ValidatePublicationEntry(
 		}
 	}
 
-	// The `url` field type itself, ahead of the model-level rules: upstream parses
-	// it during field validation, so a bad URL is reported even when `doi` is
-	// about to discard it.
-	if entry.URL != nil {
-		if validate, ok := httpURLValidators["url"]; ok {
-			errs = append(errs, validate(entry.URL, publicationFieldLocation(location, "url"), source)...)
-		}
-	}
-
 	// The two model-level rules of spec §3.12 are `mode="after"` validators
 	// upstream, which pydantic runs only once every field has validated
 	// (publication.py:46, :64). Gating them on an error-free bind keeps that
@@ -211,13 +179,13 @@ func ValidatePublicationEntry(
 	// URL. Only its length is reachable - spaces, `#`, tabs, newlines and NUL in a
 	// `doi` all pass (spec §5.2) - and the error carries an empty schema location,
 	// naming no field. That is verified upstream and deliberate.
-	if doiURL := entry.DOIURL(); len(doiURL) > maxURLLength {
+	if doiURL := entry.DOIURL(); len(doiURL) > httpurl.MaxLength {
 		errs = append(errs, schemaerr.ValidationError{
-			Code:           CodeURLTooLong,
+			Code:           httpurl.CodeURLTooLong,
 			SchemaLocation: []string{},
 			YamlLocation:   publicationSpan(entry.DOI),
 			YamlSource:     source,
-			Message:        messageURLTooLong,
+			Message:        httpurl.MessageURLTooLong,
 			Input:          doiURL,
 		})
 	}
@@ -238,12 +206,6 @@ func (e *PublicationEntry) DOIURL() string {
 		return ""
 	}
 	return DOIURLPrefix + e.DOI.Raw
-}
-
-func publicationFieldLocation(location []string, key string) []string {
-	out := make([]string, 0, len(location)+1)
-	out = append(out, location...)
-	return append(out, key)
 }
 
 func publicationSpan(node *yamldoc.Node) *yamldoc.Span {

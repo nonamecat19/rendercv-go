@@ -60,6 +60,10 @@ type Error struct {
 
 func (e *Error) Error() string { return e.Message }
 
+// ErrorCode implements schemaerr.Coded, so a validator registered through a
+// generic hook still reports the right one of the three codes.
+func (e *Error) ErrorCode() schemaerr.Code { return e.Code }
+
 // Validate mirrors `pydantic.HttpUrl`, returning the WHATWG-serialized form.
 //
 // The four steps are in this order and the order is observable
