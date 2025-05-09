@@ -20,7 +20,18 @@ import (
 var customConnectionFields = []binder.Field{
 	{Name: "fontawesome_icon", Required: true},
 	{Name: "placeholder", Required: true},
-	{Name: "url", Required: true},
+	{
+		Name:     "url",
+		Required: true,
+		// Declared `pydantic.HttpUrl` (custom_connection.py:9), one of the four
+		// sites of spec 004 §3.13 behavior 41. Required-but-nullable: an explicit
+		// null is the declared default and validates nothing, so the shape stays
+		// ValueAny and the check runs from the scalar hook.
+		Scalar: func(raw string, _ bool) error {
+			_, err := httpurl.Validate(raw)
+			return err
+		},
+	},
 }
 
 // CustomConnectionFieldNames returns the three field names in declaration
@@ -38,9 +49,6 @@ func CustomConnectionFieldNames() []string {
 // hold the raw document node they were bound from. A present-but-null `Url`
 // is a node of kind KindNull, which is how required-but-nullable stays
 // distinguishable from absent here.
-//
-// TODO(iteration-4): `pydantic.HttpUrl` validation of Url is out of scope for
-// this shell (spec §7).
 type CustomConnection struct {
 	FontawesomeIcon *yamldoc.Node
 	Placeholder     *yamldoc.Node
