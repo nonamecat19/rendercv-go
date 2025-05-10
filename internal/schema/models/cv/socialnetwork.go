@@ -105,7 +105,7 @@ type usernameRule func(username string) string
 // kept in the source strings so a diff against upstream is mechanical
 // (behavior 60).
 //
-// TODO(spec 004 T33-T37): the other five rules.
+// TODO(spec 004 T34-T37): the other four rules.
 var usernameRules = map[SocialNetworkName]usernameRule{
 	SocialNetworkMastodon: func(username string) string {
 		if mastodonPattern.MatchString(username) {
@@ -132,6 +132,12 @@ var usernameRules = map[SocialNetworkName]usernameRule{
 		}
 		return `YouTube username should not start with "@". Remove "@" from the beginning of the username."`
 	},
+	SocialNetworkORCID: func(username string) string {
+		if orcidPattern.MatchString(username) {
+			return ""
+		}
+		return "ORCID username should be in the format 'XXXX-XXXX-XXXX-XXX'."
+	},
 }
 
 // mastodonPattern is `@[^@]+@[^@]+` (social_network.py:86-87), anchored here
@@ -141,6 +147,11 @@ var mastodonPattern = regexp.MustCompile(`^@[^@]+@[^@]+$`)
 // stackOverflowPattern is `\d+\/[^\/]+` (social_network.py:93-94). Go needs no
 // escape before a slash.
 var stackOverflowPattern = regexp.MustCompile(`^\d+/[^/]+$`)
+
+// orcidPattern is `\d{4}-\d{4}-\d{4}-\d{3}[\dX]` (social_network.py:108-109).
+// The last group takes a digit or a literal uppercase X, which is the ISO 7064
+// check character an ORCID can end with.
+var orcidPattern = regexp.MustCompile(`^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$`)
 
 // checkUsername mirrors check_username (social_network.py:59-151).
 //
