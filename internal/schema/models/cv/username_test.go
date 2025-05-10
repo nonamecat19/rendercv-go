@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/nonamecat19/rendercv-go/internal/schema/errorpipeline"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 )
@@ -124,4 +125,45 @@ func TestStackOverflowUsername(t *testing.T) {
 		{"StackOverflow", "abc/john", want},
 		{"StackOverflow", "", want},
 	})
+}
+
+// Spec 004 §4.3, the only rule of the eight that is a prefix test rather than a
+// pattern.
+//
+// Its message ends with a stray `"` after the final period. That is verbatim
+// from upstream and is not a transcription slip here; the pipeline then appends
+// its own period, so what a user sees ends `username.".`.
+func TestYouTubeUsername(t *testing.T) {
+	const want = `YouTube username should not start with "@". Remove "@" from the beginning of the username."`
+
+	runUsernameCases(t, []usernameCase{
+		{"YouTube", "johndoe", ""},
+		{"YouTube", "john@doe", ""},
+		{"YouTube", "", ""},
+		{"YouTube", "@johndoe", want},
+		{"YouTube", "@", want},
+	})
+
+	if !strings.HasSuffix(want, `."`) {
+		t.Errorf("the message no longer ends with the stray quote: %q", want)
+	}
+}
+
+// The stray quote survives the pipeline, which appends its period after it.
+func TestYouTubeMessageEndsWithQuotePeriod(t *testing.T) {
+	_, errs := cv.ValidateSocialNetwork(
+		parse(t, "network: YouTube\nusername: \"@johndoe\"\n"),
+		[]string{"cv", "social_networks", "0"}, schemaerr.SourceMain,
+	)
+	if len(errs) != 1 {
+		t.Fatalf("errs = %+v, want exactly one", errs)
+	}
+
+	final, err := errorpipeline.Parse(errs, nil, nil)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if !strings.HasSuffix(final[0].Message, `.".`) {
+		t.Errorf("final message = %q, want it to end `.\".`", final[0].Message)
+	}
 }
