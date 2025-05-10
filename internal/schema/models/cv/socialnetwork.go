@@ -105,7 +105,7 @@ type usernameRule func(username string) string
 // kept in the source strings so a diff against upstream is mechanical
 // (behavior 60).
 //
-// TODO(spec 004 T31-T37): the other seven rules.
+// TODO(spec 004 T32-T37): the other six rules.
 var usernameRules = map[SocialNetworkName]usernameRule{
 	SocialNetworkMastodon: func(username string) string {
 		if mastodonPattern.MatchString(username) {
@@ -113,11 +113,21 @@ var usernameRules = map[SocialNetworkName]usernameRule{
 		}
 		return `Mastodon username should be in the format "@username@domain".`
 	},
+	SocialNetworkStackOverflow: func(username string) string {
+		if stackOverflowPattern.MatchString(username) {
+			return ""
+		}
+		return `StackOverflow username should be in the format "user_id/username".`
+	},
 }
 
 // mastodonPattern is `@[^@]+@[^@]+` (social_network.py:86-87), anchored here
 // because Go's MatchString is a search and upstream's is a full match.
 var mastodonPattern = regexp.MustCompile(`^@[^@]+@[^@]+$`)
+
+// stackOverflowPattern is `\d+\/[^\/]+` (social_network.py:93-94). Go needs no
+// escape before a slash.
+var stackOverflowPattern = regexp.MustCompile(`^\d+/[^/]+$`)
 
 // checkUsername mirrors check_username (social_network.py:59-151).
 //

@@ -158,7 +158,8 @@ func TestValidateSocialNetwork(t *testing.T) {
 // listing them here keeps the "every name is accepted" test about the *name*
 // rather than about the username.
 var validUsernames = map[cv.SocialNetworkName]string{
-	"Mastodon": "@johndoe@mastodon.social",
+	"Mastodon":      "@johndoe@mastodon.social",
+	"StackOverflow": "12345/johndoe",
 }
 
 // Every one of the seventeen names is accepted.
