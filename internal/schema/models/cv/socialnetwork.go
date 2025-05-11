@@ -106,7 +106,7 @@ type usernameRule func(username string) string
 // kept in the source strings so a diff against upstream is mechanical
 // (behavior 60).
 //
-// TODO(spec 004 T37): the Reddit rule.
+// All eight are here; the other nine networks accept any username.
 var usernameRules = map[SocialNetworkName]usernameRule{
 	SocialNetworkMastodon: func(username string) string {
 		if mastodonPattern.MatchString(username) {
@@ -163,6 +163,13 @@ var usernameRules = map[SocialNetworkName]usernameRule{
 		return "WhatsApp username should be your phone number with country" +
 			" code in international format (e.g., +1 for USA, +44 for UK)."
 	},
+	SocialNetworkReddit: func(username string) string {
+		if redditPattern.MatchString(username) {
+			return ""
+		}
+		return "Reddit username should be made up of uppercase/lowercase letters," +
+			" numbers, underscores, and hyphens between 3 and 23 characters."
+	},
 }
 
 // mastodonPattern is `@[^@]+@[^@]+` (social_network.py:86-87), anchored here
@@ -188,6 +195,10 @@ var imdbPattern = regexp.MustCompile(`^nm\d{7}$`)
 //
 // It is a DNS-style hostname: at least two dot-separated labels, each starting
 // and ending with an alphanumeric and up to 63 characters long.
+// redditPattern is `^[a-zA-Z0-9_-]{3,23}$` (social_network.py:142-143), whose
+// anchors are upstream's own and redundant under a full match.
+var redditPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]{3,23}$`)
+
 var blueskyPattern = regexp.MustCompile(
 	`^([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$`)
 

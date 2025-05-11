@@ -258,3 +258,55 @@ func TestWhatsAppUsername(t *testing.T) {
 		t.Errorf("the library's own message leaked into the rule: %q", want)
 	}
 }
+
+// Spec 004 §4.24. Full match of `^[a-zA-Z0-9_-]{3,23}$`.
+func TestRedditUsername(t *testing.T) {
+	const want = "Reddit username should be made up of uppercase/lowercase letters," +
+		" numbers, underscores, and hyphens between 3 and 23 characters."
+
+	runUsernameCases(t, []usernameCase{
+		{"Reddit", "johndoe", ""},
+		{"Reddit", "abc", ""},
+		{"Reddit", strings.Repeat("a", 23), ""},
+		{"Reddit", "john_doe-1", ""},
+		{"Reddit", "ab", want},
+		{"Reddit", strings.Repeat("a", 24), want},
+		{"Reddit", "john.doe", want},
+		{"Reddit", "john doe", want},
+		{"Reddit", "", want},
+	})
+}
+
+// All eight rules exist and the other nine networks accept anything. Asserted as
+// a count so a ninth rule cannot be added without deciding it belongs.
+func TestEightNetworksHaveAUsernameRule(t *testing.T) {
+	withRules := map[string]bool{
+		"Mastodon": true, "StackOverflow": true, "YouTube": true, "ORCID": true,
+		"IMDB": true, "Bluesky": true, "WhatsApp": true, "Reddit": true,
+	}
+
+	// Two probes rather than one: `x` is rejected by every syntactic rule and by
+	// the phone check, but YouTube's rule only fires on a leading `@`. A network
+	// has a rule if either probe reports at `username`.
+	for _, name := range cv.SocialNetworkNames {
+		hasRule := false
+		for _, username := range []string{"x", "@x"} {
+			_, errs := cv.ValidateSocialNetwork(
+				parse(t, "network: \""+string(name)+"\"\nusername: \""+username+"\"\n"),
+				[]string{"cv", "social_networks", "0"}, schemaerr.SourceMain,
+			)
+			if len(errs) > 0 &&
+				errs[0].SchemaLocation[len(errs[0].SchemaLocation)-1] == "username" {
+				hasRule = true
+			}
+		}
+
+		if hasRule != withRules[string(name)] {
+			t.Errorf("%s: has a username rule = %v, want %v", name, hasRule, withRules[string(name)])
+		}
+	}
+
+	if len(withRules) != 8 {
+		t.Errorf("the expectation lists %d networks, want 8", len(withRules))
+	}
+}
