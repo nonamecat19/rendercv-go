@@ -105,7 +105,7 @@ type usernameRule func(username string) string
 // kept in the source strings so a diff against upstream is mechanical
 // (behavior 60).
 //
-// TODO(spec 004 T34-T37): the other four rules.
+// TODO(spec 004 T35-T37): the other three rules.
 var usernameRules = map[SocialNetworkName]usernameRule{
 	SocialNetworkMastodon: func(username string) string {
 		if mastodonPattern.MatchString(username) {
@@ -138,6 +138,13 @@ var usernameRules = map[SocialNetworkName]usernameRule{
 		}
 		return "ORCID username should be in the format 'XXXX-XXXX-XXXX-XXX'."
 	},
+	SocialNetworkIMDB: func(username string) string {
+		if imdbPattern.MatchString(username) {
+			return ""
+		}
+		// "name", not "username": upstream's wording for this one row.
+		return "IMDB name should be in the format 'nmXXXXXXX'."
+	},
 }
 
 // mastodonPattern is `@[^@]+@[^@]+` (social_network.py:86-87), anchored here
@@ -152,6 +159,10 @@ var stackOverflowPattern = regexp.MustCompile(`^\d+/[^/]+$`)
 // The last group takes a digit or a literal uppercase X, which is the ISO 7064
 // check character an ORCID can end with.
 var orcidPattern = regexp.MustCompile(`^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$`)
+
+// imdbPattern is `nm\d{7}` (social_network.py:115-116): exactly seven digits
+// after a lowercase `nm`.
+var imdbPattern = regexp.MustCompile(`^nm\d{7}$`)
 
 // checkUsername mirrors check_username (social_network.py:59-151).
 //
