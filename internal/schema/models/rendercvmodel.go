@@ -123,5 +123,6 @@ func Validate(
 		model.inputFilePath = path
 	}
 
-	return model, errs
+	// Unknown keys last, after `cv` and everything under it has reported.
+	return model, append(errs, result.ExtraErrors...)
 }

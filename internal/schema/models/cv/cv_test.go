@@ -1,6 +1,7 @@
 package cv_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/binder"
@@ -233,5 +234,48 @@ func TestValidateResolvesPhoto(t *testing.T) {
 	}
 	if model.PhotoValue.Kind != cv.PhotoKindURL {
 		t.Errorf("photo kind = %v, want the URL branch for a nonexistent path", model.PhotoValue.Kind)
+	}
+}
+
+// Spec 004 §3.9 behavior 32 step 3 and §6 rule 2, on the measured seven-record
+// input: every declared field first in declaration order, then the unknown keys
+// in input order — including inside a nested model, which reports entirely
+// before the outer model's unknown keys.
+//
+// The two unknown keys are written `zzz` then `aaa` so input order and
+// alphabetical order disagree.
+func TestDeclaredFieldErrorsPrecedeExtraKeys(t *testing.T) {
+	src := "" +
+		"name: John\n" +
+		"email: bad\n" +
+		"zzz_extra: 1\n" +
+		"phone: nope\n" +
+		"social_networks:\n" +
+		"  - network: Nope\n" +
+		"    username: \"\"\n" +
+		"    extra_here: 1\n" +
+		"aaa_extra: 2\n"
+
+	_, errs := cv.Validate(parse(t, src), []string{"cv"}, schemaerr.SourceMain, testOptions())
+
+	want := []string{
+		"cv.email",
+		"cv.phone",
+		"cv.social_networks.0.network",
+		"cv.social_networks.0.extra_here",
+		"cv.zzz_extra",
+		"cv.aaa_extra",
+	}
+	got := make([]string, 0, len(errs))
+	for _, e := range errs {
+		got = append(got, strings.Join(e.SchemaLocation, "."))
+	}
+	if len(got) != len(want) {
+		t.Fatalf("locations = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("locations = %v, want %v", got, want)
+		}
 	}
 }

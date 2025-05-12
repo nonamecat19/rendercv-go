@@ -237,6 +237,16 @@ type Result struct {
 	// (spec §3.32, models/base.py:9).
 	Extras []yamldoc.Item
 
+	// ExtraErrors holds the unknown-key failures, in input order.
+	//
+	// They are returned **separately** rather than in the error list because
+	// they must come after every declared-field failure of the same model —
+	// including the ones a caller emits itself, after Bind returns
+	// (spec 004 §3.9 behavior 32 step 3). A caller that appends them at the end
+	// of its own validation gets upstream's order; one that merges them early
+	// does not.
+	ExtraErrors []schemaerr.ValidationError
+
 	// KeyOrder is the input order of declared keys whose value is not null,
 	// mirroring `_key_order` (models/cv/cv.py:166-173, spec §3.50). It is empty
 	// for a non-mapping input (spec §5.16).
@@ -275,13 +285,12 @@ func Bind(
 		declared[field.Name] = struct{}{}
 	}
 
-	var errs []schemaerr.ValidationError
 	for _, item := range node.Items {
 		if _, ok := declared[item.Key]; !ok {
 			// Spec §5.15: the value is never consulted, so a null-valued
 			// unknown key is rejected like any other.
 			if spec.Policy == ForbidExtra {
-				errs = append(errs, schemaerr.ValidationError{
+				result.ExtraErrors = append(result.ExtraErrors, schemaerr.ValidationError{
 					Code:           CodeExtraForbidden,
 					SchemaLocation: locationWith(location, item.Key),
 					YamlLocation:   &yamldoc.Span{Start: item.KeySpan.Start, End: item.KeySpan.End},
@@ -312,9 +321,7 @@ func Bind(
 	// mutually exclusive: a required field written as null reports its type
 	// failure, not its absence (spec 003 §5.7).
 	//
-	// TODO(iteration-4): spec §6.6 makes error order contractual, but no
-	// upstream test pins the relative order of extra-key and field errors.
-	// Confirm against upstream output when Axis 4 lands.
+	var errs []schemaerr.ValidationError
 	for _, field := range spec.Fields {
 		value, present := result.Values[field.Name]
 		if !present {

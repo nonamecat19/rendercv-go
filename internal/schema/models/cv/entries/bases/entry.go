@@ -55,7 +55,10 @@ func BindEntry(
 		location,
 		source,
 	)
-	return &BaseEntry{fields: result.Values, extras: result.Extras}, errs
+	// An entry base allows extra keys, so ExtraErrors is always empty here; it is
+	// appended for uniformity with the models that forbid them.
+	return &BaseEntry{fields: result.Values, extras: result.Extras},
+		append(errs, result.ExtraErrors...)
 }
 
 // Field reports a declared field's node and whether the key was present.
