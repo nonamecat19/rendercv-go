@@ -189,7 +189,10 @@ func TestValidateRunsFieldValidators(t *testing.T) {
 		{
 			name:  "unsupported network",
 			input: "social_networks:\n  - network: Friendster\n    username: x\n",
-			want:  "Input should be one of the supported social networks",
+			want: "Input should be 'LinkedIn', 'GitHub', 'GitLab', 'IMDB', 'Instagram'," +
+				" 'ORCID', 'Mastodon', 'StackOverflow', 'ResearchGate', 'YouTube'," +
+				" 'Google Scholar', 'Telegram', 'WhatsApp', 'Leetcode', 'X', 'Bluesky'" +
+				" or 'Reddit'",
 		},
 		{
 			name:  "custom connection missing url",

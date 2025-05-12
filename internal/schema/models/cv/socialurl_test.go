@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/nonamecat19/rendercv-go/internal/schema/errorpipeline"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 )
@@ -95,5 +96,40 @@ func TestGeneratedURLFailureIsReported(t *testing.T) {
 	}
 	if got := strings.Join(errs[0].SchemaLocation, "."); got != "cv.social_networks.0" {
 		t.Errorf("location = %q, want the record's", got)
+	}
+}
+
+// Spec 004 §4.23: pydantic's literal_error enumeration, in the literal type's
+// declared order, with `or` before the last and no serial comma.
+//
+// Asserted as the whole literal rather than as a shape, because the order is the
+// declaration order and nothing else would catch a reordering.
+func TestUnknownNetworkMessage(t *testing.T) {
+	_, errs := cv.ValidateSocialNetwork(
+		parse(t, "network: Nope\nusername: johndoe\n"),
+		[]string{"cv", "social_networks", "0"}, schemaerr.SourceMain,
+	)
+	if len(errs) != 1 {
+		t.Fatalf("errs = %+v, want exactly one", errs)
+	}
+
+	const want = "Input should be 'LinkedIn', 'GitHub', 'GitLab', 'IMDB', 'Instagram'," +
+		" 'ORCID', 'Mastodon', 'StackOverflow', 'ResearchGate', 'YouTube'," +
+		" 'Google Scholar', 'Telegram', 'WhatsApp', 'Leetcode', 'X', 'Bluesky'" +
+		" or 'Reddit'"
+	if errs[0].Message != want {
+		t.Errorf("message =\n  %q\nwant\n  %q", errs[0].Message, want)
+	}
+	if errs[0].Code != "literal_error" {
+		t.Errorf("code = %q, want literal_error", errs[0].Code)
+	}
+
+	// No dictionary row matches, so the pipeline only appends a period.
+	final, err := errorpipeline.Parse(errs, nil, nil)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if final[0].Message != want+"." {
+		t.Errorf("final message = %q, want the raw text plus a period", final[0].Message)
 	}
 }
