@@ -48,7 +48,7 @@ func ValidateReversedNumberedEntry(
 	source schemaerr.YamlSource,
 	_ time.Time,
 ) (*ReversedNumberedEntry, []schemaerr.ValidationError) {
-	base, errs := bases.BindEntry(node, reversedNumberedOwnFields, location, source)
+	base, errs := bases.BindEntry(node, reversedNumberedOwnFields, "ReversedNumberedEntry", location, source)
 
 	entry := &ReversedNumberedEntry{BaseEntry: *base}
 	number, ok := base.Field("reversed_number")

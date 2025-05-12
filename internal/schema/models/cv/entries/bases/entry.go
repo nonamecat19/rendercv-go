@@ -39,15 +39,19 @@ type BaseEntry struct {
 
 // BindEntry binds an entry mapping with the given declared fields, keeping
 // unknown keys (spec §3.67, §5.24).
+//
+// model is the entry class's name, which pydantic puts in the `model_type`
+// message when the value is not a mapping (spec 004 §4.32).
 func BindEntry(
 	node *yamldoc.Node,
 	fields []binder.Field,
+	model string,
 	location []string,
 	source schemaerr.YamlSource,
 ) (*BaseEntry, []schemaerr.ValidationError) {
 	result, errs := binder.Bind(
 		node,
-		binder.Spec{Fields: fields, Policy: binder.AllowExtra},
+		binder.Spec{Fields: fields, Policy: binder.AllowExtra, Model: model},
 		location,
 		source,
 	)

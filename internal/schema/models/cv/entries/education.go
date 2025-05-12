@@ -62,6 +62,7 @@ func ValidateEducationEntry(
 	base, errs := bases.BindEntryWithComplexFields(
 		node,
 		educationFields(),
+		"EducationEntry",
 		location,
 		source,
 		reference,

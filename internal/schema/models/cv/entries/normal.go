@@ -53,7 +53,7 @@ func ValidateNormalEntry(
 	source schemaerr.YamlSource,
 	reference time.Time,
 ) (*NormalEntry, []schemaerr.ValidationError) {
-	base, errs := bases.BindEntryWithComplexFields(node, normalFields(), location, source, reference)
+	base, errs := bases.BindEntryWithComplexFields(node, normalFields(), "NormalEntry", location, source, reference)
 
 	entry := &NormalEntry{BaseEntryWithComplexFields: *base}
 	if name, ok := base.Field("name"); ok && name != nil && name.Kind != yamldoc.KindNull {

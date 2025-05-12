@@ -46,7 +46,7 @@ func ValidateNumberedEntry(
 	source schemaerr.YamlSource,
 	_ time.Time,
 ) (*NumberedEntry, []schemaerr.ValidationError) {
-	base, errs := bases.BindEntry(node, numberedOwnFields, location, source)
+	base, errs := bases.BindEntry(node, numberedOwnFields, "NumberedEntry", location, source)
 
 	entry := &NumberedEntry{BaseEntry: *base}
 	entry.Number, _ = base.Field("number")

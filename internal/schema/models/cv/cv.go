@@ -81,7 +81,7 @@ func Validate(
 ) (*Cv, []schemaerr.ValidationError) {
 	result, errs := binder.Bind(
 		node,
-		binder.Spec{Fields: fieldOrder, Policy: binder.ForbidExtra},
+		binder.Spec{Fields: fieldOrder, Policy: binder.ForbidExtra, Model: "Cv"},
 		location,
 		source,
 	)

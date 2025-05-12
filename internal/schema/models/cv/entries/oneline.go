@@ -42,7 +42,7 @@ func ValidateOneLineEntry(
 	source schemaerr.YamlSource,
 	_ time.Time,
 ) (*OneLineEntry, []schemaerr.ValidationError) {
-	base, errs := bases.BindEntry(node, oneLineOwnFields, location, source)
+	base, errs := bases.BindEntry(node, oneLineOwnFields, "OneLineEntry", location, source)
 
 	entry := &OneLineEntry{BaseEntry: *base}
 	if label, ok := base.Field("label"); ok && label != nil && label.Kind != yamldoc.KindNull {
