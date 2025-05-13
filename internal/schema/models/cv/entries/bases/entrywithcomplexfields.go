@@ -71,6 +71,12 @@ func ValidateExactDate(value string, isInteger bool, reference time.Time) error 
 		return rangeErr
 	}
 
+	// CPython's own message, which escapes upstream's validator the same way.
+	var isoErr *ISOFormatError
+	if errors.As(err, &isoErr) {
+		return isoErr
+	}
+
 	var internal *schemaerr.InternalError
 	if errors.As(err, &internal) && internal.Message == messagePresentWithoutReference {
 		// Spec §4.15 is an internal error and is not rewritten into a
@@ -80,6 +86,25 @@ func ValidateExactDate(value string, isInteger bool, reference time.Time) error 
 
 	return &ExactDateError{Message: messageInvalidExactDate}
 }
+
+// ISOFormatError is CPython's `Invalid isoformat string` (spec 004 §4.33),
+// reached by an integer year that is not four digits.
+//
+// It is distinct from ExactDateError because the two take different routes
+// upstream: this one escapes `validate_exact_date` uncaught and arrives as a
+// `value_error`, while ExactDateError is the PydanticCustomError that validator
+// raises deliberately.
+type ISOFormatError struct {
+	Value string
+}
+
+func (e *ISOFormatError) Error() string {
+	return "Invalid isoformat string: '" + e.Value + "'"
+}
+
+// ErrorCode implements schemaerr.Coded: like a range failure, this one escapes
+// the validator uncaught and arrives as `value_error`.
+func (e *ISOFormatError) ErrorCode() schemaerr.Code { return CodeDateValue }
 
 // ExactDateError is the user-facing failure of spec §4.14.
 type ExactDateError struct {
@@ -93,14 +118,13 @@ func (e *ExactDateError) Error() string {
 // isoDate parses a `YYYY-MM-DD` string with CPython's range checks and its
 // messages (spec §4.13), the same ones ValidateArbitraryDate reports.
 func isoDate(value string) (time.Time, error) {
-	// An integer year outside four digits — `2020` is the only shape upstream's
-	// tests pin — produces CPython's "Invalid isoformat string" rather than a
-	// range message.
-	//
-	// TODO(iteration-4): spec §7.3 — no upstream test pins this text, so it is
-	// reported through the not-a-valid-date path for now.
+	// A year outside four digits reaches CPython's `date.fromisoformat` as a
+	// malformed string, so it reports "Invalid isoformat string" rather than a
+	// range message. Measured: `start_date: 10000` gives
+	// `Invalid isoformat string: '10000-01-01'` and `start_date: 1` gives
+	// `Invalid isoformat string: '1-01-01'` (spec 004 §4.33).
 	if !fullDatePattern.MatchString(value) {
-		return time.Time{}, &schemaerr.InternalError{Message: messageInvalidDate}
+		return time.Time{}, &ISOFormatError{Value: value}
 	}
 	if err := parseISODate(value); err != nil {
 		return time.Time{}, err

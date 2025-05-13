@@ -150,7 +150,14 @@ func TestRejectionTable(t *testing.T) {
 		{name: "start_date aaa", input: "start_date: aaa\n", want: "This is not a valid date! Please use"},
 		{name: "end_date aaa", input: "end_date: aaa\n", want: "This is not a valid date! Please use"},
 		{name: "end_date invalid_end_date", input: "end_date: invalid_end_date\n", want: "This is not a valid date! Please use"},
-		{name: "start_date 20222", input: "start_date: 20222\n", want: "This is not a valid date! Please use"},
+		// An **integer** year outside four digits takes CPython's fromisoformat
+		// path, so it reports the malformed string rather than RenderCV's
+		// message. Spec 002 §5.23 recorded this row against the not-a-valid-date
+		// text; measured, upstream gives `Invalid isoformat string: '20222-01-01'`
+		// with code `value_error` (spec 004 §4.33). A quoted `"20222"` is a
+		// string, matches no date pattern, and does give the row below.
+		{name: "start_date 20222", input: "start_date: 20222\n", want: "Invalid isoformat string: '20222-01-01'"},
+		{name: "start_date \"20222\"", input: "start_date: \"20222\"\n", want: "This is not a valid date! Please use"},
 		{name: "start_date 202222-20200", input: "start_date: 202222-20200\n", want: "This is not a valid date! Please use"},
 		{name: "start_date 202222-12-20", input: "start_date: 202222-12-20\n", want: "This is not a valid date! Please use"},
 		{name: "start_date 2022-20-20", input: "start_date: 2022-20-20\n", want: "month must be in 1..12"},
