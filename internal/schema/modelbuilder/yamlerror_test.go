@@ -152,3 +152,62 @@ func (marklessParserError) Error() string                { return "no marks here
 func (marklessParserError) GetMessage() string           { return "no marks here" }
 func (marklessParserError) GetToken() *token.Token       { return nil }
 func (marklessParserError) FormatError(_, _ bool) string { return "no marks here" }
+
+// Spec 004 §3.18 behaviors 68-70: everything about the record **except** the
+// interpolated parser text.
+//
+// The interpolation is the one place in the iteration where parity is not
+// currently reachable — ruamel's phrasing and goccy's differ — and spec §7.5
+// makes it a decision rather than a fix. Every other member is decidable now,
+// so it is pinned now: a later decision about the sentence must not be able to
+// change the record's shape without failing here.
+func TestYamlSyntaxRecordShape(t *testing.T) {
+	_, err := ReadYamlWithValidationErrors("cv: [\n  a: 1\n", schemaerr.SourceDesign)
+
+	var userErr *schemaerr.UserValidationError
+	if !errors.As(err, &userErr) {
+		t.Fatalf("err = %v (%T), want *schemaerr.UserValidationError", err, err)
+	}
+	if len(userErr.Errors) != 1 {
+		t.Fatalf("errors = %+v, want exactly one", userErr.Errors)
+	}
+	record := userErr.Errors[0]
+
+	// Behavior 68: no schema location. The failure is about the document, not
+	// about a field in it.
+	if len(record.SchemaLocation) != 0 {
+		t.Errorf("schema location = %v, want none", record.SchemaLocation)
+	}
+
+	// The source of the document being parsed, not the main file.
+	if record.YamlSource != schemaerr.SourceDesign {
+		t.Errorf("source = %q, want %q", record.YamlSource, schemaerr.SourceDesign)
+	}
+
+	// §4.15: the input echo is the three dots.
+	if record.Input != "..." {
+		t.Errorf("input = %q, want the three-dot echo", record.Input)
+	}
+
+	// Coordinates are 1-indexed in both line and column.
+	if record.YamlLocation == nil {
+		t.Fatal("coordinates are absent; the parser supplied marks")
+	}
+	if record.YamlLocation.Start.Line < 1 || record.YamlLocation.Start.Column < 1 {
+		t.Errorf("coordinates = %+v, want them 1-indexed", *record.YamlLocation)
+	}
+
+	// The sentence's prefix is RenderCV's and is decidable; only what follows
+	// is deferred.
+	if !strings.HasPrefix(record.Message, "This is not a valid YAML file. ") {
+		t.Errorf("message = %q, want RenderCV's prefix", record.Message)
+	}
+	// Whatever the parser says, the period rule of behavior 68 has run.
+	if !strings.HasSuffix(record.Message, ".") {
+		t.Errorf("message = %q, want a trailing period", record.Message)
+	}
+	// And it is one line.
+	if strings.Contains(record.Message, "\n") {
+		t.Errorf("message spans lines: %q", record.Message)
+	}
+}
