@@ -144,7 +144,7 @@ func TestFirstResolvableEntryWins(t *testing.T) {
 	for _, child := range errs[0].Children {
 		got = append(got, strings.Join(child.SchemaLocation, ".")+" "+string(child.Code))
 	}
-	want := []string{"0 model_type", "1.area missing"}
+	want := []string{"entries.0 model_type", "entries.1.area missing"}
 	if len(got) != len(want) {
 		t.Fatalf("children = %v, want %v", got, want)
 	}
@@ -241,8 +241,10 @@ func TestTypeNamedIsTheResolvedOne(t *testing.T) {
 	if child.Code != "missing" {
 		t.Errorf("child code = %q, want missing", child.Code)
 	}
-	if got := strings.Join(child.SchemaLocation, "."); got != "0.bullet" {
-		t.Errorf("child location = %q, want %q", got, "0.bullet")
+	// Relative to `entries`, which the pipeline's splice drops before prepending
+	// the wrapper's location (spec 004 §3.7 behavior 22).
+	if got := strings.Join(child.SchemaLocation, "."); got != "entries.0.bullet" {
+		t.Errorf("child location = %q, want %q", got, "entries.0.bullet")
 	}
 }
 
@@ -283,8 +285,8 @@ func TestMixedSectionNamesFirstResolvedType(t *testing.T) {
 		got = append(got, strings.Join(child.SchemaLocation, ".")+" "+string(child.Code))
 	}
 	expected := []string{
-		"cv.sections.mixed.1.institution missing",
-		"cv.sections.mixed.1.area missing",
+		"entries.1.institution missing",
+		"entries.1.area missing",
 	}
 	if len(got) != len(expected) {
 		t.Fatalf("children = %v, want %v", got, expected)

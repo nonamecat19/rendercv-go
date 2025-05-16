@@ -129,51 +129,91 @@ func (c *Cv) validateFields(
 ) []schemaerr.ValidationError {
 	var errs []schemaerr.ValidationError
 
-	// Spec §3.47: the shared scalar-or-list rule, in upstream's field order.
-	for _, field := range ScalarOrListFields() {
+	// **In declaration order, one field at a time.** Upstream is pydantic, which
+	// validates fields in the order they are declared, so a document with a bad
+	// `email` and a bad `website` reports `email` first — `email` is declared
+	// fourth and `website` seventh (spec 004 §3.9 behavior 32).
+	//
+	// Iteration 2 ran the validators in groups: every scalar-or-list field, then
+	// the photo, then the sequences. That produces the right records in the wrong
+	// order, and dedup keeps the first record at a location, so a wrong order is
+	// a wrong message somewhere downstream.
+	for _, field := range FieldNames() {
+		errs = append(errs, c.validateField(field, location, source, opts)...)
+	}
+
+	return errs
+}
+
+// validateField runs the one validator a field has, if it has one. The switch is
+// exhaustive over FieldNames so a new field cannot be added without deciding
+// whether it needs one.
+func (c *Cv) validateField(
+	field string,
+	location []string,
+	source schemaerr.YamlSource,
+	opts Options,
+) []schemaerr.ValidationError {
+	switch field {
+	case "website", "email", "phone":
+		// Spec §3.47: the shared scalar-or-list rule.
 		node, _ := c.fieldNode(field)
-		fieldErrs, err := ValidateScalarOrList(field, node, fieldLocation(location, field), source)
+		errs, err := ValidateScalarOrList(field, node, fieldLocation(location, field), source)
 		if err != nil {
 			// The internal error of spec §4.7 cannot arise here: the field name
-			// always comes from ScalarOrListFields.
-			continue
+			// always comes from FieldNames.
+			return nil
 		}
-		errs = append(errs, fieldErrs...)
-	}
+		return errs
 
-	// Spec §3.46: the photo union, path interpretation first. Only the path
-	// arm reports — see ResolvePhoto for why the URL record must not exist.
-	if c.Photo != nil && c.Photo.Kind != yamldoc.KindNull {
+	case "photo":
+		// Spec §3.46: the photo union, path interpretation first. Only the path
+		// arm reports — see ResolvePhoto for why the URL record must not exist.
+		if c.Photo == nil || c.Photo.Kind == yamldoc.KindNull {
+			return nil
+		}
 		photo, failure := ResolvePhoto(c.Photo.Raw, opts.Context)
 		c.PhotoValue = photo
-		if failure != nil {
-			located := *failure
-			located.SchemaLocation = fieldLocation(location, "photo")
-			located.YamlSource = source
-			located.YamlLocation = &c.Photo.Span
-			errs = append(errs, located)
+		if failure == nil {
+			return nil
 		}
-	}
+		located := *failure
+		located.SchemaLocation = fieldLocation(location, "photo")
+		located.YamlSource = source
+		located.YamlLocation = &c.Photo.Span
+		return []schemaerr.ValidationError{located}
 
-	if c.SocialNetworks != nil && c.SocialNetworks.Kind == yamldoc.KindSequence {
+	case "social_networks":
+		if c.SocialNetworks == nil || c.SocialNetworks.Kind != yamldoc.KindSequence {
+			return nil
+		}
 		base := fieldLocation(location, "social_networks")
+		var errs []schemaerr.ValidationError
 		for i, elem := range c.SocialNetworks.Elems {
 			_, elemErrs := ValidateSocialNetwork(elem, indexLocation(base, i), source)
 			errs = append(errs, elemErrs...)
 		}
-	}
+		return errs
 
-	if c.CustomConnections != nil && c.CustomConnections.Kind == yamldoc.KindSequence {
+	case "custom_connections":
+		if c.CustomConnections == nil || c.CustomConnections.Kind != yamldoc.KindSequence {
+			return nil
+		}
 		base := fieldLocation(location, "custom_connections")
+		var errs []schemaerr.ValidationError
 		for i, elem := range c.CustomConnections.Elems {
 			_, elemErrs := ValidateCustomConnection(elem, indexLocation(base, i), source)
 			errs = append(errs, elemErrs...)
 		}
-	}
+		return errs
 
-	// Spec §3.53–§3.61: every section, in input order.
-	if c.Sections != nil && c.Sections.Kind == yamldoc.KindMapping && opts.Registry != nil {
+	case "sections":
+		// Spec §3.53-§3.61: every section, in input order.
+		if c.Sections == nil || c.Sections.Kind != yamldoc.KindMapping || opts.Registry == nil {
+			return nil
+		}
 		base := fieldLocation(location, "sections")
+		var errs []schemaerr.ValidationError
 		for _, item := range c.Sections.Items {
 			_, sectionErrs := ValidateSection(
 				item.Value, opts.Registry, fieldLocation(base, item.Key), source,
@@ -181,9 +221,13 @@ func (c *Cv) validateFields(
 			)
 			errs = append(errs, sectionErrs...)
 		}
-	}
+		return errs
 
-	return errs
+	case "name", "headline", "location":
+		// Plain optional text; the binder's shape check is the whole rule.
+		return nil
+	}
+	return nil
 }
 
 func (c *Cv) fieldNode(name string) (*yamldoc.Node, bool) {
