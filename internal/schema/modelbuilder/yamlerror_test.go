@@ -211,3 +211,75 @@ func TestYamlSyntaxRecordShape(t *testing.T) {
 		t.Errorf("message spans lines: %q", record.Message)
 	}
 }
+
+// Spec 004 §7.5 and plan §6 option B: goccy's error taxonomy mapped onto
+// ruamel's phrasing, for the syntax failures the corpus contains.
+//
+// Each `want` is ruamel's verbatim first line, measured against the vendored
+// Python on the same input. The first row is the corpus case, whose golden
+// output reads `This is not a valid YAML file. while parsing a flow sequence.`
+func TestParserMessageUsesRuamelPhrasing(t *testing.T) {
+	tests := []struct{ name, src, want string }{
+		{
+			name: "an unterminated flow sequence — the corpus case",
+			src:  "this: [is, not, a, cv\n",
+			want: "This is not a valid YAML file. while parsing a flow sequence.",
+		},
+		{
+			name: "an unterminated flow mapping",
+			src:  "a: {b\n",
+			want: "This is not a valid YAML file. while parsing a flow mapping.",
+		},
+		{
+			name: "an unterminated quoted scalar",
+			src:  "a: 'unterminated\n",
+			want: "This is not a valid YAML file. while scanning a quoted scalar.",
+		},
+		{
+			name: "a tab where a key belongs",
+			src:  "\ta: 1\n",
+			want: "This is not a valid YAML file. while scanning for the next token.",
+		},
+		{
+			name: "a duplicate key",
+			src:  "a: 1\na: 2\n",
+			want: "This is not a valid YAML file. while constructing a mapping.",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := ReadYamlWithValidationErrors(test.src, schemaerr.SourceMain)
+
+			var userErr *schemaerr.UserValidationError
+			if !errors.As(err, &userErr) {
+				t.Fatalf("err = %v (%T), want *schemaerr.UserValidationError", err, err)
+			}
+			if userErr.Errors[0].Message != test.want {
+				t.Errorf("message =\n  %q\nwant\n  %q", userErr.Errors[0].Message, test.want)
+			}
+		})
+	}
+}
+
+// An unmapped failure falls through to goccy's own first line. That is option A
+// for the remainder — wrong, but visibly wrong rather than silently
+// misattributed to the nearest mapped construct.
+//
+// The assertion is that it does **not** borrow a ruamel phrase it was not
+// measured for.
+func TestUnmappedParserMessageFallsThrough(t *testing.T) {
+	_, err := ReadYamlWithValidationErrors("a: !!unknowntag@@ b\n", schemaerr.SourceMain)
+
+	var userErr *schemaerr.UserValidationError
+	if !errors.As(err, &userErr) {
+		t.Skip("this input parses; the fallthrough needs an unmapped failure")
+	}
+
+	message := userErr.Errors[0].Message
+	for _, row := range ruamelPhrasing {
+		if strings.Contains(message, row.ruamel) {
+			t.Errorf("an unmapped failure borrowed %q: %q", row.ruamel, message)
+		}
+	}
+}
