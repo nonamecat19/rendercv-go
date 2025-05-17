@@ -351,7 +351,7 @@ func TestProductionPathRejectsABadEntry(t *testing.T) {
 // nondeterministic. Upstream's already-a-model branch is a genuinely different
 // path — `entry.__class__.__name__` at section.py:173-176 — and Go has no
 // equivalent, because a non-mapping, non-string, non-null node falls through to
-// the `messageNoType` branch under the TODO(iteration-4) at
+// the `messageNoType` branch under the TODO(iteration-12) at
 // sectionvalidation.go. Reproducing it depends on iteration 4's §5.14
 // already-a-model decision, so it is recorded in specs/STATE.md rather than
 // approximated with a test that cannot fail.

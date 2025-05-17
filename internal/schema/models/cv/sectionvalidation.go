@@ -112,8 +112,11 @@ func InferEntryType(node *yamldoc.Node, registry *entries.Registry) (entries.Typ
 	// reaches upstream's already-validated-object branch and fails with an
 	// unhandled key lookup rather than a validation error.
 	//
-	// TODO(iteration-4): decide whether to reproduce the crash or keep §4.9;
-	// this is one of the open items flagged for the iteration-4 gate.
+	// TODO(iteration-12): spec 004 §7.8 reassigns this. It is not a
+	// validation-error-parity question — upstream produces no message to match,
+	// only an unhandled exception — so what `rendercv-go` should do depends on
+	// what the CLI's top-level handler does with an unhandled failure, which is
+	// iteration 12's. The port keeps §4.9 until then.
 	return "", &inferenceError{message: messageNoType}
 }
 
