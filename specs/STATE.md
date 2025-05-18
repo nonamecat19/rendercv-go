@@ -18,7 +18,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 1 | Conformance harness (corpus, gengolden, helpers) | [001](001-conformance-harness/spec.md) | green | n/a (42 cases red by design) |
 | 2 | YAML reader + core model (RenderCVModel, CV, Section) | [002](002-yaml-and-core-model/spec.md) | green (with cut scope, see below) | n/a (gated on unit tests, spec §7.2) |
 | 3 | Entry types (9) | [003](003-entry-types/spec.md) | green (with cut scope, see below) | n/a (gated on unit tests, spec §7.1) |
-| 4 | Validation-error parity | [004](004-validation-errors/spec.md) | spec | 0 |
+| 4 | Validation-error parity | [004](004-validation-errors/spec.md) | green | n/a (gated on the 25-record differential, spec §7.3) |
 | 5 | JSON Schema generator | — | — | 0 / 1 |
 | 6 | Design & themes (9) + Lua-scripted custom themes (D-002) | — | — | 0 / 9 |
 | 7 | Locale (English + 21 catalogs) + date formatting | — | — | 0 / 22 |
@@ -36,7 +36,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 1 — artifacts byte-identical | `just test-parity` | measurable, 0/15 cases passing |
 | 2 — CLI surface | `just test-parity` | measurable, 0/20 cases passing |
 | 3 — JSON Schema | `just test-parity`, `just schema-diff` | measurable, failing |
-| 4 — validation errors | `just test-parity` | measurable, 0/7 cases passing |
+| 4 — validation errors | `just test-parity` | measurable, 0/7 corpus cases passing; the 25-record differential is green |
 
 PDF content comparison (spec §1.2) is not yet measurable — it lands with iteration 10.
 
@@ -181,6 +181,68 @@ never exercised), discrimination from an already-constructed entry, and the summ
 matching no type end to end.
 
 Not verifiable yet, and not claimed: PDF/PNG, artifact and CLI parity (iterations 10 and 12).
+
+### Iteration 4
+
+**No cut scope.** Every task in `tasks.md` landed, every `TODO(iteration-4)` in the tree is
+cleared, and both items cut from iteration 3 plus four of the five carried from iteration 2 are
+closed.
+
+The gate is `TestWrongInputDifferential`: upstream's own `wrong_input.yaml` through the whole
+port, compared against `expected_errors.yaml` **member by member, in order, with an equal-length
+assertion** — all 25 records, all five members including coordinates. It is a port of
+`tests/schema/test_pydantic_error_handling.py:19-54` and is the strongest mechanical Axis-4 gate
+available.
+
+The parity suite stays at its 42 red cases, which is iteration 1's baseline and not this
+iteration's failure: no corpus case can pass until the renderer exists (spec §7.3). No golden was
+regenerated and the submodule was not bumped, so no human gate was requested.
+
+**Bugs found while measuring, none in the task that found them.** Recorded because each was
+invisible to the suite that existed at the time:
+
+| Bug | Found by |
+|---|---|
+| Quoted mapping keys kept their quotes, so `"name": John` was rejected as an unknown key | the dictionary's one quoted scalar |
+| `0b101` resolved to a string; ruamel reads it as 5 | the generated scalar corpus |
+| Unknown keys were reported before every declared field | measuring the order upstream reports |
+| An exact date's range and isoformat failures carried the wrong code (4 of 5 rows) | measuring §4.13's texts |
+| `Invalid isoformat string` was missing entirely | the same measurement |
+| `PublicationEntry.url` reported after every other field | registering its validator |
+| A valueless key's span ended at column 1 whatever the indent | the coordinate differential |
+| A flow-collection element started at its first value, not its bracket | the same |
+
+**Two corrections to the spec, both recorded in place rather than silently edited:**
+
+1. §3.2's table gave the reason for step 1 preceding the dictionary as "or `value is not a valid
+   phone number` never matches". It does not hold — that message carries no prefix, and
+   substitution matches by containment and replaces the whole message, so a prefix can only add a
+   match. The ordering is still reproduced;
+   `errorpipeline.TestPrefixStripDoesNotChangeWhichRowMatches` now asserts the unobservability, so
+   a future row that makes the order matter fails rather than passing silently.
+2. §3.13 behavior 46 said the URL length limit is 2083 **characters**. It is UTF-8 **bytes** — the
+   check lives in pydantic-core, which is Rust. ASCII hides the difference, so nothing measured
+   before was wrong, but a port counting runes would accept URLs upstream rejects.
+
+**Carried forward, with owners:**
+
+- **`emailaddr` is known-incomplete by decision** (spec §7.4). It reproduces 45 measured
+  rejections; the library's catalogue is larger. The gap runs toward *accepting* what upstream
+  rejects rather than misreporting it — the safer direction, since a plausible-but-wrong message
+  passes review while a missing record shows up in the differential. `ErrUnclassified` exists and
+  is unreachable, kept for a rule that can be detected but not named.
+- **The YAML parser message is option B, scoped to the corpus** (spec §7.5, plan §6). Five
+  goccy→ruamel phrasings are mapped and measured; an unmapped failure falls through to goccy's own
+  line. **The coordinate half is not covered**: ruamel reports a context mark and a problem mark,
+  goccy reports one token, so the corpus case's `line 1 to line 2` comes out as `line 1`. That is
+  a decision needing `specs/divergences.md` and the human gate, and this iteration does not
+  authorize writing one — see "Open for the human gate" below.
+- **Two upstream crashes reassigned to iteration 12** (spec §7.8): a non-mapping entry and a
+  list-valued `phone`. Neither is a validation-error-parity question — upstream produces no
+  message, only an unhandled exception — so both wait on the CLI's unhandled-failure handling.
+  Both carry `TODO(iteration-12)` markers.
+
+**Open for the human gate:** the YAML-syntax coordinate span above. Nothing else.
 
 ## Log
 
