@@ -136,7 +136,7 @@ func TestTitleFor(t *testing.T) {
 // The model envelope: `description` is a present null rather than an omission,
 // and `additionalProperties` is explicit in both directions.
 func TestModelEnvelope(t *testing.T) {
-	got, err := Marshal(Model("BulletEntry", true, []Property{
+	got, err := Marshal(EntryModel("BulletEntry", []Property{
 		{Name: "bullet", Type: "string", Examples: []any{"Python, JavaScript, C++", "Excellent communication skills"}},
 	}))
 	if err != nil {
