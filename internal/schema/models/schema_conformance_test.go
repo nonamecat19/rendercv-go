@@ -128,3 +128,48 @@ func TestSchemaJSONHasNoTrailingNewline(t *testing.T) {
 		t.Error("the schema ends with a newline; upstream's file does not")
 	}
 }
+
+// The port's schema is a strict **subset** of upstream's: every line it emits
+// appears in upstream's file, and the difference is entirely lines upstream has
+// that the port does not.
+//
+// That is the honest shape of iteration 5's completion (spec 005 §1). A green
+// `schema-diff` would mean the port invented something; what this asserts is
+// the weaker and currently correct claim — nothing invented, much missing.
+//
+// It is a line-level check rather than a structural one on purpose: it is the
+// same comparison `just schema-diff` makes, so a reader can run that command and
+// see the same answer.
+func TestPortSchemaInventsNothing(t *testing.T) {
+	raw, err := os.ReadFile(upstreamSchemaPath)
+	if err != nil {
+		t.Fatalf("reading %s: %v", upstreamSchemaPath, err)
+	}
+	text, err := models.SchemaJSON()
+	if err != nil {
+		t.Fatalf("SchemaJSON: %v", err)
+	}
+
+	upstreamLines := map[string]int{}
+	for _, line := range strings.Split(string(raw), "\n") {
+		upstreamLines[line]++
+	}
+
+	var invented []string
+	for _, line := range strings.Split(text, "\n") {
+		if upstreamLines[line] > 0 {
+			upstreamLines[line]--
+			continue
+		}
+		invented = append(invented, line)
+	}
+
+	if len(invented) != 0 {
+		limit := len(invented)
+		if limit > 10 {
+			limit = 10
+		}
+		t.Errorf("%d lines are in the port's schema and not upstream's:\n%s",
+			len(invented), strings.Join(invented[:limit], "\n"))
+	}
+}
