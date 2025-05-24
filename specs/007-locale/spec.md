@@ -75,8 +75,17 @@ Primary sources: `src/rendercv/schema/models/locale/` — `english_locale.py` (1
    message with the discriminator element dropped by the pipeline's step 2. So this iteration adds
    **no new error strings**, and that is a finding rather than an omission: the only locale message
    in the whole contract is §4.30's, already ported.
-10. A twelve-element list given eleven or thirteen entries fails with pydantic's length message,
-    which is **not yet measured**; §6 owns it.
+10. A twelve-element list of the wrong length fails with pydantic's own length message, and there
+    are **two** of them rather than one — the bound that was violated decides which. Measured:
+
+    | Input | Code | Message |
+    |---|---|---|
+    | 11 items | `too_short` | `List should have at least 12 items after validation, not 11` |
+    | 13 items | `too_long` | `List should have at most 12 items after validation, not 13` |
+    | 0 items | `too_short` | `List should have at least 12 items after validation, not 0` |
+
+    Both interpolate the actual count, and neither matches a dictionary row, so the pipeline only
+    appends a period.
 
 ---
 
@@ -97,7 +106,8 @@ Primary sources: `src/rendercv/schema/models/locale/` — `english_locale.py` (1
 - [ ] `available_locales` is the twenty-two names in upstream's order, matching the list iteration
       4 already ships for spec 004 §4.30. One list, two consumers.
 - [ ] The English defaults of §2 behaviors 5 and 7 verbatim, `June`/`July`/`Sept` included.
-- [ ] Both twelve-element lists rejected at eleven and thirteen.
+- [ ] Both twelve-element lists rejected at eleven and thirteen, with §3 behavior 10's two
+      distinct messages and their interpolated counts.
 - [ ] All 45 locale `$defs` byte-identical, taking `just schema-diff` to the design remainder.
 - [ ] Non-ASCII survives: `måned`, `nuværende`, `norwegian_bokmål` (spec 005 §3.4).
 
@@ -105,6 +115,8 @@ Primary sources: `src/rendercv/schema/models/locale/` — `english_locale.py` (1
 
 ## 6. Status
 
-**Incomplete — one measurement owed.** §3 behavior 10's length-constraint message is not
-extracted. Everything else here is measured. `tasks.md` waits on it, because a porter given this
-file alone would invent that string — and it is the only string this iteration adds.
+**Complete.** Every behavior here is measured against the vendored Python. The iteration adds two
+error strings, both pydantic's length messages of §3 behavior 10, and nothing else — the locale
+package raises none of its own.
+
+`tasks.md` can be written from this file.
