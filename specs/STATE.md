@@ -20,8 +20,8 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 3 | Entry types (9) | [003](003-entry-types/spec.md) | green (with cut scope, see below) | n/a (gated on unit tests, spec §7.1) |
 | 4 | Validation-error parity | [004](004-validation-errors/spec.md) | green | n/a (gated on the 25-record differential, spec §7.3) |
 | 5 | JSON Schema generator | [005](005-json-schema/spec.md) | green (Axis 3 blocked on 6–7, see below) | n/a (gated on the 18 owned `$defs`, spec §7.1) |
-| 6 | Design & themes (9) + Lua-scripted custom themes (D-002) | [006](006-design-and-themes/spec.md) | spec (incomplete — see §6) | 0 / 9 |
-| 7 | Locale (English + 21 catalogs) + date formatting | [007](007-locale/spec.md) | spec (incomplete — see §6) | 0 / 22 |
+| 6 | Design \& themes (9) + Lua-scripted custom themes (D-002) | [006](006-design-and-themes/spec.md) | spec (behavior complete; plan and tasks to write) | 0 / 9 |
+| 7 | Locale (English + 21 catalogs) + date formatting | [007](007-locale/spec.md) | spec | 0 / 22 |
 | 8 | Templater (pongo2 env, filters, markdown→typst, processors) | — | — | 0 |
 | 9 | Typst renderer (`.typ` emission) | — | — | 0 / 18 |
 | 10 | wazero + WASI typst → PDF, then PNG | — | — | 0 |
