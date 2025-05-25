@@ -89,6 +89,12 @@ schema-diff:
 upstream *args:
     cd {{upstream_dir}} && uv run --frozen --all-extras rendercv {{args}}
 
+# Regenerate the locale catalogs from the vendored Python.
+# Generated, never hand-edited: 210 mostly non-ASCII strings. See
+# tools/localeprobe for what the conformance diff does and does not guarantee.
+localeprobe:
+    go run ./tools/localeprobe
+
 # Regenerate the entry-model field-order fixture from the vendored Python.
 # Generated, never hand-edited (AGENTS.md §10.1). Not a golden: no human gate.
 entryprobe:
