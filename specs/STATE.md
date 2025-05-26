@@ -21,7 +21,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 4 | Validation-error parity | [004](004-validation-errors/spec.md) | green | n/a (gated on the 25-record differential, spec §7.3) |
 | 5 | JSON Schema generator | [005](005-json-schema/spec.md) | green (Axis 3 blocked on 6–7, see below) | n/a (gated on the 18 owned `$defs`, spec §7.1) |
 | 6 | Design & themes (9) + Lua-scripted custom themes (D-002) | [006](006-design-and-themes/spec.md) | spec (behavior complete; plan and tasks to write) | 0 / 9 |
-| 7 | Locale (English + 21 catalogs) + date formatting | [007](007-locale/spec.md) | spec | 0 / 22 |
+| 7 | Locale (English + 21 catalogs) + date formatting | [007](007-locale/spec.md) | wip — T1–T6, T26 done; T27–T28 left | 0 / 22 |
 | 8 | Templater (pongo2 env, filters, markdown→typst, processors) | — | — | 0 |
 | 9 | Typst renderer (`.typ` emission) | — | — | 0 / 18 |
 | 10 | wazero + WASI typst → PDF, then PNG | — | — | 0 |
@@ -296,6 +296,37 @@ optional-reference fields, and a list of the four known cases would have missed 
 
 **Carried forward:** the absent-set test states the remaining 209 as a number that must be changed
 deliberately, so iterations 6 and 7 cannot close Axis 3 by accident or leave it closed on paper.
+
+### Iteration 7 — in progress
+
+Stopped mid-iteration with the work that is done gated and the remainder specified. Not cut scope:
+nothing here was dropped, and the two open tasks need no decisions.
+
+**Done and green:** the ten-field catalog model with both length messages (T1–T2), the
+submodule-diff gate (T3), all twenty-two catalogs (T4–T5), and the `$defs` collision numbering
+(T26).
+
+**Left:** T27, the 45 locale `$defs`, and T28, this ledger entry becoming *green*.
+
+T26 landed here rather than in iteration 6, where spec 005 §7.2's panic pointed. Locale's collision
+is a flat list of twenty-two; design's is nine themes × their nested models. Same rule, and getting
+it visibly right on the easy case means iteration 6 inherits it working. Its difficulty is
+invisible in the output — `$defs` sorts its keys, so an alphabetically-assigned suffix produces a
+file that *looks* correctly sorted while pairing every model with the wrong number.
+
+**T27 needs two findings that are already recorded** (spec 007 §3.3), both measured and neither
+guessable:
+
+- `norwegian_bokmål` becomes `NorwegianBokm_lLocale` — the `å` replaced by one underscore, not
+  transliterated and not dropped;
+- each variant's field descriptions interpolate **its own** default, so Danish's `last_updated`
+  reads ``… The default value is `Senest opdateret`.`` The 45 `$defs` are ten English templates
+  applied to each catalog's data — 220 splices — not the English schema repeated. A port reusing
+  English's rendered descriptions emits 44 wrong strings that read correctly.
+
+**When T27 lands**, update the absent count in
+`internal/schema/jsonschema/golden_conformance_test.go` from 209 to 164. It is written to fail
+until someone does.
 
 ## Log
 
