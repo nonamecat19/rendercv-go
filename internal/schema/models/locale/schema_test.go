@@ -69,8 +69,8 @@ func TestDescriptionsCarryTheVariantsOwnDefault(t *testing.T) {
 //
 // `create_simple_field_spec` rebuilds a variant's field from
 // `base_field_info.annotation`, which has already lost the `Annotated` metadata,
-// so the twenty-one variants keep the constraint in validation and lose it in
-// their schema.
+// so the twenty-one variants lose the constraint in their schema — and, as
+// ValidateCatalog records, in their validation too.
 func TestMonthBoundsAreEnglishOnly(t *testing.T) {
 	for _, language := range []string{"english", "danish"} {
 		t.Run(language, func(t *testing.T) {

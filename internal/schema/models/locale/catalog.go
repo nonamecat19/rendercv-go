@@ -10,6 +10,10 @@ import (
 // (english_locale.py:60, :79 — `at.Len(min_length=12, max_length=12)`).
 const MonthCount = 12
 
+// englishLanguage is the base member's tag. It is the one language the
+// twelve-element bound applies to; see ValidateCatalog.
+const englishLanguage = "english"
+
 // catalogFields is EnglishLocale's declaration order (english_locale.py:21-...).
 //
 // Every field has a default, so none is Required: a locale block naming only its
@@ -62,7 +66,7 @@ type Catalog struct {
 // slicing would get three of twelve wrong and would look right in review.
 func English() Catalog {
 	return Catalog{
-		Language:       "english",
+		Language:       englishLanguage,
 		LastUpdated:    "Last updated in",
 		Month:          "month",
 		Months:         "months",
@@ -86,17 +90,37 @@ func English() Catalog {
 //
 // The language discriminator itself is ValidateLanguage's, which runs first and
 // stands alone when it fails.
+//
+// languageName selects the union member being validated, and it decides one
+// thing: whether the twelve-element bound applies. Measured — `{language:
+// danish, month_names: [11 items]}` validates, and the same document with
+// `english` does not.
 func ValidateCatalog(
 	node *yamldoc.Node,
+	languageName string,
 	location []string,
 	source schemaerr.YamlSource,
 ) []schemaerr.ValidationError {
 	result, errs := binder.Bind(
 		node,
-		binder.Spec{Fields: catalogFields, Policy: binder.ForbidExtra, Model: "EnglishLocale"},
+		binder.Spec{Fields: catalogFields, Policy: binder.ForbidExtra, Model: modelNameFor(languageName)},
 		location,
 		source,
 	)
+
+	// **The bound is EnglishLocale's alone**, in validation as well as in the
+	// schema, and for the same reason: it lives in the `Annotated` metadata of
+	// `english_locale.py:60` and `:79`, while `create_simple_field_spec` rebuilds
+	// each variant's field from `base_field_info.annotation`
+	// (variant_pydantic_model_generator.py:428-431) — which is the bare
+	// `list[str]`, the metadata already stripped. So the twenty-one variants have
+	// no length rule at all.
+	//
+	// Applying it to every member is the port's easiest wrong answer: it rejects
+	// documents upstream accepts, and no English fixture can see the difference.
+	if languageName != englishLanguage {
+		return append(errs, result.ExtraErrors...)
+	}
 
 	for _, field := range []string{"month_abbreviations", "month_names"} {
 		value, present := result.Value(field)
