@@ -19,9 +19,9 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 2 | YAML reader + core model (RenderCVModel, CV, Section) | [002](002-yaml-and-core-model/spec.md) | green (with cut scope, see below) | n/a (gated on unit tests, spec §7.2) |
 | 3 | Entry types (9) | [003](003-entry-types/spec.md) | green (with cut scope, see below) | n/a (gated on unit tests, spec §7.1) |
 | 4 | Validation-error parity | [004](004-validation-errors/spec.md) | green | n/a (gated on the 25-record differential, spec §7.3) |
-| 5 | JSON Schema generator | [005](005-json-schema/spec.md) | green (Axis 3 blocked on 6–7, see below) | n/a (gated on the 18 owned `$defs`, spec §7.1) |
+| 5 | JSON Schema generator | [005](005-json-schema/spec.md) | green (Axis 3 blocked on 6, see below) | n/a (gated on the 18 owned `$defs`, spec §7.1) |
 | 6 | Design & themes (9) + Lua-scripted custom themes (D-002) | [006](006-design-and-themes/spec.md) | spec (behavior complete; plan and tasks to write) | 0 / 9 |
-| 7 | Locale (English + 21 catalogs) + date formatting | [007](007-locale/spec.md) | wip — T1–T6, T26 done; T27–T28 left | 0 / 22 |
+| 7 | Locale (English + 21 catalogs) | [007](007-locale/spec.md) | green | n/a (gated on the 45 `$defs` differential and the submodule catalog diff, spec §5) |
 | 8 | Templater (pongo2 env, filters, markdown→typst, processors) | — | — | 0 |
 | 9 | Typst renderer (`.typ` emission) | — | — | 0 / 18 |
 | 10 | wazero + WASI typst → PDF, then PNG | — | — | 0 |
@@ -35,7 +35,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 |---|---|---|
 | 1 — artifacts byte-identical | `just test-parity` | measurable, 0/15 cases passing |
 | 2 — CLI surface | `just test-parity` | measurable, 0/20 cases passing |
-| 3 — JSON Schema | `just schema-diff` | **blocked on iterations 6–7**, not failing: 209 of 227 `$defs` are design and locale models. The 18 the port owns are byte-identical. |
+| 3 — JSON Schema | `just schema-diff` | **blocked on iteration 6 alone**, not failing: 164 of 227 `$defs` are the design tree and the three settings models. The 63 the port owns are byte-identical. |
 | 4 — validation errors | `just test-parity` | measurable, 0/7 corpus cases passing; the 25-record differential is green |
 
 PDF content comparison (spec §1.2) is not yet measurable — it lands with iteration 10.
@@ -294,19 +294,15 @@ optional-reference fields, and a list of the four known cases would have missed 
    explicitly (`go run ./tools/genschema`), so the two axes cannot be read as contradicting.
 2. Axis 3 required a trailing newline. Upstream's file has none; its last three bytes are `"\n}`.
 
-**Carried forward:** the absent-set test states the remaining 209 as a number that must be changed
-deliberately, so iterations 6 and 7 cannot close Axis 3 by accident or leave it closed on paper.
+**Carried forward:** the absent-set test states the remaining count as a number that must be
+changed deliberately, so iterations 6 and 7 cannot close Axis 3 by accident or leave it closed on
+paper. Iteration 7 moved it from 209 to 164; iteration 6 takes it to 0.
 
-### Iteration 7 — in progress
+### Iteration 7
 
-Stopped mid-iteration with the work that is done gated and the remainder specified. Not cut scope:
-nothing here was dropped, and the two open tasks need no decisions.
-
-**Done and green:** the ten-field catalog model with both length messages (T1–T2), the
-submodule-diff gate (T3), all twenty-two catalogs (T4–T5), and the `$defs` collision numbering
-(T26).
-
-**Left:** T27, the 45 locale `$defs`, and T28, this ledger entry becoming *green*.
+**No cut scope.** Every task landed: the ten-field catalog model with both length messages
+(T1–T2), the submodule-diff gate (T3), all twenty-two catalogs (T4–T5), the `$defs` collision
+numbering (T26), and the 45 locale `$defs` (T27).
 
 T26 landed here rather than in iteration 6, where spec 005 §7.2's panic pointed. Locale's collision
 is a flat list of twenty-two; design's is nine themes × their nested models. Same rule, and getting
@@ -314,19 +310,51 @@ it visibly right on the easy case means iteration 6 inherits it working. Its dif
 invisible in the output — `$defs` sorts its keys, so an alphabetically-assigned suffix produces a
 file that *looks* correctly sorted while pairing every model with the wrong number.
 
-**T27 needs two findings that are already recorded** (spec 007 §3.3), both measured and neither
-guessable:
+**Axis 3 is now blocked on iteration 6 alone.** 63 of 227 `$defs` are the port's and byte-identical;
+the 164 absent are the design tree and the three settings models. The absent-set count in
+`internal/schema/jsonschema/golden_conformance_test.go` moved from 227−18 to 227−63, and
+`just schema-diff` still emits exactly one `+` line — the diff header — so the port invents nothing.
 
-- `norwegian_bokmål` becomes `NorwegianBokm_lLocale` — the `å` replaced by one underscore, not
-  transliterated and not dropped;
-- each variant's field descriptions interpolate **its own** default, so Danish's `last_updated`
-  reads ``… The default value is `Senest opdateret`.`` The 45 `$defs` are ten English templates
-  applied to each catalog's data — 220 splices — not the English schema repeated. A port reusing
-  English's rendered descriptions emits 44 wrong strings that read correctly.
+**Two behaviors were measured only while implementing**, both written into spec §3.2 rather than
+only here, and both cases where the port's natural answer differs from upstream:
 
-**When T27 lands**, update the absent count in
-`internal/schema/jsonschema/golden_conformance_test.go` from 209 to 164. It is written to fail
-until someone does.
+1. **The twelve-element bound is `EnglishLocale`'s alone.** `{language: danish, month_names: [11
+   items]}` validates and the same document with `english` does not — the `at.Len(12, 12)` lives in
+   `Annotated` metadata that `create_simple_field_spec` strips when it rebuilds each variant's
+   field. T2 had applied it to every member, which **rejects documents upstream accepts**, and no
+   English fixture could see it. Fixed in `5ded987`; the schema half of the same fact (no
+   `minItems`/`maxItems` on the twenty-one variants) had already been forced correct by the `$defs`
+   differential, which is how the validation half was found.
+2. **`{locale: {language: null}}` is a failure, not an absence** — `union_tag_invalid` with the tag
+   reading `'None'`. Two sibling failures came with it, `union_tag_not_found` for a block with no
+   `language` and `model_attributes_type` for a non-mapping `locale`.
+
+**Three findings from the verifier, all closed inside the iteration:**
+
+- **`ValidateCatalog` was unreachable.** `rendercvmodel.go` called only `ValidateLanguage`, so the
+  extra-key and length rules T1 and T2 shipped existed and no document could reach them. The edge
+  and its eight-row differential landed in `7cb5658`. **This is the failure mode to watch for in
+  iteration 6**, whose `design` block is wired the same thin way today.
+- **`Languages`' order was verified only transitively**, through the `Locale` `$defs` byte match.
+  The order decides the `Phrases__N` numbering — the one thing about the locale `$defs` that cannot
+  be read off the output, since the keys sort alphabetically whatever number they carry — so a
+  submodule bump that reordered the union would have surfaced as forty-five byte failures naming no
+  cause. `TestLanguagesAreInUnionOrder` derives the expectation from the glob.
+- **The catalog drift check shares a parser with the tool that wrote the data.** `tools/localeprobe`
+  and `catalogs_conformance_test.go` both read the YAML with `goccy/go-yaml` and the same struct
+  tags, so a goccy defect would land in the data and the expectation alike. The verifier closed it
+  out of band with ruamel — 0 differences, field by field, all 21 files — and the tool's head
+  comment now states the gap. Nothing in the repo repeats that check.
+
+**One process failure, recorded rather than rewritten:** `b7531dc` bundles T1, T2 and T5 in one
+commit, against `AGENTS.md` §7. `tasks.md` lists all three as separate units.
+
+The parity suite stays at its 42 red cases, which is iteration 1's baseline. No golden was
+regenerated and the submodule was not bumped, so no human gate was requested.
+
+**Carried forward:** date formatting is **not** this iteration's despite the row title it used to
+carry — spec §4.1 assigns `2020-09` → `Sept 2020` and §4.2 assigns `degree_with_area`'s
+substitution to iteration 9, with the renderer.
 
 ## Log
 
@@ -341,3 +369,6 @@ until someone does.
 | 2026-08-06 | Verifier returned FAIL on iteration 3 with three blockers: the entry-problems wrapper carried `rendercv_other_error` instead of `rendercv_entry_validation_error`, exact-date failures carried `value_error` instead of `rendercv_other_error`, and entry error ordering did not interleave base and own fields. The first two were fixed (`9ddd896`); the third is cut to iteration 4. Three tests had asserted the port's codes rather than upstream's, which is why the suite was green -- the reason the verifier is never the agent that wrote the code. |
 | 2026-08-06 | Iteration 3 re-verified by a second fresh verifier: both code fixes confirmed correct and complete against the vendored Python and mutation-tested, no blockers. Seven findings cleared or cut (`c911d27`) — three tests were still asserting Go constants or bare non-emptiness where a literal upstream value was needed, one §8 criterion was a tautology and is now cut, and two stale claims in spec 003 are corrected in the spec text itself rather than only in this ledger. |
 | 2026-08-06 | Iteration 4 (validation-error parity) started. Findings: the trailing period at `pydantic_error_handling.py:94-95` is unconditional, so every message iteration 3 emits is one character short; dictionary lookup is substring-with-break, not equality; `end_date` errors end in `!.` because upstream's literal ends in `!` and the period rule appends anyway, which also makes `error_dictionary.yaml`'s own `end_date` row dead code. Coordinate columns are never user-visible (`progress_panel.py:14-36` discards them in both code paths and no machine-readable error mode exists), which resolves iteration 2 carried item 1 as internal-only. Validation errors go to stdout with an empty stderr, which our Go side currently reverses -- an iteration-12 bug with a golden already pinning it. |
+| 2026-08-07 | Iteration 7 green. The 45 locale `$defs` land byte-identical, taking the port from 18 of 227 to 63 and Axis 3 from "blocked on 6–7" to "blocked on 6". |
+| 2026-08-07 | Two locale behaviors found by measuring rather than reading, both fixed inside the iteration: the twelve-element month bound is `EnglishLocale`'s alone, so applying it to every member rejected documents upstream accepts; and a null `language` is a tag failure rather than an absence. |
+| 2026-08-07 | Verifier returned FAIL on iteration 7 with three findings, all closed: `ValidateCatalog` was unreachable from `rendercvmodel.go`, so the rules T1 and T2 shipped could not be reached by any document; `Languages`' order was pinned only transitively through the `$defs` bytes; and the catalog drift check shares a YAML parser with the tool that generated the data it checks. The `design` block is wired the same thin way today — iteration 6 must not repeat it. |

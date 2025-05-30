@@ -59,12 +59,12 @@ replace `DefNameWithSuffix`'s panic.
 Plan §4. Spec 005 §3.3 behaviors 12–13.
 Tests: `Phrases__1` through `__22` in `Languages` order, not alphabetical.
 
-### T27 — the 45 `$defs` · `[sequential]`
+### T27 — the 45 `$defs` · `[sequential]` — **done**
 `locale/schema.go`. Turns 45 rows of the per-`$defs` differential green and shrinks the absent set
 from 209 to 164.
 Spec §5. Reads T26.
 **Update the absent count** in `jsonschema/golden_conformance_test.go` — it is written to fail
 until someone does.
 
-### T28 — close the ledger · `[sequential]`
+### T28 — close the ledger · `[sequential]` — **done**
 `specs/STATE.md`: iteration 7 green, Axis 3 still blocked on iteration 6 alone.
