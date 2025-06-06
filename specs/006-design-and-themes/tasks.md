@@ -7,30 +7,40 @@ with one owner (`AGENTS.md` §5).
 
 ---
 
-## Wave A — the three value types
+## Wave A — the three value types — **done**
 
 Each is a leaf: a pattern or a library rule, its message, and its code. None reads the others.
 
-### T1 — `TypstDimension` · `[parallel]`
+**Two changes to this wave as written, both recorded rather than edited away:**
+
+1. **T7's tool arrived early.** T2 needs the 147 CSS colour names, which are exactly the kind of
+   data `plan.md` §2 says to generate, so `tools/designprobe` landed with its colour mode before
+   Wave B rather than after. Its remaining modes — the field tree and the overrides — are still
+   T7's and T8's.
+2. **A shared unit came first.** `binder.LiteralMessage` was `cv`'s, and T4 is the second caller,
+   so it moved to `binder` in its own commit before T4 landed. `AGENTS.md` §7 forbids bundling a
+   refactor with the feature that motivates it.
+
+### T1 — `TypstDimension` · `[parallel]` — **done**
 `typstdimension.go`: the full match of `-?\d+(?:\.\d+)?(cm|in|pt|mm|em)` and §4A.1's message,
 coded `rendercv_other_error` through `schemaerr.Coded`.
 Spec §3.1 behavior 9.
 Tests: `1cm` and `-0.5in` pass; `1`, `1px` and `1 cm` fail with the literal text.
 
-### T2 — `Color` · `[parallel]`
+### T2 — `Color` · `[parallel]` — **done**
 `color.go`: the library's `color_error`, §4A.2's raw message, and the `as_rgb()` rendering the
 templates need.
 Spec §3.1 behaviors 10 and 11.
 Tests: `notacolor` and `#gggggg` give the same text; the message reaches spec 004 §4.11's `)".`
 ending **through the pipeline**, which is the first live producer for dictionary row 13.
 
-### T3 — `FontFamily` accepts anything · `[parallel]`
+### T3 — `FontFamily` accepts anything · `[parallel]` — **done**
 `fontfamily.go`: the seventeen names in `sorted()` order and the free-string arm that makes any
 name valid.
 Spec §3.1 behaviors 12 and 13.
 Tests: an unlisted name validates; the seventeen are in sorted order, not source order.
 
-### T4 — the six `Literal` unions · `[parallel]`
+### T4 — the six `Literal` unions · `[parallel]` — **done**
 `literals.go`: `Bullet`, `BodyAlignment`, `Alignment`, `SectionTitleType`,
 `PhoneNumberFormatType`, `PageSize`, each in **declaration** order.
 Spec §2 behavior 5.
