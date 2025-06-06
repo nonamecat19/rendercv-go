@@ -54,10 +54,16 @@ Tests: the orders, and `Bullet`'s non-ASCII members surviving a round trip.
 `tree.go`: `Model`, `Field`, `Kind`. No data.
 Plan §3, §5.
 
-### T6 — the submodule diff, red · `[sequential]`
-`tree_conformance_test.go`, `//go:build conformance`. Diffs the generated tree and the eight
-override maps against the submodule, field by field. Declares empty data so the package compiles.
-Lands **red**.
+### T6 — the 161-row differential, red · `[sequential]`
+**Revised from "the submodule diff".** A test comparing the generated tree against the same
+introspection that generated it could not fail — `tools/localeprobe`'s stated blind spot, and here
+it would be the *whole* check rather than half of it.
+
+The gate is the per-`$defs` differential that already exists. `schema.json` is a **total**
+projection of the tree: every field, default, description, example and title appears in it, so a
+wrong default is a byte mismatch and there is nothing a separate diff would catch that this does
+not. Landing it red means declaring an empty `design.SchemaDefs`, wiring it into `portDefs`, and
+moving the absent count from 227−63 to 227−224 — which fails until Wave D lands.
 
 ### T7 — `tools/designprobe` and the generated tree · `[sequential]`
 Introspects `ClassicTheme` through `uv` and emits `tree_generated.go`: twenty-two models, every
@@ -108,8 +114,7 @@ suffix, and a theme that omits a key points back at `__1`.
 Tests: `Page` has six, `Links` eight, `OneLineEntry` none; `HarvardTheme.links` refs `__1`.
 
 ### T14 — the 161 `$defs` · `[sequential]`
-`schema.go`. Turns 161 rows of the per-`$defs` differential green.
-**Update the absent count** in `jsonschema/golden_conformance_test.go` from 227−63 to 227−224.
+`schema.go`. Turns the 161 rows T6 made red green. The absent count is already 227−224 by then.
 
 ### T15 — the three settings `$defs` · `[sequential]`
 `Settings`, `RenderCommand`, `PlannedPathRelativeToInput` — unowned by any iteration's spec today
