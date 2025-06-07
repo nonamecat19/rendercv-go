@@ -74,11 +74,11 @@ type Field struct {
 	// Ref is the `$defs` key a KindLiteral or KindTypstDimension field points
 	// at, empty when the union is inlined.
 	//
-	// **Whether a union gets an entry is usage count, not whether it is named**
-	// (spec 006 §2 behavior 5). `Alignment` is reached twice and has one;
-	// `BodyAlignment` is named, reached once, and is inlined; `photo_position`
-	// is an anonymous `Literal` and is inlined too. So the port states the
-	// answer per field rather than deriving it from the type.
+	// **Whether a union gets an entry is decided at the use site** (spec 006 §2
+	// behavior 5): a field annotated with the alias gets one, a field annotated
+	// with the literal spelled out does not. `BodyAlignment` is declared and
+	// never used, so it has no entry and its members appear inlined at
+	// `typography.alignment`.
 	Ref string
 
 	// Members are a KindLiteral's values, in **declaration** order, for the
