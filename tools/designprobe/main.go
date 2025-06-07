@@ -25,6 +25,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"go/format"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -59,14 +60,33 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	target := func(name string) string {
+		return filepath.Join(root, "internal", "schema", "models", "design", name)
+	}
 
 	colors, err := colorNames(root)
 	if err != nil {
 		return fmt.Errorf("reading the colour table: %w", err)
 	}
+	if err := write(target("colornames_generated.go"), renderColorNames(colors)); err != nil {
+		return err
+	}
 
-	target := filepath.Join(root, "internal", "schema", "models", "design", "colornames_generated.go")
-	return os.WriteFile(target, renderColorNames(colors), 0o644)
+	models, err := optionTree(root)
+	if err != nil {
+		return fmt.Errorf("reading the option tree: %w", err)
+	}
+	return write(target("tree_generated.go"), renderTree(models))
+}
+
+// write formats the source before saving it, so `just check`'s gofmt gate does
+// not fail on a file nobody is allowed to edit by hand.
+func write(path string, source []byte) error {
+	formatted, err := format.Source(source)
+	if err != nil {
+		return fmt.Errorf("formatting %s: %w", path, err)
+	}
+	return os.WriteFile(path, formatted, 0o644)
 }
 
 // repositoryRoot walks up from the working directory to the module root, so the
@@ -148,4 +168,269 @@ var colorNames = map[string]colorRGB{
 	}
 	out.WriteString("}\n")
 	return []byte(out.String())
+}
+
+// optionTreeScript prints `ClassicTheme`'s field tree as JSON.
+//
+// **It reports the annotation as a string rather than classifying it**, and the
+// Go side maps those strings to Kind. That split is deliberate: the mapping is
+// the part a reader has to check against `classic_theme.py`, and it is easier to
+// check as a table in one place than as Python spread through a script.
+//
+// The distinction that matters most is invisible unless the annotation is
+// reported verbatim: `size: PageSize` reports `PageSize` while
+// `alignment: Literal["left", …]` reports `typing.Literal[…]`, and that is
+// exactly what decides whether the union gets a `$defs` entry
+// (spec 006 §2 behavior 5).
+const optionTreeScript = `
+import json
+import pydantic
+from rendercv.schema.models.design.classic_theme import ClassicTheme, FontFamily
+
+seen = set()
+models = []
+
+def walk(model):
+    if model.__name__ in seen:
+        return
+    seen.add(model.__name__)
+    fields = []
+    for name, info in model.model_fields.items():
+        annotation = info.annotation
+        nested = None
+        if isinstance(annotation, type) and issubclass(annotation, pydantic.BaseModel):
+            nested = annotation
+        fields.append({
+            "name": name,
+            "annotation": str(annotation),
+            "nested": nested.__name__ if nested else "",
+            "default": None if info.default is pydantic.fields.PydanticUndefined
+                       else (str(info.default) if nested is None else None),
+            "is_default_str": isinstance(info.default, str),
+            "is_default_bool": isinstance(info.default, bool),
+            "is_default_list": isinstance(info.default, list),
+            "default_list": info.default if isinstance(info.default, list) else [],
+            "description": info.description or "",
+            "title": info.title or "",
+            "examples": info.examples or [],
+        })
+        if nested is not None:
+            walk(nested)
+    models.append({"model": model.__name__, "fields": fields})
+
+walk(ClassicTheme)
+walk(FontFamily)
+print(json.dumps(models, ensure_ascii=False))
+`
+
+type probeField struct {
+	Name          string   `json:"name"`
+	Annotation    string   `json:"annotation"`
+	Nested        string   `json:"nested"`
+	Default       *string  `json:"default"`
+	IsDefaultStr  bool     `json:"is_default_str"`
+	IsDefaultBool bool     `json:"is_default_bool"`
+	IsDefaultList bool     `json:"is_default_list"`
+	DefaultList   []string `json:"default_list"`
+	Description   string   `json:"description"`
+	Title         string   `json:"title"`
+	Examples      []any    `json:"examples"`
+}
+
+type probeModel struct {
+	Model  string       `json:"model"`
+	Fields []probeField `json:"fields"`
+}
+
+func optionTree(root string) ([]probeModel, error) {
+	command := exec.Command("uv", "run", "--frozen", "--all-extras", "python", "-c", optionTreeScript)
+	command.Dir = filepath.Join(root, submodule)
+	command.Stderr = os.Stderr
+
+	out, err := command.Output()
+	if err != nil {
+		return nil, fmt.Errorf("running uv (is the submodule initialized? `just setup`): %w", err)
+	}
+
+	var models []probeModel
+	if err := json.Unmarshal(out, &models); err != nil {
+		return nil, err
+	}
+	if len(models) != 22 {
+		return nil, fmt.Errorf("%d models, want 22 — the tree changed shape", len(models))
+	}
+	return models, nil
+}
+
+// annotationKinds maps every annotation `classic_theme.py` uses to a Kind and,
+// where the schema needs one, a `$defs` key.
+//
+// **A closed table, and the probe fails on anything not in it.** Falling back to
+// a string kind would let a new option type through silently and produce a
+// schema that validates nothing — the failure would show up as one wrong `$defs`
+// entry among 161.
+var annotationKinds = map[string]struct {
+	Kind string
+	Ref  string
+}{
+	"<class 'bool'>": {"KindBool", ""},
+	"<class 'str'>":  {"KindString", ""},
+	"str | None":     {"KindOptionalString", ""},
+	"list[str]":      {"KindStringList", ""},
+
+	"<class 'rendercv.schema.models.design.color.Color'>": {"KindColor", ""},
+	"TypstDimension": {"KindTypstDimension", "TypstDimension"},
+
+	// The five aliases a field actually names. Each gets a `$defs` entry.
+	"PageSize":              {"KindLiteral", "PageSize"},
+	"Alignment":             {"KindLiteral", "Alignment"},
+	"Bullet":                {"KindLiteral", "Bullet"},
+	"PhoneNumberFormatType": {"KindLiteral", "PhoneNumberFormatType"},
+	"SectionTitleType":      {"KindLiteral", "SectionTitleType"},
+
+	// The two spelled-out literals, which get none.
+	"typing.Literal['left', 'justified', 'justified-with-no-hyphenation']": {"KindLiteral", ""},
+	"typing.Literal['left', 'right']":                                      {"KindLiteral", ""},
+
+	// The font-family union and the discriminator.
+	"rendercv.schema.models.design.classic_theme.FontFamily | FontFamily": {"KindFontFamily", ""},
+	"typing.Literal['classic']": {"KindThemeTag", ""},
+}
+
+// fontNameAnnotation is the `FontFamily` model's own fields, which are the
+// seventeen-name enum rather than the union.
+const fontNameAnnotation = "FontFamily"
+
+// inlineLiteralMembers gives the members of the two spelled-out literals, named
+// by the Go constants that already carry them so the schema and the
+// `literal_error` message read from one list.
+var inlineLiteralMembers = map[string]string{
+	"typing.Literal['left', 'justified', 'justified-with-no-hyphenation']": "BodyAlignments",
+	"typing.Literal['left', 'right']":                                      "PhotoPositions",
+}
+
+func renderTree(models []probeModel) []byte {
+	var out strings.Builder
+	out.WriteString(`// Code generated by tools/designprobe. DO NOT EDIT.
+
+package design
+
+// baseTree is ClassicTheme's option tree: twenty-two models, every field, every
+// default and every description, introspected out of the vendored Python.
+//
+// Generated rather than transcribed. The descriptions run to hundreds of bytes
+// and list template placeholders line by line; a typo in one is invisible to
+// review and reports as one of 161 byte failures in the $defs differential. See
+// tools/designprobe for what that guarantee is and is not.
+func baseTree() Tree {
+	return Tree{
+		Root: "ClassicTheme",
+		Models: map[string]Model{
+`)
+
+	for _, model := range models {
+		fmt.Fprintf(&out, "\t\t\t%q: {Name: %q, Fields: []Field{\n", model.Model, model.Model)
+		for _, field := range model.Fields {
+			out.WriteString(renderField(model.Model, field))
+		}
+		out.WriteString("\t\t\t}},\n")
+	}
+
+	out.WriteString("\t\t},\n\t}\n}\n")
+	return []byte(out.String())
+}
+
+func renderField(model string, field probeField) string {
+	var out strings.Builder
+	fmt.Fprintf(&out, "\t\t\t\t{Name: %q, ", field.Name)
+
+	switch {
+	case field.Nested != "":
+		fmt.Fprintf(&out, "Kind: KindNested, Nested: %q, ", field.Nested)
+	case model == "FontFamily" && field.Annotation == fontNameAnnotation:
+		fmt.Fprintf(&out, "Kind: KindLiteral, Ref: %q, Members: FontFamilies, ",
+			"rendercv__schema__models__design__font_family__FontFamily")
+	default:
+		mapped, ok := annotationKinds[field.Annotation]
+		if !ok {
+			panic(fmt.Sprintf("designprobe: %s.%s has annotation %q, which is not in annotationKinds",
+				model, field.Name, field.Annotation))
+		}
+		fmt.Fprintf(&out, "Kind: %s, ", mapped.Kind)
+		if mapped.Ref != "" {
+			fmt.Fprintf(&out, "Ref: %q, ", mapped.Ref)
+		}
+		if members, inline := inlineLiteralMembers[field.Annotation]; inline {
+			fmt.Fprintf(&out, "Members: %s, ", members)
+		} else if mapped.Kind == "KindLiteral" {
+			fmt.Fprintf(&out, "Members: %s, ", literalConstant(mapped.Ref))
+		}
+	}
+
+	switch {
+	case field.IsDefaultList:
+		fmt.Fprintf(&out, "Default: []string{%s}, ", quoteAll(field.DefaultList))
+	case field.IsDefaultBool && field.Default != nil:
+		fmt.Fprintf(&out, "Default: %s, ", strings.ToLower(*field.Default))
+	case field.Default != nil:
+		fmt.Fprintf(&out, "Default: %q, ", *field.Default)
+	}
+
+	if field.Description != "" {
+		fmt.Fprintf(&out, "Description: %q, ", field.Description)
+	}
+	if field.Title != "" {
+		fmt.Fprintf(&out, "Title: %q, ", field.Title)
+	}
+	if len(field.Examples) > 0 {
+		fmt.Fprintf(&out, "Examples: []any{%s}, ", renderExamples(field.Examples))
+	}
+
+	out.WriteString("},\n")
+	return out.String()
+}
+
+// literalConstant names the Go slice that already carries a union's members, so
+// the tree and `literals.go` cannot disagree about the order.
+func literalConstant(ref string) string {
+	switch ref {
+	case "PageSize":
+		return "PageSizes"
+	case "Alignment":
+		return "Alignments"
+	case "Bullet":
+		return "Bullets"
+	case "PhoneNumberFormatType":
+		return "PhoneNumberFormats"
+	case "SectionTitleType":
+		return "SectionTitleTypes"
+	}
+	return "nil"
+}
+
+func quoteAll(values []string) string {
+	quoted := make([]string, 0, len(values))
+	for _, value := range values {
+		quoted = append(quoted, fmt.Sprintf("%q", value))
+	}
+	return strings.Join(quoted, ", ")
+}
+
+func renderExamples(examples []any) string {
+	parts := make([]string, 0, len(examples))
+	for _, example := range examples {
+		switch typed := example.(type) {
+		case string:
+			parts = append(parts, fmt.Sprintf("%q", typed))
+		case []any:
+			inner := make([]string, 0, len(typed))
+			for _, item := range typed {
+				inner = append(inner, fmt.Sprintf("%q", item))
+			}
+			parts = append(parts, "[]any{"+strings.Join(inner, ", ")+"}")
+		default:
+			panic(fmt.Sprintf("designprobe: example %v is a %T, which renderExamples cannot write", example, example))
+		}
+	}
+	return strings.Join(parts, ", ")
 }
