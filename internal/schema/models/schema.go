@@ -8,6 +8,7 @@ import (
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv/entries"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/design"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/locale"
+	"github.com/nonamecat19/rendercv-go/internal/schema/models/settings"
 )
 
 // The four keys the generator adds after pydantic has run
@@ -90,6 +91,9 @@ func schemaDefs() *jsonschema.Object {
 		all[name] = object
 	}
 	for name, object := range design.SchemaDefs() {
+		all[name] = object
+	}
+	for name, object := range settings.SchemaDefs() {
 		all[name] = object
 	}
 
