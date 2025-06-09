@@ -181,9 +181,10 @@ func messagesOf(records []schemaerr.ValidationError) []string {
 // its final one is `("design", "theme")`, pinned at
 // `expected_errors.yaml:141-145`.
 //
-// `design` is a discriminated root, so without the flag step 2 would drop
-// `theme` as a branch value — the unpinned half below is what makes the pinned
-// half mean something.
+// **The flag no longer protects against step 2**, which is gone: the port never
+// emits a discriminator branch element, so nothing drops one. What the flag
+// still does is exempt the record from the location filter, which is why it is
+// asserted against a synthetic element rather than against `theme`.
 func TestParseSkipsTheDiscriminatorForAPinnedLocation(t *testing.T) {
 	pinned := schemaerr.ValidationError{
 		Message:         "nope",
@@ -195,12 +196,17 @@ func TestParseSkipsTheDiscriminatorForAPinnedLocation(t *testing.T) {
 		t.Errorf("location = %v, want it left alone", got.SchemaLocation)
 	}
 
-	// The same location without the flag loses its second element, which is what
-	// makes the assertion above mean something.
+	// A synthetic element the filter would drop, kept because the flag says the
+	// validator already decided. Without it the location loses `literal`.
+	pinned.SchemaLocation = []string{"design", "literal"}
+	if got := mustParse(t, []schemaerr.ValidationError{pinned}, nil, nil)[0]; len(got.SchemaLocation) != 2 {
+		t.Errorf("location = %v, want the filter skipped", got.SchemaLocation)
+	}
+
 	unpinned := pinned
 	unpinned.LocationIsFinal = false
 	if got := mustParse(t, []schemaerr.ValidationError{unpinned}, nil, nil)[0]; len(got.SchemaLocation) != 1 {
-		t.Errorf("location = %v, want the branch element dropped", got.SchemaLocation)
+		t.Errorf("location = %v, want the synthetic element dropped", got.SchemaLocation)
 	}
 }
 
@@ -303,8 +309,10 @@ func TestSelectSource(t *testing.T) {
 	}
 }
 
-// The source lands on the record, and it is chosen after step 4 — a `design`
-// record whose branch element step 2 dropped still roots at `design`.
+// The source lands on the record, and it is chosen from the location's root.
+//
+// The location here is the one the port's `design.Validate` actually emits —
+// no branch element, because the port resolves the union itself.
 func TestParseSetsTheOverlaySource(t *testing.T) {
 	design, err := yamlreader.ReadString("design:\n  page:\n    top_margin: 2cm\n")
 	if err != nil {
@@ -317,7 +325,7 @@ func TestParseSetsTheOverlaySource(t *testing.T) {
 
 	got := mustParse(t,
 		[]schemaerr.ValidationError{{
-			SchemaLocation: []string{"design", "classic", "page", "top_margin"},
+			SchemaLocation: []string{"design", "page", "top_margin"},
 			Message:        "nope",
 		}},
 		main,
