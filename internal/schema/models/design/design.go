@@ -55,8 +55,12 @@ const CodeTheme schemaerr.Code = "rendercv_other_error"
 // the pipeline would drop `theme` as a discriminator branch value, since
 // `design` is a discriminated root.
 //
-// The two folder checks that follow upstream (§4.28, §4.29) are iteration 6's:
-// they are only reachable once custom themes can be loaded at all.
+// TODO(iteration-14): the two folder checks that follow upstream (§4.28, §4.29)
+// are **not** iteration 6's, though spec 006 §3 behavior 7 placed them there.
+// Iteration 6's plan §7 moved them out with the D-002 Lua path, because a
+// sandbox bundled with 161 `$defs` makes both unreviewable, and STATE.md carries
+// the deferral as cut scope. They are only reachable once custom themes can be
+// loaded at all.
 func ValidateTheme(
 	node *yamldoc.Node,
 	location []string,
