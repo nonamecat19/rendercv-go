@@ -110,6 +110,50 @@ contract as the templates are**, and they differ between the two formats.
 
 ---
 
+## 4A. `process_model` — what the templates actually see
+
+Measured from `model_processor.py:61-189`. Behavior 10 said the model is a processed copy; this is
+what "processed" means.
+
+17. **A deep copy, always** (`:78`). The validated model is never mutated, so the same model can be
+    rendered to Typst and then to Markdown and the second render is not compounded on the first.
+    **A port that processed in place would produce a correct `.typ` and a doubly-escaped `.md`**,
+    and the corpus renders both.
+18. **The processor chain is format-dependent and ordered** (`:80-85`):
+
+    | Format | Chain |
+    |---|---|
+    | both | `make_keywords_bold(_, settings.bold_keywords)` |
+    | `typst` only | then `markdown_to_typst` |
+
+    So Markdown output is **not** markdown-parsed — it is already Markdown — and bolding runs
+    **before** the Typst conversion in the Typst case, which means the bold markers it inserts are
+    Markdown and are converted by the next stage rather than emitted raw.
+19. **`cv._plain_name` is captured before `cv.name` is processed** (`:87-90`), and it is what the
+    `pdf_title` placeholder `NAME` uses (`:120`) — so the PDF's title carries the **unprocessed**
+    name while the header carries the processed one. A port that used one for both would put Typst
+    markup in a PDF metadata field.
+20. Five things are computed onto the model in this order (`:87-113`): `name`, `headline`,
+    `_connections`, `_top_note`, `_footer`. Then `settings.pdf_title` has its placeholders
+    substituted (`:115-126`).
+21. **An absent `cv.sections` returns early** (`:128-129`), before any section or entry is touched.
+22. Per section (`:131-146`): the **title is processed**, then `show_time_span` is computed as
+    `section.snake_case_title in design.sections.show_time_spans_in` — which is why spec 006 §3.2
+    behavior 15's snake-case coercion has to have run, and where its effect is finally observable.
+23. Per entry, **two steps in order**: `render_entry_templates` first, then `process_fields`. So
+    the theme's template strings are expanded **before** the string processors run over the result,
+    not after.
+24. **`process_fields` skips exactly four fields** (`:166`): `start_date`, `end_date`, `doi`,
+    `url` — plus anything whose name starts with `_`. Everything else is processed, including
+    fields the port has no special knowledge of.
+25. `process_fields` reads the field list from `model_dump(exclude_none=True)` and writes back with
+    `setattr`, so a `None` field is left alone, a list is processed element-wise, and **a
+    non-string non-list value is `str()`-ed first** (`:180-187`) — an integer field comes back as a
+    string.
+26. A bare string entry — `TextEntry` — is processed directly rather than field-wise (`:168-169`).
+
+---
+
 ## 5. Out of scope
 
 **5.1 The HTML wrapper is iteration 11's** (behavior 14), as is `markdown_to_html`.
@@ -128,7 +172,6 @@ been read closely enough to write behavior from.
 | `entry_templates_from_input.py` | 514 | The largest single unknown. How a theme's template strings become the `main_column` / `date_and_location_column` an entry template reads, and what the UPPERCASE placeholder substitution does with an arbitrary user key. |
 | `date.py` | 298 | Date formatting end to end — the `single_date`, `date_range` and `time_span` templates, month names and abbreviations from the locale catalog (spec 007 §4.1 sent it here), and the `present` case. |
 | `connections.py` | 244 | How `cv`'s email, phone, website and social networks become the header's connection list, including the `phone_number_format` options and `display_urls_instead_of_usernames`. |
-| `model_processor.py` | 189 | `process_model` and `process_fields` — which fields are processed, in what order, and how the processed copy differs from the validated model. Behavior 10 depends on it. |
 | `markdown_parser.py` | 202 | `to_typst_string`, and the four block processors upstream **deregisters** (`hashheader`, `setextheader`, `olist`, `ulist`, `quote`) plus `stripTopLevelTags = False`. The deregistrations are a strong hint that Go's goldmark cannot be used as-is. |
 | `footer_and_top_note.py` | 123 | The two templates that carry `CURRENT_DATE` and `PAGE_NUMBER`. |
 | `templates/**` | 384 | All 25 files, and for each the Jinja constructs it uses — this is what decides how much of `AGENTS.md` §6.1's mechanical transform is actually needed. `EducationEntry.j2.typ` alone uses `splitlines()`, a slice with a computed bound, `|length` and `|indent`. |
@@ -148,3 +191,6 @@ Provisional, and they will grow as §6 empties.
 - [ ] `escape_typst_characters`'s three phases in order, including the `$$` collapse and the two
       longer replacements running after `translate`.
 - [ ] `substitute_placeholders`' longest-first ordering and its `.strip()`.
+- [ ] §4A's ordering: bolding before Typst conversion, entry templates before field processing, and
+      `_plain_name` reaching `pdf_title` while the processed name reaches the header.
+- [ ] The four skipped fields, and the `str()` of a non-string value.
