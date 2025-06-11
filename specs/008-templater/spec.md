@@ -154,6 +154,54 @@ what "processed" means.
 
 ---
 
+## 4B. Dates
+
+Measured from `date.py`. This is the half of iteration 7 that spec 007 §4.1 deferred, and it lands
+here rather than with the renderer because `process_model` calls it (§4A behavior 23).
+
+27. **Eight placeholders, built from one date and one catalog** (`:12-39`):
+    `MONTH_NAME`, `MONTH_ABBREVIATION`, `MONTH`, `MONTH_IN_TWO_DIGITS`, `DAY`,
+    `DAY_IN_TWO_DIGITS`, `YEAR`, `YEAR_IN_TWO_DIGITS`. The month lookups are
+    `locale.month_names[month - 1]` and `locale.month_abbreviations[month - 1]`, which is the only
+    consumer of spec 007's twelve-element lists and the reason their **order** is contractual.
+    `YEAR_IN_TWO_DIGITS` is `str(year)[-2:]` — a slice, so year 7 would give `"7"` rather than
+    `"07"`.
+28. `date_object_to_string` is exactly `substitute_placeholders(single_date_template, …)`, so §4's
+    behavior 15 applies: longest-first, and **the result is stripped**.
+
+### The three formatters differ in how they treat a value they cannot parse
+
+29. **`format_date_range`** (`:74-140`): an `int` start or end is stringified as a bare year and
+    **not** run through the template — `2020` stays `2020` and does not become `Jan 2020`. An
+    `end_date` of `"present"` becomes `locale.present`. Anything else is parsed and formatted.
+    There is **no** custom-string fallback here, so an unparseable value raises.
+30. **`format_single_date`** (`:143-189`) has one: `get_date_object` failing is caught and the
+    value passes through **unchanged**, which is what makes `"Spring 2024"` legal in a publication
+    date. The same string in a range would raise.
+31. `format_single_date` checks `"present"` **before** parsing, and an `int` before that.
+
+### Time spans, where the arithmetic is upstream's own
+
+32. **`compute_time_span_string`** (`:192-298`) has two branches, and the year-only one is not a
+    special case of the other:
+    - **Either endpoint an `int`** (`:232-254`): the span is `end_year - start_year`, and a span
+      of **less than two years is reported as `1`** — including a span of zero. `MONTHS` and
+      `HOW_MANY_MONTHS` are set to the empty string, so the template's month half collapses.
+    - **Both full dates** (`:256-298`): `days // 365` years and `(days % 365) // 30 + 1` months.
+      **The `+ 1` is unconditional**, so a one-day span is one month. Overflow is then folded —
+      `years += months // 12; months %= 12` — which is what stops `1 year 12 months`.
+33. Zero years or zero months set **both** the count and the locale word to the empty string, so
+    the template collapses rather than printing `0 years`. One uses the **singular**
+    `locale.year` / `locale.month`; anything else uses the plural. This is the only consumer of
+    spec 007's four singular/plural fields.
+34. Every branch ends in `substitute_placeholders`, so the emptied halves leave the surrounding
+    template text behind and the final `.strip()` removes only the outer edges — a template of
+    `HOW_MANY_YEARS YEARS HOW_MANY_MONTHS MONTHS` with no months yields a **trailing double
+    space** collapsed to nothing only at the very end. A port that trimmed each placeholder
+    instead would differ by an interior space.
+
+---
+
 ## 5. Out of scope
 
 **5.1 The HTML wrapper is iteration 11's** (behavior 14), as is `markdown_to_html`.
@@ -170,7 +218,6 @@ been read closely enough to write behavior from.
 | Module | Lines | What it owes |
 |---|---:|---|
 | `entry_templates_from_input.py` | 514 | The largest single unknown. How a theme's template strings become the `main_column` / `date_and_location_column` an entry template reads, and what the UPPERCASE placeholder substitution does with an arbitrary user key. |
-| `date.py` | 298 | Date formatting end to end — the `single_date`, `date_range` and `time_span` templates, month names and abbreviations from the locale catalog (spec 007 §4.1 sent it here), and the `present` case. |
 | `connections.py` | 244 | How `cv`'s email, phone, website and social networks become the header's connection list, including the `phone_number_format` options and `display_urls_instead_of_usernames`. |
 | `markdown_parser.py` | 202 | `to_typst_string`, and the four block processors upstream **deregisters** (`hashheader`, `setextheader`, `olist`, `ulist`, `quote`) plus `stripTopLevelTags = False`. The deregistrations are a strong hint that Go's goldmark cannot be used as-is. |
 | `footer_and_top_note.py` | 123 | The two templates that carry `CURRENT_DATE` and `PAGE_NUMBER`. |
@@ -194,3 +241,7 @@ Provisional, and they will grow as §6 empties.
 - [ ] §4A's ordering: bolding before Typst conversion, entry templates before field processing, and
       `_plain_name` reaching `pdf_title` while the processed name reaches the header.
 - [ ] The four skipped fields, and the `str()` of a non-string value.
+- [ ] §4B's three formatters, including that only `format_single_date` falls back to the raw
+      string, and that a bare year is never run through `single_date`.
+- [ ] The time-span arithmetic exactly: `< 2 years` reported as `1`, the unconditional `+ 1`
+      month, the overflow fold, and the empty-string collapse for a zero count.
