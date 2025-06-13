@@ -202,6 +202,48 @@ here rather than with the renderer because `process_model` calls it (§4A behavi
 
 ---
 
+## 4C. Markdown → Typst
+
+Measured from `markdown_parser.py`. §4 behavior 16 already covered `escape_typst_characters`; this
+is the tree walk around it, and it is where `AGENTS.md`'s choice of `goldmark` needs re-examining.
+
+35. **The parser is python-markdown with five block processors removed** (`:144-156`):
+    `hashheader`, `setextheader`, `olist`, `ulist`, `quote` are deregistered, `admonition` is the
+    one extension enabled, and `stripTopLevelTags` is `False`.
+
+    So `# Heading`, `1. item`, `- item` and `> quote` are **not** block constructs here — they
+    reach `escape_typst_characters` as ordinary text. Any Go Markdown library used as-is would
+    parse all four and produce structure upstream does not emit. **This is a spec-level finding
+    about the plan**: `AGENTS.md` names `goldmark` for the HTML side, and the Typst side needs a
+    parser with the same five constructs off, or a hand-written one.
+36. **Every line is converted separately** (`:174-190`), except an admonition block: a line
+    starting with `!!!` collects itself plus every following line starting with four spaces, and
+    the block is converted as one. The results are rejoined with `"\n"`.
+
+    The reason is in the docstring and it is a real constraint: single-newline-separated lines are
+    one paragraph to Markdown, so an unmatched `*` on one line would pair with one on the next. A
+    port that converted the whole string at once would emit emphasis across line boundaries.
+37. **The element walk** (`:9-70`) maps five tags and ignores the rest:
+
+    | Tag | Output |
+    |---|---|
+    | `strong` | `#strong[…]` |
+    | `em` | `#emph[…]` |
+    | `code` | `` `…` `` — the child's **raw text**, not the recursive walk, and not escaped |
+    | `a` | `#link("href")[…]`, with `https://example.com` substituted when `href` is missing |
+    | `div` | `#summary[…]` with the content `.strip("\n")`ed and inner newlines turned into `" \\ "` |
+
+    Anything else recurses without a wrapper, and a child whose `class` is `admonition-title` is
+    **dropped entirely**.
+38. Text and **tail** text are both escaped, separately (`:26-27`, `:67-68`). The tail is the text
+    after a child's closing tag, which is what keeps `**a** b` from losing its `b`.
+39. The two patterns that protect Typst commands from escaping (`:74-75`):
+    `#([A-Za-z][^\s()\[]*)(\([^)]*\))?(\[[^\]]*\])?` and `(\$\$.*?\$\$)`. Math is matched
+    **first** (§4 behavior 16 phase 1 chains `math_pattern` before `typst_command_pattern`), and
+    the saved text has `$$` replaced by `$` — so `$$x$$` in the source becomes `$x$` in the output.
+
+---
+
 ## 5. Out of scope
 
 **5.1 The HTML wrapper is iteration 11's** (behavior 14), as is `markdown_to_html`.
@@ -219,7 +261,6 @@ been read closely enough to write behavior from.
 |---|---:|---|
 | `entry_templates_from_input.py` | 514 | The largest single unknown. How a theme's template strings become the `main_column` / `date_and_location_column` an entry template reads, and what the UPPERCASE placeholder substitution does with an arbitrary user key. |
 | `connections.py` | 244 | How `cv`'s email, phone, website and social networks become the header's connection list, including the `phone_number_format` options and `display_urls_instead_of_usernames`. |
-| `markdown_parser.py` | 202 | `to_typst_string`, and the four block processors upstream **deregisters** (`hashheader`, `setextheader`, `olist`, `ulist`, `quote`) plus `stripTopLevelTags = False`. The deregistrations are a strong hint that Go's goldmark cannot be used as-is. |
 | `footer_and_top_note.py` | 123 | The two templates that carry `CURRENT_DATE` and `PAGE_NUMBER`. |
 | `templates/**` | 384 | All 25 files, and for each the Jinja constructs it uses — this is what decides how much of `AGENTS.md` §6.1's mechanical transform is actually needed. `EducationEntry.j2.typ` alone uses `splitlines()`, a slice with a computed bound, `|length` and `|indent`. |
 
@@ -245,3 +286,6 @@ Provisional, and they will grow as §6 empties.
       string, and that a bare year is never run through `single_date`.
 - [ ] The time-span arithmetic exactly: `< 2 years` reported as `1`, the unconditional `+ 1`
       month, the overflow fold, and the empty-string collapse for a zero count.
+- [ ] §4C's five disabled block processors, proven by a `# Heading` surviving as literal text.
+- [ ] Line-by-line conversion, proven by an unmatched `*` on adjacent lines not pairing.
+- [ ] The five mapped tags, the dropped `admonition-title`, and tail text surviving.
