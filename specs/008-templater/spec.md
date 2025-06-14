@@ -277,6 +277,47 @@ all reach the bytes.
 
 ---
 
+## 4E. Connections
+
+Measured from `connections.py`.
+
+45. **The order is the input file's, not a fixed one.** `parse_connections` iterates
+    `cv._key_order` (`:73`) — the order the user wrote the keys in — and matches on six cases:
+    `email`, `phone`, `website`, `location`, `social_networks`, `custom_connections`. A port with a
+    hard-coded order would render every CV's header in the wrong sequence and no schema test would
+    see it.
+46. **The icon table has twenty-one entries** (`:12-33`), keyed by network name plus the four
+    non-network keys `location`, `email`, `phone`, `website`. Three names do not map to themselves
+    lowercased: `StackOverflow` → `stack-overflow`, `Google Scholar` → `graduation-cap`,
+    `X` → `x-twitter`. A port deriving the icon from the name gets eighteen right.
+47. Each key's body and URL:
+
+    | Key | URL | Body |
+    |---|---|---|
+    | `email` | `mailto:<address>` | the address |
+    | `phone` | the raw value | `phonenumbers.format_number` in the theme's `phone_number_format` |
+    | `website` | the raw value | `clean_url(url)` |
+    | `location` | **none** | the location text |
+    | `social_networks` | the network's URL | the username, or `clean_url(url)` when `display_urls_instead_of_usernames` |
+    | `custom_connections` | the connection's URL, or none | its `placeholder` |
+
+48. **`Google Scholar`'s body is the literal string `"Google Scholar"`**, not the username
+    (`:150-152`) — the one network with a special case, and only when
+    `display_urls_instead_of_usernames` is off.
+49. **A scalar and a list are both accepted** for `email`, `phone` and `website`, and a scalar is
+    wrapped into a one-element list — which is where spec 002 §3.47's untypable union finally
+    matters.
+50. **The two formats diverge completely** at the end:
+    - **Typst** (`:186-221`) builds the body first — `#connection-with-icon("<icon>")[<typst>]`
+      when `show_icons`, otherwise just the converted body — and then wraps it in
+      `#link("<url>", icon: false, if-underline: false, if-color: false)[<body>]` when there is a
+      URL **and** `hyperlink` is on. Both flags are independent, so there are four shapes.
+    - **Markdown** (`:223-244`) is `[<body>](<url>)` or the bare body. **No icons at all**, and
+      `markdown_to_typst` is not applied — the body stays Markdown.
+51. `markdown_to_typst` runs on the **body only**, never on the URL.
+
+---
+
 ## 5. Out of scope
 
 **5.1 The HTML wrapper is iteration 11's** (behavior 14), as is `markdown_to_html`.
@@ -293,7 +334,6 @@ been read closely enough to write behavior from.
 | Module | Lines | What it owes |
 |---|---:|---|
 | `entry_templates_from_input.py` | 514 | The largest single unknown. How a theme's template strings become the `main_column` / `date_and_location_column` an entry template reads, and what the UPPERCASE placeholder substitution does with an arbitrary user key. |
-| `connections.py` | 244 | How `cv`'s email, phone, website and social networks become the header's connection list, including the `phone_number_format` options and `display_urls_instead_of_usernames`. |
 | `templates/**` | 384 | All 25 files, and for each the Jinja constructs it uses — this is what decides how much of `AGENTS.md` §6.1's mechanical transform is actually needed. `EducationEntry.j2.typ` alone uses `splitlines()`, a slice with a computed bound, `|length` and `|indent`. |
 
 ---
@@ -325,3 +365,7 @@ Provisional, and they will grow as §6 empties.
       wrapper with its exact spacing.
 - [ ] The footer's two Typst-source placeholders surviving `escape_typst_characters` — the
       cross-module interaction, tested end to end rather than in either module.
+- [ ] §4E's input-file key order driving the header, and the three icons that are not the
+      lowercased network name.
+- [ ] The four Typst connection shapes from the two independent flags, and Markdown having
+      neither icons nor Typst conversion.
