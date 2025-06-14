@@ -353,6 +353,82 @@ to be mechanical rather than hand-done, and `plan.md` owes the mechanism.
 
 ---
 
+## 4G. Entry templates
+
+Measured from `entry_templates_from_input.py`. This is what turns a theme's template strings into
+the `main_column` and `date_and_location_column` an entry template reads, and it is where an
+optional field's absence has to disappear cleanly rather than leave `Position at ,` behind.
+
+### The pipeline
+
+58. **Two entry shapes return unchanged** (`:120-123`): a bare string (`TextEntry`) and any entry
+    type `Templates` has no field for. Everything else proceeds.
+59. **Fields become placeholders by upper-casing the key** (`:129-131`), so a user's arbitrary
+    extra key becomes an UPPERCASE placeholder with no registration step — which is what
+    `design.templates`' descriptions promise.
+60. **An empty-string value is treated as not provided** (`:135`), so its surrounding `**` and
+    commas are cleaned up rather than left wrapping nothing.
+61. **Locale phrases expand into the templates first** (`:141-147`): each `locale.phrases` key,
+    upper-cased, is replaced by its template text — `DEGREE_WITH_AREA` becomes `DEGREE in AREA`
+    for English and `DEGREE en AREA` for French. **The sub-placeholders stay placeholders**, so the
+    rest of the pipeline treats them like any other. This is the substitution spec 007 §4.2
+    deferred here.
+62. Then seven special placeholders are computed, in this order (`:149-208`): `HIGHLIGHTS`,
+    `AUTHORS`, `DATE`, `START_DATE`, `END_DATE`, `URL`, `DOI`, `SUMMARY`.
+63. **`DATE` is computed when any of `DATE`, `START_DATE` or `END_DATE` is present** (`:161-164`),
+    not only when `date` is set — so an entry with only a range still fills `DATE`.
+64. **`DOI` also overwrites `URL`** (`:199-201`): a publication with a DOI gets both, and `URL`
+    becomes the DOI link. The two `if`s are separate and the `DOI` one sets both keys.
+65. **`SUMMARY` is only wrapped when it is standalone** (`:203-208`): the templates are scanned
+    line by line and the wrap happens only if some line is exactly `SUMMARY` after stripping.
+    A summary interpolated mid-line stays plain.
+66. **Finally, `entry_templates | entry_fields` are substituted and set back onto the entry**
+    (`:212-218`) — so both the rendered templates **and the raw fields** become attributes, and a
+    field whose name collides with a template name is the field.
+
+### The six processors
+
+67. **`process_highlights`** (`:226-251`): each highlight becomes `"- " + highlight` with `" - "`
+    replaced by `"\n  - "`, joined by newlines. So a single highlight string can carry its own
+    sub-bullets, and the separator is a **space-hyphen-space**, not a hyphen.
+68. **`process_authors`** is `", ".join(authors)` (`:254-263`) — no `and`, no Oxford comma.
+69. **`process_date`** (`:266-353`) routes three ways: a `date` with no range formats as a single
+    date; a `start_date` **and** an `end_date` format as a range, and when `show_time_span` is on
+    the result is `f"{date_range}\n\n{time_span}"` — a **blank line between them**, which the
+    entry templates then split on.
+70. **`process_url`** (`:357-378`) is `f"[{clean_url(url)}]({url})"`, and it **delegates to
+    `process_doi` first** when the entry is a publication with a DOI.
+71. **`process_doi`** is `f"[{doi}]({doi_url})"` (`:381-399`).
+72. **`process_summary`** (`:402-420`) wraps in a Markdown admonition:
+    `f"!!! summary\n{textwrap.indent(summary, '    ')}"` — which is exactly the block §4C
+    behavior 36 keeps together, and the only producer of one.
+
+### Removing what is not provided — the part with the most surface
+
+73. **`remove_not_provided_placeholders`** (`:423-481`) computes the missing set as *every
+    uppercase word appearing in any template* minus *the provided field names*. So a literal
+    uppercase word in a template — `CV`, `PhD` written as `PHD` — is treated as a missing
+    placeholder.
+74. It runs **two passes, in order**:
+    1. `remove_connectors_of_missing_placeholders`, then a `" {2,}" → " "` collapse;
+    2. `\S*(?:<missing>|…)\S*` → `""`, another double-space collapse, then
+       `clean_trailing_parts`.
+
+    The second pattern eats **adjacent non-space characters**, which is what removes the `**`
+    around a missing bold field and the comma after it.
+75. **`remove_connectors_of_missing_placeholders`** (`:23-92`) splits on placeholders and, for each
+    separator that sits **between two placeholders** where at least one is missing, deletes bare
+    connector words matching `(?<=\s)(?![A-Z])[^\W\d_]\S*(?=\s)`. The lookarounds mean a
+    connector must be surrounded by whitespace, and the `(?![A-Z])` means `*in*` and `--` are
+    **kept** — formatting and punctuation survive, bare words do not.
+76. **`clean_trailing_parts`** (`:487-514`) works line by line: `rstrip`, drop the line entirely if
+    it is now empty, then strip a trailing run of anything outside
+    `[A-Za-z0-9.!?\[\]\(\)\*_%]` and `rstrip` again. **Dropping empty lines is not a
+    formatting nicety** — it is what removes a template line that consisted only of a missing
+    placeholder.
+
+---
+
 ## 5. Out of scope
 
 **5.1 The HTML wrapper is iteration 11's** (behavior 14), as is `markdown_to_html`.
@@ -361,20 +437,26 @@ to be mechanical rather than hand-done, and `plan.md` owes the mechanism.
 
 ---
 
-## 6. Still to investigate — this file is not finished until this list is empty
+## 6. Investigated
 
-Each row names the module, its size, and what specifically has to be measured. Nothing here has
-been read closely enough to write behavior from.
+Every row that was here is now a section. Kept as a table so the mapping from upstream module to
+spec section is one lookup.
 
-| Module | Lines | What it owes |
+| Module | Lines | Section |
 |---|---:|---|
-| `entry_templates_from_input.py` | 514 | The largest single unknown. How a theme's template strings become the `main_column` / `date_and_location_column` an entry template reads, and what the UPPERCASE placeholder substitution does with an arbitrary user key. |
+| `templater.py` | 215 | §1, §2, §3 |
+| `string_processor.py` | 153 | §4 |
+| `model_processor.py` | 189 | §4A |
+| `date.py` | 298 | §4B |
+| `markdown_parser.py` | 202 | §4, §4C |
+| `footer_and_top_note.py` | 123 | §4D |
+| `connections.py` | 244 | §4E |
+| `templates/**` | 384 | §4F |
+| `entry_templates_from_input.py` | 514 | §4G |
 
 ---
 
 ## 7. Acceptance criteria
-
-Provisional, and they will grow as §6 empties.
 
 - [ ] The loader order of behavior 2 and the double lookup of behavior 6, with a user override of
       one entry type for one theme actually taking effect.
@@ -406,3 +488,9 @@ Provisional, and they will grow as §6 empties.
 - [ ] `indent`'s first-line behavior matching Jinja's, proven by one of the four
       `|replace("    ", "")` sites cancelling exactly.
 - [ ] The five `{%- if` sites, whose left-trim is on top of `lstrip_blocks`.
+- [ ] §4G behavior 61's phrase expansion leaving sub-placeholders in place — spec 007 §4.2's
+      deferred item, closed here.
+- [ ] The two removal passes in order, with a fixture where a missing field takes its `**`, its
+      comma and its connector word with it and leaves `*in*` alone.
+- [ ] `clean_trailing_parts` dropping a line that became empty.
+- [ ] `process_date`'s blank line between a range and its time span.
