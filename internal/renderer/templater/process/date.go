@@ -161,3 +161,76 @@ func FormatSingleDate(
 	}
 	return FormatDate(date, catalog, singleDateTemplate)
 }
+
+// ComputeTimeSpan is `compute_time_span_string` (date.py:192-298).
+//
+// **Two branches, and the year-only one is not a special case of the other.**
+// If either endpoint is year-only the span is whole years and the month half of
+// the template is blanked; otherwise the arithmetic below runs.
+//
+// The arithmetic is upstream's own and none of it is calendar-correct:
+//
+//	years  = days / 365
+//	months = (days % 365) / 30 + 1     // the +1 is unconditional
+//	years += months / 12               // fold, so `1 year 12 months` cannot happen
+//	months %= 12
+//
+// So a one-day span is **one month**, and the fold is what stops the twelve.
+// Reproducing it means integer division on a day count, not `time.Time`
+// arithmetic — a port using month deltas would differ on most inputs.
+func ComputeTimeSpan(
+	start, end string,
+	startIsYearOnly, endIsYearOnly bool,
+	catalog Catalog,
+	current time.Time,
+	timeSpanTemplate string,
+) (string, error) {
+	startDate, err := ParseDate(start, current)
+	if err != nil {
+		return "", err
+	}
+	endDate, err := ParseDate(end, current)
+	if err != nil {
+		return "", err
+	}
+
+	if startIsYearOnly || endIsYearOnly {
+		// Neither endpoint can be more specific than a year, so the months half
+		// is blanked and SubstitutePlaceholders' strip removes what is left.
+		span := endDate.Year() - startDate.Year()
+		count, word := "1", catalog.Year
+		if span >= 2 {
+			count, word = strconv.Itoa(span), catalog.Years
+		}
+		return SubstitutePlaceholders(timeSpanTemplate, map[string]string{
+			"HOW_MANY_YEARS": count, "YEARS": word,
+			"HOW_MANY_MONTHS": "", "MONTHS": "",
+		}), nil
+	}
+
+	days := int(endDate.Sub(startDate).Hours() / 24)
+	years := days / 365
+	months := (days%365)/30 + 1
+	years += months / 12
+	months %= 12
+
+	yearCount, yearWord := plural(years, catalog.Year, catalog.Years)
+	monthCount, monthWord := plural(months, catalog.Month, catalog.Months)
+
+	return SubstitutePlaceholders(timeSpanTemplate, map[string]string{
+		"HOW_MANY_YEARS": yearCount, "YEARS": yearWord,
+		"HOW_MANY_MONTHS": monthCount, "MONTHS": monthWord,
+	}), nil
+}
+
+// plural blanks **both** the count and the word at zero, which is what makes the
+// template collapse rather than print `0 years`, and uses the singular at one.
+func plural(count int, singular, pluralWord string) (string, string) {
+	switch count {
+	case 0:
+		return "", ""
+	case 1:
+		return "1", singular
+	}
+	return strconv.Itoa(count), pluralWord
+}
