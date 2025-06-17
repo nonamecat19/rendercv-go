@@ -15,8 +15,9 @@ answer for one of the two engines and not the other.
 | **Template engine** | 7 tags, 5 filters, 4 slice forms, 32 `splitlines()` sites, 5 `{%- if` | **pongo2 stays**, with a transform (§2) |
 | **Markdown parser** | five block processors **off**, line-by-line conversion, an XML-ish tree walk | **goldmark cannot be used**, and §3 says what replaces it |
 
-Neither is a divergence — output is what the contract measures — but the second contradicts a
-technology choice `AGENTS.md` §2's table states, so §3 ends at the human gate.
+Neither is a divergence — output is what the contract measures. The second refines a technology
+choice `AGENTS.md` §2's table states, which is what a subsystem's plan is for; §3 says why that is
+not a `divergences.md` matter and what would be.
 
 ---
 
