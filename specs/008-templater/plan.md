@@ -72,9 +72,20 @@ Three options, and the third is the plan's:
 **goldmark stays for the HTML path**, which is `markdown_to_html` — plain
 `markdown.markdown(...)` with no deregistration — and that is iteration 11's.
 
-**This needs `specs/divergences.md` and the human gate**, because `AGENTS.md` §2's table names
-goldmark for "HTML / Markdown" without qualification. The divergence is narrow — a second parser on
-one path — and the entry has to say that, not that goldmark was dropped.
+**This does not need `specs/divergences.md`.** That file is scoped to deviations *from upstream*,
+and every entry carries a "what the user notices" field; here the answer is **nothing**, because the
+gate is byte-identical output. Upstream uses python-markdown, which the port cannot use at all —
+goldmark was never upstream's choice either, so choosing between two Go implementations of the same
+required behavior is a plan decision and this is the plan.
+
+`AGENTS.md` §2's table names goldmark under "Go / replacement tech" for "HTML / Markdown". That is a
+plan statement about a subsystem whose plan did not exist yet, and it should be corrected to say
+goldmark for HTML and a hand-written parser for the Typst path. Flagged for the human rather than
+edited silently — it is the project manual, not a gated file.
+
+**What would need the gate** is a Markdown difference a user could see: a construct upstream renders
+and the port does not, or vice versa. If the hand-written parser turns out to have one, it stops
+there.
 
 ---
 
