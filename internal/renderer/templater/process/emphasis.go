@@ -1,0 +1,282 @@
+package process
+
+import "strings"
+
+// The five emphasis patterns of `AsteriskProcessor.PATTERNS`
+// (markdown/inlinepatterns.py:546-552), **in order**, and their underscore
+// twins in `UnderscoreProcessor`.
+//
+// # Why these are hand-written matchers and not regexps
+//
+// Every one of them uses a backreference — `(\*)\1{2}` — and three use negative
+// lookarounds. Go's RE2 has neither, by design. Expanding the backreferences is
+// possible because the captured group is always the single delimiter character,
+// but `(?!\1)` and `(?<!\w)` are not expressible at all.
+//
+// So each pattern is an explicit scan. That is more code than a transcribed
+// regexp and it is the only faithful option; the alternative is a different
+// pattern set, which is a different parse, which is different bytes.
+//
+// # The order is the behavior
+//
+// `parse_sub_patterns` (`:589-646`) only tries patterns **after** the index that
+// matched the parent, which is what stops `***x***` from re-matching itself. The
+// index is threaded through as `from`.
+type emphasisPattern struct {
+	// name is the upstream constant, for the doc trail only.
+	name string
+	// match reports the end offset and the two body groups, or ok=false.
+	match func(data string, pos int) (end int, first, second string, ok bool)
+	// build turns the groups into Typst, recursing with the pattern index.
+	build func(p *inlineParser, first, second string, index int, delim byte) string
+}
+
+// asteriskPatterns is `AsteriskProcessor.PATTERNS`.
+//
+// The delimiter is `*` throughout. The underscore set differs only in the
+// delimiter and in the word-boundary guards, which `smart` carries.
+// Built in an init rather than a composite literal: the builders call back into
+// the parser, which reads this list, and Go rejects the cycle at package scope.
+var (
+	asteriskPatterns   []emphasisPattern
+	underscorePatterns []emphasisPattern
+)
+
+func init() {
+	asteriskPatterns = []emphasisPattern{
+		{
+			// EM_STRONG_RE `(\*)\1{2}(.+?)\1(.*?)\1{2}` → `strong,em`.
+			// `***em*strong**`
+			name: "EM_STRONG_RE",
+			match: func(data string, pos int) (int, string, string, bool) {
+				return matchTriple(data, pos, '*', 1, 2, false)
+			},
+			build: func(p *inlineParser, first, second string, index int, delim byte) string {
+				return "#strong[" + "#emph[" + p.parseFrom(first, index, delim) + "]" +
+					p.parseFrom(second, index, delim) + "]"
+			},
+		},
+		{
+			// STRONG_EM_RE `(\*)\1{2}(.+?)\1{2}(.*?)\1` → `em,strong`.
+			// `***strong**em*`
+			name: "STRONG_EM_RE",
+			match: func(data string, pos int) (int, string, string, bool) {
+				return matchTriple(data, pos, '*', 2, 1, false)
+			},
+			build: func(p *inlineParser, first, second string, index int, delim byte) string {
+				return "#emph[" + "#strong[" + p.parseFrom(first, index, delim) + "]" +
+					p.parseFrom(second, index, delim) + "]"
+			},
+		},
+		{
+			// STRONG_EM3_RE `(\*)\1(?!\1)([^*]+?)\1(?!\1)(.+?)\1{3}` → `strong,em`,
+			// built the **other way round**: the first group is the strong's own
+			// text and the second is the nested em. `**strong*em***`
+			name: "STRONG_EM3_RE",
+			match: func(data string, pos int) (int, string, string, bool) {
+				return matchStrongEm3(data, pos, '*')
+			},
+			build: func(p *inlineParser, first, second string, index int, delim byte) string {
+				return "#strong[" + p.parseFrom(first, index, delim) +
+					"#emph[" + p.parseFrom(second, index, delim) + "]]"
+			},
+		},
+		{
+			// STRONG_RE `(\*{2})(.+?)\1`
+			name: "STRONG_RE",
+			match: func(data string, pos int) (int, string, string, bool) {
+				end, body, ok := matchDelimited(data, pos, "**", "**", false)
+				return end, body, "", ok
+			},
+			build: func(p *inlineParser, first, _ string, index int, delim byte) string {
+				return "#strong[" + p.parseFrom(first, index, delim) + "]"
+			},
+		},
+		{
+			// EMPHASIS_RE `(\*)([^\*]+)\1` — **the body admits no asterisk**, which
+			// is the whole reason `*a **b** c*` parses as three separate emphases
+			// rather than one containing a strong. Measured.
+			name: "EMPHASIS_RE",
+			match: func(data string, pos int) (int, string, string, bool) {
+				end, body, ok := matchDelimited(data, pos, "*", "*", true)
+				return end, body, "", ok
+			},
+			build: func(p *inlineParser, first, _ string, index int, delim byte) string {
+				return "#emph[" + p.parseFrom(first, index, delim) + "]"
+			},
+		},
+	}
+
+	// `UnderscoreProcessor.PATTERNS` (`:677-687`). Same five shapes with the
+	// delimiter `_`, and the last three carry `(?<!\w)` / `(?!\w)` word guards —
+	// which is what "smart" means and why `snake_case` keeps its underscores
+	// while `_em_` does not.
+	underscorePatterns = []emphasisPattern{
+		{
+			name: "EM_STRONG2_RE",
+			match: func(data string, pos int) (int, string, string, bool) {
+				return matchTriple(data, pos, '_', 1, 2, false)
+			},
+			build: asteriskPatterns[0].build,
+		},
+		{
+			name: "STRONG_EM2_RE",
+			match: func(data string, pos int) (int, string, string, bool) {
+				return matchTriple(data, pos, '_', 2, 1, false)
+			},
+			build: asteriskPatterns[1].build,
+		},
+		{
+			name: "SMART_STRONG_EM_RE",
+			match: func(data string, pos int) (int, string, string, bool) {
+				return matchStrongEm3(data, pos, '_')
+			},
+			build: asteriskPatterns[2].build,
+		},
+		{
+			// SMART_STRONG_RE `(?<!\w)(_{2})(?!_)(.+?)(?<!_)\1(?!\w)`
+			name: "SMART_STRONG_RE",
+			match: func(data string, pos int) (int, string, string, bool) {
+				end, body, ok := matchSmart(data, pos, "__")
+				return end, body, "", ok
+			},
+			build: asteriskPatterns[3].build,
+		},
+		{
+			// SMART_EMPHASIS_RE `(?<!\w)(_)(?!_)(.+?)(?<!_)\1(?!\w)`
+			name: "SMART_EMPHASIS_RE",
+			match: func(data string, pos int) (int, string, string, bool) {
+				end, body, ok := matchSmart(data, pos, "_")
+				return end, body, "", ok
+			},
+			build: asteriskPatterns[4].build,
+		},
+	}
+}
+
+// matchSmart is the underscore singles, whose four guards are the whole point:
+// no word character before the run, no extra `_` after it, no `_` immediately
+// before the closing run, and no word character after it.
+//
+// Together they are why `snake_case` and `a_b` keep their underscores — the
+// character before the opening `_` is a word character — while `_em_` at a word
+// boundary becomes emphasis.
+func matchSmart(data string, pos int, run string) (int, string, bool) {
+	if pos > 0 && isWordByte(data[pos-1]) {
+		return 0, "", false
+	}
+	if !strings.HasPrefix(data[pos:], run) {
+		return 0, "", false
+	}
+	rest := data[pos+len(run):]
+	if len(rest) > 0 && rest[0] == '_' {
+		return 0, "", false
+	}
+
+	for i := 1; i <= len(rest); i++ {
+		if !strings.HasPrefix(rest[i:], run) {
+			continue
+		}
+		if rest[i-1] == '_' {
+			continue
+		}
+		after := i + len(run)
+		if after < len(rest) && isWordByte(rest[after]) {
+			continue
+		}
+		return pos + len(run) + i + len(run), rest[:i], true
+	}
+	return 0, "", false
+}
+
+// isWordByte is Python's `\w` over the ASCII range, with every byte above it
+// treated as a word character too — which is right for UTF-8 continuation bytes
+// and for the Latin letters the corpus contains.
+func isWordByte(b byte) bool {
+	return b == '_' || (b >= '0' && b <= '9') ||
+		(b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || b >= 0x80
+}
+
+// matchTriple is the shape both EM_STRONG_RE and STRONG_EM_RE have: three
+// delimiters, a lazy body, `innerRun` delimiters, a lazy tail, then `outerRun`.
+//
+// `(.+?)` requires at least one character; `(.*?)` allows none — which is the
+// difference between the two bodies and why `first` is non-empty and `second`
+// may be.
+func matchTriple(data string, pos int, delim byte, innerRun, outerRun int, _ bool) (int, string, string, bool) {
+	opening := strings.Repeat(string(delim), 3)
+	if !strings.HasPrefix(data[pos:], opening) {
+		return 0, "", "", false
+	}
+	rest := data[pos+3:]
+
+	inner := strings.Repeat(string(delim), innerRun)
+	outer := strings.Repeat(string(delim), outerRun)
+
+	// Lazy: the first split that lets the remainder match wins.
+	for i := 1; i <= len(rest); i++ {
+		if !strings.HasPrefix(rest[i:], inner) {
+			continue
+		}
+		tail := rest[i+len(inner):]
+		for j := 0; j <= len(tail); j++ {
+			if strings.HasPrefix(tail[j:], outer) {
+				return pos + 3 + i + len(inner) + j + len(outer), rest[:i], tail[:j], true
+			}
+		}
+	}
+	return 0, "", "", false
+}
+
+// matchStrongEm3 is `(\*)\1(?!\1)([^*]+?)\1(?!\1)(.+?)\1{3}`: two delimiters not
+// followed by a third, a body with **no** delimiter in it, one delimiter not
+// followed by another, a lazy body, then three delimiters.
+func matchStrongEm3(data string, pos int, delim byte) (int, string, string, bool) {
+	two := strings.Repeat(string(delim), 2)
+	if !strings.HasPrefix(data[pos:], two) {
+		return 0, "", "", false
+	}
+	rest := data[pos+2:]
+	if len(rest) > 0 && rest[0] == delim {
+		return 0, "", "", false // the `(?!\1)` after the opening pair
+	}
+
+	for i := 1; i <= len(rest); i++ {
+		if rest[i-1] == delim {
+			return 0, "", "", false // `[^*]+?` — no delimiter inside the first body
+		}
+		if i >= len(rest) || rest[i] != delim {
+			continue
+		}
+		if i+1 < len(rest) && rest[i+1] == delim {
+			continue // the second `(?!\1)`
+		}
+		tail := rest[i+1:]
+		three := strings.Repeat(string(delim), 3)
+		for j := 1; j <= len(tail); j++ {
+			if strings.HasPrefix(tail[j:], three) {
+				return pos + 2 + i + 1 + j + 3, rest[:i], tail[:j], true
+			}
+		}
+	}
+	return 0, "", "", false
+}
+
+// matchDelimited is the simple `open … close` pair. `plain` forbids the
+// delimiter character inside the body, which is EMPHASIS_RE's `[^\*]+`.
+func matchDelimited(data string, pos int, open, close string, plain bool) (int, string, bool) {
+	if !strings.HasPrefix(data[pos:], open) {
+		return 0, "", false
+	}
+	rest := data[pos+len(open):]
+
+	for i := 1; i <= len(rest); i++ {
+		if plain && rest[i-1] == open[0] {
+			return 0, "", false
+		}
+		if strings.HasPrefix(rest[i:], close) {
+			return pos + len(open) + i + len(close), rest[:i], true
+		}
+	}
+	return 0, "", false
+}
