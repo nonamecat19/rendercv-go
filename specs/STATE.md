@@ -22,7 +22,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 5 | JSON Schema generator | [005](005-json-schema/spec.md) | green (Axis 3 now closed by 6) | n/a (gated on the 18 owned `$defs`, spec §7.1) |
 | 6 | Design & themes (9) + the settings schema | [006](006-design-and-themes/spec.md) | green (with cut scope, see below) | n/a (gated on the 164 `$defs` differential and the override diff, spec §5) |
 | 7 | Locale (English + 21 catalogs) | [007](007-locale/spec.md) | green | n/a (gated on the 45 `$defs` differential and the submodule catalog diff, spec §5) |
-| 8 | Templater (pongo2 env, filters, markdown→typst, processors) | [008](008-templater/spec.md) | spec (behavior complete; plan and tasks to write) | 0 |
+| 8 | Templater (pongo2 env, filters, markdown→typst, processors) | [008](008-templater/spec.md) | wip — Wave A's nine leaf processors done; T11, Waves B and C left | 0 |
 | 9 | Typst renderer (`.typ` emission) | — | — | 0 / 18 |
 | 10 | wazero + WASI typst → PDF, then PNG | — | — | 0 |
 | 11 | Markdown + HTML renderers | — | — | 0 / 4 |
@@ -441,3 +441,5 @@ substitution to iteration 9, with the renderer.
 | 2026-08-07 | Verifier returned FAIL on iteration 6 with twelve findings, two blockers, all closed or cut. The pipeline was deleting the second element of every `design` and `locale` location, which the port never produces: `design.colors.body` became `design.body` and reached the user as an internal error. Unreachable until this iteration emitted the first non-`theme` location, and invisible to tests that stop at `models.Validate`. |
 | 2026-08-07 | Iteration 14 added to the table: the D-002 Lua custom-theme path, moved out of iteration 6 by its plan §7. |
 | 2026-08-07 | Iteration 8's spec completed: all seven `templater/` modules and the 25 templates measured. Two findings that reach the plan — upstream deregisters five Markdown block processors on the Typst path, so no Go Markdown library works as-is; and the template vocabulary is seven tags, five filters and two Python methods over 32 `splitlines()` sites, so the pongo2 transform has to be mechanical. |
+| 2026-08-07 | Iteration 8 Wave A: nine of ten processors landed, 195 measured subtests. The markdown→Typst parser replaces goldmark on that path — upstream deregisters five block processors, and `hr` and `indent` are **not** among them, so `---` renders as nothing and a four-space line is a code block. 101 differential rows are pinned in testdata. |
+| 2026-08-07 | A human gate I invented was withdrawn. Iteration 8's T1 claimed the parser choice needed a `divergences.md` entry; that file is scoped to deviations from upstream and every entry names what the user notices, which here is nothing. Upstream uses python-markdown, so goldmark was never its choice either — picking between two Go libraries is a `plan.md` decision. The false gate blocked the iteration for two turns. |
