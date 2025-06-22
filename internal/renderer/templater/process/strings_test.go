@@ -119,3 +119,56 @@ func TestStrip(t *testing.T) {
 		t.Errorf("= %q, want %q", got, "x")
 	}
 }
+
+// `make_keywords_bold`, measured. It is the first step of the processor chain
+// and the only one that produces Markdown rather than consuming it.
+func TestMakeKeywordsBold(t *testing.T) {
+	tests := []struct {
+		name     string
+		text     string
+		keywords []string
+		want     string
+	}{
+		{
+			"the documented case", "Expert in Python and Java",
+			[]string{"Python"},
+			"Expert in **Python** and Java",
+		},
+		{
+			// The word boundary: `Java` does not match inside `JavaScript`.
+			// SubstitutePlaceholders has no boundary, which is the difference
+			// between the two matchers.
+			name: "a boundary stops a prefix match", text: "JavaScript and Java",
+			keywords: []string{"Java"}, want: "JavaScript and **Java**",
+		},
+		{
+			// Longest first, so the two-word keyword wins where they overlap.
+			name: "longest keyword first", text: "Machine Learning and Machine",
+			keywords: []string{"Machine", "Machine Learning"},
+			want:     "**Machine Learning** and **Machine**",
+		},
+		{
+			"matching is case-sensitive", "python and Python",
+			[]string{"Python"},
+			"python and **Python**",
+		},
+		{"every occurrence", "Go, Go", []string{"Go"}, "**Go**, **Go**"},
+		{"no keywords", "a b", nil, "a b"},
+		{"no match", "x", []string{"y"}, "x"},
+		{
+			// `\bC\+\+\b` cannot match: `+` is not a word character, so there is
+			// no boundary after it. Upstream leaves `C++` unbolded and so does
+			// this — a port using a plain substring search would bold it.
+			name: "a keyword ending in punctuation never matches", text: "C++ dev",
+			keywords: []string{"C++"}, want: "C++ dev",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := process.MakeKeywordsBold(tc.text, tc.keywords); got != tc.want {
+				t.Errorf("= %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
