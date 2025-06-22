@@ -35,7 +35,7 @@ project manual and the correction is flagged for the human rather than made sile
 
 ---
 
-## Wave A — the processors — **T2–T10 done; T11 is the remaining unit**
+## Wave A — the processors — **done**
 
 Six leaves. Each is a pure function over the model with measured examples already in `spec.md`, and
 none needs a template to be testable.
@@ -96,7 +96,7 @@ Tests: a missing field taking its `**`, its comma and its connector word while `
 `clean_trailing_parts` dropping a line that became empty; a literal uppercase word treated as a
 missing placeholder.
 
-### T11 — `process_model` · `[sequential]`
+### T11 — `process_model` · `[sequential]` — **done**
 `process/model.go`. The orchestrator, so it reads every task above.
 Spec §4A behaviors 17–26.
 Tests: the deep copy, proven by rendering Typst then Markdown from one model; bolding before the
