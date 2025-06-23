@@ -107,6 +107,10 @@ the four skipped fields.
 
 ## Wave B — the engine
 
+**T14 landed first**, out of the wave's written order. It is the only unit here that needs neither
+pongo2 nor a transformed template, and landing it before them means the first golden failure points
+at a template rather than at the separators around it.
+
 ### T12 — the environment · `[sequential]`
 `environment.go`, `loader.go`, `filters.go`: the two loaders, the four-candidate Typst lookup, and
 the seven filters.
@@ -118,7 +122,7 @@ first line, proven by one `|replace("    ", "")` site cancelling.
 The five substitutions of `plan.md` §2, emitting the embedded pongo2 source. `just gentemplates`
 reruns it. Its head states what the transform does **not** guarantee, as `localeprobe`'s does.
 
-### T14 — the assembly · `[sequential]`
+### T14 — the assembly · `[sequential]` — **done**
 `assemble.go`: `render_full_template`'s separators.
 Spec §3 behaviors 9–13. **Testable before any template renders**, so it lands before the corpus
 work rather than inside it.
