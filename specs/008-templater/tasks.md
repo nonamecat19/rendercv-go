@@ -105,7 +105,7 @@ the four skipped fields.
 
 ---
 
-## Wave B — the engine
+## Wave B — the engine — **done**
 
 **T14 landed first**, out of the wave's written order. It is the only unit here that needs neither
 pongo2 nor a transformed template, and landing it before them means the first golden failure points
@@ -118,7 +118,7 @@ Spec §1, §2. Plan §2.
 Tests: a user override of one entry type for one theme taking effect; `indent` not indenting the
 first line, proven by one `|replace("    ", "")` site cancelling.
 
-### T13 — `tools/gentemplates` · `[sequential]`
+### T13 — `tools/gentemplates` · `[sequential]` — **done**
 The five substitutions of `plan.md` §2, emitting the embedded pongo2 source. `just gentemplates`
 reruns it. Its head states what the transform does **not** guarantee, as `localeprobe`'s does.
 
