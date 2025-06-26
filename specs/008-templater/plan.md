@@ -36,6 +36,22 @@ Five substitutions, each mechanical and each verified by the byte diff rather th
 | `x.as_rgb()` | `x` — the model already stores the rendered string | spec 006 §4 made `Color.String()` the stored form |
 | `{% set n = … %}` with a computed bound | unchanged | pongo2 has `set`; only the expression inside changes |
 | `{%- if` | `{%- if` | pongo2 supports left-trim, but §4 has to prove it means the same thing |
+| `|indent(4)` | `|indent:4` | **measured after T12**: pongo2 takes filter arguments Django-style, with `:` and no parentheses. Thirteen sites. |
+| `|replace("a", "b")` | `|replace:"/a/b/"` | **measured after T12**: pongo2 has **no** `replace` — this table's first draft said it did. Its filters take exactly one parameter, so the port registers a `replace` whose parameter is `sed`-shaped. Eight sites. |
+
+**Two corrections to this section, both found by building it rather than reading
+the library:**
+
+1. **pongo2 autoescapes HTML by default**, so `<`, `>`, `&` and `"` become
+   entities at every `{{ }}`. A `.typ` contains all four — `escape_typst_characters`
+   emits `\"` and `\<` on purpose — so leaving it on corrupts every Typst
+   document. `registerFilters` turns it off, and `TestAutoescapingIsOff` says so
+   under its own name because the symptom looks like a template bug.
+2. **pongo2 has no `indent`**, which is the opposite of what the paragraph below
+   assumed: there is nothing to override, so the port's filter is simply Jinja's.
+   The hazard it describes is real anyway — an implementation that indented the
+   first line would break the four cancelling `replace` sites — and the test
+   still guards it.
 
 **The `…Lines []string` fields are the model's, not the transform's.** Every `splitlines()` target
 is one of four fields, so the processed entry model carries `MainColumnLines`,
@@ -49,9 +65,10 @@ slice forms have a **computed** bound, so a slice filter is needed as well as th
 same way: **the byte diff against goldens is the only gate that matters.** A unit test of a filter
 in isolation proves nothing about a 400-line `.typ`.
 
-`indent` is the specific hazard: Jinja's does **not** indent the first line, four `|replace("    ",
-"")` sites depend on that cancelling exactly, and pongo2's differs. The port registers its own
-`indent` rather than using pongo2's, and a test cancels one of the four sites end to end.
+`indent` is the specific hazard: Jinja's does **not** indent the first line and skips blank lines,
+and four `|replace("    ", "")` sites depend on that cancelling exactly. The port registers its own
+rather than relying on the engine's — see the correction above for what the engine actually has —
+and `TestIndentAndReplaceCancel` runs one of the four sites end to end.
 
 ---
 

@@ -111,7 +111,7 @@ the four skipped fields.
 pongo2 nor a transformed template, and landing it before them means the first golden failure points
 at a template rather than at the separators around it.
 
-### T12 — the environment · `[sequential]`
+### T12 — the environment · `[sequential]` — **done**
 `environment.go`, `loader.go`, `filters.go`: the two loaders, the four-candidate Typst lookup, and
 the seven filters.
 Spec §1, §2. Plan §2.
