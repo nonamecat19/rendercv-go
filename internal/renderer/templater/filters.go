@@ -34,6 +34,15 @@ func registerFilters() error {
 	if err := registerFilter("replace", filterReplace); err != nil {
 		return err
 	}
+	if err := registerFilter("takefirst", filterTakeFirst); err != nil {
+		return err
+	}
+	if err := registerFilter("dropfirst", filterDropFirst); err != nil {
+		return err
+	}
+	if err := registerFilter("string", filterString); err != nil {
+		return err
+	}
 	if err := registerFilter("clean_url", filterCleanURL); err != nil {
 		return err
 	}
@@ -96,6 +105,55 @@ func filterReplace(in, param *pongo2.Value) (*pongo2.Value, *pongo2.Error) {
 
 var errBadReplaceSpec = errors.New(
 	`replace expects a sed-shaped parameter, as in |replace:"/-/ /"`)
+
+// filterTakeFirst and filterDropFirst are Python's `x[:n]` and `x[n:]`.
+//
+// **pongo2's `slice` cannot stand in.** It takes a string literal —
+// `|slice:":2"` — so a computed bound passes the variable's *name* as text, and
+// two of the four upstream slice sites have computed bounds. These take an
+// ordinary expression instead, so `|takefirst:first_row_lines` works.
+//
+// Both clamp rather than failing, which is Python's slice behavior: `x[:99]` on
+// a three-element list is the whole list, not an error.
+func filterTakeFirst(in, param *pongo2.Value) (*pongo2.Value, *pongo2.Error) {
+	items, count := sliceBounds(in, param)
+	return pongo2.AsValue(items[:count]), nil
+}
+
+func filterDropFirst(in, param *pongo2.Value) (*pongo2.Value, *pongo2.Error) {
+	items, count := sliceBounds(in, param)
+	return pongo2.AsValue(items[count:]), nil
+}
+
+// sliceBounds materializes the input and clamps the bound into range.
+func sliceBounds(in, param *pongo2.Value) ([]any, int) {
+	var items []any
+	in.Iterate(func(_, _ int, item, _ *pongo2.Value) bool {
+		items = append(items, item.Interface())
+		return true
+	}, func() {})
+
+	count := 0
+	if param != nil {
+		count = param.Integer()
+	}
+	if count > len(items) {
+		count = len(items)
+	}
+	if count < 0 {
+		count = 0
+	}
+	return items, count
+}
+
+// filterString is Jinja's `string`, which pongo2 does not have. One site uses
+// it: `cv.photo|string`, to interpolate a path into a Typst `image(...)` call.
+//
+// pongo2's `String()` is the same conversion, so this is a name the templates
+// need rather than a behavior they need.
+func filterString(in, _ *pongo2.Value) (*pongo2.Value, *pongo2.Error) {
+	return pongo2.AsValue(in.String()), nil
+}
 
 func filterCleanURL(in, _ *pongo2.Value) (*pongo2.Value, *pongo2.Error) {
 	return pongo2.AsValue(process.CleanURL(in.String())), nil
