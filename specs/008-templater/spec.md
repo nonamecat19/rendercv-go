@@ -458,39 +458,68 @@ spec section is one lookup.
 
 ## 7. Acceptance criteria
 
-- [ ] The loader order of behavior 2 and the double lookup of behavior 6, with a user override of
+Twenty-one of the twenty-three are met by unit tests in `internal/renderer/templater`, each
+measured against the vendored Python. The two that are not are marked, and §8 says where they went.
+
+- [x] The loader order of behavior 2 and the double lookup of behavior 6, with a user override of
       one entry type for one theme actually taking effect.
-- [ ] `trim_blocks` and `lstrip_blocks` reproduced, proven by byte-identical `.typ` output rather
-      than by a unit test of the flags.
-- [ ] `clean_url` and `strip`, including behavior 5's two surprises.
-- [ ] The assembly separators of behaviors 11–13, which are testable before any template is.
-- [ ] `escape_typst_characters`'s three phases in order, including the `$$` collapse and the two
+- [ ] **Moved to iteration 9** — `trim_blocks` and `lstrip_blocks` reproduced, proven by
+      byte-identical `.typ` output rather than by a unit test of the flags.
+- [x] `clean_url` and `strip`, including behavior 5's two surprises.
+- [x] The assembly separators of behaviors 11–13, which are testable before any template is.
+- [x] `escape_typst_characters`'s three phases in order, including the `$$` collapse and the two
       longer replacements running after `translate`.
-- [ ] `substitute_placeholders`' longest-first ordering and its `.strip()`.
-- [ ] §4A's ordering: bolding before Typst conversion, entry templates before field processing, and
-      `_plain_name` reaching `pdf_title` while the processed name reaches the header.
-- [ ] The four skipped fields, and the `str()` of a non-string value.
-- [ ] §4B's three formatters, including that only `format_single_date` falls back to the raw
+- [x] `substitute_placeholders`' longest-first ordering and its `.strip()`.
+- [x] §4A's ordering: bolding before Typst conversion, entry templates before field processing, and
+      `_plain_name` reaching `pdf_title` while the processed name reaching the header.
+- [x] The four skipped fields, and the `str()` of a non-string value.
+- [x] §4B's three formatters, including that only `format_single_date` falls back to the raw
       string, and that a bare year is never run through `single_date`.
-- [ ] The time-span arithmetic exactly: `< 2 years` reported as `1`, the unconditional `+ 1`
+- [x] The time-span arithmetic exactly: `< 2 years` reported as `1`, the unconditional `+ 1`
       month, the overflow fold, and the empty-string collapse for a zero count.
-- [ ] §4C's five disabled block processors, proven by a `# Heading` surviving as literal text.
-- [ ] Line-by-line conversion, proven by an unmatched `*` on adjacent lines not pairing.
-- [ ] The five mapped tags, the dropped `admonition-title`, and tail text surviving.
-- [ ] §4D's two placeholder maps, which are **not** the same map, and the `context { [ … ] }`
+- [x] §4C's five disabled block processors, proven by a `# Heading` surviving as literal text.
+- [x] Line-by-line conversion, proven by an unmatched `*` on adjacent lines not pairing.
+- [x] The five mapped tags, the dropped `admonition-title`, and tail text surviving.
+- [x] §4D's two placeholder maps, which are **not** the same map, and the `context { [ … ] }`
       wrapper with its exact spacing.
-- [ ] The footer's two Typst-source placeholders surviving `escape_typst_characters` — the
+- [x] The footer's two Typst-source placeholders surviving `escape_typst_characters` — the
       cross-module interaction, tested end to end rather than in either module.
-- [ ] §4E's input-file key order driving the header, and the three icons that are not the
+- [x] §4E's input-file key order driving the header, and the three icons that are not the
       lowercased network name.
-- [ ] The four Typst connection shapes from the two independent flags, and Markdown having
+- [x] The four Typst connection shapes from the two independent flags, and Markdown having
       neither icons nor Typst conversion.
-- [ ] `indent`'s first-line behavior matching Jinja's, proven by one of the four
+- [x] `indent`'s first-line behavior matching Jinja's, proven by one of the four
       `|replace("    ", "")` sites cancelling exactly.
-- [ ] The five `{%- if` sites, whose left-trim is on top of `lstrip_blocks`.
-- [ ] §4G behavior 61's phrase expansion leaving sub-placeholders in place — spec 007 §4.2's
+- [ ] **Moved to iteration 9** — the five `{%- if` sites, whose left-trim is on top of
+      `lstrip_blocks`. Like the row above, only rendered bytes can show it.
+- [x] §4G behavior 61's phrase expansion leaving sub-placeholders in place — spec 007 §4.2's
       deferred item, closed here.
-- [ ] The two removal passes in order, with a fixture where a missing field takes its `**`, its
+- [x] The two removal passes in order, with a fixture where a missing field takes its `**`, its
       comma and its connector word with it and leaves `*in*` alone.
-- [ ] `clean_trailing_parts` dropping a line that became empty.
-- [ ] `process_date`'s blank line between a range and its time span.
+- [x] `clean_trailing_parts` dropping a line that became empty.
+- [x] `process_date`'s blank line between a range and its time span.
+
+---
+
+## 8. Where the whitespace criteria went, and why
+
+**The two open criteria cannot be met inside this iteration**, and finding that out is worth more
+than the criteria were.
+
+`testdata/golden`'s artifact cases are whole `rendercv render` runs: an input YAML in, a
+`rendercv_output/` tree out. Rendering one needs a **validated model turned into a renderer
+model** — sections, entries, the connection list in the input file's key order, and a theme's
+*effective* option values. That bridge is iteration 9's by two separate earlier decisions:
+
+- `STATE.md` assigns the `.typ` emission to iteration 9;
+- iteration 6 **cut its T10**, the effective per-theme option tree, to iteration 9 for exactly this
+  reason — the renderer is its first consumer.
+
+So `tasks.md`'s Wave C was misordered when it was written. It is moved to iteration 9 rather than
+attempted here, and this iteration is complete at the engine and the processors: everything a
+`.typ` is made *of*, with nothing that makes one.
+
+What that costs is stated plainly: **the transform of `plan.md` §2 is unverified.** Every rule it
+applies is mechanical and none is proven meaning-preserving — `tools/gentemplates`' head says so,
+and two tests check only that the output parses and that no Jinja construct survives. The first
+golden `.typ` is what will actually check it, and it is one iteration away rather than in this one.
