@@ -1,0 +1,1012 @@
+[
+ {
+  "template": "typst/entries/EducationEntry.j2.typ",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "Loc\nDate",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": false
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": "**DEGREE**"
+     }
+    }
+   }
+  },
+  "want": "#education-entry(\n  [\n    One\n\n    Two\n\n  ],\n  [\n    Loc\n\n    Date\n\n  ],\n  degree-column: [\n    **BS**\n  ],\n  main-column-second-row: [\n    Three\n\n  ],\n)"
+ },
+ {
+  "template": "typst/entries/EducationEntry.j2.typ",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "Loc\nDate",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": true
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": "**DEGREE**"
+     }
+    }
+   }
+  },
+  "want": "#education-entry(\n  [\n    One\n\n    Two\n\n    Three\n\n  ],\n  [\n    Loc\n\n    Date\n\n  ],\n  degree-column: [\n    **BS**\n  ],\n)"
+ },
+ {
+  "template": "typst/entries/EducationEntry.j2.typ",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "Loc\nDate",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": false
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": null
+     }
+    }
+   }
+  },
+  "want": "#education-entry(\n  [\n    One\n\n    Two\n\n  ],\n  [\n    Loc\n\n    Date\n\n  ],\n  main-column-second-row: [\n    Three\n\n  ],\n)"
+ },
+ {
+  "template": "typst/entries/EducationEntry.j2.typ",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": false
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": "**DEGREE**"
+     }
+    }
+   }
+  },
+  "want": "  #education-entry(\n  [\n    One\n\n  ],\n  [\n  ],\n  degree-column: [\n    **BS**\n  ],\n  main-column-second-row: [\n    Two\n\n    Three\n\n  ],\n)"
+ },
+ {
+  "template": "typst/entries/NormalEntry.j2.typ",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "Loc\nDate",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": false
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": "**DEGREE**"
+     }
+    }
+   }
+  },
+  "want": "#regular-entry(\n  [\n    One\n\n    Two\n\n  ],\n  [\n    Loc\n\n    Date\n\n  ],\n  main-column-second-row: [\n    Three\n\n  ],\n)"
+ },
+ {
+  "template": "typst/entries/NormalEntry.j2.typ",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "Loc\nDate",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": true
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": "**DEGREE**"
+     }
+    }
+   }
+  },
+  "want": "#regular-entry(\n  [\n    One\n\n    Two\n\n    Three\n\n  ],\n  [\n    Loc\n\n    Date\n\n  ],\n)"
+ },
+ {
+  "template": "typst/entries/NormalEntry.j2.typ",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "Loc\nDate",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": false
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": null
+     }
+    }
+   }
+  },
+  "want": "#regular-entry(\n  [\n    One\n\n    Two\n\n  ],\n  [\n    Loc\n\n    Date\n\n  ],\n  main-column-second-row: [\n    Three\n\n  ],\n)"
+ },
+ {
+  "template": "typst/entries/NormalEntry.j2.typ",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": false
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": "**DEGREE**"
+     }
+    }
+   }
+  },
+  "want": "  #regular-entry(\n  [\n    One\n\n  ],\n  [\n  ],\n  main-column-second-row: [\n    Two\n\n    Three\n\n  ],\n)"
+ },
+ {
+  "template": "typst/entries/ExperienceEntry.j2.typ",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "Loc\nDate",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": false
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": "**DEGREE**"
+     }
+    }
+   }
+  },
+  "want": "#regular-entry(\n  [\n    One\n\n    Two\n\n  ],\n  [\n    Loc\n\n    Date\n\n  ],\n  main-column-second-row: [\n    Three\n\n  ],\n)"
+ },
+ {
+  "template": "typst/entries/ExperienceEntry.j2.typ",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "Loc\nDate",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": true
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": "**DEGREE**"
+     }
+    }
+   }
+  },
+  "want": "#regular-entry(\n  [\n    One\n\n    Two\n\n    Three\n\n  ],\n  [\n    Loc\n\n    Date\n\n  ],\n)"
+ },
+ {
+  "template": "typst/entries/ExperienceEntry.j2.typ",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "Loc\nDate",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": false
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": null
+     }
+    }
+   }
+  },
+  "want": "#regular-entry(\n  [\n    One\n\n    Two\n\n  ],\n  [\n    Loc\n\n    Date\n\n  ],\n  main-column-second-row: [\n    Three\n\n  ],\n)"
+ },
+ {
+  "template": "typst/entries/ExperienceEntry.j2.typ",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": false
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": "**DEGREE**"
+     }
+    }
+   }
+  },
+  "want": "  #regular-entry(\n  [\n    One\n\n  ],\n  [\n  ],\n  main-column-second-row: [\n    Two\n\n    Three\n\n  ],\n)"
+ },
+ {
+  "template": "typst/entries/OneLineEntry.j2.typ",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "Loc\nDate",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": false
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": "**DEGREE**"
+     }
+    }
+   }
+  },
+  "want": "One\nTwo\nThree"
+ },
+ {
+  "template": "typst/entries/OneLineEntry.j2.typ",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "Loc\nDate",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": true
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": "**DEGREE**"
+     }
+    }
+   }
+  },
+  "want": "One\nTwo\nThree"
+ },
+ {
+  "template": "typst/entries/OneLineEntry.j2.typ",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "Loc\nDate",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": false
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": null
+     }
+    }
+   }
+  },
+  "want": "One\nTwo\nThree"
+ },
+ {
+  "template": "typst/entries/OneLineEntry.j2.typ",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": false
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": "**DEGREE**"
+     }
+    }
+   }
+  },
+  "want": "One\nTwo\nThree"
+ },
+ {
+  "template": "typst/entries/BulletEntry.j2.typ",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "Loc\nDate",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": false
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": "**DEGREE**"
+     }
+    }
+   }
+  },
+  "want": "- "
+ },
+ {
+  "template": "typst/entries/BulletEntry.j2.typ",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "Loc\nDate",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": true
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": "**DEGREE**"
+     }
+    }
+   }
+  },
+  "want": "- "
+ },
+ {
+  "template": "typst/entries/BulletEntry.j2.typ",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "Loc\nDate",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": false
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": null
+     }
+    }
+   }
+  },
+  "want": "- "
+ },
+ {
+  "template": "typst/entries/BulletEntry.j2.typ",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": false
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": "**DEGREE**"
+     }
+    }
+   }
+  },
+  "want": "- "
+ },
+ {
+  "template": "typst/entries/NumberedEntry.j2.typ",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "Loc\nDate",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": false
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": "**DEGREE**"
+     }
+    }
+   }
+  },
+  "want": "+ "
+ },
+ {
+  "template": "typst/entries/NumberedEntry.j2.typ",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "Loc\nDate",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": true
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": "**DEGREE**"
+     }
+    }
+   }
+  },
+  "want": "+ "
+ },
+ {
+  "template": "typst/entries/NumberedEntry.j2.typ",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "Loc\nDate",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": false
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": null
+     }
+    }
+   }
+  },
+  "want": "+ "
+ },
+ {
+  "template": "typst/entries/NumberedEntry.j2.typ",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": false
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": "**DEGREE**"
+     }
+    }
+   }
+  },
+  "want": "+ "
+ },
+ {
+  "template": "typst/entries/ReversedNumberedEntry.j2.typ",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "Loc\nDate",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": false
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": "**DEGREE**"
+     }
+    }
+   }
+  },
+  "want": "+ "
+ },
+ {
+  "template": "typst/entries/ReversedNumberedEntry.j2.typ",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "Loc\nDate",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": true
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": "**DEGREE**"
+     }
+    }
+   }
+  },
+  "want": "+ "
+ },
+ {
+  "template": "typst/entries/ReversedNumberedEntry.j2.typ",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "Loc\nDate",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": false
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": null
+     }
+    }
+   }
+  },
+  "want": "+ "
+ },
+ {
+  "template": "typst/entries/ReversedNumberedEntry.j2.typ",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": false
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": "**DEGREE**"
+     }
+    }
+   }
+  },
+  "want": "+ "
+ },
+ {
+  "template": "typst/entries/PublicationEntry.j2.typ",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "Loc\nDate",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": false
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": "**DEGREE**"
+     }
+    }
+   }
+  },
+  "want": "#regular-entry(\n  [\n    One\n\n    Two\n\n  ],\n  [\n    Loc\n\n    Date\n\n  ],\n  main-column-second-row: [\n    Three\n\n  ],\n)"
+ },
+ {
+  "template": "typst/entries/PublicationEntry.j2.typ",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "Loc\nDate",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": true
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": "**DEGREE**"
+     }
+    }
+   }
+  },
+  "want": "#regular-entry(\n  [\n    One\n\n    Two\n\n    Three\n\n  ],\n  [\n    Loc\n\n    Date\n\n  ],\n)"
+ },
+ {
+  "template": "typst/entries/PublicationEntry.j2.typ",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "Loc\nDate",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": false
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": null
+     }
+    }
+   }
+  },
+  "want": "#regular-entry(\n  [\n    One\n\n    Two\n\n  ],\n  [\n    Loc\n\n    Date\n\n  ],\n  main-column-second-row: [\n    Three\n\n  ],\n)"
+ },
+ {
+  "template": "typst/entries/PublicationEntry.j2.typ",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": false
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": "**DEGREE**"
+     }
+    }
+   }
+  },
+  "want": "  #regular-entry(\n  [\n    One\n\n  ],\n  [\n  ],\n  main-column-second-row: [\n    Two\n\n    Three\n\n  ],\n)"
+ },
+ {
+  "template": "typst/SectionBeginning.j2.typ",
+  "context": {
+   "section_title": "Experience",
+   "entry_type": "EducationEntry"
+  },
+  "want": "== Experience\n"
+ },
+ {
+  "template": "typst/SectionBeginning.j2.typ",
+  "context": {
+   "section_title": "Pubs",
+   "entry_type": "ReversedNumberedEntry"
+  },
+  "want": "== Pubs\n\n#reversed-numbered-entries(\n  [\n"
+ },
+ {
+  "template": "typst/SectionEnding.j2.typ",
+  "context": {
+   "section_title": "Experience",
+   "entry_type": "EducationEntry"
+  },
+  "want": ""
+ },
+ {
+  "template": "typst/SectionEnding.j2.typ",
+  "context": {
+   "section_title": "Pubs",
+   "entry_type": "ReversedNumberedEntry"
+  },
+  "want": "  ],\n)\n"
+ },
+ {
+  "template": "markdown/entries/EducationEntry.j2.md",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "Loc\nDate",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": false
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": "**DEGREE**"
+     }
+    }
+   }
+  },
+  "want": "## One\n\n**BS**\n\n\nLoc\n\n\nDate\n\nTwo\n\nThree\n\n"
+ },
+ {
+  "template": "markdown/entries/NormalEntry.j2.md",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "Loc\nDate",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": false
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": "**DEGREE**"
+     }
+    }
+   }
+  },
+  "want": "## One\n\nLoc\n\nDate\n\nTwo\n\nThree\n\n"
+ },
+ {
+  "template": "markdown/entries/OneLineEntry.j2.md",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "Loc\nDate",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": false
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": "**DEGREE**"
+     }
+    }
+   }
+  },
+  "want": "One\nTwo\nThree"
+ },
+ {
+  "template": "markdown/entries/BulletEntry.j2.md",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "Loc\nDate",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": false
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": "**DEGREE**"
+     }
+    }
+   }
+  },
+  "want": "- "
+ },
+ {
+  "template": "markdown/entries/PublicationEntry.j2.md",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "Loc\nDate",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": false
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": "**DEGREE**"
+     }
+    }
+   }
+  },
+  "want": "## One\n\nLoc\n\nDate\n\nTwo\n\nThree\n\n"
+ },
+ {
+  "template": "markdown/entries/ExperienceEntry.j2.md",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "Loc\nDate",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": false
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": "**DEGREE**"
+     }
+    }
+   }
+  },
+  "want": "## One\n\nLoc\n\nDate\n\nTwo\n\nThree\n\n"
+ },
+ {
+  "template": "markdown/entries/NumberedEntry.j2.md",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "Loc\nDate",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": false
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": "**DEGREE**"
+     }
+    }
+   }
+  },
+  "want": "1. "
+ },
+ {
+  "template": "markdown/entries/ReversedNumberedEntry.j2.md",
+  "context": {
+   "entry": {
+    "main_column": "One\nTwo\nThree",
+    "date_and_location_column": "Loc\nDate",
+    "degree_column": "**BS**",
+    "summary": "S",
+    "highlights": "- a\n- b"
+   },
+   "design": {
+    "entries": {
+     "short_second_row": false
+    },
+    "templates": {
+     "education_entry": {
+      "degree_column": "**DEGREE**"
+     }
+    }
+   }
+  },
+  "want": "1. "
+ },
+ {
+  "template": "markdown/SectionBeginning.j2.md",
+  "context": {
+   "section_title": "Experience",
+   "entry_type": "EducationEntry"
+  },
+  "want": "# Experience"
+ },
+ {
+  "template": "markdown/SectionEnding.j2.md",
+  "context": {
+   "section_title": "Experience",
+   "entry_type": "EducationEntry"
+  },
+  "want": ""
+ },
+ {
+  "template": "typst/entries/TextEntry.j2.typ",
+  "context": {
+   "entry": "Some text"
+  },
+  "want": "Some text"
+ },
+ {
+  "template": "typst/entries/TextEntry.j2.typ",
+  "context": {
+   "entry": "Line one\nLine two"
+  },
+  "want": "Line one\nLine two"
+ },
+ {
+  "template": "typst/entries/TextEntry.j2.typ",
+  "context": {
+   "entry": ""
+  },
+  "want": ""
+ },
+ {
+  "template": "markdown/entries/TextEntry.j2.md",
+  "context": {
+   "entry": "Some text"
+  },
+  "want": "Some text"
+ },
+ {
+  "template": "markdown/entries/TextEntry.j2.md",
+  "context": {
+   "entry": "Line one\nLine two"
+  },
+  "want": "Line one\nLine two"
+ },
+ {
+  "template": "markdown/entries/TextEntry.j2.md",
+  "context": {
+   "entry": ""
+  },
+  "want": ""
+ }
+]
