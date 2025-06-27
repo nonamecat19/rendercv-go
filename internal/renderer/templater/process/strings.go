@@ -12,6 +12,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 // SubstitutePlaceholders is `substitute_placeholders`
@@ -111,7 +113,42 @@ func MakeKeywordsBold(text string, keywords []string) string {
 	if len(keywords) == 0 {
 		return text
 	}
-	return keywordBoldPattern(keywords).ReplaceAllString(text, "**$0**")
+
+	pattern := keywordBoldPattern(keywords)
+	var out strings.Builder
+	pending := 0
+
+	for _, match := range pattern.FindAllStringIndex(text, -1) {
+		if !isWordBoundary(text, match[0]) || !isWordBoundary(text, match[1]) {
+			continue
+		}
+		out.WriteString(text[pending:match[0]])
+		out.WriteString("**" + text[match[0]:match[1]] + "**")
+		pending = match[1]
+	}
+	out.WriteString(text[pending:])
+	return out.String()
+}
+
+// isWordBoundary is Python's `\b`, which is **Unicode-aware** where Go's is
+// ASCII-only.
+//
+// Go's `\b` in a pattern would silently never match a keyword whose first or
+// last character is non-ASCII: `bold_keywords: ["Café"]` on `"Café au lait"`
+// would leave it unbolded, and `bold_keywords` is an unconstrained `list[str]`
+// with a diacritics case already in the corpus. So the boundary is checked here
+// rather than in the pattern.
+func isWordBoundary(text string, at int) bool {
+	before, _ := utf8.DecodeLastRuneInString(text[:at])
+	after, _ := utf8.DecodeRuneInString(text[at:])
+	return isWordRune(before) != isWordRune(after)
+}
+
+// isWordRune is Python's `\w` under `re.UNICODE`: a letter, a digit or an
+// underscore. `utf8.RuneError` from an empty side is not a word rune, which
+// makes a match at either end of the string a boundary.
+func isWordRune(r rune) bool {
+	return r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r)
 }
 
 // keywordBoldPattern is `build_keyword_matcher_pattern` with boundaries.
@@ -120,10 +157,15 @@ func MakeKeywordsBold(text string, keywords []string) string {
 // the keyword itself, which upstream leaves to set order and no pair of
 // keywords in the corpus exercises.
 func keywordBoldPattern(keywords []string) *regexp.Regexp {
+	// **An empty keyword is kept.** Upstream builds `\b(Java|)\b` from a
+	// frozenset that contains `""`, and the empty alternative matches at every
+	// word boundary — so `bold_keywords: ["", "Java"]` bolds every word twice
+	// over. That output is garbage and it is upstream's; nothing in the schema
+	// rejects an empty string, so dropping it here would be a silent divergence.
 	unique := make(map[string]bool, len(keywords))
 	ordered := make([]string, 0, len(keywords))
 	for _, keyword := range keywords {
-		if keyword == "" || unique[keyword] {
+		if unique[keyword] {
 			continue
 		}
 		unique[keyword] = true
@@ -140,5 +182,5 @@ func keywordBoldPattern(keywords []string) *regexp.Regexp {
 	for _, keyword := range ordered {
 		quoted = append(quoted, regexp.QuoteMeta(keyword))
 	}
-	return regexp.MustCompile(`\b(` + strings.Join(quoted, "|") + `)\b`)
+	return regexp.MustCompile(`(` + strings.Join(quoted, "|") + `)`)
 }

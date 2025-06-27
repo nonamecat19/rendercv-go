@@ -69,6 +69,18 @@ func TestEscapeTypstCharacters(t *testing.T) {
 		},
 		{"a bare command name", "#sym.ast.basic", "#sym.ast.basic"},
 		{
+			// **Both patterns scan the original string**, so the command pattern
+			// never sees a math dummy. Rescanning the mutated text instead
+			// matches `#emph[RENDERCVTYPSTCOMMANDORMATH0]` as one command and
+			// leaks the literal dummy name into the output — which is what the
+			// first implementation did.
+			name: "math inside a command escapes entirely",
+			in:   "#emph[$$x$$]",
+			want: `\#emph\[$x$\]`,
+		},
+		{"and with text after it", "#a$$b$$", `\#a$b$`},
+		{"and in a bracketed body", `#link("u")[$$m$$]`, `\#link(\"u\")\[$m$\]`},
+		{
 			// `%` escapes, `#tag` does not — the two in one string.
 			name: "escaping around a protected command",
 			in:   "100% #tag",
