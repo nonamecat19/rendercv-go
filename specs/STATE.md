@@ -22,8 +22,8 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 5 | JSON Schema generator | [005](005-json-schema/spec.md) | green (Axis 3 now closed by 6) | n/a (gated on the 18 owned `$defs`, spec §7.1) |
 | 6 | Design & themes (9) + the settings schema | [006](006-design-and-themes/spec.md) | green (with cut scope, see below) | n/a (gated on the 164 `$defs` differential and the override diff, spec §5) |
 | 7 | Locale (English + 21 catalogs) | [007](007-locale/spec.md) | green | n/a (gated on the 45 `$defs` differential and the submodule catalog diff, spec §5) |
-| 8 | Templater (pongo2 env, filters, markdown→typst, processors) | [008](008-templater/spec.md) | wip — Wave A's nine leaf processors done; T11, Waves B and C left | 0 |
-| 9 | Typst renderer (`.typ` emission) | — | — | 0 / 18 |
+| 8 | Templater (pongo2 env, filters, markdown→typst, processors) | [008](008-templater/spec.md) | green (with cut scope, see below) | n/a (gated on the 52-fragment Jinja differential and 240 unit cases, spec §7) |
+| 9 | Typst renderer (`.typ` emission) + iteration 6's T10 + iteration 8's Wave C | — | — | 0 / 18 |
 | 10 | wazero + WASI typst → PDF, then PNG | — | — | 0 |
 | 11 | Markdown + HTML renderers | — | — | 0 / 4 |
 | 12 | CLI (`new`, `render`, `create-theme`, overrides, watcher) | — | — | 0 |
@@ -363,6 +363,73 @@ crashes spec 004 §7.8 sent to iteration 12.
 The parity suite stays at its 42 red cases. No golden was regenerated and the submodule was not
 bumped, so no human gate was requested.
 
+### Iteration 8
+
+**Verified by `rendercv-parity-verifier` in a fresh context, which returned FAIL with three
+blockers.** All three are fixed (`718c902`); the rest is cut here or recorded.
+
+**The blocker worth reading is the one my own reasoning hid.** Spec §8 argued that the two
+whitespace acceptance criteria could not be checked in this iteration, because only a corpus `.typ`
+can exercise the transform and a corpus `.typ` needs iteration 9's model bridge. The second half is
+true. **The first is not** — a *fragment* needs only a dictionary — and the verifier said so.
+
+The differential I then wrote found, on its first run, that **Jinja strips one trailing newline
+from every template** (`keep_trailing_newline=False`) and pongo2 does not. Every fragment gained a
+`\n`, and `Assemble` joins entries with `"\n\n"`, so that is a blank line per entry and per section
+on **every** artifact case. Reverting the one transform rule fails 43 of the 52 fragments.
+
+I had written the argument that made it invisible. "Only the end-to-end gate can check this" is a
+claim that needs testing rather than asserting, and spec §8 now records the reasoning rather than
+the conclusion.
+
+**The other two blockers**, both invisible to 235 passing unit tests:
+
+1. **`escape_typst_characters` phase 1 rescanned the mutated text.** Upstream's `itertools.chain`
+   binds both `finditer`s before the loop mutates `string`, so the command pattern never sees a
+   math dummy. Rescanning matched `#emph[RENDERCVTYPSTCOMMANDORMATH0]` as one command and leaked
+   the **literal dummy name** into the output.
+2. **Python's `\b` is Unicode-aware and Go's is ASCII-only**, so any `bold_keywords` entry starting
+   or ending with a non-ASCII character never matched — `["Café"]` left `Café au lait` untouched.
+   `ats_diacritics` is a corpus case.
+
+**Cut scope, with its owner:**
+
+- **Wave C — the corpus's artifact cases — moves to iteration 9**, together with iteration 6's
+  already-cut T10. Turning one green needs the schema-to-renderer model bridge, which is iteration
+  9's by two earlier decisions. What moves with it is only what no fragment exercises:
+  `Preamble.j2.typ` and `Header.j2.typ`, which read `cv._connections`, `cv._footer` and effective
+  design values. All twenty-three of spec §7's criteria are met here.
+
+**Two things the verifier found that are open, and are not blockers:**
+
+- **`render_entry_templates` and `process_date` are not ported.** `tasks.md` T9 marks behaviors
+  58–66 done and only the leaf helpers exist; `process.Run` calls `RunFields` directly and its
+  `showTimeSpan` parameter is `_ bool`. Both are pure string functions needing nothing from
+  iteration 9 — they are **under-scoped, not blocked**, and iteration 9 owns them.
+- **Five `markdown_to_typst` divergences**, none declared: an image is dropped upstream and
+  rendered here, raw HTML passes through unescaped upstream, an autolink becomes a link upstream, a
+  link title is not stripped here, and a doubled backtick differs. All reachable from ordinary CV
+  text. **This needs `specs/divergences.md` and the human gate** unless iteration 9 closes them —
+  and unlike the gate I invented for the parser choice, these are user-visible.
+
+**One more, measured and left as is:** an **empty** `bold_keywords` entry produces different
+garbage on each side, because Go skips an empty regexp match adjacent to a non-empty one and Python
+does not. Documented in its own test with the measurement; whether it is worth a divergence entry
+is a human call.
+
+**Process failures, recorded rather than rewritten:** `6f11003` bundles the environment, the loader
+and seven filters where `AGENTS.md` §7's table asks for one commit per filter plus one for the
+environment; `f785d95` bundles the generator, four filters, the embed, a `justfile` recipe and 26
+generated templates across 31 files; and two generated fixtures landed in the same commit as the
+code they gate, against §7's "fixtures land first, red".
+
+Also: spec §4F behavior 56 says `-%}` appears **never**. It appears nine times. The transform is
+correct anyway — pongo2 implements both trims — but the inventory the plan was sized from was
+wrong.
+
+The parity suite stays at its 42 red cases. No golden was regenerated and the submodule was not
+bumped, so no human gate was requested.
+
 ### Iteration 7
 
 **No cut scope.** Every task landed: the ten-field catalog model with both length messages
@@ -443,3 +510,6 @@ substitution to iteration 9, with the renderer.
 | 2026-08-07 | Iteration 8's spec completed: all seven `templater/` modules and the 25 templates measured. Two findings that reach the plan — upstream deregisters five Markdown block processors on the Typst path, so no Go Markdown library works as-is; and the template vocabulary is seven tags, five filters and two Python methods over 32 `splitlines()` sites, so the pongo2 transform has to be mechanical. |
 | 2026-08-07 | Iteration 8 Wave A: nine of ten processors landed, 195 measured subtests. The markdown→Typst parser replaces goldmark on that path — upstream deregisters five block processors, and `hr` and `indent` are **not** among them, so `---` renders as nothing and a four-space line is a code block. 101 differential rows are pinned in testdata. |
 | 2026-08-07 | A human gate I invented was withdrawn. Iteration 8's T1 claimed the parser choice needed a `divergences.md` entry; that file is scoped to deviations from upstream and every entry names what the user notices, which here is nothing. Upstream uses python-markdown, so goldmark was never its choice either — picking between two Go libraries is a `plan.md` decision. The false gate blocked the iteration for two turns. |
+| 2026-08-07 | Iteration 8 green with cut scope: ten processors, the pongo2 engine, the template transform, and a 52-fragment differential against Jinja. Wave C's corpus cases move to iteration 9 with iteration 6's T10. |
+| 2026-08-07 | Verifier returned FAIL on iteration 8 with three blockers, all fixed. The one that matters: I had argued in spec §8 that the transform could only be checked by a corpus `.typ`, which is false for fragments — and that argument is what hid a trailing-newline bug adding a blank line to every entry and section of every artifact. |
+| 2026-08-07 | Open for the human gate: five measured `markdown_to_typst` divergences — a dropped image, raw HTML, an autolink, a link title and a doubled backtick — all reachable from ordinary CV text. Unlike the parser-choice gate I invented and withdrew, these are user-visible. |
