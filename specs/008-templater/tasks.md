@@ -140,8 +140,12 @@ emission there, and iteration 6 cut its own T10 — the effective per-theme opti
 iteration 9 because the renderer is its first consumer. This wave was misordered when it was
 written.
 
-It moves intact. What it takes with it is spec §7's two whitespace criteria, which only rendered
-bytes can check, and the verification of `plan.md` §2's transform — see spec §8.
+It moves intact — but **it does not take spec §7's whitespace criteria with it**, which is what
+this paragraph first claimed. `TestFragmentsMatchJinja` checks the transform here, over 52
+fragments, with no model bridge; spec §8 records how that claim went wrong and what it cost.
+
+What moves with Wave C is only what no fragment exercises: `Preamble.j2.typ` and `Header.j2.typ`,
+which read `cv._connections`, `cv._footer` and effective design values.
 
 ### T25 — close the ledger · `[sequential]`
 `specs/STATE.md`: iteration 8 green on its own gates, with Wave C recorded as moved rather than

@@ -458,13 +458,13 @@ spec section is one lookup.
 
 ## 7. Acceptance criteria
 
-Twenty-one of the twenty-three are met by unit tests in `internal/renderer/templater`, each
-measured against the vendored Python. The two that are not are marked, and §8 says where they went.
+**All twenty-three are met.** Twenty-one by unit tests measured against the vendored Python, and
+the two whitespace ones by the fragment differential — which §8 first claimed was impossible here.
 
 - [x] The loader order of behavior 2 and the double lookup of behavior 6, with a user override of
       one entry type for one theme actually taking effect.
-- [ ] **Moved to iteration 9** — `trim_blocks` and `lstrip_blocks` reproduced, proven by
-      byte-identical `.typ` output rather than by a unit test of the flags.
+- [x] `trim_blocks` and `lstrip_blocks` reproduced, proven by byte-identical output rather than by
+      a unit test of the flags — **met here after all**, by the fragment differential of §8.
 - [x] `clean_url` and `strip`, including behavior 5's two surprises.
 - [x] The assembly separators of behaviors 11–13, which are testable before any template is.
 - [x] `escape_typst_characters`'s three phases in order, including the `$$` collapse and the two
@@ -490,8 +490,7 @@ measured against the vendored Python. The two that are not are marked, and §8 s
       neither icons nor Typst conversion.
 - [x] `indent`'s first-line behavior matching Jinja's, proven by one of the four
       `|replace("    ", "")` sites cancelling exactly.
-- [ ] **Moved to iteration 9** — the five `{%- if` sites, whose left-trim is on top of
-      `lstrip_blocks`. Like the row above, only rendered bytes can show it.
+- [x] The five `{%- if` sites, whose left-trim is on top of `lstrip_blocks` — same gate.
 - [x] §4G behavior 61's phrase expansion leaving sub-placeholders in place — spec 007 §4.2's
       deferred item, closed here.
 - [x] The two removal passes in order, with a fixture where a missing field takes its `**`, its
@@ -501,25 +500,34 @@ measured against the vendored Python. The two that are not are marked, and §8 s
 
 ---
 
-## 8. Where the whitespace criteria went, and why
+## 8. The claim this section used to make, and why it was wrong
 
-**The two open criteria cannot be met inside this iteration**, and finding that out is worth more
-than the criteria were.
+**This section first said the two whitespace criteria could not be met inside this iteration.**
+That was half right, and the wrong half cost a real bug.
 
-`testdata/golden`'s artifact cases are whole `rendercv render` runs: an input YAML in, a
-`rendercv_output/` tree out. Rendering one needs a **validated model turned into a renderer
-model** — sections, entries, the connection list in the input file's key order, and a theme's
-*effective* option values. That bridge is iteration 9's by two separate earlier decisions:
+The right half: `testdata/golden`'s artifact cases are whole `rendercv render` runs, so turning one
+green needs a validated model bridged into a renderer model — sections, entries, the connection
+list in the input file's key order, and a theme's *effective* option values. That bridge is
+iteration 9's by two decisions that predate this file (`STATE.md` assigns the `.typ` emission
+there; iteration 6 cut its T10 there for exactly this reason). `tasks.md`'s Wave C really is
+misordered and really does move.
 
-- `STATE.md` assigns the `.typ` emission to iteration 9;
-- iteration 6 **cut its T10**, the effective per-theme option tree, to iteration 9 for exactly this
-  reason — the renderer is its first consumer.
+**The wrong half: "only a corpus `.typ` can check the transform."** A *fragment* needs no bridge,
+no effective theme tree and no typst — only a dictionary. Upstream's `.j2` through
+`jinja2.Environment(trim_blocks=True, lstrip_blocks=True)` can be diffed against the transformed
+source through pongo2 directly, and `TestFragmentsMatchJinja` does it over 52 cases.
 
-So `tasks.md`'s Wave C was misordered when it was written. It is moved to iteration 9 rather than
-attempted here, and this iteration is complete at the engine and the processors: everything a
-`.typ` is made *of*, with nothing that makes one.
+It found a bug on its first run that the parse test, the twenty-one unit criteria and my own
+reading all missed: **Jinja strips one trailing newline from every template source**
+(`keep_trailing_newline=False`) and pongo2 does not, so every fragment gained a `\n` — a blank line
+per entry and per section on every artifact case. Reverting that one transform rule fails 43 of the
+52.
 
-What that costs is stated plainly: **the transform of `plan.md` §2 is unverified.** Every rule it
-applies is mechanical and none is proven meaning-preserving — `tools/gentemplates`' head says so,
-and two tests check only that the output parses and that no Jinja construct survives. The first
-golden `.typ` is what will actually check it, and it is one iteration away rather than in this one.
+A `rendercv-parity-verifier` pass in a fresh context is what pointed out that the differential was
+possible. The lesson is recorded here rather than only in `STATE.md`: **"only the end-to-end gate
+can check this" is a claim that needs testing, not asserting** — it was the reasoning that made a
+whole-document whitespace bug invisible.
+
+What genuinely moves to iteration 9 is Wave C's corpus cases, and with them the parts of the
+pipeline no fragment exercises: `Preamble.j2.typ` and `Header.j2.typ`, which read `cv._connections`,
+`cv._footer` and effective design values.
