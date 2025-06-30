@@ -1,6 +1,7 @@
 package process_test
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -202,6 +203,92 @@ func TestComputeTimeSpan(t *testing.T) {
 			}
 			if got != tc.want {
 				t.Errorf("= %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// `process_date`, the router. Every row measured.
+//
+// It is the last of spec 008's units and was found missing by a fresh verifier
+// — `tasks.md` T9 marked it done and no Go equivalent existed. It needs nothing
+// from the renderer, which is why "blocked on iteration 9" was the wrong
+// description of it.
+func TestEntryDate(t *testing.T) {
+	current := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name                                         string
+		date, start, end                             string
+		dateYearly, startYearly, endYearly, timeSpan bool
+		want                                         string
+	}{
+		{name: "a single date", date: "2024-03", want: "Mar 2024"},
+		{name: "a bare year", date: "2024", dateYearly: true, want: "2024"},
+		{
+			// The single-date branch keeps its custom-string fallback.
+			name: "a custom date string", date: "Spring 2024", want: "Spring 2024",
+		},
+		{
+			name: "a range", start: "2020-06", end: "2023-09",
+			want: "June 2020 – Sept 2023",
+		},
+		{
+			// **A blank line**, which the entry templates split on — so the
+			// separator is structural, not cosmetic.
+			name: "a range with its time span", start: "2020-06", end: "2023-09",
+			timeSpan: true, want: "June 2020 – Sept 2023\n\n3 years 4 months",
+		},
+		{
+			name: "to present", start: "2020-06", end: "present", timeSpan: true,
+			want: "June 2020 – present\n\n4 years 8 months",
+		},
+		{
+			name: "bare years", start: "2020", end: "2023",
+			startYearly: true, endYearly: true, timeSpan: true,
+			want: "2020 – 2023\n\n3 years",
+		},
+		{
+			// **The `date` is ignored** when a range is present: the first test
+			// is `date and not (start_date or end_date)`, so both together take
+			// the range branch.
+			name: "a date and a range together", date: "2024-03",
+			start: "2020-06", end: "2023-09",
+			want: "June 2020 – Sept 2023",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := process.EntryDate(tc.date, tc.start, tc.end,
+				tc.dateYearly, tc.startYearly, tc.endYearly,
+				english, current, tc.timeSpan, templates)
+			if err != nil {
+				t.Fatalf("EntryDate: %v", err)
+			}
+			if got != tc.want {
+				t.Errorf("= %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// The third branch raises rather than returning an empty string. Unreachable
+// from a validated document, and a failure rather than a silent blank because
+// upstream makes it one.
+func TestEntryDateWithoutADate(t *testing.T) {
+	current := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	for _, tc := range []struct{ name, start, end string }{
+		{"a start with no end", "2020-06", ""},
+		{"an end with no start", "", "2023-09"},
+		{"nothing at all", "", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := process.EntryDate("", tc.start, tc.end, false, false, false,
+				english, current, false, templates)
+			if !errors.Is(err, process.ErrNoDate) {
+				t.Errorf("err = %v, want ErrNoDate", err)
 			}
 		})
 	}

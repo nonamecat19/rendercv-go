@@ -235,3 +235,61 @@ func plural(count int, singular, pluralWord string) (string, string) {
 	}
 	return strconv.Itoa(count), pluralWord
 }
+
+// EntryDate is `process_date` (entry_templates_from_input.py:266-353), the
+// router an entry's `DATE` placeholder goes through.
+//
+// **Three branches and one of them raises**, which is the shape a reimplementation
+// tends to flatten:
+//
+//   - a `date` with **no** range formats as a single date, so its custom-string
+//     fallback applies and `Spring 2024` survives;
+//   - a `start_date` **and** an `end_date` format as a range, which has no such
+//     fallback;
+//   - anything else — a start without an end, an end without a start, or nothing
+//     at all — is upstream's `RenderCVInternalError`.
+//
+// The `date`-only test is `date and not (start_date or end_date)`, so an entry
+// carrying **both** a date and a range takes the *range* branch and its `date`
+// is ignored.
+//
+// When `showTimeSpan` is on the two are joined by a **blank line** —
+// `f"{date_range}\n\n{time_span}"` — which the entry templates then split on, so
+// the separator is structural rather than cosmetic.
+func EntryDate(
+	date, start, end string,
+	dateIsYearOnly, startIsYearOnly, endIsYearOnly bool,
+	catalog Catalog,
+	current time.Time,
+	showTimeSpan bool,
+	templates DateTemplates,
+) (string, error) {
+	if date != "" && start == "" && end == "" {
+		return FormatSingleDate(date, dateIsYearOnly, catalog, templates.SingleDate), nil
+	}
+
+	if start != "" && end != "" {
+		dateRange, err := FormatDateRange(start, end, startIsYearOnly, endIsYearOnly, catalog, templates)
+		if err != nil {
+			return "", err
+		}
+		if !showTimeSpan {
+			return dateRange, nil
+		}
+
+		timeSpan, err := ComputeTimeSpan(start, end, startIsYearOnly, endIsYearOnly,
+			catalog, current, templates.TimeSpan)
+		if err != nil {
+			return "", err
+		}
+		return dateRange + "\n\n" + timeSpan, nil
+	}
+
+	return "", ErrNoDate
+}
+
+// ErrNoDate is upstream's `RenderCVInternalError("Date is not provided for this
+// entry.")`. It is unreachable from a validated document — the entry models
+// require one of the two shapes — and exists so the third branch is a failure
+// rather than an empty string.
+var ErrNoDate = errors.New("date is not provided for this entry")
