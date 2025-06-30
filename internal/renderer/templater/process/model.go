@@ -69,9 +69,20 @@ type Model struct {
 	// snake-cased by spec 006 §3.2 behavior 15's coercion.
 	ShowTimeSpansIn []string
 
+	// EntryTemplates is `design.templates`' per-entry-type blocks, keyed by the
+	// snake-case entry type — `education_entry`, `normal_entry`. A type with no
+	// block has its entries passed through, which is `TextEntry`'s case.
+	EntryTemplates map[string]map[string]string
+	// Phrases is `locale.phrases`.
+	Phrases map[string]string
+
 	BoldKeywords []string
 	PDFTitle     string
 	CurrentDate  time.Time
+
+	// YearOnly names the date fields the document gave as a bare year; see
+	// EntryTemplateInput.
+	YearOnly map[string]bool
 
 	// RawConnections is the connection list before formatting, built from
 	// `cv._key_order` by the caller — the order is the input file's
@@ -119,7 +130,23 @@ func Run(model Model, format Format) Model {
 			// **Entry templates expand first, then the field processors run over
 			// the result** (`:141-146`). Reversing them would escape the
 			// template's own markup.
-			section.Entries[j] = RunFields(section.Entries[j], processors, showTimeSpan)
+			expanded, err := RenderEntryTemplates(section.Entries[j], EntryTemplateInput{
+				Templates:     out.EntryTemplates[snakeCaseEntryType(section.EntryType)],
+				Phrases:       out.Phrases,
+				DateTemplates: out.Templates,
+				Catalog:       out.Catalog,
+				CurrentDate:   out.CurrentDate,
+				ShowTimeSpan:  showTimeSpan,
+				YearOnly:      out.YearOnly,
+			})
+			if err != nil {
+				// Unreachable from a validated document: the entry models
+				// require one of EntryDate's two date shapes. Returning the
+				// unexpanded entry keeps Run total, and the renderer's own
+				// error path is iteration 9's.
+				expanded = section.Entries[j]
+			}
+			section.Entries[j] = RunFields(expanded, processors, showTimeSpan)
 		}
 	}
 	return out
@@ -243,6 +270,23 @@ func cloneValue(value any) any {
 		return append([]string(nil), list...)
 	}
 	return value
+}
+
+// snakeCaseEntryType maps `EducationEntry` to `education_entry`, which is the
+// key `design.templates` uses (`entry.entry_type_in_snake_case`).
+func snakeCaseEntryType(name string) string {
+	var out strings.Builder
+	for i, r := range name {
+		if r >= 'A' && r <= 'Z' {
+			if i > 0 {
+				out.WriteByte('_')
+			}
+			out.WriteRune(r + ('a' - 'A'))
+			continue
+		}
+		out.WriteRune(r)
+	}
+	return out.String()
 }
 
 func containsString(values []string, value string) bool {
