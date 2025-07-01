@@ -23,7 +23,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 6 | Design & themes (9) + the settings schema | [006](006-design-and-themes/spec.md) | green (with cut scope, see below) | n/a (gated on the 164 `$defs` differential and the override diff, spec §5) |
 | 7 | Locale (English + 21 catalogs) | [007](007-locale/spec.md) | green | n/a (gated on the 45 `$defs` differential and the submodule catalog diff, spec §5) |
 | 8 | Templater (pongo2 env, filters, markdown→typst, processors) | [008](008-templater/spec.md) | green (with cut scope, see below) | n/a (gated on the 52-fragment Jinja differential and 240 unit cases, spec §7) |
-| 9 | Typst renderer (`.typ` emission) + iteration 6's T10 + iteration 8's Wave C | [009](009-typst-renderer/spec.md) | wip — spec written; iteration 8's debt closed; model bridge and goldens left | 0 / 18 |
+| 9 | Typst renderer (`.typ` emission) + iteration 6's T10 + iteration 8's Wave C | [009](009-typst-renderer/spec.md) | wip — spec written; both inherited debts closed; model bridge and goldens left | 0 / 18 |
 | 10 | wazero + WASI typst → PDF, then PNG | — | — | 0 |
 | 11 | Markdown + HTML renderers | — | — | 0 / 4 |
 | 12 | CLI (`new`, `render`, `create-theme`, overrides, watcher) | — | — | 0 |
@@ -332,12 +332,14 @@ code and message upstream gives, including the pair that distinguishes `bool_par
 
 **Cut scope, with owners:**
 
-1. **T10, the effective per-theme option tree, is cut to iteration 9.** Nothing validates a
-   default, so the walk is the same for all nine themes — `TestDesignBlock` shows the same failure
-   under `classic` and `sb2nov`. The cost is stated rather than hidden: `RenderCVModel.Design` is
-   still a raw node, so `WidenFontFamily` and `SnakeCaseSectionTitles` have no non-test callers,
-   and spec §5 criterion 4's "must produce the same **model**" is not testable as shipped. The
-   renderer is the first consumer that needs effective values.
+1. **T10, the effective per-theme option tree, was cut to iteration 9** and is **now closed**
+   there (`design.Effective`). Nothing validates a default, so the validation walk is the same for
+   all nine themes — `TestDesignBlock` shows the same failure under `classic` and `sb2nov`. The
+   cost was stated rather than hidden at the time: `WidenFontFamily` and `SnakeCaseSectionTitles`
+   had no non-test callers, and spec §5 criterion 4's "must produce the same **model**" was not
+   testable. Both are now called by `Effective`, which runs the two coercions where upstream's
+   field validators do, and the criterion is met by a seven-document differential against
+   upstream's own resolved model.
 2. **Wave E — the D-002 Lua custom-theme path and spec §3 behavior 7's two folder messages — is
    iteration 14's**, a new row in the table above. `plan.md` §7 gives the reason: a sandbox bundled
    with 161 `$defs` makes both unreviewable. `design.go` carries the `TODO(iteration-14)` that
@@ -516,3 +518,4 @@ substitution to iteration 9, with the renderer.
 | 2026-08-07 | Verifier returned FAIL on iteration 8 with three blockers, all fixed. The one that matters: I had argued in spec §8 that the transform could only be checked by a corpus `.typ`, which is false for fragments — and that argument is what hid a trailing-newline bug adding a blank line to every entry and section of every artifact. |
 | 2026-08-07 | Open for the human gate: five measured `markdown_to_typst` divergences — a dropped image, raw HTML, an autolink, a link title and a doubled backtick — all reachable from ordinary CV text. Unlike the parser-choice gate I invented and withdrew, these are user-visible. |
 | 2026-08-07 | Iteration 9 opened by closing iteration 8's debt: `process_date` and `render_entry_templates`, both measured against upstream on a validated `EducationEntry`. The orchestrator is what made the other nine processors reachable — before it, nothing expanded a theme template. |
+| 2026-08-07 | Iteration 6's T10 closed in iteration 9: `design.Effective` merges the base tree, the theme's overrides and the document's own block, deep at every layer, and runs the two coercions where upstream's validators do. Seven-document differential against upstream's resolved model. |
