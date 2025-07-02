@@ -1,0 +1,266 @@
+{
+  "_generated": "GENERATED FILE — never hand-edit (AGENTS.md §10.1). Produced by tools/dumpprobe from third_party/rendercv; regenerate with `just dumpprobe`.",
+  "dumps": [
+    {
+      "type": "OneLineEntry",
+      "case": "minimal",
+      "input": {
+        "label": "Programming",
+        "details": "Python, Go"
+      },
+      "dump": {
+        "label": "Programming",
+        "details": "Python, Go"
+      }
+    },
+    {
+      "type": "NormalEntry",
+      "case": "minimal",
+      "input": {
+        "name": "A Normal Entry"
+      },
+      "dump": {
+        "name": "A Normal Entry"
+      }
+    },
+    {
+      "type": "NormalEntry",
+      "case": "with_date",
+      "input": {
+        "name": "A Normal Entry",
+        "date": "Fall 2023",
+        "summary": "S."
+      },
+      "dump": {
+        "name": "A Normal Entry",
+        "date": "Fall 2023",
+        "summary": "S."
+      }
+    },
+    {
+      "type": "NormalEntry",
+      "case": "year_date",
+      "input": {
+        "name": "A Normal Entry",
+        "date": 2023
+      },
+      "dump": {
+        "name": "A Normal Entry",
+        "date": 2023
+      }
+    },
+    {
+      "type": "NormalEntry",
+      "case": "year_date_quoted",
+      "input": {
+        "name": "A Normal Entry",
+        "date": "2023"
+      },
+      "dump": {
+        "name": "A Normal Entry",
+        "date": "2023"
+      }
+    },
+    {
+      "type": "ExperienceEntry",
+      "case": "full",
+      "input": {
+        "company": "Some Company",
+        "position": "Software Engineer",
+        "start_date": "2020-07",
+        "end_date": "present",
+        "location": "Remote",
+        "highlights": [
+          "Did a thing."
+        ]
+      },
+      "dump": {
+        "company": "Some Company",
+        "position": "Software Engineer",
+        "start_date": "2020-07",
+        "end_date": "present",
+        "location": "Remote",
+        "highlights": [
+          "Did a thing."
+        ]
+      }
+    },
+    {
+      "type": "EducationEntry",
+      "case": "minimal",
+      "input": {
+        "institution": "Boğaziçi University",
+        "area": "Mathematics"
+      },
+      "dump": {
+        "institution": "Boğaziçi University",
+        "area": "Mathematics"
+      }
+    },
+    {
+      "type": "EducationEntry",
+      "case": "full",
+      "input": {
+        "institution": "Boğaziçi University",
+        "area": "Mathematics",
+        "degree": "BS",
+        "start_date": "2000-09",
+        "end_date": "2005-05",
+        "location": "Istanbul, Türkiye",
+        "summary": "A summary.",
+        "highlights": [
+          "GPA: 3.9/4.0",
+          "Coursework: **Algebra**"
+        ]
+      },
+      "dump": {
+        "institution": "Boğaziçi University",
+        "area": "Mathematics",
+        "degree": "BS",
+        "start_date": "2000-09",
+        "end_date": "2005-05",
+        "location": "Istanbul, Türkiye",
+        "summary": "A summary.",
+        "highlights": [
+          "GPA: 3.9/4.0",
+          "Coursework: **Algebra**"
+        ]
+      }
+    },
+    {
+      "type": "EducationEntry",
+      "case": "integer_year",
+      "input": {
+        "institution": "X",
+        "area": "Y",
+        "start_date": 2000,
+        "end_date": 2005
+      },
+      "dump": {
+        "institution": "X",
+        "area": "Y",
+        "start_date": 2000,
+        "end_date": 2005
+      }
+    },
+    {
+      "type": "EducationEntry",
+      "case": "empty_string",
+      "input": {
+        "institution": "X",
+        "area": "Y",
+        "degree": ""
+      },
+      "dump": {
+        "institution": "X",
+        "area": "Y",
+        "degree": ""
+      }
+    },
+    {
+      "type": "EducationEntry",
+      "case": "extra_key",
+      "input": {
+        "institution": "X",
+        "area": "Y",
+        "supervisor": "Dr. Who"
+      },
+      "dump": {
+        "institution": "X",
+        "area": "Y",
+        "supervisor": "Dr. Who"
+      }
+    },
+    {
+      "type": "PublicationEntry",
+      "case": "full",
+      "input": {
+        "title": "A Publication",
+        "authors": [
+          "J. Doe",
+          "R. Roe"
+        ],
+        "doi": "10.1109/TASC.2023.3340648",
+        "url": "https://example.com",
+        "journal": "A Journal",
+        "date": "2023-12"
+      },
+      "dump": {
+        "title": "A Publication",
+        "authors": [
+          "J. Doe",
+          "R. Roe"
+        ],
+        "doi": "10.1109/TASC.2023.3340648",
+        "journal": "A Journal",
+        "date": "2023-12"
+      }
+    },
+    {
+      "type": "PublicationEntry",
+      "case": "url_only",
+      "input": {
+        "title": "T",
+        "authors": [
+          "A"
+        ],
+        "url": "https://example.com/path?a=1"
+      },
+      "dump": {
+        "title": "T",
+        "authors": [
+          "A"
+        ],
+        "url": "https://example.com/path?a=1"
+      }
+    },
+    {
+      "type": "PublicationEntry",
+      "case": "url_bare_host",
+      "input": {
+        "title": "T",
+        "authors": [
+          "A"
+        ],
+        "url": "https://example.com"
+      },
+      "dump": {
+        "title": "T",
+        "authors": [
+          "A"
+        ],
+        "url": "https://example.com/"
+      }
+    },
+    {
+      "type": "BulletEntry",
+      "case": "minimal",
+      "input": {
+        "bullet": "A bullet."
+      },
+      "dump": {
+        "bullet": "A bullet."
+      }
+    },
+    {
+      "type": "NumberedEntry",
+      "case": "minimal",
+      "input": {
+        "number": "A numbered item."
+      },
+      "dump": {
+        "number": "A numbered item."
+      }
+    },
+    {
+      "type": "ReversedNumberedEntry",
+      "case": "minimal",
+      "input": {
+        "reversed_number": "A reversed numbered item."
+      },
+      "dump": {
+        "reversed_number": "A reversed numbered item."
+      }
+    }
+  ]
+}
