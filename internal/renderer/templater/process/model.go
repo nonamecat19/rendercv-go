@@ -33,6 +33,15 @@ type Entry struct {
 	IsText bool
 
 	Fields map[string]any
+
+	// YearOnly names this entry's date fields the document wrote as a bare
+	// integer, which `FormatDateRange` branches on (spec 008 §4C).
+	//
+	// **It belongs to the entry, not to the model.** One CV can hold
+	// `start_date: 2000` in one entry and `start_date: "2000-01"` in the next,
+	// and a model-wide set makes the second entry inherit the first's flag —
+	// a wrong date format on an entry whose own YAML says nothing of the kind.
+	YearOnly map[string]bool
 }
 
 // Section is one `cv.rendercv_sections` element, reduced to what
@@ -79,10 +88,6 @@ type Model struct {
 	BoldKeywords []string
 	PDFTitle     string
 	CurrentDate  time.Time
-
-	// YearOnly names the date fields the document gave as a bare year; see
-	// EntryTemplateInput.
-	YearOnly map[string]bool
 
 	// RawConnections is the connection list before formatting, built from
 	// `cv._key_order` by the caller — the order is the input file's
@@ -137,7 +142,7 @@ func Run(model Model, format Format) Model {
 				Catalog:       out.Catalog,
 				CurrentDate:   out.CurrentDate,
 				ShowTimeSpan:  showTimeSpan,
-				YearOnly:      out.YearOnly,
+				YearOnly:      section.Entries[j].YearOnly,
 			})
 			if err != nil {
 				// Unreachable from a validated document: the entry models
