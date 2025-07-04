@@ -298,3 +298,22 @@ func write(t *testing.T, path, content string) {
 		t.Fatalf("writing %s: %v", path, err)
 	}
 }
+
+// An empty quoted scalar is the empty string, not its own quote characters.
+//
+// goccy leaves a token's `Value` empty for two different reasons — the value is
+// empty, or the token carries no value at all — and the fallback to `Origin`
+// conflated them. `degree: ""` read back as the two-character string `""`,
+// which compares unequal to `""` everywhere downstream: it is a non-empty value
+// to `render_entry_templates`' empty-value filter, so the surrounding formatting
+// it would have cleaned up survives, and the quotes themselves reach the
+// artifact. Found while building the entry dump of spec 009 T1.
+func TestEmptyQuotedScalarIsEmpty(t *testing.T) {
+	doc, err := yamlreader.ReadString("double: \"\"\nsingle: ''\nplain: x\n")
+	if err != nil {
+		t.Fatalf("ReadString = %v", err)
+	}
+	assertScalar(t, doc, "double", "")
+	assertScalar(t, doc, "single", "")
+	assertScalar(t, doc, "plain", "x")
+}

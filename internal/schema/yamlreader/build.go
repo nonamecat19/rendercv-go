@@ -250,7 +250,19 @@ func buildLiteral(n *ast.LiteralNode) *yamldoc.Node {
 // keeps in Origin: a token origin carries the indentation and line break around
 // the value, which is not part of the scalar and must not reach classification
 // (resolve.go) or the models.
+//
+// **A quoted token's Value is authoritative even when it is empty.** Falling
+// back to Origin for `degree: ""` returns the two quote characters themselves,
+// so the empty string becomes a two-character string that no longer compares
+// equal to `""` — it reaches the artifact as a literal `""` and reaches
+// `render_entry_templates`' empty-value filter as a non-empty value. The
+// fallback exists for tokens goccy leaves without a Value at all, which is not
+// the quoted ones.
 func scalarRaw(tok *token.Token) string {
+	switch tok.Type {
+	case token.SingleQuoteType, token.DoubleQuoteType, token.LiteralType, token.FoldedType:
+		return tok.Value
+	}
 	if tok.Value != "" {
 		return tok.Value
 	}
