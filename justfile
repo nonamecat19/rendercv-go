@@ -117,6 +117,11 @@ entryprobe:
 dumpprobe:
     go run ./tools/dumpprobe
 
+# Regenerate the phone-formatting fixture from the vendored Python's own
+# libphonenumber: what `PhoneNumber` stores and how each format prints it.
+phoneprobe:
+    go run ./tools/phoneprobe
+
 # Render the same input with both and diff every artifact.
 diff-render input:
     go run ./tools/gengolden -diff {{input}}
