@@ -122,7 +122,7 @@ func renderCase(root, input string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer os.RemoveAll(scratch)
+	defer func() { _ = os.RemoveAll(scratch) }()
 
 	raw, err := os.ReadFile(input)
 	if err != nil {

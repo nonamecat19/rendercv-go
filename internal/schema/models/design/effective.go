@@ -47,7 +47,41 @@ func Effective(theme string, document map[string]any) map[string]any {
 		sections["show_time_spans_in"] = SnakeCaseSectionTitles(
 			EffectiveStrings(values, "sections", "show_time_spans_in"))
 	}
+
+	normalizeColors(tree, tree.Root, values)
 	return values
+}
+
+// normalizeColors puts every colour-typed value through `Color.String()`, which
+// is `as_rgb()` — the one string the Typst templates ever see, because upstream's
+// colour type has no other `__str__`.
+//
+// **The declared defaults are already normalized and the overrides are not.**
+// `other_themes/sb2nov.yaml` writes `rgb(0,0,0)` and upstream renders
+// `rgb(0, 0, 0)`; the theme's YAML text reaches the template unchanged without
+// this, and three corpus themes differ by exactly those two spaces. A document
+// writing `name: Black` is the same case one layer further down.
+//
+// It walks the base tree rather than guessing from the value, because `Black`
+// and `justified` are both strings and only one of them is a colour.
+func normalizeColors(tree Tree, model string, values map[string]any) {
+	for _, declared := range tree.Models[model].Fields {
+		switch declared.Kind {
+		case KindNested:
+			if nested, ok := values[declared.Name].(map[string]any); ok {
+				normalizeColors(tree, declared.Nested, nested)
+			}
+		case KindColor:
+			text, isText := values[declared.Name].(string)
+			if !isText {
+				continue
+			}
+			if color, err := ParseColor(text); err == nil {
+				values[declared.Name] = color.String()
+			}
+		default:
+		}
+	}
 }
 
 // defaultsOf reads one model's declared defaults, recursing into nested models.
