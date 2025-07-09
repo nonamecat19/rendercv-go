@@ -23,7 +23,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 6 | Design & themes (9) + the settings schema | [006](006-design-and-themes/spec.md) | green (with cut scope, see below) | n/a (gated on the 164 `$defs` differential and the override diff, spec §5) |
 | 7 | Locale (English + 21 catalogs) | [007](007-locale/spec.md) | green | n/a (gated on the 45 `$defs` differential and the submodule catalog diff, spec §5) |
 | 8 | Templater (pongo2 env, filters, markdown→typst, processors) | [008](008-templater/spec.md) | green (with cut scope, see below) | n/a (gated on the 52-fragment Jinja differential and 240 unit cases, spec §7) |
-| 9 | Typst renderer (`.typ` emission) + iteration 6's T10 + iteration 8's Wave C | [009](009-typst-renderer/spec.md) | wip — spec written; both inherited debts closed; model bridge and goldens left | 0 / 18 |
+| 9 | Typst renderer (`.typ` emission) + iteration 6's T10 + iteration 8's Wave C | [009](009-typst-renderer/spec.md) | **code complete, NOT verified** — all eight units closed, 21/21 corpus `.typ` byte-identical; the fresh-context verifier run did not finish | 21 / 21 |
 | 10 | wazero + WASI typst → PDF, then PNG | — | — | 0 |
 | 11 | Markdown + HTML renderers | — | — | 0 / 4 |
 | 12 | CLI (`new`, `render`, `create-theme`, overrides, watcher) | — | — | 0 |
@@ -34,7 +34,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 
 | Axis | Gate command | Status |
 |---|---|---|
-| 1 — artifacts byte-identical | `just test-parity` | measurable, 0/15 cases passing |
+| 1 — artifacts byte-identical | `just test-parity` | **first passing cases.** 21/21 corpus `.typ` byte-identical against the vendored Python (`TestCorpusTypstIsByteIdentical`). The 15 CLI-driven artifact cases stay red until iteration 12: they shell `rendercv-go render`, which does not exist. PDF/PNG land with iteration 10. |
 | 2 — CLI surface | `just test-parity` | measurable, 0/20 cases passing |
 | 3 — JSON Schema | `just schema-diff` | **green.** All 227 `$defs` byte-identical; the command exits 0. The oracle is `tools/genschema`, not the parity suite — `TestSchemaParity` shells `rendercv-go schema` and stays red until iteration 12. |
 | 4 — validation errors | `just test-parity` | measurable, 0/7 corpus cases passing; the 25-record differential is green |
@@ -492,6 +492,35 @@ regenerated and the submodule was not bumped, so no human gate was requested.
 carry — spec §4.1 assigns `2020-09` → `Sept 2020` and §4.2 assigns `degree_with_area`'s
 substitution to iteration 9, with the renderer.
 
+## Iteration 9 — verification status
+
+**Not verified.** The `rendercv-parity-verifier` run for this iteration was cut off by a session
+limit before it reported, so nothing here has been checked by a context other than the one that
+wrote it. `AGENTS.md` §5's diamond is not satisfied and the row above says so.
+
+What *was* measured, mechanically, and is reproducible:
+
+| Check | Command | Result |
+|---|---|---|
+| corpus `.typ` | `go test -tags conformance ./internal/renderer/typstdoc/` | 21/21 byte-identical |
+| the fixture is not vacuous | join entries with one `\n` in `Assemble`, rerun | 19 of 21 fail, then revert |
+| Axis 3 unbroken by the colour change | `just schema-diff` | exits 0 |
+| unit suite | `go test ./...` | green |
+| lint | `just check` | 0 issues |
+| parity suite | `just test-parity` | the same 42 red-by-design cases plus `TestSchemaParity`, all CLI-gated |
+
+**What a verifier still has to do**, carried as the first item of the next session:
+
+1. Confirm the `tools/typprobe` skip list is honest — that no case was excluded because it *failed*
+   rather than because it has no `cv.yaml`.
+2. Look for unreached code, which is this port's recurring defect. Specifically
+   `bridge.Connections`' phone/website/social/custom branches, `entries.Dump`'s HttpUrl
+   normalization and DOI-drop, and `locale.Resolve`'s override paths.
+3. Check `splitLines` against a column ending in `\n` or containing `\r\n`, and `entryTemplates`
+   against a theme that sets a template column to null.
+4. Confirm spec §4 behavior 15's deliberate omission: the corpus has no photo case, and a document
+   *with* a photo must not silently render something wrong instead of reporting.
+
 ## Log
 
 | Date | Event |
@@ -518,4 +547,5 @@ substitution to iteration 9, with the renderer.
 | 2026-08-07 | Verifier returned FAIL on iteration 8 with three blockers, all fixed. The one that matters: I had argued in spec §8 that the transform could only be checked by a corpus `.typ`, which is false for fragments — and that argument is what hid a trailing-newline bug adding a blank line to every entry and section of every artifact. |
 | 2026-08-07 | Open for the human gate: five measured `markdown_to_typst` divergences — a dropped image, raw HTML, an autolink, a link title and a doubled backtick — all reachable from ordinary CV text. Unlike the parser-choice gate I invented and withdrew, these are user-visible. |
 | 2026-08-07 | Iteration 9 opened by closing iteration 8's debt: `process_date` and `render_entry_templates`, both measured against upstream on a validated `EducationEntry`. The orchestrator is what made the other nine processors reachable — before it, nothing expanded a theme template. |
+| 2026-08-07 | **Axis 1's first passing cases.** The bridge (`internal/renderer/bridge`) and the orchestration (`internal/renderer/typstdoc`) landed, and all 21 corpus inputs that carry a `cv.yaml` render a `.typ` byte-identical to the vendored Python's, pinned to `settings.current_date: 2025-03-05` by `tools/typprobe`. All nine entry types are covered; the fixture is mutation-checked (19 of 21 fail on a one-newline change to `Assemble`). |
 | 2026-08-07 | Iteration 6's T10 closed in iteration 9: `design.Effective` merges the base tree, the theme's overrides and the document's own block, deep at every layer, and runs the two coercions where upstream's validators do. Seven-document differential against upstream's resolved model. |
