@@ -158,8 +158,20 @@ func designBlock(model *models.RenderCVModel) map[string]any {
 }
 
 // mappingOf projects a document mapping onto the plain values `deepMerge` walks:
-// nested mappings recurse, sequences become `[]string`, and a null-valued key is
-// dropped so it cannot blank out the value it would have overridden.
+// nested mappings recurse, sequences become `[]string`, and a null-valued key
+// **survives as nil**.
+//
+// **Dropping the nulls was wrong**, and one field proves it: `degree_column` is
+// the port's only `str | None` with a non-null default, so
+// `design.templates.education_entry.degree_column: null` is the documented way
+// to turn the degree column off. A dropped null cannot override anything, so
+// upstream omitted the column and the port emitted it with the declared
+// `**DEGREE**` — from a twelve-line document. The theme overrides already
+// express the same thing as a nil (`overrides_generated.go:79`), so this makes
+// the two layers agree rather than inventing a shape.
+//
+// `design.Effective` restores the default for a null on a field that is *not*
+// nullable, which is the case upstream rejects at validation.
 func mappingOf(node *yamldoc.Node) map[string]any {
 	if node == nil || node.Kind != yamldoc.KindMapping {
 		return nil
@@ -168,6 +180,7 @@ func mappingOf(node *yamldoc.Node) map[string]any {
 	out := make(map[string]any, len(node.Items))
 	for _, item := range node.Items {
 		if item.Value == nil || item.Value.Kind == yamldoc.KindNull {
+			out[item.Key] = nil
 			continue
 		}
 		switch item.Value.Kind {

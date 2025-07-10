@@ -48,8 +48,43 @@ func Effective(theme string, document map[string]any) map[string]any {
 			EffectiveStrings(values, "sections", "show_time_spans_in"))
 	}
 
+	resolveNulls(tree, tree.Root, values)
 	normalizeColors(tree, tree.Root, values)
 	return values
+}
+
+// resolveNulls decides what a `null` in the merged tree means, which depends
+// entirely on the field's declared type.
+//
+// **One field in the whole design tree is nullable with a non-null default** —
+// `templates.education_entry.degree_column`, `str | None = "**DEGREE**"` — and
+// for it a null is the documented way to turn the degree column off. Every other
+// field would have been rejected by pydantic, so a null there is not a value:
+// the declared default is restored rather than a zero being handed to the
+// renderer, which would otherwise turn a document upstream *errors* on into one
+// the port renders silently wrong.
+func resolveNulls(tree Tree, model string, values map[string]any) {
+	for _, declared := range tree.Models[model].Fields {
+		if declared.Kind == KindNested {
+			if nested, ok := values[declared.Name].(map[string]any); ok {
+				resolveNulls(tree, declared.Nested, nested)
+			}
+			continue
+		}
+
+		value, present := values[declared.Name]
+		if !present || value != nil {
+			continue
+		}
+		if declared.Kind == KindOptionalString {
+			continue
+		}
+		if declared.Default != nil {
+			values[declared.Name] = declared.Default
+			continue
+		}
+		delete(values, declared.Name)
+	}
 }
 
 // normalizeColors puts every colour-typed value through `Color.String()`, which
