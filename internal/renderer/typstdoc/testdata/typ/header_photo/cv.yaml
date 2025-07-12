@@ -1,0 +1,8 @@
+cv:
+  name: John Doe
+  photo: images/me.png
+  email: john@example.com
+  sections:
+    education:
+      - institution: MIT
+        area: CS
