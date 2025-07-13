@@ -1,6 +1,7 @@
 package typstdoc_test
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -97,5 +98,37 @@ func TestTheLocaleReachesThePreamble(t *testing.T) {
 	}
 	if !strings.Contains(out, "text-direction: rtl") {
 		t.Errorf("the preamble does not carry the right-to-left direction")
+	}
+}
+
+// A URL photo is **reported**, not rendered.
+//
+// Downloading it is spec §4 behavior 15, which this iteration does not port. The
+// code used to hardcode the photo as falsy, so a document with one rendered a
+// header missing its whole `#grid` — 157 bytes of upstream output gone, exit 0,
+// no warning. A missing feature that says so is not a divergence; a silent
+// corruption is.
+func TestAURLPhotoIsReported(t *testing.T) {
+	node, err := yamlreader.ReadString(`
+cv:
+  name: John Doe
+  photo: https://example.com/me.png
+  sections:
+    notes:
+      - A note.
+`)
+	if err != nil {
+		t.Fatalf("reading the document: %v", err)
+	}
+
+	model, errs := models.Validate(node,
+		&valctx.ValidationContext{CurrentDate: now}, schemaerr.SourceMain)
+	if len(errs) > 0 {
+		t.Fatalf("the document did not validate: %v", errs)
+	}
+
+	out, err := typstdoc.Render(bridge.Resolve(model, now), typstdoc.Options{})
+	if !errors.Is(err, typstdoc.ErrPhotoDownloadUnsupported) {
+		t.Fatalf("Render = %q, %v; want ErrPhotoDownloadUnsupported", out, err)
 	}
 }
