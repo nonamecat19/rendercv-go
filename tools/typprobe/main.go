@@ -54,6 +54,8 @@ const (
 //   - `design_null_column`: `degree_column: null` is the one nullable design
 //     field with a non-null default, and the port emitted the default instead of
 //     omitting the column.
+//   - `locale_overrides`: seven of `locale.Resolve`'s nine override branches
+//     were reached by no test at all. They were correct; nothing pinned them.
 //   - `header_photo`: every corpus `cv.yaml` writes `photo:` with a **null**
 //     value, so nothing exercised the header's `#grid`. The port emitted a bare
 //     name where upstream emits the whole two-column grid.
@@ -66,6 +68,42 @@ var extraCases = map[string]string{
     education:
       - institution: MIT
         area: CS
+`,
+
+	"locale_overrides": `cv:
+  name: John Doe
+  sections:
+    education:
+      - institution: MIT
+        area: CS
+        start_date: 2000-09
+        end_date: present
+      - institution: Singular
+        area: One of each
+        start_date: 2020-01
+        end_date: 2021-02
+      - institution: One month
+        area: The singular month
+        start_date: 2020-01
+        end_date: 2020-01
+locale:
+  language: french
+  last_updated: "Mis à jour le"
+  month: MONTH1
+  months: MONTHN
+  year: YEAR1
+  years: YEARN
+  present: aujourd'hui
+  month_abbreviations: [A01, A02, A03, A04, A05, A06, A07, A08, A09, A10, A11, A12]
+  month_names: [N01, N02, N03, N04, N05, N06, N07, N08, N09, N10, N11, N12]
+  phrases:
+    degree_with_area: DEGREE en AREA
+design:
+  theme: classic
+  templates:
+    single_date: MONTH_NAME (MONTH_ABBREVIATION) YEAR
+  sections:
+    show_time_spans_in: [Education]
 `,
 
 	"design_null_column": `cv:
