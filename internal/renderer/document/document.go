@@ -1,10 +1,14 @@
-// Package typstdoc is `render_full_template` for the Typst format
-// (templater.py:50-127): the orchestration that turns a validated model into a
-// `.typ` string.
+// Package document is `render_full_template` (templater.py:50-127): the
+// orchestration that turns a validated model into a rendered document.
 //
-// **It ends at a string.** Compiling that string is iteration 10's, and the
-// Markdown document — which shares every piece here — is iteration 11's.
-package typstdoc
+// **One function, two formats**, which is upstream's shape — `file_type` is a
+// parameter there, not a second function. The Typst and Markdown documents share
+// the model, the processors and the assembly and differ in three places: the
+// template directory, the string-processor chain, and whether a preamble is
+// rendered at all.
+//
+// **It ends at a string.** Compiling the Typst is iteration 10's.
+package document
 
 import (
 	"errors"

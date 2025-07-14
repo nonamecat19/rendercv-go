@@ -1,4 +1,4 @@
-package typstdoc
+package document
 
 import (
 	"encoding/json"

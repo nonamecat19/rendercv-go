@@ -1,6 +1,6 @@
 //go:build conformance
 
-package typstdoc_test
+package document_test
 
 import (
 	"os"
@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/nonamecat19/rendercv-go/internal/renderer/bridge"
-	"github.com/nonamecat19/rendercv-go/internal/renderer/typstdoc"
+	"github.com/nonamecat19/rendercv-go/internal/renderer/document"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/valctx"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
@@ -78,7 +78,7 @@ func renderFixture(t *testing.T, input, path string) string {
 		t.Fatalf("the input did not validate: %v", errs)
 	}
 
-	out, err := typstdoc.Render(bridge.Resolve(model, probeDate), typstdoc.Options{
+	out, err := document.Render(bridge.Resolve(model, probeDate), document.Options{
 		InputDir: filepath.Dir(path),
 	})
 	if err != nil {
