@@ -23,7 +23,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 6 | Design & themes (9) + the settings schema | [006](006-design-and-themes/spec.md) | green (with cut scope, see below) | n/a (gated on the 164 `$defs` differential and the override diff, spec §5) |
 | 7 | Locale (English + 21 catalogs) | [007](007-locale/spec.md) | green | n/a (gated on the 45 `$defs` differential and the submodule catalog diff, spec §5) |
 | 8 | Templater (pongo2 env, filters, markdown→typst, processors) | [008](008-templater/spec.md) | green (with cut scope, see below) | n/a (gated on the 52-fragment Jinja differential and 240 unit cases, spec §7) |
-| 9 | Typst renderer (`.typ` emission) + iteration 6's T10 + iteration 8's Wave C | [009](009-typst-renderer/spec.md) | **code complete, NOT verified** — all eight units closed, 21/21 corpus `.typ` byte-identical; the fresh-context verifier run did not finish | 21 / 21 |
+| 9 | Typst renderer (`.typ` emission) + iteration 6's T10 + iteration 8's Wave C | [009](009-typst-renderer/spec.md) | **green** — verified by a fresh context, which returned FAIL on four items; all four fixed and pinned | 24 / 24 |
 | 10 | wazero + WASI typst → PDF, then PNG | — | — | 0 |
 | 11 | Markdown + HTML renderers | — | — | 0 / 4 |
 | 12 | CLI (`new`, `render`, `create-theme`, overrides, watcher) | — | — | 0 |
@@ -34,7 +34,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 
 | Axis | Gate command | Status |
 |---|---|---|
-| 1 — artifacts byte-identical | `just test-parity` | **first passing cases.** 21/21 corpus `.typ` byte-identical against the vendored Python (`TestCorpusTypstIsByteIdentical`). The 15 CLI-driven artifact cases stay red until iteration 12: they shell `rendercv-go render`, which does not exist. PDF/PNG land with iteration 10. |
+| 1 — artifacts byte-identical | `just test-parity` | **first passing cases.** 24/24 `.typ` byte-identical against the vendored Python (`TestCorpusTypstIsByteIdentical`): the 21 corpus inputs plus three the corpus cannot express. The 15 CLI-driven artifact cases stay red until iteration 12: they shell `rendercv-go render`, which does not exist. PDF/PNG land with iteration 10. |
 | 2 — CLI surface | `just test-parity` | measurable, 0/20 cases passing |
 | 3 — JSON Schema | `just schema-diff` | **green.** All 227 `$defs` byte-identical; the command exits 0. The oracle is `tools/genschema`, not the parity suite — `TestSchemaParity` shells `rendercv-go schema` and stays red until iteration 12. |
 | 4 — validation errors | `just test-parity` | measurable, 0/7 corpus cases passing; the 25-record differential is green |
@@ -492,34 +492,48 @@ regenerated and the submodule was not bumped, so no human gate was requested.
 carry — spec §4.1 assigns `2020-09` → `Sept 2020` and §4.2 assigns `degree_with_area`'s
 substitution to iteration 9, with the renderer.
 
-## Iteration 9 — verification status
+## Iteration 9 — verification
 
-**Not verified.** The `rendercv-parity-verifier` run for this iteration was cut off by a session
-limit before it reported, so nothing here has been checked by a context other than the one that
-wrote it. `AGENTS.md` §5's diamond is not satisfied and the row above says so.
+**Verified by `rendercv-parity-verifier` in a fresh context, which returned FAIL** with two
+blockers, one major and seven minor findings. Every one of the four it ranked as blocking or major
+is fixed and pinned by a fixture that is red without the fix. The first verifier run for this
+iteration was cut off by a session limit; the second completed.
 
-What *was* measured, mechanically, and is reproducible:
-
-| Check | Command | Result |
+| # | Verifier finding | Resolution |
 |---|---|---|
-| corpus `.typ` | `go test -tags conformance ./internal/renderer/typstdoc/` | 21/21 byte-identical |
-| the fixture is not vacuous | join entries with one `\n` in `Assemble`, rerun | 19 of 21 fail, then revert |
-| Axis 3 unbroken by the colour change | `just schema-diff` | exits 0 |
-| unit suite | `go test ./...` | green |
-| lint | `just check` | 0 issues |
-| parity suite | `just test-parity` | the same 42 red-by-design cases plus `TestSchemaParity`, all CLI-gated |
+| 1 | **blocker.** `design.templates.education_entry.degree_column: null` was ignored — the port emitted the declared `**DEGREE**` where upstream omits the column. The bridge dropped every null-valued key before the merge, so an explicit null could never override a default. Reachable from a twelve-line document. | `51a4121`. A null now survives into the merge, and `design.Effective` resolves it by the field's declared type: kept for the one `str \| None`-with-default field, restored to the default elsewhere (which is the case upstream rejects at validation). Pinned by `design_null_column`. |
+| 2 | **blocker.** A document with `cv.photo` rendered **silently wrong** — 157 bytes of upstream's header `#grid` missing, exit 0, no warning. The photo was hardcoded falsy on the reasoning that the corpus has none. All 16 corpus files that mention `photo:` write it null. | `c3657bd`. A *local* photo needs no download and now renders; a *URL* one returns `typstdoc.ErrPhotoDownloadUnsupported` rather than a document. Pinned by `header_photo` and a unit test. |
+| 3 | **major.** `splitLines` split on `\n` alone. Python's `str.splitlines()` breaks on eight more characters, so a `summary` with Windows line endings left a bare `\r` inside the rendered Typst and a ` ` produced one line where upstream produces two. | `e7a9299`. Full CPython boundary set, `\r\n` counted once, checked against a twenty-case fixture CPython itself wrote. |
+| 4 | **major.** Seven of nine `locale.Resolve` override branches were reached by **no test in the repo**. The verifier measured them correct out of band; nothing pinned them. | `d1c1290`. One fixture case exercises all nine; eight of the nine now fail if their branch is deleted. `phrases` stays covered by its unit test only — the classic theme has no template that shows it. |
+| 9 | minor. `spec.md` §6's boxes were unchecked while `tasks.md` said done. | `9733253`. |
+| 10 | minor. `tools/typprobe`'s comment claimed only `cli_*`/`err_*` cases lack an input; three others do. | `9733253`, which now names them. |
 
-**What a verifier still has to do**, carried as the first item of the next session:
+**Findings 5, 6, 7 and 8 stand as recorded, unfixed, on purpose:**
 
-1. Confirm the `tools/typprobe` skip list is honest — that no case was excluded because it *failed*
-   rather than because it has no `cv.yaml`.
-2. Look for unreached code, which is this port's recurring defect. Specifically
-   `bridge.Connections`' phone/website/social/custom branches, `entries.Dump`'s HttpUrl
-   normalization and DOI-drop, and `locale.Resolve`'s override paths.
-3. Check `splitLines` against a column ending in `\n` or containing `\r\n`, and `entryTemplates`
-   against a theme that sets a template column to null.
-4. Confirm spec §4 behavior 15's deliberate omission: the corpus has no photo case, and a document
-   *with* a photo must not silently render something wrong instead of reporting.
+- **6 and 7** are coverage observations, not defects: paths reached by a unit test but not the
+  corpus (custom connections, HttpUrl normalization, `current_date` parsing — all differentially
+  verified correct), and paths reachable by no document at all (`dumpValue`'s float, bool and
+  mapping arms). The dead arms stay because dropping them would make `Dump` partial on input the
+  *binder* admits even though upstream's own pipeline crashes on it — see finding 5.
+- **8** is a commit-discipline slip already in history: `60f9daa` bundles a lint refactor of
+  `tools/typprobe` with the colour fix. Recorded rather than rewritten, as `AGENTS.md` §7 breaches
+  have been throughout.
+
+## Two measured behaviors awaiting the human gate
+
+Neither is written into `specs/divergences.md`; that file is human-gated (`AGENTS.md` §5) and this
+is the request.
+
+1. **A non-string extra key on an entry.** `flag: true` or `ratio: 3.5` makes upstream die with an
+   uncaught `TypeError: sequence item 3: expected str instance, bool found` (exit 2). The port
+   exits 0 and renders, dropping the placeholder. Measured by the verifier.
+2. **A `design` block that omits `theme`.** Upstream dies with an uncaught `KeyError: 'theme'`
+   (ruamel `comments.py:854`, exit 2); the port defaults to `classic` and renders. Measured while
+   building the locale fixture case.
+
+Both are upstream *crashes*, not upstream behavior, and in both the port is friendlier. That is
+still a divergence under axis 2 — same input, different exit code — and it is the human's call
+whether to reproduce the crash, record the divergence, or leave it.
 
 ## Log
 
@@ -547,5 +561,6 @@ What *was* measured, mechanically, and is reproducible:
 | 2026-08-07 | Verifier returned FAIL on iteration 8 with three blockers, all fixed. The one that matters: I had argued in spec §8 that the transform could only be checked by a corpus `.typ`, which is false for fragments — and that argument is what hid a trailing-newline bug adding a blank line to every entry and section of every artifact. |
 | 2026-08-07 | Open for the human gate: five measured `markdown_to_typst` divergences — a dropped image, raw HTML, an autolink, a link title and a doubled backtick — all reachable from ordinary CV text. Unlike the parser-choice gate I invented and withdrew, these are user-visible. |
 | 2026-08-07 | Iteration 9 opened by closing iteration 8's debt: `process_date` and `render_entry_templates`, both measured against upstream on a validated `EducationEntry`. The orchestrator is what made the other nine processors reachable — before it, nothing expanded a theme template. |
+| 2026-08-07 | **Iteration 9 green.** The fresh-context verifier returned FAIL with two blockers (a null `degree_column` ignored; a photo rendering silently wrong), one major (`splitLines` was not `str.splitlines()`) and one coverage hole (seven unpinned `locale.Resolve` branches). All four fixed, each behind a fixture that is red without its fix. 24/24 `.typ` byte-identical. Two upstream *crashes* the port does not reproduce are recorded for the human gate. |
 | 2026-08-07 | **Axis 1's first passing cases.** The bridge (`internal/renderer/bridge`) and the orchestration (`internal/renderer/typstdoc`) landed, and all 21 corpus inputs that carry a `cv.yaml` render a `.typ` byte-identical to the vendored Python's, pinned to `settings.current_date: 2025-03-05` by `tools/typprobe`. All nine entry types are covered; the fixture is mutation-checked (19 of 21 fail on a one-newline change to `Assemble`). |
 | 2026-08-07 | Iteration 6's T10 closed in iteration 9: `design.Effective` merges the base tree, the theme's overrides and the document's own block, deep at every layer, and runs the two coercions where upstream's validators do. Seven-document differential against upstream's resolved model. |
