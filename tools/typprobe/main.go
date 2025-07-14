@@ -9,10 +9,18 @@
 // particular day and carry that date in the preamble and the top note, while
 // this pins `settings.current_date` so both sides are reproducible.
 //
-// **What this tool cannot check.** Only the cases it renders. A corpus case
-// whose input the CLI rejects, or that has no input file at all — the `cli_*`
-// and `err_*` cases — is skipped, and nothing here covers the Markdown or HTML
-// documents.
+// **What this tool cannot check.** Only the cases it renders, and nothing here
+// covers the Markdown or HTML documents.
+//
+// Twenty-two of the forty-three corpus cases are skipped. Nineteen have no
+// `cv.yaml`: the `cli_*` and `err_*` cases, and — worth naming, because the
+// earlier wording implied otherwise — `new_default`, `new_typst_templates` and
+// `sample_entries`, whose input is `John_Doe_CV.yaml`. The first two carry the
+// canonical sample CV, which nothing in this repo renders differentially. Three
+// more are skipped because upstream itself rejects them (`err_empty_yaml`,
+// `err_not_yaml`, `err_unknown_theme`).
+//
+// A Go failure cannot produce a skip: this tool never runs Go code.
 //
 // The fixture is GENERATED and is NEVER hand-written or hand-edited
 // (AGENTS.md §10.1); this program is its only author. It is not part of
