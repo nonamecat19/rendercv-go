@@ -122,10 +122,11 @@ dumpprobe:
 phoneprobe:
     go run ./tools/phoneprobe
 
-# Render every corpus input with the vendored Python and store the `.typ`.
-# This is iteration 9's parity gate; see tools/typprobe for what it skips.
-typprobe:
-    go run ./tools/typprobe
+# Render every corpus input with the vendored Python and store the `.typ`, `.md`
+# and `.html`. This is the parity gate for iterations 9 and 11; see
+# tools/docprobe for what it skips.
+docprobe:
+    go run ./tools/docprobe
 
 # Render the same input with both and diff every artifact.
 diff-render input:
