@@ -33,7 +33,14 @@ type Options struct {
 	Registry *entries.Registry
 }
 
-// Render is `render_full_template(model, "typst")`.
+// Render is `render_full_template(model, file_type)` — one function, both
+// formats, because that is upstream's own shape.
+//
+// The three format-dependent decisions are §1 behavior 3's: the template
+// directory, the string-processor chain (`process.Run` picks it from the same
+// format), and whether a preamble exists at all. Everything else — the bridge,
+// the entry expansion, the section loop, the separators — is shared, which is
+// why the Markdown document needed no new pipeline.
 //
 // The order is upstream's and each step reads the one before it: the model is
 // bridged, processed, and only then rendered — the header's connections are
@@ -45,7 +52,7 @@ type Options struct {
 // one returns `ErrPhotoDownloadUnsupported`, because the alternative — which
 // this code did until a verifier measured it — is a header silently missing its
 // whole `#grid`, with exit 0 and no warning.
-func Render(document bridge.Document, options Options) (string, error) {
+func Render(document bridge.Document, format templater.Format, options Options) (string, error) {
 	registry := options.Registry
 	if registry == nil {
 		registry = entries.Default()
@@ -55,7 +62,8 @@ func Render(document bridge.Document, options Options) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	processed := process.Run(model, process.FormatTypst)
+	typst := format == templater.FormatTypst
+	processed := process.Run(model, processFormat(format))
 
 	environment, err := templater.NewEnvironment(
 		options.InputDir, templater.BuiltinTemplates(), themeOf(document))
@@ -69,28 +77,54 @@ func Render(document bridge.Document, options Options) (string, error) {
 	}
 
 	context := contextOf(processed, document, photo)
-
-	preamble, err := environment.Render(templater.FormatTypst,
-		templater.FragmentPreamble, context, nil)
-	if err != nil {
-		return "", err
+	if !typst {
+		// **The Markdown header reads the fields, not the connections**
+		// (spec 011 §2). They are added rather than substituted because the
+		// Typst names stay valid — one context serves both templates, as
+		// upstream's one model does.
+		if block, ok := context["cv"].(pongo2.Context); ok {
+			for name, value := range bridge.MarkdownFields(document) {
+				block[name] = value
+			}
+		}
 	}
-	header, err := environment.Render(templater.FormatTypst,
-		templater.FragmentHeader, context, nil)
+
+	// **Only the Typst document has a preamble** (`:82-89`); the Markdown one
+	// opens with its header, and `Assemble` is told which shape to build.
+	preamble := ""
+	if typst {
+		preamble, err = environment.Render(format, templater.FragmentPreamble, context, nil)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	header, err := environment.Render(format, templater.FragmentHeader, context, nil)
 	if err != nil {
 		return "", err
 	}
 
 	sections := make([]templater.RenderedSection, 0, len(processed.Sections))
 	for _, section := range processed.Sections {
-		rendered, err := renderSection(environment, context, section)
+		rendered, err := renderSection(environment, format, context, section)
 		if err != nil {
 			return "", err
 		}
 		sections = append(sections, rendered)
 	}
 
-	return templater.Assemble(preamble, header, sections, true), nil
+	return templater.Assemble(preamble, header, sections, typst), nil
+}
+
+// processFormat maps the template directory onto the processor chain. They are
+// two types because they are two decisions upstream spells with one string, and
+// there is no `html` processor chain — the HTML is converted from the finished
+// Markdown rather than processed again (spec 008 §3 behavior 14).
+func processFormat(format templater.Format) process.Format {
+	if format == templater.FormatTypst {
+		return process.FormatTypst
+	}
+	return process.FormatMarkdown
 }
 
 // renderSection is the per-section body of `:99-124`: a beginning, one fragment
@@ -99,10 +133,11 @@ func Render(document bridge.Document, options Options) (string, error) {
 // each branches on it.
 func renderSection(
 	environment *templater.Environment,
+	format templater.Format,
 	context pongo2.Context,
 	section process.Section,
 ) (templater.RenderedSection, error) {
-	beginning, err := environment.Render(templater.FormatTypst,
+	beginning, err := environment.Render(format,
 		templater.FragmentSectionBeginning, context, pongo2.Context{
 			"section_title":            section.Title,
 			"snake_case_section_title": section.SnakeCaseTitle,
@@ -112,7 +147,7 @@ func renderSection(
 		return templater.RenderedSection{}, err
 	}
 
-	ending, err := environment.Render(templater.FormatTypst,
+	ending, err := environment.Render(format,
 		templater.FragmentSectionEnding, context, pongo2.Context{
 			"entry_type": section.EntryType,
 		})
@@ -123,7 +158,7 @@ func renderSection(
 	name := "entries/" + section.EntryType
 	rendered := make([]string, 0, len(section.Entries))
 	for _, entry := range section.Entries {
-		out, err := environment.Render(templater.FormatTypst, name, context,
+		out, err := environment.Render(format, name, context,
 			pongo2.Context{"entry": entryContext(entry)})
 		if err != nil {
 			return templater.RenderedSection{}, err
