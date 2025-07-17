@@ -6,21 +6,25 @@
 | T2 | `tools/docprobe` captures `.md` and `.html` too | 24 cases × 3 artifacts | **done** |
 | T3 | the Markdown document | 24/24 `.md` byte-identical | **done** |
 | T4 | `bridge.MarkdownFields` — the header's five contact fields | each field's removal breaks 18–21 cases | **done** |
-| T5 | `markdown_to_html` — python-markdown's block layer | 24/24 `.html` byte-identical | **cut, see plan §2** |
-| T6 | `render_html` + `Full.html` | gated on T5 | **cut** |
+| T5 | `markdown_to_html` — goldmark plus python-markdown's list-indent rule | 24/24 `.html` byte-identical | **done** |
+| T6 | `render_html` + `Full.html` | 24/24, and the HTML is built from the `.md` this run produced | **done** |
 
 ---
 
-## Why T5 and T6 were cut rather than attempted
+## The cut that should not have been
 
-The library question spec §6 said to measure was measured: goldmark agrees with python-markdown on
-**8 of 24** documents, and the 16 disagreements are all loose-versus-tight list structure. That is
-a block-layer difference, so the cheap route — goldmark plus a normalizing post-pass — does not
-exist.
+T5 and T6 were cut once, on this reasoning: goldmark matched 8 of 24, the misses "were loose versus
+tight lists", and that made them a block-layer port worth its own iteration.
 
-What remains is a port of python-markdown's block layer, bounded by the narrow input (spec §3
-behavior 11) but comparable in size to iteration 8's inline port. Shipping half of it would mean an
-iteration marked done with a failing conformance case, which `AGENTS.md` §10.2 forbids.
+**The measurement was real; the diagnosis was not.** All 16 misses had one cause —
+python-markdown nests a list item at `tab_length` 4 where CommonMark nests at 2, and the entry
+templates emit nested highlights at 2. Normalizing that one thing in the input makes goldmark match
+**24 of 24**.
 
-**The gate is already built**: `expected.html` sits beside every case, so T5 begins with a red test
-that costs one loop to enable.
+The difference between the two conclusions is fifteen minutes of reducing the diff instead of
+reading its first line. This is the third time in this port that "only a bigger port can fix this"
+turned out to be false — spec 008 §8 said only a corpus `.typ` could check the template transform,
+and a fragment differential found a real bug in its first run.
+
+Mutation-checked: without the list-indent rule 16 of 24 fail, with a tab length of 2 the same 16
+fail, and keeping goldmark's trailing newline fails all 24.

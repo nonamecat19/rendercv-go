@@ -22,46 +22,43 @@ contact fields where the Typst header reads the pre-formatted connection list. T
 needed a serialization the raw node does not carry — the phone's stored RFC 3966 form and the
 website's `HttpUrl` form — and the phone is the one the corpus caught.
 
-## 2. Wave B — the HTML document
+## 2. Wave B — the HTML document (**done**)
 
-`render_html` is trivial; `markdown_to_html` is not. The design question spec §6 refused to answer
-without measurement has now been measured.
+`render_html` is trivial; `markdown_to_html` looked as though it was not. The design question
+spec §6 refused to answer without measurement got measured — twice, and the first answer was wrong.
 
-### The measurement
+### The first measurement, and the wrong conclusion drawn from it
 
-goldmark, out of the box, over the 24 `.md` documents this port now produces, compared against the
-`<article>` bodies of upstream's own `.html`:
+goldmark out of the box, over the 24 `.md` documents this port produces, matched **8**. Reading the
+first differing line of two cases, this plan concluded the misses were "loose versus tight lists",
+called that a block-layer disagreement no post-pass could fix, and cut the wave.
 
-```
-same 8    diff 16
-```
+**That was reading a diff instead of reducing one.** The 16 misses had a single cause, and it is
+not loose lists:
 
-The differing cases share one cause: **loose versus tight lists**. Where an entry's highlights are
-separated by blank lines — which is what every non-minimal corpus case produces — python-markdown
-emits `<li>\n<p>…</p>\n</li>` and goldmark structures the list differently. This is a block-layer
-disagreement, not a whitespace one, so no post-pass over goldmark's output normalizes it away.
+> python-markdown nests a list item only when it is indented by a full `tab_length` — **4** spaces
+> (`markdown/blockprocessors.py`). CommonMark, and so goldmark, nests at **2**. The entry templates
+> emit nested highlights at exactly 2, so upstream *flattens* them into siblings and goldmark nests
+> them.
 
-### What that rules out
+### The second measurement
 
-The "goldmark and normalize" route from spec §6 is the one the measurement kills: normalizing a
-structural difference means rewriting the tree, at which point the library is no longer doing the
-work it was chosen for.
+Move every list marker indented by less than 4 spaces to column 0 before converting, and goldmark
+matches **24 of 24**. One rule, applied to the *input*, in upstream's own terms.
 
-### The route left
+### Why this is a library substitution and not a divergence
 
-Port python-markdown's block layer, as iteration 8 ported its inline layer. The input is narrow —
-spec §3 behavior 11 lists what the templates can actually emit — so the scope is bounded:
-paragraphs, ATX headings, unordered lists (loose and tight), and the serializer's tag and newline
-placement. Iteration 8's inline port is already there to build on, and it is the same shape of
-job: read `markdown/blockprocessors.py` and `markdown/serializers.py`, port, differentially test.
+Same reasoning as `nyaruka/phonenumbers` in plan 009 §3: upstream's choice is a Python package the
+port cannot call, and the user-visible output is byte-identical on every case measured. Where the
+two libraries disagree on this corpus is now exactly one documented rule, reproduced deliberately.
 
-**It is its own iteration's worth of work**, which is why this one stops here rather than shipping
-half of it. `AGENTS.md` §10.2 forbids marking an iteration done with a failing conformance case,
-so the `.html` comparison is not in the suite at all yet — the fixture carries the expected bytes,
-and the test that reads them lands with the implementation.
+**What it does not cover**: the constructs the corpus does not contain. `MarkdownToHTML` accepts
+arbitrary Markdown and only the shapes the eight entry templates emit (spec §3 behavior 11) are
+pinned. A user's `summary` containing a table, a code fence or raw HTML is unmeasured.
 
-## 3. What the fixture already gives Wave B
+### The one upstream oddity reproduced rather than fixed
 
-`tools/docprobe` stores `expected.html` beside `expected.md` and `expected.typ` for all 24 cases.
-So the gate for Wave B exists and is red-by-absence: adding one loop to
-`document_conformance_test.go` turns it on the moment `markdown_to_html` exists.
+`Full.html` interpolates a `title` that `render_html` never binds (`templater.py:153`), so every
+upstream `.html` has an empty `<title>`. The port binds nothing there either. Passing
+`settings.pdf_title` would be an improvement and an artifact diff.
+
