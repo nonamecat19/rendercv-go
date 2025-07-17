@@ -16,6 +16,11 @@ const (
 	FragmentHeader           = "Header"
 	FragmentSectionBeginning = "SectionBeginning"
 	FragmentSectionEnding    = "SectionEnding"
+
+	// FragmentFull is the HTML document's single fragment. It carries its
+	// extension because `Full.html` has no `.j2.` infix (templater.py:152-154)
+	// and the loader takes the name verbatim for that format.
+	FragmentFull = "Full.html"
 )
 
 // RenderedSection is one section's three rendered pieces.

@@ -116,6 +116,53 @@ func Render(document bridge.Document, format templater.Format, options Options) 
 	return templater.Assemble(preamble, header, sections, typst), nil
 }
 
+// RenderHTML is `render_html` (templater.py:130-155): the Markdown document
+// converted to an HTML body, then wrapped by the single `Full.html` fragment.
+//
+// **It takes the Markdown document's bytes, not the model** (`html.py:31-33`),
+// which is why the two artifacts are ordered rather than independent — a wrong
+// `.md` is a wrong `.html`, and upstream disables the HTML entirely when the
+// Markdown was not generated.
+func RenderHTML(doc bridge.Document, markdown string, options Options) (string, error) {
+	body, err := process.MarkdownToHTML(markdown)
+	if err != nil {
+		return "", err
+	}
+
+	environment, err := templater.NewEnvironment(
+		options.InputDir, templater.BuiltinTemplates(), themeOf(doc))
+	if err != nil {
+		return "", err
+	}
+
+	model, err := bridge.Model(doc, registryOf(options))
+	if err != nil {
+		return "", err
+	}
+	processed := process.Run(model, process.FormatMarkdown)
+
+	photo, err := photoOf(doc)
+	if err != nil {
+		return "", err
+	}
+
+	// **`Full.html` reads a `title` nobody binds.** `render_html` passes only
+	// `html_body` (`:153`), so Jinja renders the `<title>` empty — measured, and
+	// present in every corpus `.html` as a blank line between the tags. Binding
+	// `settings.pdf_title` there would be an improvement, and an artifact diff.
+	context := contextOf(processed, doc, photo)
+	return environment.Render(templater.FormatHTML, templater.FragmentFull, context, pongo2.Context{
+		"html_body": body,
+	})
+}
+
+func registryOf(options Options) *entries.Registry {
+	if options.Registry != nil {
+		return options.Registry
+	}
+	return entries.Default()
+}
+
 // processFormat maps the template directory onto the processor chain. They are
 // two types because they are two decisions upstream spells with one string, and
 // there is no `html` processor chain — the HTML is converted from the finished
