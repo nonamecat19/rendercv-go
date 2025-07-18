@@ -1,18 +1,17 @@
 // Command rendercv-go is a Go rewrite of RenderCV (https://github.com/rendercv/rendercv).
 //
-// It is a work in progress. The CLI is specified in specs/000-parity-contract/spec.md §2
-// and implemented in iteration 12; until then this binary exists so the conformance
-// harness has something real to drive, and every parity case fails with a diff rather
-// than with "binary missing".
+// The CLI is specified in specs/012-cli/spec.md. `render` is wired; `new`,
+// `create-theme` and the Rich-rendered help panels are the rest of that
+// iteration, and a command that is not wired exits 70 rather than printing a
+// help screen that would be wrong in every byte.
 package main
 
 import (
-	"fmt"
 	"os"
+
+	"github.com/nonamecat19/rendercv-go/internal/cli"
 )
 
 func main() {
-	fmt.Fprintln(os.Stderr,
-		"rendercv-go: not implemented yet — see specs/STATE.md for the port ledger")
-	os.Exit(70) // EX_SOFTWARE: the command exists but cannot do its job.
+	os.Exit(cli.Execute(os.Args[1:], os.Stdout, os.Stderr))
 }

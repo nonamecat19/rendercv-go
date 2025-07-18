@@ -7,12 +7,15 @@ require (
 	github.com/goccy/go-yaml v1.19.2
 	github.com/nlnwa/whatwg-url v0.6.2
 	github.com/nyaruka/phonenumbers v1.8.1
+	github.com/spf13/cobra v1.10.2
 	github.com/yuin/goldmark v1.8.5
 	golang.org/x/text v0.40.0
 )
 
 require (
 	github.com/bits-and-blooms/bitset v1.20.0 // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/spf13/pflag v1.0.9 // indirect
 	golang.org/x/net v0.34.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
