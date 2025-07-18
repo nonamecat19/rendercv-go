@@ -85,11 +85,11 @@ as well. The corpus's `.md` and `.html` are compared as content here, not as fil
 
 ## 5. Acceptance criteria
 
-- [ ] §1's Markdown document byte-identical to upstream's `.md` for every corpus case that has an
+- [x] §1's Markdown document byte-identical to upstream's `.md` for every corpus case that has an
       input, by the same differential `tools/typprobe` established for the `.typ`.
-- [ ] §2's five header fields, driven by a document that supplies all of them.
-- [ ] §3's HTML byte-identical for the same cases.
-- [ ] §3 behavior 13's indent, which is visible in every case at once and therefore proves nothing
+- [x] §2's five header fields, driven by a document that supplies all of them.
+- [x] §3's HTML byte-identical for the same cases.
+- [x] §3 behavior 13's indent, which is visible in every case at once and therefore proves nothing
       on its own — it needs a case whose body has more than one line.
 
 ## 6. The known hazard
@@ -110,3 +110,8 @@ Two routes, and the choice belongs in `plan.md` after measurement, not here:
 produces and count the differing cases. The input is narrow (§3 behavior 11), so the honest answer
 may be that neither library's general behavior matters much — but that is a claim to test, not to
 assume. Iteration 8's spec §8 made exactly this kind of assumption and hid a real bug behind it.
+
+**Resolved: goldmark, plus one rule.** The measurement said 8 of 24, and the second measurement —
+after reducing the diff rather than reading it — said the 16 misses were a single list-indent
+difference. Normalizing it in the input gives 24 of 24. `plan.md` §2 carries the reasoning, and the
+wrong first conclusion, which was to cut the wave as its own iteration.
