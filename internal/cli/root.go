@@ -2,6 +2,7 @@ package cli
 
 import (
 	"io"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -42,8 +43,27 @@ func Execute(args []string, stdout, stderr io.Writer) int {
 	flags.BoolVar(&options.NoHTML, "nohtml", false, "")
 	flags.BoolVar(&options.Quiet, "quiet", false, "")
 
+	newOptions := NewOptions{}
+	newCmd := &cobra.Command{
+		Use:  "new [name]",
+		Args: cobra.MinimumNArgs(1),
+		RunE: func(_ *cobra.Command, positional []string) error {
+			// Typer joins the positional words, so `new John Doe` — unquoted —
+			// is the same as `new "John Doe"`. Every corpus case writes it
+			// unquoted.
+			newOptions.Name = strings.Join(positional, " ")
+			code = New(newOptions, stdout, stderr)
+			return nil
+		},
+	}
+	newFlags := newCmd.Flags()
+	newFlags.StringVar(&newOptions.Theme, "theme", "", "")
+	newFlags.StringVar(&newOptions.Locale, "locale", "", "")
+	newFlags.BoolVar(&newOptions.CreateTypstTemplates, "create-typst-templates", false, "")
+
 	root := &cobra.Command{Use: "rendercv-go", SilenceUsage: true, SilenceErrors: true}
 	root.AddCommand(render)
+	root.AddCommand(newCmd)
 	root.SetArgs(rest)
 	root.SetOut(stdout)
 	root.SetErr(stderr)
