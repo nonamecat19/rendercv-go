@@ -95,6 +95,11 @@ cobra will not produce it; no Go CLI library will. What produces it is a small p
 takes a title, rows and a width, and reproduces Rich's box drawing — which is deterministic and
 therefore portable, unlike anything about Rich's *styling*.
 
+**Measured, for the result panel at least**: it is *one* shape — a title, a row per artifact, a
+fixed 80 columns. Its geometry is now pinned by a unit test, including the duration column that the
+harness erases and that therefore cannot be read off the golden directly. The six help panels are
+unmeasured; the note below still applies to them.
+
 **The measurement that must precede the design** — this is spec 011 §6's lesson, applied before
 the fact rather than after: count how many distinct panel shapes the six help goldens and the
 result panels actually use. If it is two or three, this is a small renderer with a fixture per
@@ -116,8 +121,10 @@ commands. `TestSchemaParity` shells it and will stay red forever; Axis 3 is clos
 
 ## 7. Acceptance criteria
 
-- [ ] `render_typst_only` green: one artifact, one result panel, exit 0. This is Axis 2's first
-      passing case and the smallest end-to-end proof the binary exists.
+- [~] `render_typst_only`: exit code, stdout, stderr and file list **all match**; the `.typ`
+      differs on one line, `day: 6` versus `day: 7`. That is the corpus defect recorded in
+      `STATE.md` — the goldens bake their generation date — and not something this iteration can
+      fix without the human gate on regenerating them.
 - [ ] The four other `render` flag cases: custom paths, the three override shapes, `--quiet`.
 - [ ] The seven `errors` cases: exit code, stderr text, empty stdout.
 - [ ] `new` and `create-theme`, including the four locale variants.
