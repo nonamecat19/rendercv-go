@@ -583,6 +583,24 @@ contract (`AGENTS.md` §5):
 Until then, `render`'s correctness is measurable only through the document differential of
 iterations 9 and 11 — which is byte-exact and date-pinned, and which does pass.
 
+## `create-theme` cannot be byte-identical — HUMAN GATE
+
+Measured while scoping iteration 12's remaining commands. `create-theme` writes fourteen files, and
+**two kinds of them are things this port deliberately does not have**:
+
+- `__init__.py` is Python that a custom theme executes at validation time. That is already D-002 —
+  the port uses a sandboxed Lua `init.lua` instead — so the file written here must be `init.lua`,
+  or D-002's feature does not work at all.
+- The `.j2.typ` files are Jinja. The port ships their pongo2 transform, which is what its loader
+  reads. Measured on `Header.j2.typ`: upstream's carries a newline after `{% macro image() %}`
+  that Jinja's `trim_blocks` eats at parse time and the transform has already removed. **Writing
+  upstream's bytes would hand the user a theme this binary renders differently from the one it just
+  wrote.**
+
+`AGENTS.md` §6.1 already sanctions template *source* diverging while output must not — but the
+`create_theme` golden compares source, so the case is unreachable by construction rather than by
+omission. It needs a `divergences.md` entry naming both files. Recorded, not written.
+
 ## Two measured behaviors awaiting the human gate
 
 Neither is written into `specs/divergences.md`; that file is human-gated (`AGENTS.md` §5) and this
