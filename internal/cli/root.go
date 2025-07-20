@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"io"
 	"strings"
 
@@ -61,7 +62,26 @@ func Execute(args []string, stdout, stderr io.Writer) int {
 	newFlags.StringVar(&newOptions.Locale, "locale", "", "")
 	newFlags.BoolVar(&newOptions.CreateTypstTemplates, "create-typst-templates", false, "")
 
-	root := &cobra.Command{Use: "rendercv-go", SilenceUsage: true, SilenceErrors: true}
+	// **`--version` prints upstream's version, not the port's**, and without the
+	// binary name: the golden is the single line `RenderCV v2.8`. It is the one
+	// output in the whole CLI that carries no `rendercv` token at all, which is
+	// why it is the only help-family case reachable before the binary-name
+	// question of `STATE.md` is answered.
+	version := false
+
+	root := &cobra.Command{
+		Use:           "rendercv-go",
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			if version {
+				_, _ = fmt.Fprintf(stdout, "RenderCV v%s\n", Version)
+				code = 0
+			}
+			return nil
+		},
+	}
+	root.Flags().BoolVarP(&version, "version", "v", false, "")
 	root.AddCommand(render)
 	root.AddCommand(newCmd)
 	root.SetArgs(rest)
