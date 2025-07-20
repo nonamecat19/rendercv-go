@@ -24,7 +24,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 7 | Locale (English + 21 catalogs) | [007](007-locale/spec.md) | green | n/a (gated on the 45 `$defs` differential and the submodule catalog diff, spec §5) |
 | 8 | Templater (pongo2 env, filters, markdown→typst, processors) | [008](008-templater/spec.md) | green (with cut scope, see below) | n/a (gated on the 52-fragment Jinja differential and 240 unit cases, spec §7) |
 | 9 | Typst renderer (`.typ` emission) + iteration 6's T10 + iteration 8's Wave C | [009](009-typst-renderer/spec.md) | **green** — verified by a fresh context, which returned FAIL on four items; all four fixed and pinned | 24 / 24 |
-| 10 | wazero + WASI typst → PDF, then PNG | [010](010-typst-compilation/spec.md) | **spec written** — behavior extracted; the WASI-vs-subprocess decision is measured-first by design and unanswered | 0 / 14 |
+| 10 | wazero + WASI typst → PDF, then PNG | [010](010-typst-compilation/spec.md) | **specced and measured** — `plan.md` reports the counts; the route is a human call because both options need a `divergences.md` entry | 0 / 14 |
 | 11 | Markdown + HTML renderers | [011](011-markdown-and-html/spec.md) | **green** — both documents byte-identical on all 24 cases | 24 / 24 md, 24 / 24 html |
 | 12 | CLI (`new`, `render`, `create-theme`, overrides, watcher) | [012](012-cli/spec.md) | **started** — `render` and `new` are wired; `new`'s seven starter CVs are byte-identical against their goldens. `create-theme` and the six help panels are not written. Every parity number is blocked on one of the three gates below | 0 (see below) |
 | 13 | Parity closeout (sample generator, version, error handler, packaging) | — | — | 0 |
@@ -629,6 +629,34 @@ Measured while scoping iteration 12's remaining commands. `create-theme` writes 
 `create_theme` golden compares source, so the case is unreachable by construction rather than by
 omission. It needs a `divergences.md` entry naming both files. Recorded, not written.
 
+## Iteration 10's route is a human call — HUMAN GATE
+
+`plan.md` reports the measurements `spec.md` demanded before any design:
+
+| Fact | Value |
+|---|---|
+| Typst compiler to target | **0.14.x** — `typst.toml` declares 0.14.0, `typst-py` is 0.14.8 |
+| Compiled compiler size | **64.8 MB** native extension |
+| Fonts | **77 files across 15 folders**, shipped in the `rendercv-fonts` Python package |
+| `wasm32-wasip1` target | not installed locally; one `rustup target add` away |
+
+**Both routes need a `divergences.md` entry, so the choice is human by construction** (§5):
+
+- **WASI on wazero** — pure Go and self-contained, at the cost of embedding tens of megabytes in
+  the binary and owning a cross-compilation of a large Rust project. The entry would record what
+  the binary *contains*.
+- **A `typst` subprocess** — identical output, far smaller binary. The entry would record what the
+  user must *install*.
+
+**The fonts are the parity risk either way**, and they are not in this repo. A Go binary cannot
+import a Python package, so the 77 files must be vendored, fetched, or found on the system. The
+failure mode is silent: the PDF renders and every line breaks in the wrong place
+(`AGENTS.md` §6.6).
+
+Whichever route wins, the first unit is the same and small: compile one of the 24 byte-identical
+`.typ` documents and diff its extracted text against upstream's PDF. That fails loudly on the font
+question before anything else is built.
+
 ## Two measured behaviors awaiting the human gate
 
 Neither is written into `specs/divergences.md`; that file is human-gated (`AGENTS.md` §5) and this
@@ -671,6 +699,7 @@ whether to reproduce the crash, record the divergence, or leave it.
 | 2026-08-07 | Verifier returned FAIL on iteration 8 with three blockers, all fixed. The one that matters: I had argued in spec §8 that the transform could only be checked by a corpus `.typ`, which is false for fragments — and that argument is what hid a trailing-newline bug adding a blank line to every entry and section of every artifact. |
 | 2026-08-07 | Open for the human gate: five measured `markdown_to_typst` divergences — a dropped image, raw HTML, an autolink, a link title and a doubled backtick — all reachable from ordinary CV text. Unlike the parser-choice gate I invented and withdrew, these are user-visible. |
 | 2026-08-07 | Iteration 9 opened by closing iteration 8's debt: `process_date` and `render_entry_templates`, both measured against upstream on a validated `EducationEntry`. The orchestrator is what made the other nine processors reachable — before it, nothing expanded a theme template. |
+| 2026-08-07 | **Iteration 10 measured.** Target compiler 0.14.x, a 64.8 MB native compiler, 77 font files in a Python package, and no `wasm32-wasip1` target installed. Both routes — WASI on wazero and a subprocess — require a divergence entry, so the choice is human by construction and the plan stops rather than picking one. |
 | 2026-08-07 | **Iteration 10 specced.** The behavior is small — three inputs decide whether a PDF matches: the font set, the vendored Typst package, and the compiler root. The spec refuses to assume the WASI route works and names the three counts that must precede any design, because two iterations in a row have had an estimate stated as a conclusion. |
 | 2026-08-07 | **The parity suite has its first green case: `cli_version`.** 41 red, down from the 42 that iteration 1 established as the baseline. `--version` prints upstream's version and no binary name, so it is the one CLI output the sanctioned divergence does not touch. |
 | 2026-08-07 | **`new` wired.** `tools/sampleprobe` captures the starter CV per theme and locale from the vendored CLI; all seven variants are byte-identical against their goldens, as are both panels and the greeting. The eight cases still fail on one line — the `rendercv render …` instruction, which must name this binary and so changes a fixed-width panel row's padding. Recorded for the human gate. |
