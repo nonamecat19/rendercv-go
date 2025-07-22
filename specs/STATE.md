@@ -28,7 +28,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 11 | Markdown + HTML renderers | [011](011-markdown-and-html/spec.md) | **green** — both documents byte-identical on all 24 cases | 24 / 24 md, 24 / 24 html |
 | 12 | CLI (`new`, `render`, `create-theme`, overrides, watcher) | [012](012-cli/spec.md) | **started** — `render` and `new` are wired; `new`'s seven starter CVs are byte-identical against their goldens. `create-theme` and the six help panels are not written. Every parity number is blocked on one of the three gates below | 0 (see below) |
 | 13 | Parity closeout (sample generator, version, error handler, packaging) | — | — | 0 |
-| 14 | Lua-scripted custom themes (D-002) + the two folder messages | — | — | 0 |
+| 14 | Lua-scripted custom themes (D-002) + the two folder messages | [014](014-lua-custom-themes/spec.md) | **specced, unblocked** — D-002 approved; the no-script path is the one that can regress what works and is ordered first | 0 |
 
 ## Parity axes
 
@@ -696,6 +696,7 @@ whether to reproduce the crash, record the divergence, or leave it.
 | 2026-08-07 | Verifier returned FAIL on iteration 8 with three blockers, all fixed. The one that matters: I had argued in spec §8 that the transform could only be checked by a corpus `.typ`, which is false for fragments — and that argument is what hid a trailing-newline bug adding a blank line to every entry and section of every artifact. |
 | 2026-08-07 | Open for the human gate: five measured `markdown_to_typst` divergences — a dropped image, raw HTML, an autolink, a link title and a doubled backtick — all reachable from ordinary CV text. Unlike the parser-choice gate I invented and withdrew, these are user-visible. |
 | 2026-08-07 | Iteration 9 opened by closing iteration 8's debt: `process_date` and `render_entry_templates`, both measured against upstream on a validated `EducationEntry`. The orchestrator is what made the other nine processors reachable — before it, nothing expanded a theme template. |
+| 2026-08-07 | **Iteration 14 specced.** The divergence is approved in advance, so the work is defining the Lua contract rather than choosing one. Behavior 4 — a theme folder with *no* script — is ordered first because it is the path all nine built-in themes and all 24 corpus documents already take, and therefore the only part of this iteration that can break something that currently works. |
 | 2026-08-07 | **Correction: iteration 10 was never gate-blocked.** The route is D-006, `approved` — I asserted a human gate without reading `divergences.md`. Third instance in this port of an estimate stated as a conclusion, and the cheapest one to have avoided. |
 | 2026-08-07 | **Iteration 10 measured.** Target compiler 0.14.x, a 64.8 MB native compiler, 77 font files in a Python package, and no `wasm32-wasip1` target installed. Both routes — WASI on wazero and a subprocess — require a divergence entry, so the choice is human by construction and the plan stops rather than picking one. |
 | 2026-08-07 | **Iteration 10 specced.** The behavior is small — three inputs decide whether a PDF matches: the font set, the vendored Typst package, and the compiler root. The spec refuses to assume the WASI route works and names the three counts that must precede any design, because two iterations in a row have had an estimate stated as a conclusion. |
