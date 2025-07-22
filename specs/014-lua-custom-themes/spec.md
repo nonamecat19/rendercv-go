@@ -68,10 +68,14 @@ this iteration's contract.
       unchanged. **Met with no new code**, as §2 behavior 7 predicted: `design.Effective` already
       produces it, and `design/customtheme_test.go` pins it so the prediction stays true rather
       than being asserted once and discovered wrong later.
-- [ ] A theme whose script **adds** an option: the option validates, appears in the effective tree,
-      and reaches a template.
-- [ ] A theme whose script **changes a default**: the new default appears where no document
-      overrides it, and a document override still wins.
+- [~] A theme whose script **adds** an option: `luatheme.Options` carries it into the effective
+      tree and `design.EffectiveWithScript` merges it, so it reaches a template. What is **not**
+      done is *validating* it — an added option has no declared type, so nothing checks that a
+      document setting it wrote a colour where a colour belongs. That is the remaining work.
+- [x] A theme whose script **changes a default**: the new default appears where no document
+      overrides it, and a document override still wins. The layer sits between the theme's
+      overrides and the document's block — above it and a user could not override their own theme,
+      below it and a custom theme could change nothing.
 - [x] The sandbox refuses filesystem and process access, asserted rather than assumed.
       `internal/schema/luatheme` closes `io`, `os`, `package`, `require`, `dofile`, `loadfile` and
       `debug`, and names each one in a table-driven test — so removing one from the list fails
@@ -80,9 +84,11 @@ this iteration's contract.
 
 ## 5. Status
 
-**Started: two of four criteria met** — the no-script fallback, and the sandbox. What remains is
-the option-tree integration: turning the returned table into fields the design tree carries, which
-is where a scripted theme actually earns its keep. Unblocked — D-002 is approved and no other gate applies. The honest ordering is
+**Started: three of four criteria met, one partly** — the no-script fallback, the sandbox, and the
+option layer with its ordering. What remains is **validating an added option**: a script can
+declare a field the design tree has never heard of, and nothing yet checks what a document puts in
+it. That is the part where a scripted theme needs the schema machinery of iteration 6, not just
+its merge. Unblocked — D-002 is approved and no other gate applies. The honest ordering is
 behavior 4 before anything else: it is the path all nine built-in themes and all 24 corpus
 documents already take, so it is the one that can regress something that currently works.
 
