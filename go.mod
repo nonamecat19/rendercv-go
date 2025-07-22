@@ -9,6 +9,7 @@ require (
 	github.com/nyaruka/phonenumbers v1.8.1
 	github.com/spf13/cobra v1.10.2
 	github.com/yuin/goldmark v1.8.5
+	github.com/yuin/gopher-lua v1.1.2
 	golang.org/x/text v0.40.0
 )
 
