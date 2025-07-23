@@ -91,10 +91,15 @@ this iteration's contract.
 `rendercv-parity-verifier` pass has looked at this iteration, so the row in `STATE.md` reports what
 the suite prints and nothing more.
 
-What is deliberately *not* here, and would be the next work: the two folder messages of §1
-behavior 3, whose text is new and human-gated (§2 behavior 9); wiring `luatheme` into
-`design.validate_design`'s position in the pipeline, so a real `<theme>/init.lua` beside an input
-file is found and run; and `create-theme` writing an `init.lua`, which is iteration 12's and
+**Wired.** `bridge.Resolve` looks for `<theme>/init.lua` beside the input file — upstream's
+`validate_design` position, because the options must exist before anything reads the effective
+tree — and three tests drive it end to end through real files: a script's default reaches the tree,
+the document still beats it, and a theme with no script is bit-for-bit what it was.
+
+What is deliberately *not* here: the two folder messages of §1 behavior 3, whose text is new and
+human-gated (§2 behavior 9). **A script that fails is currently silent** — it falls back as though
+absent, which is safe but tells the user nothing. That is the gap, and it is one message away from
+closed once the text is approved. `create-theme` writing an `init.lua` is iteration 12's and
 recorded as unreachable by construction.
 
 **No corpus case exercises any of it** — the corpus has no custom theme — so every claim here rests

@@ -1,9 +1,12 @@
 package bridge
 
 import (
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/nonamecat19/rendercv-go/internal/renderer/templater/process"
+	"github.com/nonamecat19/rendercv-go/internal/schema/luatheme"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv/entries"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/design"
@@ -28,12 +31,51 @@ type Document struct {
 // the bridge reads. `now` is what `settings.current_date: today` resolves to.
 func Resolve(model *models.RenderCVModel, now time.Time) Document {
 	resolved := settings.Resolve(model.Settings, now)
+	theme := themeOf(model)
+	block := designBlock(model)
+
+	// **A custom theme's script runs here**, which is upstream's
+	// `validate_design` position — the theme's options have to exist before
+	// anything reads the effective tree. A built-in theme has no script and
+	// `themeScript` returns nil, so the nine of them take the path they always
+	// did (spec 014 §1 behavior 4).
+	script := themeScript(model, theme)
+
 	return Document{
 		Model:    model,
-		Design:   design.Effective(themeOf(model), designBlock(model)),
+		Design:   design.EffectiveWithScript(theme, script, block),
 		Locale:   locale.Resolve(model.Locale),
 		Settings: resolved,
 	}
+}
+
+// themeScript loads `<theme>/init.lua` from beside the input file — D-002's
+// replacement for upstream's `<theme>/__init__.py` (spec 014 §1 behavior 1).
+//
+// **A missing script is not an error**, which is upstream's behavior too: a
+// theme folder with no module is valid and falls back to the base tree
+// (`design.py:137-142`). A script that *fails* is currently also silent, and
+// that is the gap spec 014 §2 behavior 9 sends to the human gate — the two
+// folder messages are new user-visible text, so reporting them is not something
+// this port may invent.
+func themeScript(model *models.RenderCVModel, theme string) map[string]any {
+	if model == nil {
+		return nil
+	}
+	path, ok := model.InputFilePath()
+	if !ok {
+		return nil
+	}
+
+	source, err := os.ReadFile(filepath.Join(filepath.Dir(path), theme, "init.lua"))
+	if err != nil {
+		return nil
+	}
+	table, err := luatheme.Run(string(source))
+	if err != nil {
+		return nil
+	}
+	return luatheme.Options(table)
 }
 
 // Model builds the `process.Model` the templater consumes — the bridge's whole
