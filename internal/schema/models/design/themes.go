@@ -39,3 +39,18 @@ func sortStrings(values []string) {
 		}
 	}
 }
+
+// IsBuiltinTheme reports whether a name is one of the nine themes this port
+// ships.
+//
+// It is the discriminator upstream tries **first**: only when it fails does
+// `validate_design` look for a custom theme folder (`design.py:36-50`). The
+// port needs it explicitly because its own custom-theme path is a file lookup,
+// which would otherwise fire for a built-in name too.
+func IsBuiltinTheme(name string) bool {
+	if name == "classic" {
+		return true
+	}
+	_, known := themeOverrides()[name]
+	return known
+}

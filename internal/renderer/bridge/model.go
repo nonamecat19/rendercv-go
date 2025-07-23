@@ -62,6 +62,15 @@ func themeScript(model *models.RenderCVModel, theme string) map[string]any {
 	if model == nil {
 		return nil
 	}
+	// **A built-in theme never reads a script**, which upstream gets by only
+	// entering the custom-theme path when the built-in discriminator *fails*
+	// (`design.py:36-50`). Reading it for every theme meant a `classic/init.lua`
+	// beside a CV silently changed a built-in theme's artifact — a parity break
+	// found by a verifier, measured as `page-size: "a5"` where upstream emits
+	// `"us-letter"`.
+	if design.IsBuiltinTheme(theme) {
+		return nil
+	}
 	path, ok := model.InputFilePath()
 	if !ok {
 		return nil
