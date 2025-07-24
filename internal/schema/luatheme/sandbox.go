@@ -34,10 +34,13 @@ const maxDepth = 32
 // from inside the copy.
 var ErrTooDeep = errors.New("this custom theme's options are nested too deeply (or contain a cycle)")
 
-// ErrSandboxed is what a script gets for reaching outside the sandbox. It is one
-// error rather than one per library, because the distinction is not useful to
-// the person who wrote the script: the answer is always "that is not available".
-var ErrSandboxed = errors.New("this custom theme script tried to use a disallowed feature")
+// **There is deliberately no `ErrSandboxed`.** An earlier version exported one,
+// documented as "what a script gets for reaching outside the sandbox", and no
+// code path ever returned it — `errors.Is` against it could never match. A
+// blocked global is `nil`, so a script touching it fails with Lua's own
+// "attempt to index a non-table object", which names the line. Inventing a
+// wrapper would mean inventing user-facing wording, which spec 014 §2
+// behavior 9 sends to the human gate.
 
 // blocked are the standard-library globals a theme script may not touch.
 //
