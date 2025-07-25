@@ -6,7 +6,20 @@ import (
 	"strings"
 
 	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/renderer/html"
 )
+
+// converter is goldmark configured to match python-markdown's defaults where it
+// can.
+//
+// **`WithUnsafe` is not a security decision here, it is a parity one.**
+// python-markdown passes raw HTML through; goldmark replaces it with
+// `<!-- raw HTML omitted -->` unless told otherwise, so a `<b>` in a CV summary
+// vanished and a `<tag>` in ordinary prose took its surrounding text with it. A
+// verifier measured both. The input is the user's own CV, which the port
+// already renders verbatim into Typst, so passing it through is what the rest of
+// the pipeline does too.
+var converter = goldmark.New(goldmark.WithRendererOptions(html.WithUnsafe()))
 
 // listMarker is a list item's indentation and bullet, which is the only place
 // python-markdown and CommonMark disagree on the documents this port produces.
@@ -35,7 +48,7 @@ const pythonMarkdownTabLength = 4
 // reading the diff rather than reducing it.
 func MarkdownToHTML(markdown string) (string, error) {
 	var out bytes.Buffer
-	if err := goldmark.Convert([]byte(flattenShallowLists(markdown)), &out); err != nil {
+	if err := converter.Convert([]byte(flattenShallowLists(markdown)), &out); err != nil {
 		return "", err
 	}
 	// goldmark ends the document with a newline; upstream's `markdown.markdown`
