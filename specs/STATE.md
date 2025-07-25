@@ -25,7 +25,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 8 | Templater (pongo2 env, filters, markdown→typst, processors) | [008](008-templater/spec.md) | green (with cut scope, see below) | n/a (gated on the 52-fragment Jinja differential and 240 unit cases, spec §7) |
 | 9 | Typst renderer (`.typ` emission) + iteration 6's T10 + iteration 8's Wave C | [009](009-typst-renderer/spec.md) | **green** — verified by a fresh context, which returned FAIL on four items; all four fixed and pinned | 24 / 24 |
 | 10 | wazero + WASI typst → PDF, then PNG | [010](010-typst-compilation/spec.md) | **specced, measured, unblocked** — the route is D-006, approved since iteration 6; implementation is the next real work in the port | 0 / 14 |
-| 11 | Markdown + HTML renderers | [011](011-markdown-and-html/spec.md) | **green** — both documents byte-identical on all 24 cases | 24 / 24 md, 24 / 24 html |
+| 11 | Markdown + HTML renderers | [011](011-markdown-and-html/spec.md) | **verified — FAIL, demoted from green.** 24/24 on the corpus, but a `"` in any CV breaks the HTML and raw HTML is dropped. Not green | 24 / 24 corpus, blockers open |
 | 12 | CLI (`new`, `render`, `create-theme`, overrides, watcher) | [012](012-cli/spec.md) | **started** — `render` and `new` are wired; `new`'s seven starter CVs are byte-identical against their goldens. `create-theme` and the six help panels are not written. Every parity number is blocked on one of the three gates below | 0 (see below) |
 | 13 | Parity closeout (sample generator, version, error handler, packaging) | — | — | 0 |
 | 14 | Lua-scripted custom themes (D-002) + the two folder messages | [014](014-lua-custom-themes/spec.md) | **verified — FAIL.** Three of four blockers fixed; the rest is open work, listed below. Not green | 4 / 4 criteria, 11 findings |
@@ -34,7 +34,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 
 | Axis | Gate command | Status |
 |---|---|---|
-| 1 — artifacts byte-identical | `just test-parity` | **72 passing comparisons.** Every text artifact — 24/24 `.typ`, `.md` and `.html` — byte-identical against the vendored Python (`TestCorpusTypstIsByteIdentical`), over the 21 corpus inputs plus three the corpus cannot express. PDF and PNG are iteration 10's. The 15 CLI-driven artifact cases stay red until iteration 12: they shell `rendercv-go render`, which does not exist. |
+| 1 — artifacts byte-identical | `just test-parity` | **72 passing comparisons on the corpus, and the corpus is narrower than that number suggests** — 8 of the 24 cases share one byte-identical `.md`, so there are 14 distinct Markdown documents, and a verifier broke the HTML with a double quote. Every text artifact — 24/24 `.typ`, `.md` and `.html` — byte-identical against the vendored Python (`TestCorpusTypstIsByteIdentical`), over the 21 corpus inputs plus three the corpus cannot express. PDF and PNG are iteration 10's. The 15 CLI-driven artifact cases stay red until iteration 12: they shell `rendercv-go render`, which does not exist. |
 | 2 — CLI surface | `just test-parity` | **1/21 passing** — `cli_version`, the first green case in the whole parity suite. It is the only CLI output carrying no `rendercv` token, which is why it is reachable before the binary-name question below is answered. |
 | 3 — JSON Schema | `just schema-diff` | **green.** All 227 `$defs` byte-identical; the command exits 0. The oracle is `tools/genschema`, not the parity suite — `TestSchemaParity` shells `rendercv-go schema` and stays red until iteration 12. |
 | 4 — validation errors | `just test-parity` | measurable, 0/7 corpus cases passing; the 25-record differential is green |
@@ -707,6 +707,31 @@ green: the port requires `init.lua` where upstream requires `__init__.py` plus a
 so **there is no input on which both sides do the same thing** — criteria 2 and 3 have no upstream
 oracle at all.
 
+## Iteration 11 was verified and it failed — demoted from green
+
+A fresh context reviewed the Markdown and HTML work and returned **FAIL with three blockers**. The
+24/24 corpus claim is real and non-vacuous — mutations confirmed, fixtures regenerate with zero
+diff — but **the corpus is much narrower than 24 suggests**: 8 cases share one byte-identical
+`.md`, leaving 14 distinct Markdown documents.
+
+| # | Blocker | Status |
+|---|---|---|
+| 1 | **goldmark escapes `"` as `&quot;`; python-markdown does not.** Any double quote anywhere in a CV produces a differing `.html`. Reproduced independently: upstream `<p>He said "hello" to me.</p>`, port `<p>He said &quot;hello&quot; to me.</p>`. | **open** |
+| 2 | **goldmark drops raw HTML** (`WithUnsafe` off); python-markdown passes it through. `<b>x</b>` becomes `<!-- raw HTML omitted -->`, and a `<tag>` in ordinary prose triggers it. | **open** |
+| 3 | **YAML block scalars are not parsed at all** — `key: \|` and `key: >` yield the raw indicator. A literal-block `TextEntry` renders as `\|` in **all three** artifacts. This is iteration 2's reader, not iteration 11's, and it is the most serious of the three. | **open** |
+
+**`plan.md` §2's "this is a library substitution and not a divergence" is now known to be wrong**,
+and it was argued from exactly the 24 corpus cases that cannot see these. The same paragraph that
+corrected an earlier over-estimate made an under-estimate in the other direction. Findings 4
+(list-valued `email`/`phone`/`website` silently taking the first value) and 5 (the goldmark
+substitution itself) both need `divergences.md` entries — human-gated.
+
+**What this says about the ledger generally:** iteration 11 sat marked green for this whole
+session on the strength of a corpus differential, and one `"` was enough to break it. Iterations 9
+and 14 were verified and both came back FAIL. **The only iterations whose green has survived
+contact with a fresh context are 9 and, partially, 14 — every unverified green in the table above
+should be read as provisional.**
+
 ## Two measured behaviors awaiting the human gate
 
 Neither is written into `specs/divergences.md`; that file is human-gated (`AGENTS.md` §5) and this
@@ -762,7 +787,8 @@ whether to reproduce the crash, record the divergence, or leave it.
 | 2026-08-07 | **`new` wired.** `tools/sampleprobe` captures the starter CV per theme and locale from the vendored CLI; all seven variants are byte-identical against their goldens, as are both panels and the greeting. The eight cases still fail on one line — the `rendercv render …` instruction, which must name this binary and so changes a fixed-width panel row's padding. Recorded for the human gate. |
 | 2026-08-07 | **Iteration 12 started.** `render` is wired end to end: overlays, dotted overrides, path placeholders, the five negative and five path flags, and Rich's result panel — whose geometry was recovered from the goldens, including a duration column the harness erases. `render_typst_only` matches on exit code, stdout, stderr and file list, and differs only on the baked generation date. |
 | 2026-08-07 | **Corpus defect found: the goldens expire daily.** 18 `.typ` goldens embed the day they were generated because `gengolden` never pinned `settings.current_date`. Recorded for the human gate; it blocks those cases independently of the port. |
-| 2026-08-07 | **Iteration 11 green** (unverified by a fresh context). Both text documents byte-identical on all 24 cases. The HTML was cut and uncut in the same session: the 16 goldmark misses were not "block-layer list structure" but one list-indent rule — python-markdown nests at 4 spaces, CommonMark at 2 — and normalizing the input makes goldmark match 24/24. |
+| 2026-08-07 | **Iteration 11 verified — FAIL, demoted.** A `"` anywhere in a CV breaks the HTML (goldmark escapes it, python-markdown does not); raw HTML is dropped; and YAML block scalars turn out not to be parsed at all, which is iteration 2's reader and affects all three artifacts. The 24-case corpus could see none of it — 8 of those cases share one identical `.md`. |
+| 2026-08-07 | ~~**Iteration 11 green**~~ (unverified by a fresh context). Both text documents byte-identical on all 24 cases. The HTML was cut and uncut in the same session: the 16 goldmark misses were not "block-layer list structure" but one list-indent rule — python-markdown nests at 4 spaces, CommonMark at 2 — and normalizing the input makes goldmark match 24/24. |
 | 2026-08-07 | **Iteration 9 green.** The fresh-context verifier returned FAIL with two blockers (a null `degree_column` ignored; a photo rendering silently wrong), one major (`splitLines` was not `str.splitlines()`) and one coverage hole (seven unpinned `locale.Resolve` branches). All four fixed, each behind a fixture that is red without its fix. 24/24 `.typ` byte-identical. Two upstream *crashes* the port does not reproduce are recorded for the human gate. |
 | 2026-08-07 | **Axis 1's first passing cases.** The bridge (`internal/renderer/bridge`) and the orchestration (`internal/renderer/typstdoc`) landed, and all 21 corpus inputs that carry a `cv.yaml` render a `.typ` byte-identical to the vendored Python's, pinned to `settings.current_date: 2025-03-05` by `tools/typprobe`. All nine entry types are covered; the fixture is mutation-checked (19 of 21 fail on a one-newline change to `Assemble`). |
 | 2026-08-07 | Iteration 6's T10 closed in iteration 9: `design.Effective` merges the base tree, the theme's overrides and the document's own block, deep at every layer, and runs the two coercions where upstream's validators do. Seven-document differential against upstream's resolved model. |
