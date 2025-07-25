@@ -678,6 +678,15 @@ changed a built-in theme's artifact.
   with Lua's own message, which names the line. The comment where it stood records why there is no
   replacement.
 
+**Also fixed:**
+
+- **Finding 7, partly** — D-002's folder rules. The **name** check turned out to be already
+  ported (iteration 6's `validateThemeName`); only the two folder checks were missing, and they are
+  now `design.ValidateCustomThemeFolder`, **wired into `cli.Render`** so a custom theme naming a
+  folder that does not exist reports upstream's message, writes nothing and exits non-zero. The
+  messages needed no gate: they are upstream's own strings, so reproducing them is axis-4 parity
+  rather than new text. Only the *Lua-specific* syntax/import messages are genuinely new.
+
 **Open:**
 
 - **Finding 5 — `luatheme.Validate` is still dead code.** It types a *document's* value against a
