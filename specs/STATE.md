@@ -37,7 +37,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 1 — artifacts byte-identical | `just test-parity` | **72 passing comparisons on the corpus, and the corpus is narrower than that number suggests** — 8 of the 24 cases share one byte-identical `.md`, so there are 14 distinct Markdown documents, and a verifier broke the HTML with a double quote. Every text artifact — 24/24 `.typ`, `.md` and `.html` — byte-identical against the vendored Python (`TestCorpusTypstIsByteIdentical`), over the 21 corpus inputs plus three the corpus cannot express. PDF and PNG are iteration 10's. The 15 CLI-driven artifact cases stay red until iteration 12: they shell `rendercv-go render`, which does not exist. |
 | 2 — CLI surface | `just test-parity` | **1/21 passing** — `cli_version`, the first green case in the whole parity suite. It is the only CLI output carrying no `rendercv` token, which is why it is reachable before the binary-name question below is answered. |
 | 3 — JSON Schema | `just schema-diff` | **green.** All 227 `$defs` byte-identical; the command exits 0. The oracle is `tools/genschema`, not the parity suite — `TestSchemaParity` shells `rendercv-go schema` and stays red until iteration 12. |
-| 4 — validation errors | `just test-parity` | measurable, 0/7 corpus cases passing; the 25-record differential is green |
+| 4 — validation errors | `just test-parity` | **verified — FAIL.** The 25-record differential is real and mutation-discriminating, but it gates far less than the axis: 6 of 13 dictionary rows, 2 of 8 username rules. Two blockers open (below). 0/7 corpus cases. |
 
 PDF content comparison (spec §1.2) is not yet measurable — it lands with iteration 10.
 
@@ -750,6 +750,23 @@ That is the clearest example this session produced of the difference between a t
 a test that checks. It also means **iterations 1–8's greens rest on suites of unknown
 discrimination** — this is the first of them to be probed, and it failed.
 
+## Iteration 4 was verified and it failed — axis 4's green is not real
+
+The 25-record differential **is** discriminating — mutating a message, a coordinate and a schema
+location each broke it, and it has no iteration-2-shaped defect. But it gates a fraction of the
+axis, and two holes sit outside it.
+
+| # | Finding | Status |
+|---|---|---|
+| 1 | **The whole `settings` block is unvalidated** except `current_date`. `settings:\n  bogus: 1` renders and exits 0 where upstream reports an unknown key. `STATE.md` deferred this to iteration 12; `specs/012-cli/spec.md` says the validation text is iteration 4's and done — **nobody owns it**, which is how it survived. | **open** |
+| 2 | **Only the first validation record reaches the user.** Upstream prints every record with its location and input; `cli.Render`'s `fail` writes one line. So `schema_location`, `input` and `yaml_location` are **never user-visible**, and axis 4's "same location" clause is unmet for every input. | **open** |
+| 3 | **Exit code on a validation error was 4; upstream's is 1** — the value every `err_*` golden records. Measured across twelve invalid documents. | **fixed**, `exitValidationError` |
+| 4 | The differential covers 6 of 13 dictionary rows and 2 of 8 username rules; the verifier hand-checked 12 uncovered cases and **all matched byte for byte** — the gap is that nothing in the suite holds them. | **open** (coverage, not correctness) |
+| 5 | `modelbuilder/yamlerror_test.go:271` skips unconditionally — a test that asserts nothing. | **open** |
+
+**The ownership gap in finding 1 is the lesson.** Two specs each recorded the work as the other's,
+and the ledger agreed with both. Nothing was hidden; the cross-reference was just never followed.
+
 ## Two measured behaviors awaiting the human gate
 
 Neither is written into `specs/divergences.md`; that file is human-gated (`AGENTS.md` §5) and this
@@ -805,6 +822,7 @@ whether to reproduce the crash, record the divergence, or leave it.
 | 2026-08-07 | **`new` wired.** `tools/sampleprobe` captures the starter CV per theme and locale from the vendored CLI; all seven variants are byte-identical against their goldens, as are both panels and the greeting. The eight cases still fail on one line — the `rendercv render …` instruction, which must name this binary and so changes a fixed-width panel row's padding. Recorded for the human gate. |
 | 2026-08-07 | **Iteration 12 started.** `render` is wired end to end: overlays, dotted overrides, path placeholders, the five negative and five path flags, and Rich's result panel — whose geometry was recovered from the goldens, including a duration column the harness erases. `render_typst_only` matches on exit code, stdout, stderr and file list, and differs only on the baked generation date. |
 | 2026-08-07 | **Corpus defect found: the goldens expire daily.** 18 `.typ` goldens embed the day they were generated because `gengolden` never pinned `settings.current_date`. Recorded for the human gate; it blocks those cases independently of the port. |
+| 2026-08-07 | **Iteration 4 verified — FAIL.** Axis 4's green was resting on a differential that gates 6 of 13 dictionary rows. Two blockers found: `settings` is entirely unvalidated beyond `current_date` (each of two specs recorded it as the other's work), and only the *first* validation record ever reaches the user, so error locations are never user-visible. Exit code 4→1 fixed. |
 | 2026-08-07 | **Block scalars fixed** (iteration 2). `buildLiteral` read the `\|` indicator instead of the block body, so every block scalar in every CV was replaced by `\|` in all three artifacts. All four forms now match ruamel and a block-scalar CV renders byte-identical. The existing test fed a literal block and asserted only its Kind, so it passed on garbage. |
 | 2026-08-07 | **Iteration 11 verified — FAIL, demoted.** A `"` anywhere in a CV breaks the HTML (goldmark escapes it, python-markdown does not); raw HTML is dropped; and YAML block scalars turn out not to be parsed at all, which is iteration 2's reader and affects all three artifacts. The 24-case corpus could see none of it — 8 of those cases share one identical `.md`. |
 | 2026-08-07 | ~~**Iteration 11 green**~~ (unverified by a fresh context). Both text documents byte-identical on all 24 cases. The HTML was cut and uncut in the same session: the 16 goldmark misses were not "block-layer list structure" but one list-indent rule — python-markdown nests at 4 spaces, CommonMark at 2 — and normalizing the input makes goldmark match 24/24. |

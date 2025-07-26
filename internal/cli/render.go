@@ -43,6 +43,15 @@ type RenderOptions struct {
 	Overrides map[string]string
 }
 
+// exitValidationError is what upstream exits with when a document is rejected —
+// `typer.Exit(code=1)` (`cli/error_handler.py:49`), and the value every `err_*`
+// golden records.
+//
+// **The port used to exit 4**, which no golden asked for and which a
+// fresh-context audit measured against twelve invalid documents. Exit codes are
+// axis 2, so this was a divergence in the contract with nothing recording it.
+const exitValidationError = 1
+
 // Render is the `render` command (spec 012 §2).
 //
 // **PDF and PNG are iteration 10's**, so this writes the three text artifacts
@@ -54,20 +63,20 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 		// punctuation choice, so `ST1005` is suppressed rather than obeyed —
 		// obeying it would be a validation-error divergence (axis 4).
 		fail(stderr, errMissingFile(options.InputPath))
-		return 4
+		return exitValidationError
 	}
 
 	built, err := modelbuilder.BuildDictionary(string(raw), buildArguments(options))
 	if err != nil {
 		fail(stderr, err)
-		return 4
+		return exitValidationError
 	}
 
 	context := &valctx.ValidationContext{InputFilePath: options.InputPath}
 	model, err := modelbuilder.BuildModel(built, context)
 	if err != nil {
 		fail(stderr, err)
-		return 4
+		return exitValidationError
 	}
 
 	doc := bridge.Resolve(model, context.Today())
@@ -80,7 +89,7 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 	if theme := themeOf(doc); !design.IsBuiltinTheme(theme) {
 		if err := design.ValidateCustomThemeFolder(theme, inputDir); err != nil {
 			fail(stderr, err)
-			return 4
+			return exitValidationError
 		}
 	}
 
@@ -104,12 +113,12 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 		out, err := document.Render(doc, templater.FormatTypst, document.Options{InputDir: inputDir})
 		if err != nil {
 			fail(stderr, err)
-			return 4
+			return exitValidationError
 		}
 		path, err := writeArtifact(orDefault(options.TypstPath, DefaultTypstPath), pathInput, out)
 		if err != nil {
 			fail(stderr, err)
-			return 4
+			return exitValidationError
 		}
 		rows = append(rows, PanelRow{Mark: "✓", Timing: timing(started), Label: "Generated Typst:", Value: display(path)})
 	}
@@ -118,13 +127,13 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 		out, err := document.Render(doc, templater.FormatMarkdown, document.Options{InputDir: inputDir})
 		if err != nil {
 			fail(stderr, err)
-			return 4
+			return exitValidationError
 		}
 		markdown = out
 		path, err := writeArtifact(orDefault(options.MarkdownPath, DefaultMarkdownPath), pathInput, out)
 		if err != nil {
 			fail(stderr, err)
-			return 4
+			return exitValidationError
 		}
 		rows = append(rows, PanelRow{Mark: "✓", Timing: timing(started), Label: "Generated Markdown:", Value: display(path)})
 	}
@@ -139,12 +148,12 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 		out, err := document.RenderHTML(doc, markdown, document.Options{InputDir: inputDir})
 		if err != nil {
 			fail(stderr, err)
-			return 4
+			return exitValidationError
 		}
 		path, err := writeArtifact(orDefault(options.HTMLPath, DefaultHTMLPath), pathInput, out)
 		if err != nil {
 			fail(stderr, err)
-			return 4
+			return exitValidationError
 		}
 		rows = append(rows, PanelRow{Mark: "✓", Timing: timing(started), Label: "Generated HTML:", Value: display(path)})
 	}

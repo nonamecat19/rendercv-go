@@ -54,31 +54,31 @@ type NewOptions struct {
 func New(options NewOptions, stdout, stderr io.Writer) int {
 	if options.Name != "John Doe" {
 		fail(stderr, ErrSampleNameUnsupported)
-		return 4
+		return exitValidationError
 	}
 	if options.CreateTypstTemplates {
 		fail(stderr, errors.New(
 			"--create-typst-templates is not implemented: the port's templates are the pongo2 "+
 				"transform of upstream's, so neither form is the right thing to write"))
-		return 4
+		return exitValidationError
 	}
 
 	variant, err := sampleVariant(options)
 	if err != nil {
 		fail(stderr, err)
-		return 4
+		return exitValidationError
 	}
 
 	content, err := samples.ReadFile("samples/" + variant + ".yaml")
 	if err != nil {
 		fail(stderr, fmt.Errorf("no starter CV for %s: %w", variant, err))
-		return 4
+		return exitValidationError
 	}
 
 	path := strings.ReplaceAll(options.Name, " ", "_") + "_CV.yaml"
 	if err := os.WriteFile(path, content, 0o644); err != nil {
 		fail(stderr, err)
-		return 4
+		return exitValidationError
 	}
 
 	_, _ = fmt.Fprint(stdout, newBanner(path))
