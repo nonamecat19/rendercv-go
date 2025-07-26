@@ -317,3 +317,41 @@ func TestEmptyQuotedScalarIsEmpty(t *testing.T) {
 	assertScalar(t, doc, "single", "")
 	assertScalar(t, doc, "plain", "x")
 }
+
+// A block scalar carries its **body**, not its indicator.
+//
+// `buildLiteral` read `n.Start` — the `|` token — so every block scalar in every
+// CV became the literal string `" |\n"`, and that reached the `.typ`, the `.md`
+// and the `.html`. A test here fed a literal block and asserted only its Kind,
+// so it passed on the garbage; the scalar corpus has no block entry and no
+// golden CV uses one, which is why a green parity run said nothing about it.
+func TestBlockScalarsCarryTheirBody(t *testing.T) {
+	document := "literal: |\n  line one\n  line two\n" +
+		"folded: >\n  line one\n  line two\n" +
+		"stripped: |-\n  line one\n  line two\n" +
+		"foldedstripped: >-\n  line one\n  line two\n"
+
+	doc, err := yamlreader.ReadString(document)
+	if err != nil {
+		t.Fatalf("ReadString = %v", err)
+	}
+
+	// The four forms differ only in folding and chomping, which goccy has
+	// already applied — so these are ruamel's values, measured.
+	assertScalar(t, doc, "literal", "line one\nline two\n")
+	assertScalar(t, doc, "folded", "line one line two\n")
+	assertScalar(t, doc, "stripped", "line one\nline two")
+	assertScalar(t, doc, "foldedstripped", "line one line two")
+}
+
+// The same in a sequence, which is how a `TextEntry` writes one.
+func TestBlockScalarsInASequence(t *testing.T) {
+	doc, err := yamlreader.ReadString("notes:\n  - |\n    first\n    second\n")
+	if err != nil {
+		t.Fatalf("ReadString = %v", err)
+	}
+	entry := value(t, doc, "notes").Elems[0]
+	if entry.Raw != "first\nsecond\n" {
+		t.Errorf("= %q, want the block's body", entry.Raw)
+	}
+}

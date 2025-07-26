@@ -718,7 +718,7 @@ diff — but **the corpus is much narrower than 24 suggests**: 8 cases share one
 |---|---|---|
 | 1 | **goldmark escapes `"` as `&quot;`; python-markdown does not.** Any double quote anywhere in a CV produces a differing `.html`. Reproduced independently: upstream `<p>He said "hello" to me.</p>`, port `<p>He said &quot;hello&quot; to me.</p>`. | **open, and now pinned red**: `process/html_conformance_test.go` differentials against CPython's own output and fails on exactly this case. **Two fixes were tried and both are wrong**, which is the useful part. A blanket `&quot;`→`"` post-pass corrupts attribute values. A custom goldmark writer overriding the renderer's text `Write` fixes the text case and **breaks image alt text** — goldmark renders alt through the same text path into an *attribute*, producing `alt="alt "q""`, unparseable HTML. The four-case differential passed it; extending the fixture to eleven caught it. A real fix must distinguish text from attribute context inside goldmark's renderer. |
 | 2 | **goldmark drops raw HTML** (`WithUnsafe` off); python-markdown passes it through. `<b>x</b>` becomes `<!-- raw HTML omitted -->`, and a `<tag>` in ordinary prose triggers it. | **fixed** — `WithUnsafe` matches python-markdown's passthrough. Not a security decision: the input is the user's own CV, which the port already renders verbatim into Typst. |
-| 3 | **YAML block scalars are not parsed at all** — `key: \|` and `key: >` yield the raw indicator. A literal-block `TextEntry` renders as `\|` in **all three** artifacts. This is iteration 2's reader, not iteration 11's, and it is the most serious of the three. | **open** |
+| 3 | **YAML block scalars were not parsed at all** — `key: \|` and `key: >` yielded the raw indicator, so a literal-block `TextEntry` rendered as `\|` in **all three** artifacts. | **fixed.** `buildLiteral` read `n.Start`, the *indicator* token, instead of `n.Value`, the body (`yamlreader/build.go:232`). Present since the reader was first written; a narrow verifier pass confirmed and located it. All four forms — `\|`, `>`, `\|-`, `>-` — now match ruamel, and a block-scalar CV renders **byte-identical** to upstream's `.typ`. |
 
 **`plan.md` §2's "this is a library substitution and not a divergence" is now known to be wrong**,
 and it was argued from exactly the 24 corpus cases that cannot see these. The same paragraph that
@@ -731,6 +731,24 @@ session on the strength of a corpus differential, and one `"` was enough to brea
 and 14 were verified and both came back FAIL. **The only iterations whose green has survived
 contact with a fresh context are 9 and, partially, 14 — every unverified green in the table above
 should be read as provisional.**
+
+## Iteration 2 was verified narrowly, and it failed
+
+The block-scalar report from iteration 11's verifier was a side observation, so a second pass
+confirmed it, bounded it and found the cause. All three held.
+
+**The cause:** `buildLiteral` read `n.Start` — the `|` indicator token — where goccy keeps the
+block's body in `n.Value` (`internal/schema/yamlreader/build.go:232`). Present since the reader was
+first written, **not** from this session's `scalarRaw` change.
+
+**Why nothing caught it:** `yamlreader_test.go`'s "star in a literal block" case *does* feed a
+literal block, but asserts only `Kind == KindString` — never `Raw` — so it passed on garbage. The
+174-entry scalar corpus has no literal or folded entry, and no golden CV input contains a block
+scalar outside comments. **A green parity run said nothing about it.**
+
+That is the clearest example this session produced of the difference between a test that runs and
+a test that checks. It also means **iterations 1–8's greens rest on suites of unknown
+discrimination** — this is the first of them to be probed, and it failed.
 
 ## Two measured behaviors awaiting the human gate
 
@@ -787,6 +805,7 @@ whether to reproduce the crash, record the divergence, or leave it.
 | 2026-08-07 | **`new` wired.** `tools/sampleprobe` captures the starter CV per theme and locale from the vendored CLI; all seven variants are byte-identical against their goldens, as are both panels and the greeting. The eight cases still fail on one line — the `rendercv render …` instruction, which must name this binary and so changes a fixed-width panel row's padding. Recorded for the human gate. |
 | 2026-08-07 | **Iteration 12 started.** `render` is wired end to end: overlays, dotted overrides, path placeholders, the five negative and five path flags, and Rich's result panel — whose geometry was recovered from the goldens, including a duration column the harness erases. `render_typst_only` matches on exit code, stdout, stderr and file list, and differs only on the baked generation date. |
 | 2026-08-07 | **Corpus defect found: the goldens expire daily.** 18 `.typ` goldens embed the day they were generated because `gengolden` never pinned `settings.current_date`. Recorded for the human gate; it blocks those cases independently of the port. |
+| 2026-08-07 | **Block scalars fixed** (iteration 2). `buildLiteral` read the `\|` indicator instead of the block body, so every block scalar in every CV was replaced by `\|` in all three artifacts. All four forms now match ruamel and a block-scalar CV renders byte-identical. The existing test fed a literal block and asserted only its Kind, so it passed on garbage. |
 | 2026-08-07 | **Iteration 11 verified — FAIL, demoted.** A `"` anywhere in a CV breaks the HTML (goldmark escapes it, python-markdown does not); raw HTML is dropped; and YAML block scalars turn out not to be parsed at all, which is iteration 2's reader and affects all three artifacts. The 24-case corpus could see none of it — 8 of those cases share one identical `.md`. |
 | 2026-08-07 | ~~**Iteration 11 green**~~ (unverified by a fresh context). Both text documents byte-identical on all 24 cases. The HTML was cut and uncut in the same session: the 16 goldmark misses were not "block-layer list structure" but one list-indent rule — python-markdown nests at 4 spaces, CommonMark at 2 — and normalizing the input makes goldmark match 24/24. |
 | 2026-08-07 | **Iteration 9 green.** The fresh-context verifier returned FAIL with two blockers (a null `degree_column` ignored; a photo rendering silently wrong), one major (`splitLines` was not `str.splitlines()`) and one coverage hole (seven unpinned `locale.Resolve` branches). All four fixed, each behind a fixture that is red without its fix. 24/24 `.typ` byte-identical. Two upstream *crashes* the port does not reproduce are recorded for the human gate. |
