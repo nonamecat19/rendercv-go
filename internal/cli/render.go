@@ -1,10 +1,12 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/nonamecat19/rendercv-go/internal/renderer/bridge"
@@ -14,6 +16,7 @@ import (
 	"github.com/nonamecat19/rendercv-go/internal/schema/modelbuilder"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/design"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/valctx"
+	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 )
 
 // RenderOptions are `render`'s flags, after the pre-pass of args.go has turned
@@ -233,9 +236,30 @@ func errMissingFile(path string) error {
 	return fmt.Errorf("The file %s does not exist!", path) //nolint:staticcheck // upstream's text
 }
 
-// fail writes one message to stderr. The write itself cannot be usefully
-// reported — the channel for reporting it is the one that just failed.
+// fail writes an error to stderr. The write itself cannot be usefully reported —
+// the channel for reporting it is the one that just failed.
+//
+// **A validation failure is many records, not one.** `UserValidationError.Error`
+// returns only the first message, so every location, input value and subsequent
+// record was being discarded: a document with three problems reported one line
+// and named no field. An audit measured that against upstream, which prints
+// every record with its location.
+//
+// The *shape* here is not upstream's — that is a Rich table, and rendering it is
+// iteration 12's remaining work. What this fixes is the information loss.
 func fail(stderr io.Writer, err error) {
+	var validation *schemaerr.UserValidationError
+	if errors.As(err, &validation) && len(validation.Errors) > 0 {
+		for _, record := range validation.Errors {
+			location := strings.Join(record.SchemaLocation, ".")
+			if location == "" {
+				_, _ = fmt.Fprintln(stderr, record.Message)
+				continue
+			}
+			_, _ = fmt.Fprintf(stderr, "%s: %s\n", location, record.Message)
+		}
+		return
+	}
 	_, _ = fmt.Fprintln(stderr, err)
 }
 
