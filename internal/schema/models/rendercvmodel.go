@@ -131,6 +131,12 @@ func Validate(
 		if current, ok := mappingValue(model.Settings, "current_date"); ok {
 			errs = append(errs, settings.ValidateCurrentDate(current, []string{"settings"}, source)...)
 		}
+		// **Unknown keys under `settings` were accepted by nobody's decision**:
+		// two specs each recorded the settings model as the other's work. An
+		// audit measured `settings: {bogus: 1}` rendering at exit 0 where
+		// upstream reports an unknown key.
+		errs = append(errs,
+			settings.ValidateUnknownKeys(model.Settings, []string{"settings"}, source)...)
 	}
 
 	// Spec §3.31: the input file path comes from the context, after validation,

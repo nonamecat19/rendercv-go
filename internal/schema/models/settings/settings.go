@@ -55,3 +55,88 @@ func ValidateCurrentDate(
 		Input:          schemaerr.RenderInput(node),
 	}}
 }
+
+// FieldNames is `Settings`' declared field set (settings.py:10-52). The
+// underscore-prefixed `_resolved_current_date` is a private attribute, not a
+// field, so it is not here — and a document writing it is an unknown key like
+// any other.
+var FieldNames = []string{"current_date", "render_command", "bold_keywords", "pdf_title"}
+
+// RenderCommandFieldNames is `RenderCommand`'s (render_command.py).
+var RenderCommandFieldNames = []string{
+	"output_folder", "design", "locale",
+	"typst_path", "pdf_path", "markdown_path", "html_path", "png_path",
+	"dont_generate_markdown", "dont_generate_html", "dont_generate_typst",
+	"dont_generate_pdf", "dont_generate_png",
+}
+
+// ValidateUnknownKeys rejects keys neither model declares
+// (`BaseModelWithoutExtraKeys`).
+//
+// **Nobody owned this until an audit found it.** `STATE.md` deferred the settings
+// model to iteration 12; `specs/012-cli/spec.md` recorded the validation text as
+// iteration 4's and already done. Two specs each named the other, the ledger
+// agreed with both, and `settings: {bogus: 1}` rendered happily where upstream
+// reports an unknown key.
+//
+// The message is the binder's own, which the error pipeline already maps to
+// dictionary row `extra_forbidden` — so this adds a location, not a new string.
+func ValidateUnknownKeys(
+	node *yamldoc.Node,
+	location []string,
+	source schemaerr.YamlSource,
+) []schemaerr.ValidationError {
+	if node == nil || node.Kind != yamldoc.KindMapping {
+		return nil
+	}
+
+	var errs []schemaerr.ValidationError
+	for _, item := range node.Items {
+		if !known(FieldNames, item.Key) {
+			errs = append(errs, unknownKey(item, location))
+			continue
+		}
+		if item.Key != "render_command" || item.Value == nil ||
+			item.Value.Kind != yamldoc.KindMapping {
+			continue
+		}
+		nested := append(append([]string(nil), location...), "render_command")
+		for _, inner := range item.Value.Items {
+			if !known(RenderCommandFieldNames, inner.Key) {
+				errs = append(errs, unknownKey(inner, nested))
+			}
+		}
+	}
+	return errs
+}
+
+func unknownKey(item yamldoc.Item, location []string) schemaerr.ValidationError {
+	span := item.KeySpan
+	return schemaerr.ValidationError{
+		Code:           CodeExtraForbidden,
+		SchemaLocation: append(append([]string(nil), location...), item.Key),
+		YamlLocation:   &span,
+		YamlSource:     source(item),
+		Message:        messageExtraForbidden,
+	}
+}
+
+// source is a placeholder for the per-item source; every settings key comes from
+// the document the caller passed, so the caller's own source is the answer.
+func source(yamldoc.Item) schemaerr.YamlSource { return schemaerr.SourceMain }
+
+func known(names []string, name string) bool {
+	for _, candidate := range names {
+		if candidate == name {
+			return true
+		}
+	}
+	return false
+}
+
+// CodeExtraForbidden and messageExtraForbidden are the binder's, repeated rather
+// than imported because `binder` imports this package's siblings and the cycle
+// is not worth breaking for two constants.
+const CodeExtraForbidden schemaerr.Code = "extra_forbidden"
+
+const messageExtraForbidden = "Extra inputs are not permitted"
