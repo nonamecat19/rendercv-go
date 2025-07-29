@@ -57,6 +57,26 @@ func ParseDate(value string, current time.Time) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("%w: %q", ErrNotADate, value)
 }
 
+// monthAt indexes a month list defensively.
+//
+// **Only English is required to supply twelve months** (spec 007 §3.2 10a): a
+// non-English variant may declare fewer, and validation accepts it because
+// upstream's does. That list then reached the renderer and Go **panicked** with
+// a raw stack trace at exit 2, where upstream's `IndexError` goes through its
+// error handler and exits 1. A verifier measured it on
+// `{language: turkish, month_abbreviations: [a, b]}`.
+//
+// Returning the empty string is not upstream's behavior — upstream *fails* —
+// and the port cannot report it here, because this function has no error path
+// and no access to one. A blank month in a rendered date is wrong; a stack trace
+// is worse, and the gap is recorded in `STATE.md` rather than papered over.
+func monthAt(months []string, month int) string {
+	if month < 1 || month > len(months) {
+		return ""
+	}
+	return months[month-1]
+}
+
 // BuildDatePlaceholders is `build_date_placeholders` (date.py:12-39).
 //
 // **The month lookups are the only consumer of spec 007's twelve-element
@@ -74,8 +94,8 @@ func BuildDatePlaceholders(date time.Time, catalog Catalog) map[string]string {
 
 	month := int(date.Month())
 	return map[string]string{
-		"MONTH_NAME":          catalog.MonthNames[month-1],
-		"MONTH_ABBREVIATION":  catalog.MonthAbbreviations[month-1],
+		"MONTH_NAME":          monthAt(catalog.MonthNames, month),
+		"MONTH_ABBREVIATION":  monthAt(catalog.MonthAbbreviations, month),
 		"MONTH":               strconv.Itoa(month),
 		"MONTH_IN_TWO_DIGITS": fmt.Sprintf("%02d", month),
 		"DAY":                 strconv.Itoa(date.Day()),
