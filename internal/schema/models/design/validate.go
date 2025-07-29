@@ -196,6 +196,22 @@ func validateField(
 		}
 
 	case KindLiteral:
+		// **A font family is not a closed set.** Upstream declares it
+		// `SkipJsonSchema[str] | Literal[...]` (`font_family.py:30`), so the
+		// literals are a *documentation* arm for the JSON schema and the bare
+		// `str` accepts anything — a user's system font renders fine there. This
+		// port rejected it, so `theme: opal` with `font_family.body: Charter`
+		// exited 1 where upstream exits 0. `fontfamily.go` had the rule written
+		// down correctly the whole time; the tree generator emitted the fields as
+		// a plain literal and nothing reconciled the two.
+		if isFontFamilyField(field) {
+			if node.Kind != yamldoc.KindString {
+				return one(node, binder.CodeStringType, "Input should be a valid string",
+					location, source)
+			}
+			return nil
+		}
+
 		// **Any** non-member is `literal_error`, whatever its shape: a mapping,
 		// a sequence and a bool all give the same message as a wrong string.
 		// Measured on `page.size`.
@@ -315,6 +331,12 @@ func SnakeCaseSectionTitles(titles []string) []string {
 		out = append(out, strings.ReplaceAll(strings.ToLower(title), " ", "_"))
 	}
 	return out
+}
+
+// isFontFamilyField reports whether a literal field is one of the five font
+// slots, which are the only literals upstream leaves open.
+func isFontFamilyField(field Field) bool {
+	return strings.HasSuffix(field.Ref, "font_family__FontFamily")
 }
 
 func contains(values []string, value string) bool {
