@@ -15,7 +15,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | # | Subsystem | Spec | Status | Conformance cases passing |
 |---|---|---|---|---|
 | 0 | Bootstrap (layout, AGENTS.md, submodule, agents, skills, CI) | — | green | n/a |
-| 1 | Conformance harness (corpus, gengolden, helpers) | [001](001-conformance-harness/spec.md) | green | n/a (42 cases red by design) |
+| 1 | Conformance harness (corpus, gengolden, helpers) | [001](001-conformance-harness/spec.md) | **audited — FAIL, demoted.** Comparison path sound (6/6 mutations caught); the goldens bake absolute paths and the generation month | n/a (42 cases red by design) |
 | 2 | YAML reader + core model (RenderCVModel, CV, Section) | [002](002-yaml-and-core-model/spec.md) | green (with cut scope, see below) | n/a (gated on unit tests, spec §7.2) |
 | 3 | Entry types (9) | [003](003-entry-types/spec.md) | green (with cut scope, see below) | n/a (gated on unit tests, spec §7.1) |
 | 4 | Validation-error parity | [004](004-validation-errors/spec.md) | green | n/a (gated on the 25-record differential, spec §7.3) |
@@ -552,6 +552,27 @@ either.
 **Not verified by a fresh context.** Iteration 11 has had no `rendercv-parity-verifier` pass; the
 row above reports what the suite prints, not an independent audit.
 
+## Iteration 1 was audited and it failed — the instrument itself — HUMAN GATE
+
+**Every shipped iteration has now been audited: twelve passes, one pass (iteration 5).** The last
+one examined the harness the other eleven are *measured by*, so its defects are systemic.
+
+**The comparison path is sound.** Six mutations — an extra file, a missing file, trailing
+whitespace, CRLF, an extra dotfile, and stdout drift — were all caught, with the baseline passing.
+The harness does not let a wrong artifact through.
+
+**The goldens themselves are the problem**, and both findings are `gengolden`'s:
+
+| # | Finding | Reach |
+|---|---|---|
+| 1 | **Three goldens bake the generating machine's absolute paths** — `/home/nnc/…` — including 13 lines of Python traceback through the *submodule's own source* in `err_bad_override_key`, plus `err_missing_file` (6) and `err_unknown_theme` (1). Verified independently. **A Go port can never match a Python traceback**, so those cases are unachievable by construction, not by effort. `gengolden -verify` cannot see it: it regenerates at the same path and exits 0. | 3 cases permanently unreachable |
+| 2 | **19 goldens bake the generation month** — the earlier entry said 18 — in *two* places: the footer and every `end_date: present` duration. They rot at each month boundary. Neither `gengolden` nor `corpus.json` pins `settings.current_date`, though upstream exposes the knob and `tools/docprobe` already uses it. | 19 cases expire monthly |
+
+**This reframes the parity number.** `just test-parity`'s 41 failures are not 41 units of remaining
+work: at least 3 can never pass, and 19 more depend on a date that has already moved. The gate the
+whole port is measured against needs regenerating before its count means anything — and
+regenerating `testdata/golden/` is a human gate (§5).
+
 ## The golden corpus expires daily — HUMAN GATE
 
 **Found while wiring `render`, and it blocks 18 of the 42 parity cases regardless of how correct
@@ -883,6 +904,7 @@ whether to reproduce the crash, record the divergence, or leave it.
 | 2026-08-07 | **`new` wired.** `tools/sampleprobe` captures the starter CV per theme and locale from the vendored CLI; all seven variants are byte-identical against their goldens, as are both panels and the greeting. The eight cases still fail on one line — the `rendercv render …` instruction, which must name this binary and so changes a fixed-width panel row's padding. Recorded for the human gate. |
 | 2026-08-07 | **Iteration 12 started.** `render` is wired end to end: overlays, dotted overrides, path placeholders, the five negative and five path flags, and Rich's result panel — whose geometry was recovered from the goldens, including a duration column the harness erases. `render_typst_only` matches on exit code, stdout, stderr and file list, and differs only on the baked generation date. |
 | 2026-08-07 | **Corpus defect found: the goldens expire daily.** 18 `.typ` goldens embed the day they were generated because `gengolden` never pinned `settings.current_date`. Recorded for the human gate; it blocks those cases independently of the port. |
+| 2026-08-07 | **Iteration 1 audited — FAIL. Every shipped iteration is now audited: twelve, one pass.** The harness's comparison path is mutation-tight, but three goldens bake the generating machine's absolute paths — including Python tracebacks through the submodule, which no Go port can ever reproduce — and 19 bake the generation month. So the parity suite's 41 failures include at least 3 that are unachievable by construction. |
 | 2026-08-07 | **Iteration 5 audited — PASS**, the first of eleven. `just schema-diff` catches all four mutations tried, and the committed `schema.json` is byte-identical to a fresh regeneration from the submodule. Axis 3's closure is confirmed independently. The distinguishing feature: it is gated on a diff against upstream's own output, not on hand-written expectations. |
 | 2026-08-07 | **Iteration 7 audited — FAIL, ten for ten, and demoted.** A short month list on a non-English locale — which both sides *accept* — panicked the renderer with a raw stack trace at exit 2. Fixed. Three of the ten locale fields turn out to carry no value type at all, so four documents upstream rejects render happily. The valid path is byte-identical across seven languages and three themes. |
 | 2026-08-07 | **Iteration 6 audited — FAIL, nine for nine, and demoted.** Font families were validated as a closed enum where upstream's `SkipJsonSchema[str]` arm accepts anything, so a system font was rejected — and the repo's own `fontfamily.go` had documented the correct rule the whole time. Fixed. Chasing it turned up a second defect in how a partial `font_family` mapping merges, which two attempted fixes each got wrong in a new way; recorded rather than guessed at again. |
