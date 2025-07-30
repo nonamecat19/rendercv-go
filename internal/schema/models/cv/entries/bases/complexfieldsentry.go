@@ -1,6 +1,7 @@
 package bases
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -58,7 +59,28 @@ func withExactDateValidators(spec []binder.Field, reference time.Time) []binder.
 	fields := append([]binder.Field(nil), spec...)
 	for i := range fields {
 		switch fields[i].Name {
-		case "start_date", "end_date":
+		case "start_date":
+			// **`start_date` gets no reference date, and that is the whole
+			// difference from `end_date`.** Upstream's `validate_exact_date`
+			// calls `get_date_object(date)` with no `current_date`
+			// (entry_with_complex_fields.py:15-37), so `present` raises there and
+			// only `end_date` accepts it — through its own `Literal["present"]`
+			// union arm. Passing the reference to both made
+			// `start_date: present` render at exit 0 where upstream exits 1; an
+			// audit measured it.
+			fields[i].Scalar = func(raw string, isInteger bool) error {
+				err := ValidateExactDate(raw, isInteger, time.Time{})
+				// Without a reference, `present` comes back as spec §4.15's
+				// internal error. That message is right for the path §4.15
+				// describes and wrong here: upstream reports
+				// `start_date: present` as an ordinary bad date. Measured.
+				var internal *schemaerr.InternalError
+				if errors.As(err, &internal) {
+					return &ExactDateError{Message: messageInvalidExactDate}
+				}
+				return err
+			}
+		case "end_date":
 			fields[i].Scalar = func(raw string, isInteger bool) error {
 				return ValidateExactDate(raw, isInteger, reference)
 			}
