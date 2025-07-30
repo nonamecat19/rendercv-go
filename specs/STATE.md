@@ -19,7 +19,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 2 | YAML reader + core model (RenderCVModel, CV, Section) | [002](002-yaml-and-core-model/spec.md) | green (with cut scope, see below) | n/a (gated on unit tests, spec §7.2) |
 | 3 | Entry types (9) | [003](003-entry-types/spec.md) | green (with cut scope, see below) | n/a (gated on unit tests, spec §7.1) |
 | 4 | Validation-error parity | [004](004-validation-errors/spec.md) | green | n/a (gated on the 25-record differential, spec §7.3) |
-| 5 | JSON Schema generator | [005](005-json-schema/spec.md) | green (Axis 3 now closed by 6) | n/a (gated on the 18 owned `$defs`, spec §7.1) |
+| 5 | JSON Schema generator | [005](005-json-schema/spec.md) | **verified green** — audited and passed, the only iteration besides 9 to do so | n/a (gated on the 18 owned `$defs`, spec §7.1) |
 | 6 | Design & themes (9) + the settings schema | [006](006-design-and-themes/spec.md) | **audited — FAIL, demoted.** Font families were a closed enum where upstream accepts any string (fixed); three findings open | n/a (gated on the 164 `$defs` differential and the override diff, spec §5) |
 | 7 | Locale (English + 21 catalogs) | [007](007-locale/spec.md) | **audited — FAIL, demoted.** Three locale fields are unvalidated; a short month list panicked the renderer (fixed) | n/a (gated on the 45 `$defs` differential and the submodule catalog diff, spec §5) |
 | 8 | Templater (pongo2 env, filters, markdown→typst, processors) | [008](008-templater/spec.md) | **audited — FAIL, demoted.** Four `markdown_to_typst` divergences still live and unrecorded; one produced uncompilable Typst and is fixed | n/a (gated on the 52-fragment Jinja differential and 240 unit cases, spec §7) |
@@ -811,6 +811,23 @@ Verified clean: colour normalization across named, short-hex, `hsl`, alpha and `
 
 The valid path is in good shape: the verifier diffed german, hungarian, japanese, vietnamese, russian, turkish and hindi across three themes — month names, abbreviations, `present`, `last_updated`, the time-span phrases, `DEGREE_WITH_AREA` with and without a degree, and per-field overrides on a non-English base — **all byte-identical**.
 
+## Iteration 5 was audited and it PASSED — the first one to
+
+Eleven audits, one pass. Both questions came back clean:
+
+- **`just schema-diff` is discriminating, not vacuous.** Four mutations of the generator — a
+  changed description, a dropped property, a flipped `required` entry, two properties reordered —
+  each drove it to exit 1 with 4, 14, 17 and 12 diff lines. Baseline exits 0.
+- **The committed reference is upstream's live output, not a stale snapshot.** Regenerating
+  `schema.json` from the vendored Python at `2eba248 (v2.8)` produces bytes identical to both the
+  committed file and `go run ./tools/genschema` — all three md5 `1da645c9…`, 406444 bytes. Nothing
+  in the tree embeds a copy of the reference.
+
+**So Axis 3's "closed" is real**, and it is the only axis claim in this ledger that has survived an
+independent check. It is worth noting *why* it survived: the gate is a byte diff against a file
+regenerated from upstream, not a suite of hand-written expectations. Every iteration that failed an
+audit was gated on assertions someone wrote; this one is gated on upstream's own output.
+
 ## Two measured behaviors awaiting the human gate
 
 Neither is written into `specs/divergences.md`; that file is human-gated (`AGENTS.md` §5) and this
@@ -866,6 +883,7 @@ whether to reproduce the crash, record the divergence, or leave it.
 | 2026-08-07 | **`new` wired.** `tools/sampleprobe` captures the starter CV per theme and locale from the vendored CLI; all seven variants are byte-identical against their goldens, as are both panels and the greeting. The eight cases still fail on one line — the `rendercv render …` instruction, which must name this binary and so changes a fixed-width panel row's padding. Recorded for the human gate. |
 | 2026-08-07 | **Iteration 12 started.** `render` is wired end to end: overlays, dotted overrides, path placeholders, the five negative and five path flags, and Rich's result panel — whose geometry was recovered from the goldens, including a duration column the harness erases. `render_typst_only` matches on exit code, stdout, stderr and file list, and differs only on the baked generation date. |
 | 2026-08-07 | **Corpus defect found: the goldens expire daily.** 18 `.typ` goldens embed the day they were generated because `gengolden` never pinned `settings.current_date`. Recorded for the human gate; it blocks those cases independently of the port. |
+| 2026-08-07 | **Iteration 5 audited — PASS**, the first of eleven. `just schema-diff` catches all four mutations tried, and the committed `schema.json` is byte-identical to a fresh regeneration from the submodule. Axis 3's closure is confirmed independently. The distinguishing feature: it is gated on a diff against upstream's own output, not on hand-written expectations. |
 | 2026-08-07 | **Iteration 7 audited — FAIL, ten for ten, and demoted.** A short month list on a non-English locale — which both sides *accept* — panicked the renderer with a raw stack trace at exit 2. Fixed. Three of the ten locale fields turn out to carry no value type at all, so four documents upstream rejects render happily. The valid path is byte-identical across seven languages and three themes. |
 | 2026-08-07 | **Iteration 6 audited — FAIL, nine for nine, and demoted.** Font families were validated as a closed enum where upstream's `SkipJsonSchema[str]` arm accepts anything, so a system font was rejected — and the repo's own `fontfamily.go` had documented the correct rule the whole time. Fixed. Chasing it turned up a second defect in how a partial `font_family` mapping merges, which two attempted fixes each got wrong in a new way; recorded rather than guessed at again. |
 | 2026-08-07 | **Iteration 8 audited — FAIL, eight for eight, and demoted.** A Markdown link title reached the Typst as an unbalanced string literal, so the document **would not compile** — the code comment asserted titles never appear. Fixed. The other four measured divergences are still live and still unrecorded, which means the iteration was green against §10.2 and §10.5 the whole time. |
