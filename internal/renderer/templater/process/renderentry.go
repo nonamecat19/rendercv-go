@@ -141,6 +141,15 @@ func stringFields(entry Entry) map[string]string {
 			if len(typed) > 0 {
 				out[name] = typed[0]
 			}
+		default:
+			// **An integer date was being dropped entirely.** `date: 2000` dumps
+			// as the int `2000`, this map only carried strings, so `START_DATE`
+			// never existed and the whole date column rendered **empty** — an
+			// audit measured it on `start_date: 2000, end_date: 2005`. Upstream's
+			// dict holds the int and its `!= ""` test passes, so the value has to
+			// be here; `YearOnly` already carries the int-ness the formatters
+			// branch on.
+			out[name] = stringify(typed)
 		}
 	}
 	return out
