@@ -159,6 +159,51 @@
     },
     {
       "type": "EducationEntry",
+      "case": "date_beats_range",
+      "input": {
+        "institution": "X",
+        "area": "Y",
+        "date": "2021-01-01",
+        "start_date": "2022-01-01",
+        "end_date": "2023-01-01"
+      },
+      "dump": {
+        "institution": "X",
+        "area": "Y",
+        "date": "2021-01-01"
+      }
+    },
+    {
+      "type": "EducationEntry",
+      "case": "lone_start_date",
+      "input": {
+        "institution": "X",
+        "area": "Y",
+        "start_date": "2020-05"
+      },
+      "dump": {
+        "institution": "X",
+        "area": "Y",
+        "start_date": "2020-05",
+        "end_date": "present"
+      }
+    },
+    {
+      "type": "EducationEntry",
+      "case": "lone_end_date",
+      "input": {
+        "institution": "X",
+        "area": "Y",
+        "end_date": "2020-05"
+      },
+      "dump": {
+        "institution": "X",
+        "area": "Y",
+        "date": "2020-05"
+      }
+    },
+    {
+      "type": "EducationEntry",
       "case": "extra_key",
       "input": {
         "institution": "X",
