@@ -48,8 +48,30 @@ func Dump(node *yamldoc.Node, name TypeName) (map[string]any, map[string]bool) {
 	}
 
 	applyModelValidators(fields, name)
-	adjustDates(fields, yearOnly)
+	if hasComplexFields(name) {
+		adjustDates(fields, yearOnly)
+	}
 	return fields, yearOnly
+}
+
+// hasComplexFields names the three entry types built on
+// `BaseEntryWithComplexFields` (education.py, experience.py, normal.py — the
+// three that call `ComplexSpec`).
+//
+// **`check_and_adjust_dates` lives on that base alone**
+// (entry_with_complex_fields.py:90,133). `PublicationEntry` inherits
+// `BaseEntryWithDate` only, so applying the rewrites to it synthesized an
+// `end_date: present` for a publication carrying a stray `start_date` and
+// rendered a date range — where upstream aborts the render outright. A
+// re-audit caught that; it was introduced by the fix for the rewrites
+// themselves.
+func hasComplexFields(name TypeName) bool {
+	switch name {
+	case "EducationEntry", "ExperienceEntry", "NormalEntry":
+		return true
+	default:
+		return false
+	}
 }
 
 // adjustDates is `check_and_adjust_dates`' three silent rewrites

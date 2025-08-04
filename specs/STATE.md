@@ -17,7 +17,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 0 | Bootstrap (layout, AGENTS.md, submodule, agents, skills, CI) | — | green | n/a |
 | 1 | Conformance harness (corpus, gengolden, helpers) | [001](001-conformance-harness/spec.md) | **audited — FAIL, demoted.** Comparison path sound (6/6 mutations caught); the goldens bake absolute paths and the generation month | n/a (42 cases red by design) |
 | 2 | YAML reader + core model (RenderCVModel, CV, Section) | [002](002-yaml-and-core-model/spec.md) | green (with cut scope, see below) | n/a (gated on unit tests, spec §7.2) |
-| 3 | Entry types (9) | [003](003-entry-types/spec.md) | **audited — FAIL, all five findings now closed; re-audit pending** | n/a (gated on unit tests, spec §7.1) |
+| 3 | Entry types (9) | [003](003-entry-types/spec.md) | **re-audited — FAIL again.** Three of five closures hold; two of my repairs introduced new defects | n/a (gated on unit tests, spec §7.1) |
 | 4 | Validation-error parity | [004](004-validation-errors/spec.md) | green | n/a (gated on the 25-record differential, spec §7.3) |
 | 5 | JSON Schema generator | [005](005-json-schema/spec.md) | **verified green** — audited and passed, the only iteration besides 9 to do so | n/a (gated on the 18 owned `$defs`, spec §7.1) |
 | 6 | Design & themes (9) + the settings schema | [006](006-design-and-themes/spec.md) | **audited — FAIL, demoted.** Font families were a closed enum where upstream accepts any string (fixed); three findings open | n/a (gated on the 164 `$defs` differential and the override diff, spec §5) |
@@ -788,7 +788,28 @@ axis, and two holes sit outside it.
 **The ownership gap in finding 1 is the lesson.** Two specs each recorded the work as the other's,
 and the ledger agreed with both. Nothing was hidden; the cross-reference was just never followed.
 
-## Iteration 3 was audited and it failed — seven for seven — and every finding is now closed
+## Iteration 3 — re-audited, and the repairs themselves failed
+
+**This is the most important entry in this file.** Iteration 3 was audited, five findings were
+fixed, and a *second* fresh-context audit of those fixes found that **two of the five closures were
+wrong and one of my repairs created a new defect**:
+
+| # | What the re-audit found | Status |
+|---|---|---|
+| A | **My "misdiagnosis" call on the DOI record was itself the misdiagnosis.** Upstream *does* emit two rows; I concluded otherwise from a raw `errors()` dump, not seeing that RenderCV's own handler unpacks `caused_by` into a second row. A short bad DOI emits both rows in Go, so the transport works — only the too-long case loses one. | **open, and worse than before**: the earlier note claiming this closed is now retracted |
+| B | **The `start_date: present` fix is half-closed.** The rejection is right, but Go then runs the ordering check anyway and emits a **third** record upstream never produces. `check_and_adjust_dates` is `mode="after"` and never runs when a field failed. | **open** |
+| C | **`adjustDates` was applied to every entry type**, but `check_and_adjust_dates` lives on `BaseEntryWithComplexFields` alone. A publication with a stray `start_date` got `end_date: present` synthesized and rendered a date range where upstream aborts. **Introduced by the fix for finding 1.** | **fixed** — gated to Education/Experience/Normal, the three that call `ComplexSpec` |
+
+**Closures that do hold**: the three date rewrites and integer-year dates, both byte-identical, and
+the fixture gap (0 catches → 4).
+
+**The lesson, and it is the session's sharpest**: a repair is not a closure. Nine audits found
+defects in code that passed its tests; this one found defects in the *repairs*, made by the same
+context that wrote them. The rule `AGENTS.md` §5 states for features — the verifier is never the
+author — applies to fixes with at least as much force.
+
+Also observed and unrecorded elsewhere: `rendercv-go render` **does not exit** after printing its
+summary panel; every re-audit render hung to a timeout.
 
 **All five are resolved**: three fixed with byte-identical differentials against upstream
 (the date rewrites, `start_date: present`, integer-year dates), one fixture gap closed and
