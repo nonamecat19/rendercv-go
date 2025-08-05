@@ -808,8 +808,17 @@ defects in code that passed its tests; this one found defects in the *repairs*, 
 context that wrote them. The rule `AGENTS.md` §5 states for features — the verifier is never the
 author — applies to fixes with at least as much force.
 
-Also observed and unrecorded elsewhere: `rendercv-go render` **does not exit** after printing its
-summary panel; every re-audit render hung to a timeout.
+Also observed and unrecorded elsewhere: **`rendercv-go render` returns the wrong exit code on
+success for some flag combinations.** `render cv.yaml` and `render cv.yaml --quiet` exit 0, but
+`render cv.yaml -nopdf -nopng` and `render cv.yaml -typ out.typ` **exit 70** while writing every
+artifact and printing the success panel. 70 is `Execute`'s initial `code` value, so either the
+subcommand's `RunE` result is being lost or `root.Execute` is erroring after it ran — not yet
+traced. The re-audit reported these runs as *hangs*; measured here they terminate immediately with
+the wrong status, which is likelier what its harness saw.
+
+**This is an axis-2 defect on the success path** — every golden records exit 0 — and it is more
+serious than any single parity byte, because a caller cannot tell a successful render from a
+failure.
 
 **All five are resolved**: three fixed with byte-identical differentials against upstream
 (the date rewrites, `start_date: present`, integer-year dates), one fixture gap closed and
