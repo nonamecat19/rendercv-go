@@ -1,7 +1,9 @@
 {
   "args": [
     "render",
-    "--help"
+    "--help",
+    "--settings.current_date",
+    "2025-03-05"
   ],
   "axis": "cli",
   "name": "cli_render_help"

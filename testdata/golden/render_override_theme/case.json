@@ -7,7 +7,9 @@
     "-nopdf",
     "-nopng",
     "-nohtml",
-    "-nomd"
+    "-nomd",
+    "--settings.current_date",
+    "2025-03-05"
   ],
   "axis": "cli",
   "name": "render_override_theme"

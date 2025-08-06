@@ -6,7 +6,7 @@
   name: "Dr. Zhen Wei",
   title: "Dr. Zhen Wei - CV",
   footer: context { [#emph[Dr. Zhen Wei -- #str(here().page())\/#str(counter(page).final().first())]] },
-  top-note: [ #emph[Last updated in Aug 2026] ],
+  top-note: [ #emph[Last updated in Mar 2025] ],
   locale-catalog-language: "en",
   text-direction: ltr,
   page-size: "us-letter",
@@ -79,9 +79,9 @@
   entries-highlights-space-between-items: 0cm,
   entries-highlights-space-between-bullet-and-text: 0.5em,
   date: datetime(
-    year: 2026,
-    month: 8,
-    day: 6,
+    year: 2025,
+    month: 3,
+    day: 5,
   ),
 )
 

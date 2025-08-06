@@ -60,7 +60,7 @@ June 2023 – present
 
 
 
-3 years 3 months
+1 year 10 months
 
 - Built foundation model infrastructure serving 2M+ monthly API requests with 99.97% uptime
 

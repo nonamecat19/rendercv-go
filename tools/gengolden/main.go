@@ -210,6 +210,7 @@ func generateCase(root, bin string, env map[string]string, c Case, scratch strin
 	}
 
 	var stdout, stderr strings.Builder
+	c.Args = pinCurrentDate(c.Args)
 	cmd := exec.Command(bin, c.Args...)
 	cmd.Dir = caseWork
 	cmd.Stdout = &stdout
@@ -491,6 +492,33 @@ func repoRoot() (string, error) {
 		}
 		dir = parent
 	}
+}
+
+// PinnedCurrentDate is what every `render` case is generated with.
+//
+// **Without it the goldens expire.** `settings.current_date` defaults to
+// `today`, so the footer and every `end_date: present` duration baked the day
+// the corpus was generated: 19 goldens carried `Aug 2026` and a `3 years 3
+// months` span that grew each month. `tools/docprobe` learned this first and
+// pins the same date; this is the corpus catching up.
+const PinnedCurrentDate = "2025-03-05"
+
+// pinCurrentDate appends the pin to a `render` invocation.
+//
+// **Only `render`.** The `new`, `create-theme` and `--help` cases take no such
+// flag, and adding it would change output that has nothing to do with dates.
+// The flag lands in the case's own `args`, so the conformance harness replays
+// the identical command — the pin is part of the case, not a hidden setting.
+func pinCurrentDate(args []string) []string {
+	if len(args) == 0 || args[0] != "render" {
+		return args
+	}
+	for _, arg := range args {
+		if arg == "--settings.current_date" {
+			return args
+		}
+	}
+	return append(append([]string(nil), args...), "--settings.current_date", PinnedCurrentDate)
 }
 
 // treeSet returns every regular file under dir, as slash-free relative paths.

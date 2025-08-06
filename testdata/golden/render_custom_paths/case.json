@@ -8,7 +8,9 @@
     "out/nested/custom.md",
     "-nopdf",
     "-nopng",
-    "-nohtml"
+    "-nohtml",
+    "--settings.current_date",
+    "2025-03-05"
   ],
   "axis": "cli",
   "name": "render_custom_paths"
