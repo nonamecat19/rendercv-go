@@ -816,6 +816,11 @@ subcommand's `RunE` result is being lost or `root.Execute` is erroring after it 
 traced. The re-audit reported these runs as *hangs*; measured here they terminate immediately with
 the wrong status, which is likelier what its harness saw.
 
+Probing further muddied rather than clarified it: under `2>&1 >/dev/null` the panel appears, and
+under `2>/dev/null` it also appears, which cannot both be true of a single write — so the
+stream the panel goes to needs establishing before the exit code does. Recorded at the point the
+tracing stopped being reliable rather than guessed at.
+
 **This is an axis-2 defect on the success path** — every golden records exit 0 — and it is more
 serious than any single parity byte, because a caller cannot tell a successful render from a
 failure.
