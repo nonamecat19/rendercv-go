@@ -2,6 +2,7 @@ package modelbuilder
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
@@ -190,13 +191,68 @@ func TestFalsyOverridesAreDropped(t *testing.T) {
 	}
 }
 
-// Spec §3.21 — dotted-key overrides are applied last; iteration 2 keeps the hook a no-op.
-func TestDottedOverridesAreANoOpHook(t *testing.T) {
+// Spec §3.21 — dotted-key overrides are applied last, and they are applied.
+//
+// **This test used to assert the opposite.** `applyOverrides` was a stub
+// returning the document unchanged, and the test pinned that no-op as if it were
+// behavior — so `--cv.phone`, `--design.theme` and `--settings.current_date`
+// were all silently discarded, and four corpus cases could never pass.
+func TestDottedOverridesAreApplied(t *testing.T) {
 	result := mustBuild(t, minimalCV, BuildArguments{
 		Overrides: map[string]string{"cv.name": "Jane Doe"},
 	})
-	if got := get(t, result.Document, "cv", "name").Raw; got != "John Doe" {
-		t.Errorf("cv.name = %q, want the untouched %q", got, "John Doe")
+	if got := get(t, result.Document, "cv", "name").Raw; got != "Jane Doe" {
+		t.Errorf("cv.name = %q, want the override %q", got, "Jane Doe")
+	}
+}
+
+// A path whose intermediate mappings do not exist grows them
+// (override_dictionary.py:74-76).
+func TestDottedOverridesCreateMissingMappings(t *testing.T) {
+	result := mustBuild(t, minimalCV, BuildArguments{
+		Overrides: map[string]string{"design.typography.font_size.body": "12pt"},
+	})
+	got := get(t, result.Document, "design", "typography", "font_size", "body")
+	if got.Raw != "12pt" {
+		t.Errorf("= %q, want the override", got.Raw)
+	}
+}
+
+// **A list does not grow to meet the path**, which is the asymmetry with
+// mappings: an out-of-range index is a user error rather than a new element.
+func TestDottedOverrideIndexOutOfRange(t *testing.T) {
+	main := "cv:\n  sections:\n    education:\n      - institution: A\n        area: B\n"
+	_, err := BuildDictionary(main, BuildArguments{
+		Overrides: map[string]string{"cv.sections.education.3.institution": "MIT"},
+	})
+	if err == nil || !strings.Contains(err.Error(), "out of range") {
+		t.Errorf("err = %v, want an out-of-range complaint", err)
+	}
+}
+
+// An index into a list has to be an integer.
+func TestDottedOverrideNonIntegerIndex(t *testing.T) {
+	main := "cv:\n  sections:\n    education:\n      - institution: A\n        area: B\n"
+	_, err := BuildDictionary(main, BuildArguments{
+		Overrides: map[string]string{"cv.sections.education.first.institution": "MIT"},
+	})
+	if err == nil || !strings.Contains(err.Error(), "not an integer") {
+		t.Errorf("err = %v, want a non-integer complaint", err)
+	}
+}
+
+// The indexed form the corpus uses (`render_override_indexed`).
+func TestDottedOverrideIndexedEntry(t *testing.T) {
+	main := "cv:\n  sections:\n    education:\n      - institution: A\n        area: B\n"
+	result := mustBuild(t, main, BuildArguments{
+		Overrides: map[string]string{"cv.sections.education.0.institution": "MIT"},
+	})
+	entry := get(t, result.Document, "cv", "sections", "education").Elems[0]
+	if got := get(t, entry, "institution").Raw; got != "MIT" {
+		t.Errorf("institution = %q, want MIT", got)
+	}
+	if got := get(t, entry, "area").Raw; got != "B" {
+		t.Errorf("area = %q, want the sibling untouched", got)
 	}
 }
 

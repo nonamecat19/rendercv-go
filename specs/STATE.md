@@ -586,9 +586,23 @@ hidden setting.
 **The parity count did not move, and the reason is a new finding.** `render_typst_only`'s golden is
 now correctly `Last updated in Mar 2025` while the port still emits `Aug 2026`, because:
 
-> **`modelbuilder.applyOverrides` is a stub** — its whole body is `_ = overrides; return document`
-> (`internal/schema/modelbuilder/merge.go:108-111`). **Every dotted CLI override is silently
-> discarded.**
+> **`modelbuilder.applyOverrides` was a stub** — its whole body was `_ = overrides; return
+> document`. Every dotted CLI override was silently discarded.
+
+**Now implemented** (`override_dictionary.py:5-121`): a dotted path is walked segment by segment,
+a missing *mapping* key is created and a missing *list* index is a user error — upstream's
+asymmetry — with its two messages ported verbatim. Keys are applied in sorted order, because Go's
+map order is random and upstream's is the CLI's insertion order. The unit test that pinned the
+no-op as if it were behavior is replaced by five that pin the real semantics, including the
+indexed form `render_override_indexed` uses.
+
+Verified by hand: `render cv.yaml --settings.current_date 2025-03-05` now emits
+`Last updated in Mar 2025` where it emitted `Aug 2026`.
+
+**Still open, and it is not the overrides:** through the conformance harness the same case still
+renders `Aug 2026`, though `case.json` carries the pin and the identical command works from a
+shell. So something in the harness path differs from a direct invocation — the next thing to trace,
+and unrelated to the override walk itself.
 
 That is why `--settings.current_date` has no effect, and it means `render_override_scalar`,
 `render_override_indexed` and `render_override_theme` cannot pass either — four cases, one stub.
