@@ -14,191 +14,594 @@
     {
       "name": "theme_classic",
       "axis": "artifacts",
-      "files": [{ "src": "examples/John_Doe_ClassicTheme_CV.yaml", "dst": "cv.yaml" }],
-      "args": ["render", "cv.yaml"]
+      "files": [
+        {
+          "src": "examples/John_Doe_ClassicTheme_CV.yaml",
+          "dst": "cv.yaml"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ]
     },
     {
       "name": "theme_ember",
       "axis": "artifacts",
-      "files": [{ "src": "examples/John_Doe_EmberTheme_CV.yaml", "dst": "cv.yaml" }],
-      "args": ["render", "cv.yaml"]
+      "files": [
+        {
+          "src": "examples/John_Doe_EmberTheme_CV.yaml",
+          "dst": "cv.yaml"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ]
     },
     {
       "name": "theme_engineeringclassic",
       "axis": "artifacts",
-      "files": [{ "src": "examples/John_Doe_EngineeringclassicTheme_CV.yaml", "dst": "cv.yaml" }],
-      "args": ["render", "cv.yaml"]
+      "files": [
+        {
+          "src": "examples/John_Doe_EngineeringclassicTheme_CV.yaml",
+          "dst": "cv.yaml"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ]
     },
     {
       "name": "theme_engineeringresumes",
       "axis": "artifacts",
-      "files": [{ "src": "examples/John_Doe_EngineeringresumesTheme_CV.yaml", "dst": "cv.yaml" }],
-      "args": ["render", "cv.yaml"]
+      "files": [
+        {
+          "src": "examples/John_Doe_EngineeringresumesTheme_CV.yaml",
+          "dst": "cv.yaml"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ]
     },
     {
       "name": "theme_harvard",
       "axis": "artifacts",
-      "files": [{ "src": "examples/John_Doe_HarvardTheme_CV.yaml", "dst": "cv.yaml" }],
-      "args": ["render", "cv.yaml"]
+      "files": [
+        {
+          "src": "examples/John_Doe_HarvardTheme_CV.yaml",
+          "dst": "cv.yaml"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ]
     },
     {
       "name": "theme_ink",
       "axis": "artifacts",
-      "files": [{ "src": "examples/John_Doe_InkTheme_CV.yaml", "dst": "cv.yaml" }],
-      "args": ["render", "cv.yaml"]
+      "files": [
+        {
+          "src": "examples/John_Doe_InkTheme_CV.yaml",
+          "dst": "cv.yaml"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ]
     },
     {
       "name": "theme_moderncv",
       "axis": "artifacts",
-      "files": [{ "src": "examples/John_Doe_ModerncvTheme_CV.yaml", "dst": "cv.yaml" }],
-      "args": ["render", "cv.yaml"]
+      "files": [
+        {
+          "src": "examples/John_Doe_ModerncvTheme_CV.yaml",
+          "dst": "cv.yaml"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ]
     },
     {
       "name": "theme_opal",
       "axis": "artifacts",
-      "files": [{ "src": "examples/John_Doe_OpalTheme_CV.yaml", "dst": "cv.yaml" }],
-      "args": ["render", "cv.yaml"]
+      "files": [
+        {
+          "src": "examples/John_Doe_OpalTheme_CV.yaml",
+          "dst": "cv.yaml"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ]
     },
     {
       "name": "theme_sb2nov",
       "axis": "artifacts",
-      "files": [{ "src": "examples/John_Doe_Sb2novTheme_CV.yaml", "dst": "cv.yaml" }],
-      "args": ["render", "cv.yaml"]
+      "files": [
+        {
+          "src": "examples/John_Doe_Sb2novTheme_CV.yaml",
+          "dst": "cv.yaml"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ]
     },
-
     {
       "name": "input_minimal",
       "axis": "artifacts",
-      "files": [{ "src": "tests/schema/testdata/input_file.yaml", "dst": "cv.yaml" }],
-      "args": ["render", "cv.yaml"]
+      "files": [
+        {
+          "src": "tests/schema/testdata/input_file.yaml",
+          "dst": "cv.yaml"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ]
     },
     {
       "name": "ats_minimal",
       "axis": "artifacts",
-      "files": [{ "src": "scripts/ats_proof/corpus/baseline/minimal.yaml", "dst": "cv.yaml" }],
-      "args": ["render", "cv.yaml"]
+      "files": [
+        {
+          "src": "scripts/ats_proof/corpus/baseline/minimal.yaml",
+          "dst": "cv.yaml"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ]
     },
     {
       "name": "ats_standard_full",
       "axis": "artifacts",
-      "files": [{ "src": "scripts/ats_proof/corpus/baseline/standard_full.yaml", "dst": "cv.yaml" }],
-      "args": ["render", "cv.yaml"]
+      "files": [
+        {
+          "src": "scripts/ats_proof/corpus/baseline/standard_full.yaml",
+          "dst": "cv.yaml"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ]
     },
     {
       "name": "ats_diacritics",
       "axis": "artifacts",
-      "files": [{ "src": "scripts/ats_proof/corpus/edge_cases/diacritics.yaml", "dst": "cv.yaml" }],
-      "args": ["render", "cv.yaml"]
+      "files": [
+        {
+          "src": "scripts/ats_proof/corpus/edge_cases/diacritics.yaml",
+          "dst": "cv.yaml"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ]
     },
     {
       "name": "ats_academic",
       "axis": "artifacts",
-      "files": [{ "src": "scripts/ats_proof/corpus/stress_tests/academic.yaml", "dst": "cv.yaml" }],
-      "args": ["render", "cv.yaml"]
+      "files": [
+        {
+          "src": "scripts/ats_proof/corpus/stress_tests/academic.yaml",
+          "dst": "cv.yaml"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ]
     },
     {
       "name": "render_typst_only",
       "axis": "cli",
-      "files": [{ "src": "examples/John_Doe_ClassicTheme_CV.yaml", "dst": "cv.yaml" }],
-      "args": ["render", "cv.yaml", "-nopdf", "-nopng", "-nomd", "-nohtml"]
+      "files": [
+        {
+          "src": "examples/John_Doe_ClassicTheme_CV.yaml",
+          "dst": "cv.yaml"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "-nopdf",
+        "-nopng",
+        "-nomd",
+        "-nohtml",
+        "--settings.current_date",
+        "2025-03-05"
+      ]
     },
     {
       "name": "render_quiet",
       "axis": "cli",
-      "files": [{ "src": "examples/John_Doe_ClassicTheme_CV.yaml", "dst": "cv.yaml" }],
-      "args": ["render", "cv.yaml", "--quiet", "-nopdf", "-nopng"]
+      "files": [
+        {
+          "src": "examples/John_Doe_ClassicTheme_CV.yaml",
+          "dst": "cv.yaml"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--quiet",
+        "-nopdf",
+        "-nopng",
+        "--settings.current_date",
+        "2025-03-05"
+      ]
     },
     {
       "name": "render_custom_paths",
       "axis": "cli",
-      "files": [{ "src": "examples/John_Doe_ClassicTheme_CV.yaml", "dst": "cv.yaml" }],
-      "args": ["render", "cv.yaml", "-typ", "out/custom.typ", "-md", "out/nested/custom.md", "-nopdf", "-nopng", "-nohtml"]
+      "files": [
+        {
+          "src": "examples/John_Doe_ClassicTheme_CV.yaml",
+          "dst": "cv.yaml"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "-typ",
+        "out/custom.typ",
+        "-md",
+        "out/nested/custom.md",
+        "-nopdf",
+        "-nopng",
+        "-nohtml",
+        "--settings.current_date",
+        "2025-03-05"
+      ]
     },
     {
       "name": "render_override_scalar",
       "axis": "cli",
-      "files": [{ "src": "examples/John_Doe_ClassicTheme_CV.yaml", "dst": "cv.yaml" }],
-      "args": ["render", "cv.yaml", "--cv.phone", "+1-555-555-5555", "-nopdf", "-nopng", "-nohtml", "-nomd"]
+      "files": [
+        {
+          "src": "examples/John_Doe_ClassicTheme_CV.yaml",
+          "dst": "cv.yaml"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--cv.phone",
+        "+1-555-555-5555",
+        "-nopdf",
+        "-nopng",
+        "-nohtml",
+        "-nomd",
+        "--settings.current_date",
+        "2025-03-05"
+      ]
     },
     {
       "name": "render_override_indexed",
       "axis": "cli",
-      "files": [{ "src": "examples/John_Doe_ClassicTheme_CV.yaml", "dst": "cv.yaml" }],
-      "args": ["render", "cv.yaml", "--cv.sections.education.0.institution", "MIT", "-nopdf", "-nopng", "-nohtml", "-nomd"]
+      "files": [
+        {
+          "src": "examples/John_Doe_ClassicTheme_CV.yaml",
+          "dst": "cv.yaml"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--cv.sections.education.0.institution",
+        "MIT",
+        "-nopdf",
+        "-nopng",
+        "-nohtml",
+        "-nomd",
+        "--settings.current_date",
+        "2025-03-05"
+      ]
     },
     {
       "name": "render_override_theme",
       "axis": "cli",
-      "files": [{ "src": "examples/John_Doe_ClassicTheme_CV.yaml", "dst": "cv.yaml" }],
-      "args": ["render", "cv.yaml", "--design.theme", "moderncv", "-nopdf", "-nopng", "-nohtml", "-nomd"]
+      "files": [
+        {
+          "src": "examples/John_Doe_ClassicTheme_CV.yaml",
+          "dst": "cv.yaml"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--design.theme",
+        "moderncv",
+        "-nopdf",
+        "-nopng",
+        "-nohtml",
+        "-nomd",
+        "--settings.current_date",
+        "2025-03-05"
+      ]
     },
-
-    { "name": "cli_help", "axis": "cli", "args": ["--help"] },
-    { "name": "cli_help_short", "axis": "cli", "args": ["-h"] },
-    { "name": "cli_version", "axis": "cli", "args": ["--version"] },
-    { "name": "cli_render_help", "axis": "cli", "args": ["render", "--help"] },
-    { "name": "cli_new_help", "axis": "cli", "args": ["new", "--help"] },
-    { "name": "cli_create_theme_help", "axis": "cli", "args": ["create-theme", "--help"] },
-
-    { "name": "new_default", "axis": "cli", "args": ["new", "John Doe"] },
-    { "name": "new_theme_moderncv", "axis": "cli", "args": ["new", "John Doe", "--theme", "moderncv"] },
-    { "name": "new_theme_engineeringresumes", "axis": "cli", "args": ["new", "John Doe", "--theme", "engineeringresumes"] },
-    { "name": "new_locale_french", "axis": "cli", "args": ["new", "John Doe", "--locale", "french"] },
-    { "name": "new_locale_turkish", "axis": "cli", "args": ["new", "John Doe", "--locale", "turkish"] },
-    { "name": "new_locale_arabic", "axis": "cli", "args": ["new", "John Doe", "--locale", "arabic"] },
-    { "name": "new_locale_japanese", "axis": "cli", "args": ["new", "John Doe", "--locale", "japanese"] },
-    { "name": "new_typst_templates", "axis": "cli", "args": ["new", "John Doe", "--create-typst-templates"] },
-    { "name": "create_theme", "axis": "cli", "args": ["create-theme", "mytheme"] },
-
+    {
+      "name": "cli_help",
+      "axis": "cli",
+      "args": [
+        "--help"
+      ]
+    },
+    {
+      "name": "cli_help_short",
+      "axis": "cli",
+      "args": [
+        "-h"
+      ]
+    },
+    {
+      "name": "cli_version",
+      "axis": "cli",
+      "args": [
+        "--version"
+      ]
+    },
+    {
+      "name": "cli_render_help",
+      "axis": "cli",
+      "args": [
+        "render",
+        "--help",
+        "--settings.current_date",
+        "2025-03-05"
+      ]
+    },
+    {
+      "name": "cli_new_help",
+      "axis": "cli",
+      "args": [
+        "new",
+        "--help"
+      ]
+    },
+    {
+      "name": "cli_create_theme_help",
+      "axis": "cli",
+      "args": [
+        "create-theme",
+        "--help"
+      ]
+    },
+    {
+      "name": "new_default",
+      "axis": "cli",
+      "args": [
+        "new",
+        "John Doe"
+      ]
+    },
+    {
+      "name": "new_theme_moderncv",
+      "axis": "cli",
+      "args": [
+        "new",
+        "John Doe",
+        "--theme",
+        "moderncv"
+      ]
+    },
+    {
+      "name": "new_theme_engineeringresumes",
+      "axis": "cli",
+      "args": [
+        "new",
+        "John Doe",
+        "--theme",
+        "engineeringresumes"
+      ]
+    },
+    {
+      "name": "new_locale_french",
+      "axis": "cli",
+      "args": [
+        "new",
+        "John Doe",
+        "--locale",
+        "french"
+      ]
+    },
+    {
+      "name": "new_locale_turkish",
+      "axis": "cli",
+      "args": [
+        "new",
+        "John Doe",
+        "--locale",
+        "turkish"
+      ]
+    },
+    {
+      "name": "new_locale_arabic",
+      "axis": "cli",
+      "args": [
+        "new",
+        "John Doe",
+        "--locale",
+        "arabic"
+      ]
+    },
+    {
+      "name": "new_locale_japanese",
+      "axis": "cli",
+      "args": [
+        "new",
+        "John Doe",
+        "--locale",
+        "japanese"
+      ]
+    },
+    {
+      "name": "new_typst_templates",
+      "axis": "cli",
+      "args": [
+        "new",
+        "John Doe",
+        "--create-typst-templates"
+      ]
+    },
+    {
+      "name": "create_theme",
+      "axis": "cli",
+      "args": [
+        "create-theme",
+        "mytheme"
+      ]
+    },
     {
       "name": "err_wrong_input",
       "axis": "errors",
       "files": [
-        { "src": "tests/schema/testdata/test_pydantic_error_handling/wrong_input.yaml", "dst": "wrong_input.yaml" }
+        {
+          "src": "tests/schema/testdata/test_pydantic_error_handling/wrong_input.yaml",
+          "dst": "wrong_input.yaml"
+        }
       ],
-      "args": ["render", "wrong_input.yaml"],
+      "args": [
+        "render",
+        "wrong_input.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ],
       "expect_exit": 1
     },
     {
       "name": "err_missing_file",
       "axis": "errors",
-      "args": ["render", "does_not_exist.yaml"],
+      "args": [
+        "render",
+        "does_not_exist.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ],
       "expect_exit": 1
     },
     {
       "name": "err_not_yaml",
       "axis": "errors",
-      "inline_files": [{ "dst": "cv.yaml", "content": "this: [is, not, a, cv\n" }],
-      "args": ["render", "cv.yaml"],
+      "inline_files": [
+        {
+          "dst": "cv.yaml",
+          "content": "this: [is, not, a, cv\n"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ],
       "expect_exit": 1
     },
     {
       "name": "err_empty_yaml",
       "axis": "errors",
-      "inline_files": [{ "dst": "cv.yaml", "content": "" }],
-      "args": ["render", "cv.yaml"],
+      "inline_files": [
+        {
+          "dst": "cv.yaml",
+          "content": ""
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ],
       "expect_exit": 1
     },
     {
       "name": "err_unknown_theme",
       "axis": "errors",
       "inline_files": [
-        { "dst": "cv.yaml", "content": "cv:\n  name: John Doe\n  sections:\n    s:\n    - text\ndesign:\n  theme: nosuchtheme\n" }
+        {
+          "dst": "cv.yaml",
+          "content": "cv:\n  name: John Doe\n  sections:\n    s:\n    - text\ndesign:\n  theme: nosuchtheme\n"
+        }
       ],
-      "args": ["render", "cv.yaml"],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ],
       "expect_exit": 1
     },
     {
       "name": "err_unknown_locale",
       "axis": "errors",
-      "args": ["new", "John Doe", "--locale", "klingon"],
+      "args": [
+        "new",
+        "John Doe",
+        "--locale",
+        "klingon"
+      ],
       "expect_exit": 1
     },
     {
       "name": "err_bad_override_key",
       "axis": "errors",
-      "files": [{ "src": "examples/John_Doe_ClassicTheme_CV.yaml", "dst": "cv.yaml" }],
-      "args": ["render", "cv.yaml", "--cv.no_such_field", "x"],
+      "files": [
+        {
+          "src": "examples/John_Doe_ClassicTheme_CV.yaml",
+          "dst": "cv.yaml"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--cv.no_such_field",
+        "x",
+        "--settings.current_date",
+        "2025-03-05"
+      ],
       "expect_exit": 1
     }
   ]
