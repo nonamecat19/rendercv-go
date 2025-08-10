@@ -1,0 +1,16 @@
+[package]
+name = "typstwasm"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+typst = "0.14"
+typst-pdf = "0.14"
+typst-render = "0.14"
+tiny-skia = "0.11.4"
+typst-assets = { version = "0.14", features = ["fonts"] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true
