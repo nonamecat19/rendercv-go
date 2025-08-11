@@ -17,6 +17,8 @@ require (
 	github.com/bits-and-blooms/bitset v1.20.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
+	github.com/tetratelabs/wazero v1.12.0 // indirect
 	golang.org/x/net v0.34.0 // indirect
+	golang.org/x/sys v0.44.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
