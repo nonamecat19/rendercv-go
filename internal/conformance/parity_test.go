@@ -33,15 +33,19 @@ func TestParity(t *testing.T) {
 			conformance.AssertExitCode(t, golden.ExitCode, got.ExitCode)
 			conformance.AssertFileSet(t, golden.Files, got.Files)
 
-			// Axis 1: every text artifact, byte for byte.
+			// Axis 1: every text artifact, byte for byte; every PDF on the
+			// three facts spec §1.2 names, because its bytes carry a creation
+			// timestamp and a document ID.
 			for _, rel := range golden.Files {
-				if !isByteComparable(rel) {
-					continue
-				}
 				if !containsPath(got.Files, rel) {
 					continue // already reported by AssertFileSet
 				}
-				conformance.AssertBytes(t, rel, golden.Artifact(t, rel), got.Artifact(t, rel))
+				switch {
+				case isByteComparable(rel):
+					conformance.AssertBytes(t, rel, golden.Artifact(t, rel), got.Artifact(t, rel))
+				case strings.EqualFold(filepath.Ext(rel), ".pdf"):
+					conformance.AssertPDF(t, rel, golden.Artifact(t, rel), got.Artifact(t, rel))
+				}
 			}
 
 			// Spec §1.2: PNG page count and pixel dimensions.
