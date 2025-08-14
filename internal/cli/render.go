@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -13,7 +14,9 @@ import (
 	"github.com/nonamecat19/rendercv-go/internal/renderer/document"
 	"github.com/nonamecat19/rendercv-go/internal/renderer/templater"
 	"github.com/nonamecat19/rendercv-go/internal/renderer/templater/process"
+	"github.com/nonamecat19/rendercv-go/internal/renderer/typstc"
 	"github.com/nonamecat19/rendercv-go/internal/schema/modelbuilder"
+	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/design"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/valctx"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
@@ -111,6 +114,7 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 	// then HTML — and it is the order the result panel lists them in.
 	var rows []PanelRow
 	markdown := ""
+	typstPath := ""
 
 	if !options.NoTypst {
 		out, err := document.Render(doc, templater.FormatTypst, document.Options{InputDir: inputDir})
@@ -123,7 +127,47 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 			failPanel(stdout, err)
 			return exitValidationError
 		}
+		typstPath = path
 		rows = append(rows, PanelRow{Mark: "✓", Timing: timing(started), Label: "Generated Typst:", Value: display(path)})
+	}
+
+	// **PDF and PNG both depend on the `.typ` file existing on disk**, which is
+	// why upstream returns early from both when `typst_path is None`
+	// (`pdf_png.py:33,63`): `--notyp` disables them by omission, not by a flag
+	// of their own.
+	if !options.NoPDF && typstPath != "" {
+		path, err := renderPDF(doc, typstPath, orDefault(options.PDFPath, DefaultPDFPath), pathInput, inputDir)
+		if err != nil {
+			failPanel(stdout, err)
+			return exitValidationError
+		}
+		rows = append(rows, PanelRow{Mark: "✓", Timing: timing(started), Label: "Generated PDF:", Value: display(path)})
+	}
+
+	if !options.NoPNG && typstPath != "" {
+		paths, err := renderPNGs(doc, typstPath, orDefault(options.PNGPath, DefaultPNGPath), pathInput, inputDir)
+		if err != nil {
+			failPanel(stdout, err)
+			return exitValidationError
+		}
+		if len(paths) > 0 {
+			// **The label is pluralised only for a multi-page document**
+			// (`run_rendercv.py:58-64`): `timed_step` appends the `s` when the
+			// step returned more than one path. A one-page CV says
+			// "Generated PNG:".
+			label := "Generated PNG:"
+			if len(paths) > 1 {
+				label = "Generated PNGs:"
+			}
+			rows = append(rows, PanelRow{
+				Mark:   "✓",
+				Timing: timing(started),
+				Label:  label,
+				// Upstream joins the page files with `"; "`
+				// (`progress_panel.py:102`).
+				Value: strings.Join(displayAll(paths), "; "),
+			})
+		}
 	}
 
 	if !options.NoMarkdown {
@@ -182,6 +226,123 @@ func writeArtifact(template string, input PathInput, content string) (string, er
 		return "", err
 	}
 	return path, os.WriteFile(path, []byte(content), 0o644)
+}
+
+// renderPDF is `generate_pdf` (`pdf_png.py:16-44`): resolve the path, copy the
+// photo next to the `.typ`, compile.
+func renderPDF(doc bridge.Document, typstPath, template string, input PathInput, inputDir string) (string, error) {
+	path, err := ResolvePath(template, input)
+	if err != nil {
+		return "", err
+	}
+	if err := copyPhotoNextToTypst(doc, typstPath); err != nil {
+		return "", err
+	}
+	_, err = typstc.Compile(context.Background(), typstc.Request{
+		InputPath:  typstPath,
+		OutputPath: path,
+		Format:     typstc.FormatPDF,
+		FontDirs:   []string{filepath.Join(inputDir, "fonts")},
+		Today:      doc.Settings.CurrentDate,
+	})
+	if err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+// renderPNGs is `generate_png` (`pdf_png.py:47-91`). The stale-file sweep is
+// upstream's and it matters: a CV that shrinks from three pages to two would
+// otherwise leave `_3.png` behind, and the golden file sets would not match.
+func renderPNGs(doc bridge.Document, typstPath, template string, input PathInput, inputDir string) ([]string, error) {
+	path, err := ResolvePath(template, input)
+	if err != nil {
+		return nil, err
+	}
+
+	stem := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+	dir := filepath.Dir(path)
+	stale, err := filepath.Glob(filepath.Join(dir, stem+"_*.png"))
+	if err != nil {
+		return nil, err
+	}
+	for _, existing := range stale {
+		if info, err := os.Stat(existing); err == nil && info.Mode().IsRegular() {
+			if err := os.Remove(existing); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	if err := copyPhotoNextToTypst(doc, typstPath); err != nil {
+		return nil, err
+	}
+
+	// The compiler writes `<prefix>_<n>.png` itself, so it is handed the stem
+	// rather than a file name.
+	result, err := typstc.Compile(context.Background(), typstc.Request{
+		InputPath:  typstPath,
+		OutputPath: filepath.Join(dir, stem),
+		Format:     typstc.FormatPNG,
+		FontDirs:   []string{filepath.Join(inputDir, "fonts")},
+		Today:      doc.Settings.CurrentDate,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	paths := make([]string, 0, result.Pages)
+	for page := 1; page <= result.Pages; page++ {
+		paths = append(paths, filepath.Join(dir, fmt.Sprintf("%s_%d.png", stem, page)))
+	}
+	return paths, nil
+}
+
+// copyPhotoNextToTypst is `copy_photo_next_to_typst_file` (`pdf_png.py:94-111`).
+// The Typst source refers to the photo by base name, because the compiler
+// resolves image paths relative to the source file — so the file has to be
+// beside it.
+func copyPhotoNextToTypst(doc bridge.Document, typstPath string) error {
+	model := doc.Model
+	if model == nil || model.CvModel == nil || model.CvModel.PhotoValue == nil {
+		return nil
+	}
+	photo := model.CvModel.PhotoValue
+	if photo.Kind != cv.PhotoKindPath {
+		return nil
+	}
+
+	source := photo.Path.Value
+	destination := filepath.Join(filepath.Dir(typstPath), filepath.Base(source))
+	if sameFile(source, destination) {
+		return nil
+	}
+
+	raw, err := os.ReadFile(source)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(destination, raw, 0o644)
+}
+
+// sameFile is upstream's `photo_path != copy_to` guard, by identity rather than
+// by string: the two spellings can differ and still name one file.
+func sameFile(a, b string) bool {
+	infoA, errA := os.Stat(a)
+	infoB, errB := os.Stat(b)
+	if errA != nil || errB != nil {
+		return false
+	}
+	return os.SameFile(infoA, infoB)
+}
+
+// displayAll is display over a list, preserving order.
+func displayAll(paths []string) []string {
+	out := make([]string, len(paths))
+	for i, path := range paths {
+		out[i] = display(path)
+	}
+	return out
 }
 
 // themeOf reads the resolved theme name, which is the discriminator the folder
