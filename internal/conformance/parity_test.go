@@ -51,9 +51,11 @@ func TestParity(t *testing.T) {
 			// Spec §1.2: PNG page count and pixel dimensions.
 			conformance.AssertPNGGeometry(t, golden.PNGs, got.PNGs)
 
-			// Axes 2 and 4: the exact text RenderCV prints, including the error panels.
-			conformance.AssertText(t, "stdout", golden.Stdout, got.Stdout)
-			conformance.AssertText(t, "stderr", golden.Stderr, got.Stderr)
+			// Axes 2 and 4: the exact text RenderCV prints, including the error
+			// panels. The port's own name is rebound to upstream's first — D-009,
+			// the one sanctioned rewrite, and the only one.
+			conformance.AssertText(t, "stdout", golden.Stdout, conformance.RebindBinaryName(got.Stdout))
+			conformance.AssertText(t, "stderr", golden.Stderr, conformance.RebindBinaryName(got.Stderr))
 		})
 	}
 }
