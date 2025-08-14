@@ -33,7 +33,11 @@ func TestRenderReportsAMissingThemeFolder(t *testing.T) {
 	// **Errors are a panel on stdout**, and stderr stays empty — every `err_*`
 	// golden is shaped that way. This test asserted the reverse until the
 	// goldens were read.
-	if !strings.Contains(stdout.String(), "does not exist") {
+	//
+	// The message is read through `flatten` because a panel wraps its rows at
+	// the console width, so any phrase long enough to matter is split across
+	// lines by the border.
+	if !strings.Contains(flatten(stdout.String()), "does not exist") {
 		t.Errorf("stdout = %q, want upstream's folder message", stdout.String())
 	}
 	if stderr.Len() != 0 {
@@ -60,4 +64,18 @@ func TestRenderAcceptsABuiltinTheme(t *testing.T) {
 	}, &stdout, &stderr); code != 0 {
 		t.Errorf("exit = %d, stderr = %q", code, stderr.String())
 	}
+}
+
+// flatten strips a panel's borders and collapses the wrapping, so a test can
+// assert on a message rather than on where the box happened to break it.
+func flatten(panel string) string {
+	var out []string
+	for _, line := range strings.Split(panel, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "│") {
+			continue
+		}
+		out = append(out, strings.TrimSpace(strings.Trim(line, "│")))
+	}
+	return strings.Join(out, " ")
 }
