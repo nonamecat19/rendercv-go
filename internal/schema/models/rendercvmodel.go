@@ -122,7 +122,7 @@ func Validate(
 
 	// `design` and `locale` in full; `settings` is still the thin slice spec 004
 	// §7.9 pulled forward, and the rest of it is iteration 12's.
-	errs = append(errs, design.Validate(model.Design, []string{"design"}, source)...)
+	errs = append(errs, design.Validate(model.Design, []string{"design"}, source, ctx)...)
 	// Iteration 7 landed the catalog model; this is the edge that makes it
 	// reachable. Without it the extra-key and month-length rules exist and no
 	// document can reach them.
