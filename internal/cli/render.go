@@ -406,31 +406,70 @@ func errMissingFile(path string) error {
 // and named no field. An audit measured that against upstream, which prints
 // every record with its location.
 //
-// The *shape* here is not upstream's — that is a Rich table, and rendering it is
-// iteration 12's remaining work. What this fixes is the information loss.
-//
 // **Errors are a Rich panel on stdout, not text on stderr.** Every `err_*`
-// golden has an empty `stderr.txt` and a `╭─ Error ─…╮` box on stdout, exit 1.
-// Writing to stderr meant those cases could never match no matter how right the
-// message was.
+// golden has an empty `stderr.txt` and a box on stdout, exit 1. Writing to
+// stderr meant those cases could never match no matter how right the message
+// was.
+//
+// **There are two panels, not one**, and upstream picks between them by the kind
+// of failure: `print_user_error` writes a one-message `Error` box
+// (`progress_panel.py:120-136`), and `print_validation_errors` writes a
+// `There are validation errors!` box wrapping a three-column table
+// (`:138-169`). Rendering every failure as the first is what the port did, and
+// it could not match a single validation golden.
 func failPanel(stdout io.Writer, err error) {
-	var rows []PanelRow
-
 	var validation *schemaerr.UserValidationError
 	if errors.As(err, &validation) && len(validation.Errors) > 0 {
-		for _, record := range validation.Errors {
-			location := strings.Join(record.SchemaLocation, ".")
-			if location == "" {
-				rows = append(rows, PanelRow{Text: record.Message})
-				continue
-			}
-			rows = append(rows, PanelRow{Text: location + ": " + record.Message})
-		}
-	} else {
-		rows = append(rows, PanelRow{Text: err.Error()})
+		validationPanel(stdout, validation.Errors)
+		return
+	}
+	_, _ = fmt.Fprint(stdout, Panel("Error", []PanelRow{{Text: err.Error()}}))
+}
+
+// validationPanel is `print_validation_errors` (`progress_panel.py:138-169`).
+func validationPanel(stdout io.Writer, records []schemaerr.ValidationError) {
+	rows := make([][]string, 0, len(records))
+	for _, record := range records {
+		rows = append(rows, []string{
+			validationLocation(record),
+			record.Input,
+			record.Message,
+		})
 	}
 
-	_, _ = fmt.Fprint(stdout, Panel("Error", rows))
+	columns := []TableColumn{
+		{Header: "Location", NoWrap: true},
+		{Header: "Input Value", NoWrap: true},
+		{Header: "Explanation"},
+	}
+
+	// The table is laid out at the panel's inner width, then each of its lines
+	// becomes a row of that panel.
+	table := Table(columns, rows, PanelWidth-4)
+
+	var panelRows []PanelRow
+	for line := range strings.SplitSeq(strings.TrimRight(table, "\n"), "\n") {
+		panelRows = append(panelRows, PanelRow{Text: line})
+	}
+	_, _ = fmt.Fprint(stdout, Panel("There are validation errors!", panelRows))
+}
+
+// validationLocation is `format_validation_error_location`
+// (`progress_panel.py:14-35`): the schema path when there is one, and otherwise
+// the YAML source with the line span, because a parse error has no schema path
+// to name.
+func validationLocation(record schemaerr.ValidationError) string {
+	if len(record.SchemaLocation) > 0 {
+		return strings.Join(record.SchemaLocation, ".")
+	}
+	if record.YamlLocation == nil {
+		return string(record.YamlSource)
+	}
+	start, end := record.YamlLocation.Start.Line, record.YamlLocation.End.Line
+	if start == end {
+		return fmt.Sprintf("%s: line %d", record.YamlSource, start)
+	}
+	return fmt.Sprintf("%s: line %d to line %d", record.YamlSource, start, end)
 }
 
 func fail(stderr io.Writer, err error) {
