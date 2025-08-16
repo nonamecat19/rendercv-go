@@ -93,6 +93,21 @@ func Panel(title string, rows []PanelRow) string {
 //
 // It always returns at least one line, so a blank separator row survives.
 func wrap(text string, width int) []string {
+	return fold(text, width, true)
+}
+
+// wrapKeepingWords is wrap without the hard split: a word too long for a line
+// is left whole for the caller to truncate.
+//
+// **The two differ, and a golden shows it.** A Rich Panel's overflow is "fold",
+// so an over-long token continues on the next line; a table Column's is
+// "ellipsis", so the same token is cut with `…` — `err_unknown_theme`'s absolute
+// path ends in `…` rather than wrapping onto line seven.
+func wrapKeepingWords(text string, width int) []string {
+	return fold(text, width, false)
+}
+
+func fold(text string, width int, splitLongWords bool) []string {
 	if width <= 0 || utf8.RuneCountInString(text) <= width {
 		return []string{text}
 	}
@@ -117,10 +132,10 @@ func wrap(text string, width int) []string {
 			flush()
 		}
 
-		// A word too long for an empty line is cut at the width. Rich's default
-		// `fold=True`; no golden exercises it, and the alternative is an
-		// overflowing row that breaks the box.
-		for wordWidth > width {
+		// A word too long for an empty line is broken at the width, which is
+		// what Rich's `fold` overflow does. Callers that want it ellipsized
+		// instead pass splitLongWords false and truncate the line themselves.
+		for splitLongWords && wordWidth > width {
 			head := string([]rune(word)[:width])
 			lines = append(lines, head)
 			word = string([]rune(word)[width:])
