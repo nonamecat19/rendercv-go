@@ -1,5 +1,7 @@
 package locale
 
+import "slices"
+
 // Catalogs returns every locale catalog, keyed by language.
 //
 // The data is Go source diffed against the submodule, matching the error
@@ -18,4 +20,19 @@ func Catalogs() map[string]Catalog {
 	all := otherCatalogs()
 	all["english"] = English()
 	return all
+}
+
+// AvailableLocales is `available_locales` (`locale.py:47-50`), in upstream's
+// order: **English first**, because it heads the discriminated union as the base
+// model, then every discovered locale sorted by name.
+//
+// The order is user-visible — `new --locale <unknown>` prints this list — so it
+// is derived once here rather than at each call site.
+func AvailableLocales() []string {
+	names := make([]string, 0, len(Catalogs()))
+	for language := range otherCatalogs() {
+		names = append(names, language)
+	}
+	slices.Sort(names)
+	return append([]string{englishLanguage}, names...)
 }
