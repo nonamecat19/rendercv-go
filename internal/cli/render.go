@@ -33,6 +33,15 @@ type RenderOptions struct {
 	HTMLPath     string
 	PNGPath      string
 
+	// DesignPath, LocalePath and SettingsPath are the three overlay files of
+	// spec §2 behavior 7 — `--design`, `--locale-catalog` and `--settings`.
+	// `modelbuilder.BuildArguments` has carried their contents since iteration
+	// 2; no corpus case passes one, which is how `render` came to pass every
+	// case in the suite without declaring them.
+	DesignPath   string
+	LocalePath   string
+	SettingsPath string
+
 	NoTypst    bool
 	NoPDF      bool
 	NoPNG      bool
@@ -40,6 +49,11 @@ type RenderOptions struct {
 	NoHTML     bool
 
 	Quiet bool
+
+	// Watch is `--watch` / `-w`. It is declared so the argument vector parses
+	// the way upstream's does; the watcher itself is spec §6.2's, iteration
+	// 13's work.
+	Watch bool
 
 	// Overrides are the arbitrary dotted `--cv.phone value` pairs of spec §2
 	// behavior 9. An unknown key is **not** rejected here: it is set on the

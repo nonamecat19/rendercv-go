@@ -52,6 +52,9 @@ type NewOptions struct {
 	// upstream's, so writing either form is wrong in a different way. See
 	// `STATE.md`.
 	CreateTypstTemplates bool
+	// CreateMarkdownTemplates is the companion of the above
+	// (`new_command.py:57`), and is unimplemented for the same reason.
+	CreateMarkdownTemplates bool
 }
 
 // New is the `new` command.
