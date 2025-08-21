@@ -44,18 +44,26 @@ func execute(args []string, stdout, stderr io.Writer, run runners) int {
 		},
 	}
 
+	// The names are upstream's long forms (`render_command.py:33-188`); the
+	// short spellings every corpus case uses are rewritten onto them by
+	// args.go, because they are whole words after one dash and pflag has no
+	// such concept.
 	flags := render.Flags()
 	flags.StringVar(&options.OutputFolder, "output-folder", "", "")
-	flags.StringVar(&options.TypstPath, "typ", "", "")
-	flags.StringVar(&options.PDFPath, "pdf", "", "")
-	flags.StringVar(&options.PNGPath, "png", "", "")
-	flags.StringVar(&options.MarkdownPath, "md", "", "")
-	flags.StringVar(&options.HTMLPath, "html", "", "")
-	flags.BoolVar(&options.NoTypst, "notyp", false, "")
-	flags.BoolVar(&options.NoPDF, "nopdf", false, "")
-	flags.BoolVar(&options.NoPNG, "nopng", false, "")
-	flags.BoolVar(&options.NoMarkdown, "nomd", false, "")
-	flags.BoolVar(&options.NoHTML, "nohtml", false, "")
+	flags.StringVar(&options.DesignPath, "design", "", "")
+	flags.StringVar(&options.LocalePath, "locale-catalog", "", "")
+	flags.StringVar(&options.SettingsPath, "settings", "", "")
+	flags.StringVar(&options.TypstPath, "typst-path", "", "")
+	flags.StringVar(&options.PDFPath, "pdf-path", "", "")
+	flags.StringVar(&options.PNGPath, "png-path", "", "")
+	flags.StringVar(&options.MarkdownPath, "markdown-path", "", "")
+	flags.StringVar(&options.HTMLPath, "html-path", "", "")
+	flags.BoolVar(&options.NoTypst, "dont-generate-typst", false, "")
+	flags.BoolVar(&options.NoPDF, "dont-generate-pdf", false, "")
+	flags.BoolVar(&options.NoPNG, "dont-generate-png", false, "")
+	flags.BoolVar(&options.NoMarkdown, "dont-generate-markdown", false, "")
+	flags.BoolVar(&options.NoHTML, "dont-generate-html", false, "")
+	flags.BoolVar(&options.Watch, "watch", false, "")
 	flags.BoolVar(&options.Quiet, "quiet", false, "")
 
 	newOptions := NewOptions{}
@@ -75,6 +83,7 @@ func execute(args []string, stdout, stderr io.Writer, run runners) int {
 	newFlags.StringVar(&newOptions.Theme, "theme", "", "")
 	newFlags.StringVar(&newOptions.Locale, "locale", "", "")
 	newFlags.BoolVar(&newOptions.CreateTypstTemplates, "create-typst-templates", false, "")
+	newFlags.BoolVar(&newOptions.CreateMarkdownTemplates, "create-markdown-templates", false, "")
 
 	// **`--version` prints upstream's version, not the port's**, and without the
 	// binary name: the golden is the single line `RenderCV v2.8`. It is the one

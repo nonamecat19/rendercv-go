@@ -15,17 +15,29 @@ func TestNormalize(t *testing.T) {
 		overrides map[string]string
 	}{
 		{
-			// `render_typst_only`: four negative flags, all single-dash.
+			// `render_typst_only`: four negative flags, all single-dash. **The
+			// rewrite is short-to-long, not dash-to-dashes** — upstream's own
+			// name for `-nopdf` is `--dont-generate-pdf`, and the port used to
+			// declare a `--nopdf` that upstream has never had.
 			name:      "single dash negatives",
 			args:      []string{"render", "cv.yaml", "-nopdf", "-nopng", "-nomd", "-nohtml"},
-			rest:      []string{"render", "cv.yaml", "--nopdf", "--nopng", "--nomd", "--nohtml"},
+			rest:      []string{"render", "cv.yaml", "--dont-generate-pdf", "--dont-generate-png", "--dont-generate-markdown", "--dont-generate-html"},
 			overrides: map[string]string{},
 		},
 		{
 			// `render_custom_paths`: single-dash flags that take a value.
 			name:      "single dash paths",
 			args:      []string{"render", "cv.yaml", "-typ", "out/custom.typ", "-md", "out/n/c.md"},
-			rest:      []string{"render", "cv.yaml", "--typ", "out/custom.typ", "--md", "out/n/c.md"},
+			rest:      []string{"render", "cv.yaml", "--typst-path", "out/custom.typ", "--markdown-path", "out/n/c.md"},
+			overrides: map[string]string{},
+		},
+		{
+			// **The rewrite is scoped to `render`.** `new` declares none of
+			// these, so a token that looks like one must reach the parser
+			// unchanged rather than becoming a flag the subcommand lacks.
+			name:      "short forms are not rewritten outside render",
+			args:      []string{"new", "John Doe", "-typ"},
+			rest:      []string{"new", "John Doe", "-typ"},
 			overrides: map[string]string{},
 		},
 		{
