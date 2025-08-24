@@ -65,20 +65,25 @@ func TestNormalize(t *testing.T) {
 			extras: []string{"--cv.no_such_field", "x"},
 		},
 		{
-			// A dotted flag with no value is left for the parser to report
-			// rather than silently consuming the end of the vector.
+			// **A dotted flag with no value is an extra, not a parser
+			// error.** Upstream collects it and the odd count is what
+			// reports: `There is a problem with the extra arguments
+			// (--cv.phone)!`. Measured against the vendored CLI.
 			name:   "dangling override",
 			args:   []string{"render", "cv.yaml", "--cv.phone"},
-			rest:   []string{"render", "cv.yaml", "--cv.phone"},
-			extras: nil,
+			rest:   []string{"render", "cv.yaml"},
+			extras: []string{"--cv.phone"},
 		},
 		{
-			// A single-dash token that is not one of upstream's long flags is
-			// left alone, so a future real shorthand is not corrupted.
-			name:   "unknown single dash is untouched",
+			// A single-dash token that is not one of upstream's short forms
+			// is an extra: click puts it in `ctx.args`, and
+			// `parse_override_arguments` is what rejects it, with
+			// `The key (-x) should start with double dashes!` once it has a
+			// value beside it.
+			name:   "unknown single dash is an extra",
 			args:   []string{"render", "cv.yaml", "-x"},
-			rest:   []string{"render", "cv.yaml", "-x"},
-			extras: nil,
+			rest:   []string{"render", "cv.yaml"},
+			extras: []string{"-x"},
 		},
 	}
 

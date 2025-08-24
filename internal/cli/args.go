@@ -31,6 +31,33 @@ var renderShortFlags = map[string]string{
 	"q":      "quiet",
 }
 
+// renderValueFlags is which of `render`'s long options take a value, so the
+// pre-pass knows whether the following token is that value or the next
+// argument. Everything absent from this set is a boolean.
+var renderValueFlags = map[string]bool{
+	"output-folder":  true,
+	"design":         true,
+	"locale-catalog": true,
+	"settings":       true,
+	"typst-path":     true,
+	"pdf-path":       true,
+	"markdown-path":  true,
+	"html-path":      true,
+	"png-path":       true,
+}
+
+// renderBoolFlags is the rest of the table, plus help.
+var renderBoolFlags = map[string]bool{
+	"dont-generate-markdown": true,
+	"dont-generate-html":     true,
+	"dont-generate-typst":    true,
+	"dont-generate-pdf":      true,
+	"dont-generate-png":      true,
+	"watch":                  true,
+	"quiet":                  true,
+	"help":                   true,
+}
+
 // Normalize rewrites `render`'s single-dash spellings into their long form and
 // splits the vector into what a flag parser can read and what it cannot.
 //
@@ -45,33 +72,81 @@ var renderShortFlags = map[string]string{
 // declares the options. `new -d x` is an unknown option to upstream and stays
 // one here rather than turning into a flag `new` does not have.
 func Normalize(args []string) (rest, extras []string) {
+	// Only `render` collects extras — it is the one command declared with
+	// `allow_extra_args`. Everything else goes through untouched, so a token
+	// `new` does not declare stays the unknown option it is upstream.
+	if subcommand(args) != "render" {
+		return args, nil
+	}
+
 	rest = make([]string, 0, len(args))
-	rendering := subcommand(args) == "render"
+	seenInput := false
 
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
+		name, long := longName(arg)
 
 		switch {
-		case strings.HasPrefix(arg, "--") && strings.Contains(arg, "."):
-			// A dotted override always takes the next argument as its value.
-			// A trailing one with no value is left in place so the parser can
-			// report it.
-			if i+1 >= len(args) {
-				rest = append(rest, arg)
+		case long && renderValueFlags[name]:
+			rest = append(rest, arg)
+			// `--output-folder=out` carries its value in the same token.
+			if !strings.Contains(arg, "=") && i+1 < len(args) {
+				rest = append(rest, args[i+1])
+				i++
+			}
+
+		case long && renderBoolFlags[name]:
+			rest = append(rest, arg)
+
+		case long:
+			// **An unrecognized option does not swallow the next token.**
+			// click appends it to `ctx.args` and goes on parsing, so
+			// `--nope -nopdf` leaves one extra and a real flag, and the pairing
+			// into keys and values happens later over the whole list. Measured
+			// against the vendored CLI, which reports `(--nope)` there.
+			//
+			// The `=` form is not split either: `--cv.name=Jane` is one token
+			// and therefore an odd count, which is upstream's answer too.
+			extras = append(extras, arg)
+
+		case strings.HasPrefix(arg, "-") && arg != "-":
+			// A single-dash token: either one of upstream's whole-word short
+			// forms, or an extra.
+			if replacement := renderShortFlags[strings.TrimPrefix(arg, "-")]; replacement != "" {
+				rest = append(rest, "--"+replacement)
+				if renderValueFlags[replacement] && i+1 < len(args) {
+					rest = append(rest, args[i+1])
+					i++
+				}
 				continue
 			}
-			extras = append(extras, arg, args[i+1])
-			i++
+			extras = append(extras, arg)
 
-		case rendering && strings.HasPrefix(arg, "-") && !strings.HasPrefix(arg, "--") &&
-			renderShortFlags[strings.TrimPrefix(arg, "-")] != "":
-			rest = append(rest, "--"+renderShortFlags[strings.TrimPrefix(arg, "-")])
+		case arg == "render" && !seenInput && len(rest) == 0:
+			rest = append(rest, arg)
+
+		case !seenInput:
+			// The first bare token after the subcommand is `input_file_name`.
+			// Every later one is an extra, which is why `render a.yaml b.yaml`
+			// is an odd count rather than two input files.
+			seenInput = true
+			rest = append(rest, arg)
 
 		default:
-			rest = append(rest, arg)
+			extras = append(extras, arg)
 		}
 	}
 	return rest, extras
+}
+
+// longName reports a `--flag`'s name with its value clipped off, and whether the
+// token was a long option at all.
+func longName(arg string) (string, bool) {
+	if !strings.HasPrefix(arg, "--") || arg == "--" {
+		return "", false
+	}
+	name, _, _ := strings.Cut(arg[2:], "=")
+	return name, true
 }
 
 // subcommand is the first token that is not a flag or a flag's value. It is
