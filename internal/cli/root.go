@@ -29,9 +29,9 @@ type runners struct {
 }
 
 func execute(args []string, stdout, stderr io.Writer, run runners) int {
-	rest, overrides := Normalize(args)
+	rest, extras := Normalize(args)
 
-	options := RenderOptions{Overrides: overrides}
+	options := RenderOptions{Extras: extras}
 	code := 70
 
 	render := &cobra.Command{
