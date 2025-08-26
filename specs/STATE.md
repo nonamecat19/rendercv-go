@@ -35,11 +35,89 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | Axis | Gate command | Status |
 |---|---|---|
 | 1 — artifacts byte-identical | `just test-parity` | **PDF and PNG now compare, and every render case passes.** 14 render cases produce a PDF matched on extracted text, page count and page geometry, plus their PNGs on name and dimensions. Previously: **72 passing comparisons on the corpus, and the corpus is narrower than that number suggests** — 8 of the 24 cases share one byte-identical `.md`, so there are 14 distinct Markdown documents, and a verifier broke the HTML with a double quote. Every text artifact — 24/24 `.typ`, `.md` and `.html` — byte-identical against the vendored Python (`TestCorpusTypstIsByteIdentical`), over the 21 corpus inputs plus three the corpus cannot express. PDF and PNG are iteration 10's. The 15 CLI-driven artifact cases stay red until iteration 12: they shell `rendercv-go render`, which does not exist. |
-| 2 — CLI surface | `just test-parity` | **25 of 35 `TestParity` cases pass.** The ten that do not are five help panels (unwritten), `create_theme` and `new_typst_templates` (unwritten, and unreachable by construction under D-008), `err_not_yaml` (a YAML span and message suffix), and `err_missing_file` / `err_bad_override_key`, whose goldens are Python tracebacks. |
+| 2 — CLI surface | `just test-parity` | **25 of 35 `TestParity` cases pass — and the suite is much narrower than the axis.** Six CLI surfaces measured against the vendored binary produced exit 70 and no output, and every corpus case passed throughout; see "The corpus could not see the CLI" below. **25 of 35 `TestParity` cases pass.** The ten that do not are five help panels (unwritten), `create_theme` and `new_typst_templates` (unwritten, and unreachable by construction under D-008), `err_not_yaml` (a YAML span and message suffix), and `err_missing_file` / `err_bad_override_key`, whose goldens are Python tracebacks. |
 | 3 — JSON Schema | `just schema-diff` | **green.** All 227 `$defs` byte-identical; the command exits 0. The oracle is `tools/genschema`, not the parity suite — `TestSchemaParity` shells `rendercv-go schema` and stays red until iteration 12. |
 | 4 — validation errors | `just test-parity` | **4/7 passing** (`err_empty_yaml`, `err_unknown_theme`, `err_unknown_locale`, `err_wrong_input`). Rich's error table is reproduced and its three width stages are pinned. **verified — FAIL.** The 25-record differential is real and mutation-discriminating, but it gates far less than the axis: 6 of 13 dictionary rows, 2 of 8 username rules. Two blockers open (below). 0/7 corpus cases. |
 
 PDF content comparison (spec §1.2) is measurable and measured: `conformance.AssertPDF`, over poppler.
+
+## The corpus could not see the CLI — 2026-08-08
+
+**`TestParity` did not move, and that is the finding.** Six invocations were measured against the
+vendored binary; every one of them exited **70 with no output at all**, and all 25 passing corpus
+cases passed before and after the fixes. 70 is `Execute`'s initial `code`, so a caller could not
+tell a malformed invocation from an internal failure — or, on the combinations an earlier audit
+caught, from a *successful* render.
+
+| Invocation | Upstream | Port, before |
+|---|---|---|
+| `rendercv-go bogus` | usage + `No such command 'bogus'.` on stderr, exit 2 | nothing, exit 70 |
+| `rendercv-go render` | usage + `Missing argument 'INPUT_FILE_NAME'.`, exit 2 | nothing, exit 70 |
+| `rendercv-go new` | usage + `Missing argument 'FULL_NAME'.`, exit 2 | nothing, exit 70 |
+| `render cv.yaml --nope value` | override key `nope`, rejected by the model | nothing, exit 70 |
+| `render cv.yaml a b c` | `There is a problem with the extra arguments (a,b,c)!…` | nothing, exit 70 |
+| `render cv.yaml -x value` | `The key (-x) should start with double dashes!` | nothing, exit 70 |
+
+### The flag inventory was wrong in five ways and no case could show it
+
+Spec 012 §2 named only the single-dash spellings, because those are the only ones the corpus uses:
+`render_typst_only` and `render_custom_paths` between them pass ten of the seventeen options and
+name **no long form at all**. So the port registered `--typ`, `--pdf`, `--png`, `--md`, `--html`,
+`--nopdf` and friends — **seven long names upstream has never had** — and passed every case.
+
+Measured off `render_command.py:33-198` and now in the spec as a table:
+
+| What was wrong | Reach |
+|---|---|
+| five path options had invented long names (`--typ` for `--typst-path`, …) | `--typst-path out.typ` was an unknown flag |
+| five negatives likewise (`--nopdf` for `--dont-generate-pdf`) | same |
+| `--design`, `--locale-catalog`, `--settings` were **never declared** | three overlay files unreachable |
+| `--watch` was never declared | spec §6.2's flag did not parse |
+| `new --create-markdown-templates` was never declared | writes files upstream, errors here |
+
+The three overlay options were also **declared and never read** once added:
+`modelbuilder.BuildArguments` has carried `DesignYaml`, `LocaleYaml` and `SettingsYaml` since
+iteration 2 and `buildArguments` left all three empty. Now differentially checked — the `.typ`,
+`.md` and `.html` of `John_Doe_CV.yaml` with a design and a locale overlay are byte-identical to
+upstream's, and 226 lines of the `.typ` differ without the overlays, so the comparison is not
+vacuous.
+
+The overlay file is a **whole document keyed by the field**, not the field's body: `-d` on a file
+reading `theme: moderncv` makes upstream die with `KeyError: 'design'`.
+
+### The override collector was a dotted-key filter and upstream has no such thing
+
+`render` is declared `allow_extra_args` + `ignore_unknown_options` (`render_command.py:26`), so
+click hands it **every** token it did not recognize, in order, and `parse_override_arguments`
+reads that list as alternating keys and values. The port collected only tokens containing a dot
+and let cobra reject the rest.
+
+Two rules were measured rather than assumed, and both would have been guessed wrong:
+
+- **An unrecognized option does not swallow the next token.** `--nope -nopdf` leaves one extra and
+  a real flag; upstream reports `(--nope)`.
+- **The `=` form is not split for one.** `--cv.name=Jane` is a single token and therefore an odd
+  count, which is upstream's answer too.
+
+And `key.replace("--", "")` (`:51`) is **unanchored**, so `--cv--name` becomes `cvname`. The port
+now reports exactly that field as unknown, which is how the rule was confirmed.
+
+Six vectors differentialled against the vendored CLI: four byte-identical on stdout and exit. The
+two that differ are upstream *tracebacks* on an unknown override key — the `err_bad_override_key`
+divergence already recorded here.
+
+### What this pass did not do
+
+- **No fresh-context verification.** Every number above is what the suite printed in the context
+  that wrote the code, which `AGENTS.md` §10.6 says is not parity.
+- **`create-theme`'s usage error is not implemented**, because the command is not registered. It
+  lands with the command, and D-008 already approved that design.
+- **`rendercv-go` with no arguments still exits 70 where upstream prints the full help and exits
+  0.** That is the help renderer of §5 — the five `cli_*_help` cases — and it stays blocked on
+  reading `typer/rich_utils.py`.
+- **`just check` still fails on three lint issues**, all three present at `50c6c01` and none of
+  them this pass's: an unchecked `module.Close`, a type assertion on a wrapped error, and the
+  unused `themeOf`.
 
 ## Stretch goals (not gates)
 
@@ -1142,4 +1220,6 @@ whether to reproduce the crash, record the divergence, or leave it.
 | 2026-08-07 | ~~**Iteration 11 green**~~ (unverified by a fresh context). Both text documents byte-identical on all 24 cases. The HTML was cut and uncut in the same session: the 16 goldmark misses were not "block-layer list structure" but one list-indent rule — python-markdown nests at 4 spaces, CommonMark at 2 — and normalizing the input makes goldmark match 24/24. |
 | 2026-08-07 | **Iteration 9 green.** The fresh-context verifier returned FAIL with two blockers (a null `degree_column` ignored; a photo rendering silently wrong), one major (`splitLines` was not `str.splitlines()`) and one coverage hole (seven unpinned `locale.Resolve` branches). All four fixed, each behind a fixture that is red without its fix. 24/24 `.typ` byte-identical. Two upstream *crashes* the port does not reproduce are recorded for the human gate. |
 | 2026-08-07 | **Axis 1's first passing cases.** The bridge (`internal/renderer/bridge`) and the orchestration (`internal/renderer/typstdoc`) landed, and all 21 corpus inputs that carry a `cv.yaml` render a `.typ` byte-identical to the vendored Python's, pinned to `settings.current_date: 2025-03-05` by `tools/typprobe`. All nine entry types are covered; the fixture is mutation-checked (19 of 21 fail on a one-newline change to `Assemble`). |
+| 2026-08-08 | **The CLI surface was measured instead of assumed, and six invocations exited 70 with no output.** An unknown command, three missing required arguments and two malformed extra-argument vectors. All fixed; the three usage errors are byte-identical to the vendored CLI at `COLUMNS=80` after the sanctioned name substitution. `TestParity` did not move, because no corpus case exercises any of them. |
+| 2026-08-08 | **Seven of `render`'s long flag names were invented.** `--typ`, `--pdf`, `--png`, `--md`, `--html` and the five `--no*` are upstream's *short* forms of `--typst-path`, `--dont-generate-pdf` and the rest; upstream declares no such long options. Five more options were never declared at all, three of them the `--design` / `--locale-catalog` / `--settings` overlay files, which are now read and differentially byte-identical. The corpus names no long form anywhere, which is why every case passed throughout. |
 | 2026-08-07 | Iteration 6's T10 closed in iteration 9: `design.Effective` merges the base tree, the theme's overrides and the document's own block, deep at every layer, and runs the two coercions where upstream's validators do. Seven-document differential against upstream's resolved model. |
