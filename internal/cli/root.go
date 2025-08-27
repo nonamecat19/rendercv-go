@@ -110,15 +110,31 @@ func execute(args []string, stdout, stderr io.Writer, run runners) int {
 				message: fmt.Sprintf("No such command '%s'.", positional[0]),
 			}
 		},
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			if version {
 				_, _ = fmt.Fprintf(stdout, "RenderCV v%s\n", Version)
 				code = 0
+				return nil
 			}
+			// **No arguments at all is the help page, and exit 0**
+			// (`cli/app.py:41-44`). The port used to exit 70 in silence.
+			_, _ = fmt.Fprint(stdout, HelpPage(""))
+			code = 0
 			return nil
 		},
 	}
 	root.Flags().BoolVarP(&version, "version", "v", false, "")
+
+	// Typer renders its own help, and cobra's bears no resemblance to it. The
+	// function is inherited by every subcommand, so `render -h` reaches it too.
+	root.SetHelpFunc(func(cmd *cobra.Command, _ []string) {
+		name := ""
+		if cmd != cmd.Root() {
+			name = cmd.Name()
+		}
+		_, _ = fmt.Fprint(stdout, HelpPage(name))
+		code = 0
+	})
 	root.AddCommand(render)
 	root.AddCommand(newCmd)
 	root.SetArgs(rest)

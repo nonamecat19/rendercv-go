@@ -177,3 +177,57 @@ naive "one item per line" is the reverse. The port needs `Columns`' own rule.
   root's `Options` panel and nothing more; making them function is not parity for these cases.
 - **`create-theme` as a runnable command.** Its help panel needs the command *declared*, with its
   argument and help text; running it is D-008's, still unwritten.
+
+## 7. The binary name re-wraps the prose — HUMAN GATE
+
+**The renderer is finished and three of the five cases still cannot be byte-identical.** Measured
+against the goldens, page by page, with the binary name substituted and shortened rows re-padded:
+
+| Page | lines | lines differing |
+|---|---:|---:|
+| `cli_create_theme_help` | 14 | **0** |
+| `cli_help` | 24 | 2 |
+| `cli_render_help` | 62 | 2 |
+| `cli_new_help` | 36 | 2 |
+
+Every differing line carries the binary name, and `internal/cli/help_test.go` fails if one ever
+does not — so the geometry of §3 is confirmed on 130 of 136 lines and the remainder is one cause.
+
+**That cause is D-009 reaching prose.** Every help page quotes commands the reader is meant to
+run — `Example: rendercv render John_Doe_CV.yaml` — so the port must print `rendercv-go`, which is
+three characters longer. A help page **wraps its prose to the console before the harness sees
+it**, so the line breaks somewhere else:
+
+```
+golden:  Render a YAML input file. Example: rendercv render John_Doe_CV.yaml. Details:
+         rendercv render --help
+port:    Render a YAML input file. Example: rendercv-go render John_Doe_CV.yaml.
+         Details: rendercv-go render --help
+```
+
+`conformance.RebindBinaryName` substitutes the token and re-pads the row it shortened. **Re-padding
+cannot undo a re-wrap**, and no substitution applied to finished bytes can.
+
+### Two decisions, and this iteration makes neither
+
+1. **The harness re-pads only bordered rows** (`binaryname.go:47-51`). A help page's `Padding`
+   regions — the usage line and the description — are painted to the console width too, so they
+   are just as width-sensitive, and `isPanelRow` does not reach them. Extending it is a
+   one-line change and it weakens the width check on those lines exactly as D-009 already
+   weakened it on panel rows. **Not made here**, because the harness is the instrument every
+   other case is measured by. `cli_create_theme_help` turns green on this alone.
+2. **The three re-wrapped pages need a `divergences.md` entry**, which is a human gate
+   (`AGENTS.md` §5). The options are the same three D-009 weighed for `new`: record the
+   divergence and leave them red; print `rendercv` in help prose and hand the reader a command
+   that does not work; or teach the harness to re-wrap, which means re-implementing the wrap on
+   the comparison side and is worse than either.
+
+**Recommendation: option 1 plus a divergence entry for the rest.** The port's help is *correct* —
+it names the binary the reader actually has — and the goldens cannot express that. This is the
+same shape as `err_missing_file`: a case unreachable by construction rather than by effort.
+
+### `create-theme` is a fourth blocker and a smaller one
+
+`cli_create_theme_help` also needs the command **registered**, which it is not. Registering it for
+its help alone would change `create-theme foo` from `No such command` to something that silently
+does nothing, so it lands with the command (D-008), not before it.
