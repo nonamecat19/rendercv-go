@@ -119,6 +119,74 @@ divergence already recorded here.
   them this pass's: an unchecked `module.Close`, a type assertion on a wrapped error, and the
   unused `themeOf`.
 
+## The help renderer landed and moved no case — 2026-08-08
+
+Spec [`012-cli/help.md`](012-cli/help.md) is the measured behavior; the renderer is written and
+`--help`, `-h` and the bare no-argument invocation all work. **`TestParity` is unchanged at
+25 / 35**, and the reason is D-010 rather than anything unfinished.
+
+**The blocker was self-imposed.** `STATE.md` said to read `typer/rich_utils.py` before attempting
+this; it sits in the submodule's venv and nobody had. The earlier attempt reverse-engineered the
+geometry from goldens, got two columns right and the third wrong, and stopped.
+
+**What that attempt got wrong is worth naming.** The panels' tables *are* declared `expand=True`,
+and reasoning forward from that flag leads to `ratio_distribute` spreading slack across every
+column. There is no slack: the help cell is a `rich.columns.Columns`, which measures
+`(1, max_width)`, so every panel's natural sum overflows and rich always takes the **collapse**
+branch instead — taking the whole excess off that one column. `collapseWidths` and `ratioReduce`
+already existed for the validation table.
+
+Measured by instrumenting `Table._calculate_column_widths` while the vendored CLI ran, not read
+off a golden. The eight resulting width vectors predict the column offsets in all five goldens
+exactly, and they are the fixture. Mutation-checked: measuring the flexible column by its text
+sends the layout down the expand branch and fails all nine subtests.
+
+Two more behaviors that measurement caught and inference would not:
+
+- **A `Padding` region is painted, not skipped** — the line above the usage is eighty spaces, not
+  nothing. Getting it wrong shifts no text while differing from the golden on five lines a page.
+- **`Columns` is a flow, not a stack.** `The YAML input file. [required]` shares a line;
+  `new --theme`'s prose fills its column and pushes `[default: classic]` below. Neither "join with
+  a space" nor "one per line" is right, and each is right for one of the two.
+
+### Where the five cases stand
+
+| Page | lines | differing |
+|---|---:|---:|
+| `cli_create_theme_help` | 14 | **0** — blocked only on the command being registered |
+| `cli_help` / `cli_help_short` | 24 | 2 |
+| `cli_render_help` | 62 | 2 |
+| `cli_new_help` | 36 | 2 |
+
+The geometry therefore holds on **130 of 136 lines**, and every one of the six exceptions carries
+the binary name. `internal/cli/help_test.go` fails if a differing line ever does not, so the
+budget cannot absorb a regression.
+
+**D-010 is approved and records why three pages can never be byte-identical**: the port must print
+`rendercv-go` in prose the reader is meant to run, a help page wraps before anything compares it,
+and re-padding cannot undo a re-wrap. Same shape as `err_missing_file` — unreachable by
+construction, not by effort.
+
+### The harness had no tests, and it was wrong
+
+`RebindBinaryName` re-padded a shortened **bordered** row and left everything else as substituted.
+A help page's `Padding` lines are painted to the console width too, so `isPanelRow` left them
+three characters short. Fixed: `cli_help` went from differing at byte 158 (2430 bytes against
+2433) to differing only on the two re-wrapped lines, at equal length.
+
+**It is the one comparison rule that rewrites what the port produced, and nothing pinned it** —
+in the harness iteration 1's audit already identified as the instrument every other claim rests
+on. It now has `internal/conformance/binaryname_test.go`.
+
+### What is left for these cases
+
+`create-theme` must be **registered** before `cli_create_theme_help` can pass. Registering it for
+its help alone would turn `create-theme foo` from `No such command` into something that silently
+does nothing, so it lands with the command. D-008 approved the design and one question in it is
+still open: upstream generates the theme's `__init__.py` from `classic_theme.py`, and the port's
+`init.lua` has no equivalent source — `design.Overrides("classic")` is empty, because classic *is*
+the base tree. What that file should contain is a design decision, not a transcription.
+
 ## Stretch goals (not gates)
 
 - [ ] PNG pixel-level comparison (depends on the WASI typst font set — see D-006)
