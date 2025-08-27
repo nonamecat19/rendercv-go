@@ -202,3 +202,53 @@ Each entry: what differs · upstream citation · why parity is impossible or und
   the rows it rewrites. Every other row of every panel is still compared verbatim, and the
   rewrite is confined to rows containing the binary token — a row that does not contain it is
   never touched.
+
+---
+
+## D-010 — The help pages' prose wraps around a longer binary name
+
+**Status:** approved (human gate, 2026-08-08) · **Iteration:** 12
+
+- **Differs:** three of the five `cli_*_help` goldens cannot be byte-identical, on two lines each.
+- **Upstream:** `typer/rich_utils.py:535-620`, rendering the help for `rendercv`, `rendercv render`
+  and `rendercv new`.
+- **Why it is not just D-001 or D-009:** every help page quotes commands the reader is meant to
+  run — `Example: rendercv render John_Doe_CV.yaml` — so the port must print `rendercv-go`, which
+  is three characters longer. **A help page wraps its prose to the console before anything
+  compares it**, so the line breaks somewhere else:
+
+  ```
+  golden:  Render a YAML input file. Example: rendercv render John_Doe_CV.yaml. Details:
+           rendercv render --help
+  port:    Render a YAML input file. Example: rendercv-go render John_Doe_CV.yaml.
+           Details: rendercv-go render --help
+  ```
+
+  D-009's remedy — substitute the token, re-pad the row — works on a row that merely got shorter.
+  **Re-padding cannot undo a re-wrap**, and neither can any rule applied to finished bytes.
+- **Instead:** the port prints the command the reader can actually run, and wraps it honestly.
+- **User notices:** a help page whose examples work.
+- **Consequence for the suite:** `cli_help`, `cli_help_short`, `cli_render_help` and
+  `cli_new_help` are unreachable by construction, like `err_missing_file` and `create_theme`. They
+  are held instead by `internal/cli/help_test.go`, which compares every page against its golden
+  and **fails if a differing line does not carry the binary name** — so the geometry is gated on
+  130 of the 136 lines and the six exceptions have one stated cause.
+
+### The harness change this entry also covers
+
+`RebindBinaryName` re-padded a shortened **bordered** row and left every other line as the
+substitution produced it. A help page's `Padding` regions — the usage line and the description —
+are painted to the console width too, so they are exactly as width-sensitive as a panel row, and
+the `isPanelRow` guard left them three characters short.
+
+The guard is now "bordered **or** exactly the console width". Measured: `cli_help` went from
+differing at byte 158 (the usage line, 2430 bytes against 2433) to differing only on the two
+re-wrapped lines, at equal length.
+
+- **Cost, recorded rather than hidden:** the width check is now reconstructed rather than compared
+  on any full-width line containing the binary token, where before it was reconstructed only on
+  bordered rows. A line without the token is still compared verbatim, and a line that was not
+  full width to begin with is still left exactly as substituted.
+- **New in this entry:** the rewrite rule finally has tests of its own
+  (`internal/conformance/binaryname_test.go`). It had none, in a harness that iteration 1's audit
+  already found to be the instrument every other claim rests on.
