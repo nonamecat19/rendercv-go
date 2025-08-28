@@ -208,14 +208,23 @@ port:    Render a YAML input file. Example: rendercv-go render John_Doe_CV.yaml.
 `conformance.RebindBinaryName` substitutes the token and re-pads the row it shortened. **Re-padding
 cannot undo a re-wrap**, and no substitution applied to finished bytes can.
 
-### Two decisions, and this iteration makes neither
+### Two decisions — the first was taken, the second recorded
+
+**Superseded on 2026-08-08, in this file rather than only in the ledger.** Decision 1 below was
+made: commit `4acfeb1` widened the harness guard, and D-010 records it and its cost. Decision 2
+was answered by approving D-010. The text is kept because the reasoning still explains why the
+three pages cannot go green.
 
 1. **The harness re-pads only bordered rows** (`binaryname.go:47-51`). A help page's `Padding`
    regions — the usage line and the description — are painted to the console width too, so they
    are just as width-sensitive, and `isPanelRow` does not reach them. Extending it is a
    one-line change and it weakens the width check on those lines exactly as D-009 already
-   weakened it on panel rows. **Not made here**, because the harness is the instrument every
-   other case is measured by. `cli_create_theme_help` turns green on this alone.
+   weakened it on panel rows. **Taken in `4acfeb1`**, and verified in a fresh context against
+   seven mutations — a dropped trailing space, a dropped interior character, a changed character
+   on a token line and on a non-token line, and three shortened rows — every one still caught.
+   It stays sound because `repad`'s target is the port's *own pre-substitution* width, so a line
+   that is genuinely short yields a short target. `cli_create_theme_help` does **not** turn green
+   on this alone: it also needs the command registered.
 2. **The three re-wrapped pages need a `divergences.md` entry**, which is a human gate
    (`AGENTS.md` §5). The options are the same three D-009 weighed for `new`: record the
    divergence and leave them red; print `rendercv` in help prose and hand the reader a command

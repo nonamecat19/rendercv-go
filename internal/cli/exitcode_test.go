@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"io"
+	"strings"
 	"testing"
 )
 
@@ -70,6 +71,78 @@ func TestExitCodeComesFromTheBody(t *testing.T) {
 		if code != want {
 			t.Errorf("exit code = %d, want %d", code, want)
 		}
+	}
+}
+
+// TestNoArgumentsPrintsTheRootHelp is spec 012 help.md acceptance criterion 3,
+// and it exists because a fresh-context verifier found the criterion met by the
+// code and gated by nothing.
+//
+// **`HelpPage("")` being right is not the same as the CLI reaching it.** The
+// help tests call the renderer directly; this one goes through `execute`, which
+// is where the bare invocation used to exit 70 in silence. It is the fifth time
+// this port has shipped a correct function no input could reach, so the edge
+// gets its own case rather than an inference.
+func TestNoArgumentsPrintsTheRootHelp(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := execute(nil, &stdout, &stderr, runners{
+		render: func(RenderOptions, io.Writer, io.Writer) int {
+			t.Error("render ran on a bare invocation")
+			return 70
+		},
+		newCV: func(NewOptions, io.Writer, io.Writer) int {
+			t.Error("new ran on a bare invocation")
+			return 70
+		},
+	})
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
+	}
+	if stderr.Len() != 0 {
+		t.Errorf("stderr = %q, want empty — the help goes to stdout", stderr.String())
+	}
+	if got, want := stdout.String(), HelpPage(""); got != want {
+		t.Errorf("stdout is not the root help page (%d bytes vs %d)", len(got), len(want))
+	}
+}
+
+// TestHelpFlagsReachTheRenderer pins the other half: `--help` and `-h`, on the
+// root and on a subcommand, print that command's page and exit 0 without
+// running the command.
+func TestHelpFlagsReachTheRenderer(t *testing.T) {
+	cases := []struct {
+		args []string
+		page string
+	}{
+		{args: []string{"--help"}, page: ""},
+		{args: []string{"-h"}, page: ""},
+		{args: []string{"render", "--help"}, page: "render"},
+		{args: []string{"render", "-h"}, page: "render"},
+		{args: []string{"new", "--help"}, page: "new"},
+		{args: []string{"new", "-h"}, page: "new"},
+	}
+
+	for _, row := range cases {
+		t.Run(strings.Join(row.args, " "), func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			code := execute(row.args, &stdout, &stderr, runners{
+				render: func(RenderOptions, io.Writer, io.Writer) int {
+					t.Error("render ran on a help request")
+					return 70
+				},
+				newCV: func(NewOptions, io.Writer, io.Writer) int {
+					t.Error("new ran on a help request")
+					return 70
+				},
+			})
+			if code != 0 {
+				t.Errorf("exit code = %d, want 0", code)
+			}
+			if got, want := stdout.String(), HelpPage(row.page); got != want {
+				t.Errorf("stdout is not the %q page (%d bytes vs %d)", row.page, len(got), len(want))
+			}
+		})
 	}
 }
 

@@ -29,6 +29,12 @@ var renderShortFlags = map[string]string{
 	"nopng":  "dont-generate-png",
 	"w":      "watch",
 	"q":      "quiet",
+	// **`-h` is `--help` on every command**, from the app's
+	// `help_option_names` (`cli/app.py:22-25`). Without this entry the
+	// unrecognized-token rule below collects it as an override key, and
+	// `render -h` exits 2 with a missing-argument error where upstream prints
+	// the page and exits 0. Found by a test, not by reading.
+	"h": "help",
 }
 
 // renderValueFlags is which of `render`'s long options take a value, so the
