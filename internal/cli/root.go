@@ -149,13 +149,99 @@ func execute(args []string, stdout, stderr io.Writer, run runners) int {
 
 	if err := root.Execute(); err != nil {
 		var usage *usageError
-		if errors.As(err, &usage) {
+		if !errors.As(err, &usage) {
+			// **The original vector, not the rewritten one.** Click quotes
+			// the spelling the user typed — `Option '-o' requires an
+			// argument.` — and args.go has already turned `-o` into
+			// `--output-folder` by the time cobra fails on it.
+			usage = flagUsageError(root, args, rest, err)
+		}
+		if usage != nil {
 			writeUsageError(stderr, usage)
 			return exitUsageError
 		}
 		return 70
 	}
 	return code
+}
+
+// flagUsageError translates pflag's parse failures into click's, so a malformed
+// option reports what upstream reports instead of exiting 70 in silence
+// (G-3, G-4).
+//
+// **Only two shapes reach here, and they print differently.** A missing value
+// gets an `Error` panel and **no usage line at all**; an unknown option gets the
+// usage line as well. Both were measured against the vendored CLI — the
+// asymmetry is click's, not a simplification.
+func flagUsageError(root *cobra.Command, typed, rest []string, err error) *usageError {
+	command := commandFor(root, rest)
+
+	if name, ok := strings.CutPrefix(err.Error(), "flag needs an argument: "); ok {
+		// pflag spells it `--design` or `-d, --design`; click names the
+		// spelling the user typed.
+		return &usageError{
+			command: command.CommandPath(),
+			message: fmt.Sprintf("Option '%s' requires an argument.", typedSpelling(name, typed)),
+		}
+	}
+	if name, ok := unknownFlag(err.Error()); ok {
+		return &usageError{
+			usage:   command.CommandPath() + " " + usageSuffix(command),
+			command: command.CommandPath(),
+			message: fmt.Sprintf("No such option: %s", name),
+		}
+	}
+	return nil
+}
+
+// unknownFlag matches pflag's two spellings of the same failure.
+func unknownFlag(text string) (string, bool) {
+	for _, prefix := range []string{"unknown flag: ", "unknown shorthand flag: "} {
+		if rest, ok := strings.CutPrefix(text, prefix); ok {
+			// The shorthand form reads `'d' in -d`; take the spelling as typed.
+			if _, after, found := strings.Cut(rest, " in "); found {
+				return after, true
+			}
+			return rest, true
+		}
+	}
+	return "", false
+}
+
+// typedSpelling recovers the option as the user wrote it, because click quotes
+// that and pflag reports its canonical name.
+func typedSpelling(canonical string, args []string) string {
+	canonical = strings.TrimPrefix(canonical, "--")
+	for _, arg := range args {
+		trimmed := strings.TrimLeft(arg, "-")
+		if trimmed == canonical || renderShortFlags[trimmed] == canonical {
+			return arg
+		}
+	}
+	return "--" + canonical
+}
+
+// commandFor is the subcommand the vector names, or the root.
+func commandFor(root *cobra.Command, args []string) *cobra.Command {
+	found, _, err := root.Find(args)
+	if err != nil || found == nil {
+		return root
+	}
+	return found
+}
+
+// usageSuffix is the argument spelling click prints after the command path.
+func usageSuffix(command *cobra.Command) string {
+	switch command.Name() {
+	case "render":
+		return "[OPTIONS] INPUT_FILE_NAME"
+	case "new":
+		return "[OPTIONS] FULL_NAME"
+	case "create-theme":
+		return "[OPTIONS] THEME_NAME"
+	default:
+		return "[OPTIONS] COMMAND [ARGS]..."
+	}
 }
 
 // usageError is click's `UsageError` — a malformed invocation, as opposed to a
@@ -174,8 +260,13 @@ type usageError struct {
 func (e *usageError) Error() string { return e.message }
 
 func writeUsageError(stderr io.Writer, err *usageError) {
-	_, _ = fmt.Fprintf(stderr, "Usage: %s\n", err.usage)
-	_, _ = fmt.Fprintf(stderr, "Try '%s -h' for help.\n", err.command)
+	// **A missing option value prints the panel alone** — no usage line and no
+	// `Try …` line (G-3). Every other usage error prints all three. The
+	// asymmetry is click's and was measured, not inferred.
+	if err.usage != "" {
+		_, _ = fmt.Fprintf(stderr, "Usage: %s\n", err.usage)
+		_, _ = fmt.Fprintf(stderr, "Try '%s -h' for help.\n", err.command)
+	}
 	_, _ = fmt.Fprint(stderr, Panel("Error", []PanelRow{{Text: err.message}}))
 }
 
