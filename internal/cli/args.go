@@ -50,9 +50,19 @@ var renderValueFlags = map[string]bool{
 	"markdown-path":  true,
 	"html-path":      true,
 	"png-path":       true,
+	// Declared, never read — see renderBoolFlags' note. It takes a value
+	// (metavar TEXT), so it must consume the next token or that token becomes a
+	// stray extra.
+	"YAMLLOCATION": true,
 }
 
 // renderBoolFlags is the rest of the table, plus help.
+//
+// **`YAMLLOCATION` is declared and never read** (G-2). Upstream declares it
+// (`render_command.py:190-197`) purely so the help panel has a row describing
+// the dotted-override mechanism, and binds it to `_`. Leaving it out made
+// `--YAMLLOCATION zzz` an override key the model then rejected, where upstream
+// accepts it in silence.
 var renderBoolFlags = map[string]bool{
 	"dont-generate-markdown": true,
 	"dont-generate-html":     true,
@@ -87,10 +97,25 @@ func Normalize(args []string) (rest, extras []string) {
 
 	rest = make([]string, 0, len(args))
 	seenInput := false
+	endOfOptions := false
 
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
 		name, long := longName(arg)
+
+		// **A bare `--` ends option parsing and is itself dropped** (G-1).
+		// Click removes it from the vector and every following token becomes an
+		// extra — declared flags included, so `-- -notyp` is the override key
+		// `-notyp`, not the flag. Measured: upstream reports
+		// `extra arguments (-notyp,-nomd,-nopdf,-nopng,-q)`.
+		if endOfOptions {
+			extras = append(extras, arg)
+			continue
+		}
+		if arg == "--" {
+			endOfOptions = true
+			continue
+		}
 
 		switch {
 		case long && renderValueFlags[name]:
