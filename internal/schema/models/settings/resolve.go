@@ -18,6 +18,25 @@ type Resolved struct {
 	BoldKeywords []string
 	// PDFTitle is `settings.pdf_title`, before its placeholders are substituted.
 	PDFTitle string
+	// RenderCommand is `settings.render_command`, **after** the CLI's own flags
+	// have been merged into it. The CLI writes its flags here rather than
+	// reading them twice, which is upstream's shape too: every generator gates
+	// on the merged model (`renderer/pdf_png.py:33,63`, `typst.py:23`,
+	// `markdown.py:22`, `html.py:26`), never on the flag.
+	RenderCommand RenderCommand
+}
+
+// RenderCommand is the resolved `settings.render_command` block.
+//
+// **Reading these back is what makes a document's own switches work.** The port
+// used to gate generation on the CLI flag alone, so a CV — or a `--settings`
+// overlay — asking for no PDF still got a PDF and both PNGs.
+type RenderCommand struct {
+	DontGenerateTypst    bool
+	DontGeneratePDF      bool
+	DontGeneratePNG      bool
+	DontGenerateMarkdown bool
+	DontGenerateHTML     bool
 }
 
 // DefaultPDFTitle is `pdf_title`'s declared default (`:32-33`).
@@ -39,6 +58,8 @@ func Resolve(node *yamldoc.Node, now time.Time) Resolved {
 			continue
 		}
 		switch item.Key {
+		case "render_command":
+			out.RenderCommand = resolveRenderCommand(item.Value)
 		case "current_date":
 			if item.Value.Raw == "today" {
 				continue
@@ -84,6 +105,35 @@ func uniqueKeywords(node *yamldoc.Node) []string {
 		}
 		seen[elem.Raw] = struct{}{}
 		out = append(out, elem.Raw)
+	}
+	return out
+}
+
+// resolveRenderCommand reads the five generation switches. Anything that is not
+// the boolean `true` leaves its switch off, which is upstream's truthiness rule
+// for this block (spec 004 §3.20).
+func resolveRenderCommand(node *yamldoc.Node) RenderCommand {
+	var out RenderCommand
+	if node == nil || node.Kind != yamldoc.KindMapping {
+		return out
+	}
+	for _, item := range node.Items {
+		if item.Value == nil {
+			continue
+		}
+		on := item.Value.Kind == yamldoc.KindBool && item.Value.Raw == "true"
+		switch item.Key {
+		case "dont_generate_typst":
+			out.DontGenerateTypst = on
+		case "dont_generate_pdf":
+			out.DontGeneratePDF = on
+		case "dont_generate_png":
+			out.DontGeneratePNG = on
+		case "dont_generate_markdown":
+			out.DontGenerateMarkdown = on
+		case "dont_generate_html":
+			out.DontGenerateHTML = on
+		}
 	}
 	return out
 }
