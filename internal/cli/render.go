@@ -583,7 +583,7 @@ func validationPanel(stdout io.Writer, records []schemaerr.ValidationError) {
 
 	// The table is laid out at the panel's inner width, then each of its lines
 	// becomes a row of that panel.
-	table := Table(columns, rows, PanelWidth-4)
+	table := Table(columns, rows, ConsoleWidth()-4)
 
 	var panelRows []PanelRow
 	for line := range strings.SplitSeq(strings.TrimRight(table, "\n"), "\n") {

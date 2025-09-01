@@ -77,19 +77,20 @@ func HelpPage(name string) string {
 	}
 
 	var out strings.Builder
-	blank := strings.Repeat(" ", PanelWidth)
+	width := ConsoleWidth()
+	blank := strings.Repeat(" ", width)
 	// The text width inside a one-cell padding on each side.
-	inner := PanelWidth - 2
+	inner := width - 2
 
 	out.WriteString(blank + "\n")
 	for _, line := range wrap(rebindHelpText(command.Usage), inner) {
-		out.WriteString(pad(" "+line, PanelWidth) + "\n")
+		out.WriteString(pad(" "+line, width) + "\n")
 	}
 	out.WriteString(blank + "\n")
 
 	if command.Description != "" {
 		for _, line := range wrap(rebindHelpText(command.Description), inner) {
-			out.WriteString(pad(" "+line, PanelWidth) + "\n")
+			out.WriteString(pad(" "+line, width) + "\n")
 		}
 		out.WriteString(blank + "\n")
 	}
@@ -145,7 +146,7 @@ func paramPanel(title string, params []helpParam) string {
 		rows = append(rows, row)
 	}
 
-	return panelOfLines(title, helpTable(columns, rows, PanelWidth-4))
+	return panelOfLines(title, helpTable(columns, rows, ConsoleWidth()-4))
 }
 
 // optionColumnSet is the six columns `add_row` creates, plus the required one
@@ -182,7 +183,7 @@ func commandsPanel(subcommands []helpSubcommand) string {
 		rows = append(rows, []helpCell{plain(sub.Name), plain(rebindHelpText(sub.Help))})
 	}
 
-	return panelOfLines("Commands", helpTable(columns, rows, PanelWidth-4))
+	return panelOfLines("Commands", helpTable(columns, rows, ConsoleWidth()-4))
 }
 
 func panelOfLines(title string, lines []string) string {

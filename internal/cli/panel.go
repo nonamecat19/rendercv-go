@@ -1,13 +1,34 @@
 package cli
 
 import (
+	"os"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 )
 
-// PanelWidth is Rich's default console width when stdout is not a terminal,
-// which is what every golden was captured with.
+// PanelWidth is Rich's fallback console width — what it uses when stdout is not
+// a terminal and nothing says otherwise. Every golden was captured at it.
 const PanelWidth = 80
+
+// ConsoleWidth is the width Rich would lay out to (G-11).
+//
+// **Rich honours `COLUMNS` even when stdout is a pipe**, and the port used to
+// print 80 columns unconditionally. At `COLUMNS=100` that was 20 columns
+// narrower than upstream; at `COLUMNS=60` it was 20 wider, so every panel
+// overflowed the reader's terminal and wrapped. No golden could see either,
+// because all of them are captured at 80.
+//
+// A value that is not a positive number is ignored, which is what Rich's own
+// `int()` guard amounts to.
+func ConsoleWidth() int {
+	if raw := os.Getenv("COLUMNS"); raw != "" {
+		if width, err := strconv.Atoi(raw); err == nil && width > 0 {
+			return width
+		}
+	}
+	return PanelWidth
+}
 
 // PanelRow is one line inside the panel.
 type PanelRow struct {
@@ -57,14 +78,16 @@ const timingWidth = 9
 func Panel(title string, rows []PanelRow) string {
 	var out strings.Builder
 
+	width := ConsoleWidth()
+
 	head := "╭─ " + title + " "
 	out.WriteString(head)
-	out.WriteString(strings.Repeat("─", PanelWidth-utf8.RuneCountInString(head)-1))
+	out.WriteString(strings.Repeat("─", width-utf8.RuneCountInString(head)-1))
 	out.WriteString("╮\n")
 
 	// The inner width is the panel minus the two borders and their padding
 	// spaces.
-	inner := PanelWidth - 4
+	inner := width - 4
 
 	for _, row := range rows {
 		body := row.Mark + " " + pad(row.Timing, timingWidth) + pad(row.Label, labelWidth) + row.Value
@@ -82,7 +105,7 @@ func Panel(title string, rows []PanelRow) string {
 	}
 
 	out.WriteString("╰")
-	out.WriteString(strings.Repeat("─", PanelWidth-2))
+	out.WriteString(strings.Repeat("─", width-2))
 	out.WriteString("╯\n")
 	return out.String()
 }
