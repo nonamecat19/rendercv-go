@@ -47,10 +47,9 @@ type NewOptions struct {
 	Theme  string
 	Locale string
 	// CreateTypstTemplates additionally writes the theme's Typst templates
-	// beside the input. It is **not implemented**, for the reason
-	// `create-theme` is not: the port's templates are the pongo2 transform of
-	// upstream's, so writing either form is wrong in a different way. See
-	// `STATE.md`.
+	// beside the input, in the port's own pongo2 dialect (D-005) — the same
+	// files `create-theme` writes, minus `init.lua`, which a built-in theme
+	// has no use for.
 	CreateTypstTemplates bool
 	// CreateMarkdownTemplates is the companion of the above
 	// (`new_command.py:57`), and is unimplemented for the same reason.
@@ -72,13 +71,6 @@ func New(options NewOptions, stdout, stderr io.Writer) int {
 		fail(stderr, ErrSampleNameUnsupported)
 		return exitValidationError
 	}
-	if options.CreateTypstTemplates {
-		fail(stderr, errors.New(
-			"--create-typst-templates is not implemented: the port's templates are the pongo2 "+
-				"transform of upstream's, so neither form is the right thing to write"))
-		return exitValidationError
-	}
-
 	variant, err := sampleVariant(options)
 	if err != nil {
 		fail(stderr, err)
@@ -97,8 +89,61 @@ func New(options NewOptions, stdout, stderr io.Writer) int {
 		return exitValidationError
 	}
 
-	_, _ = fmt.Fprint(stdout, newBanner(path))
+	var templatesRows []PanelRow
+	if options.CreateTypstTemplates {
+		// `theme` defaults to `"classic"` upstream (`new_command.py:35`), and
+		// that is the folder name `copy_templates` writes to whether or not
+		// the flag was given explicitly.
+		theme := options.Theme
+		if theme == "" {
+			theme = "classic"
+		}
+		created, err := writeTypstTemplatesIfAbsent(theme)
+		if err != nil {
+			fail(stderr, err)
+			return exitValidationError
+		}
+		templatesRows = typstTemplatesRows(theme, created)
+	}
+
+	_, _ = fmt.Fprint(stdout, newBanner(path, templatesRows))
 	return 0
+}
+
+// writeTypstTemplatesIfAbsent writes the Typst template folder unless one
+// already sits there — `new_command.py:110-115` skips a creator whose path
+// already exists rather than overwriting it.
+func writeTypstTemplatesIfAbsent(folder string) (created bool, err error) {
+	if _, statErr := os.Stat(folder); statErr == nil {
+		return false, nil
+	} else if !errors.Is(statErr, os.ErrNotExist) {
+		return false, statErr
+	}
+	if err := copyTypstTemplates(folder); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// typstTemplatesRows is the "Also created" / "Not modified" block
+// `new_command.py:150-166` appends to the "Get started" panel.
+func typstTemplatesRows(theme string, created bool) []PanelRow {
+	rows := []PanelRow{{IsText: true}}
+	if created {
+		rows = append(rows,
+			PanelRow{Text: "Also created:"},
+			PanelRow{Text: fmt.Sprintf("  ○ Typst templates: ./%s", theme)},
+		)
+	} else {
+		rows = append(rows,
+			PanelRow{Text: "Not modified (already exist):"},
+			PanelRow{Text: fmt.Sprintf("  - Typst templates: ./%s", theme)},
+		)
+	}
+	return append(rows,
+		PanelRow{IsText: true},
+		PanelRow{Text: "Templates are for advanced design customization. You can ignore or delete them."},
+	)
 }
 
 // sampleVariant maps the theme and locale flags onto a captured sample.
@@ -134,7 +179,7 @@ const Version = "2.8"
 // divergence** (`AGENTS.md` §1, spec 012 §1 behavior 4). The instruction has to
 // name the binary the user actually has, so this line cannot match the golden
 // and must not.
-func newBanner(path string) string {
+func newBanner(path string, templatesRows []PanelRow) string {
 	var out strings.Builder
 	// **A leading blank line**, which Rich emits before the greeting and which
 	// is easy to lose: it is the first byte of the golden, so dropping it shifts
@@ -148,13 +193,19 @@ func newBanner(path string) string {
 		{Text: "Bug reports:    https://github.com/rendercv/rendercv/issues/"},
 	}))
 
-	out.WriteString(Panel("Get started", []PanelRow{
+	rows := []PanelRow{
 		{Text: "✓ Created your YAML input file: ./" + path},
 		{IsText: true},
 		{Text: "Next steps:"},
 		{Text: "  1. Edit the YAML input file with your information"},
 		{Text: "  2. Run: rendercv-go render " + path},
-	}))
+	}
+	// **The templates block is appended, not interleaved** — upstream builds
+	// the same "Get started" panel one `lines.append` at a time
+	// (`new_command.py:150-166`), so its rows always follow the next-steps
+	// block rather than replacing any of it.
+	rows = append(rows, templatesRows...)
+	out.WriteString(Panel("Get started", rows))
 	return out.String()
 }
 
