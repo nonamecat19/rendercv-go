@@ -16,7 +16,7 @@ import (
 // the way the placeholder binary did rather than printing a cobra help screen
 // that would be wrong in every byte.
 func Execute(args []string, stdout, stderr io.Writer) int {
-	return execute(args, stdout, stderr, runners{render: Render, newCV: New})
+	return execute(args, stdout, stderr, runners{render: Render, newCV: New, createTheme: CreateTheme})
 }
 
 // runners are the two command bodies, injected rather than called directly so a
@@ -25,8 +25,9 @@ func Execute(args []string, stdout, stderr io.Writer) int {
 // the corpus exercises ten of them, all by their short spelling — so the
 // argument vector needs a gate that does not go through a real render.
 type runners struct {
-	render func(RenderOptions, io.Writer, io.Writer) int
-	newCV  func(NewOptions, io.Writer, io.Writer) int
+	render      func(RenderOptions, io.Writer, io.Writer) int
+	newCV       func(NewOptions, io.Writer, io.Writer) int
+	createTheme func(CreateThemeOptions, io.Writer, io.Writer) int
 }
 
 func execute(args []string, stdout, stderr io.Writer, run runners) int {
@@ -92,6 +93,17 @@ func execute(args []string, stdout, stderr io.Writer, run runners) int {
 	newFlags.BoolVar(&newOptions.CreateTypstTemplates, "create-typst-templates", false, "")
 	newFlags.BoolVar(&newOptions.CreateMarkdownTemplates, "create-markdown-templates", false, "")
 
+	createThemeOptions := CreateThemeOptions{}
+	createThemeCmd := &cobra.Command{
+		Use:  "create-theme [name]",
+		Args: exactlyOne("[OPTIONS] THEME_NAME", "THEME_NAME"),
+		RunE: func(_ *cobra.Command, positional []string) error {
+			createThemeOptions.ThemeName = positional[0]
+			code = run.createTheme(createThemeOptions, stdout, stderr)
+			return nil
+		},
+	}
+
 	// **`--version` prints upstream's version, not the port's**, and without the
 	// binary name: the golden is the single line `RenderCV v2.8`. It is the one
 	// output in the whole CLI that carries no `rendercv` token at all, which is
@@ -143,6 +155,7 @@ func execute(args []string, stdout, stderr io.Writer, run runners) int {
 	})
 	root.AddCommand(render)
 	root.AddCommand(newCmd)
+	root.AddCommand(createThemeCmd)
 	root.SetArgs(rest)
 	root.SetOut(stdout)
 	root.SetErr(stderr)
