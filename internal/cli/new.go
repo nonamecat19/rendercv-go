@@ -89,7 +89,7 @@ func New(options NewOptions, stdout, stderr io.Writer) int {
 		return exitValidationError
 	}
 
-	var templatesRows []PanelRow
+	var created, existing []templateItem
 	if options.CreateTypstTemplates {
 		// `theme` defaults to `"classic"` upstream (`new_command.py:35`), and
 		// that is the folder name `copy_templates` writes to whether or not
@@ -98,52 +98,85 @@ func New(options NewOptions, stdout, stderr io.Writer) int {
 		if theme == "" {
 			theme = "classic"
 		}
-		created, err := writeTypstTemplatesIfAbsent(theme)
+		item := templateItem{desc: "Typst templates", path: theme}
+		wrote, err := writeTemplatesIfAbsent(theme, copyTypstTemplates)
 		if err != nil {
 			fail(stderr, err)
 			return exitValidationError
 		}
-		templatesRows = typstTemplatesRows(theme, created)
+		if wrote {
+			created = append(created, item)
+		} else {
+			existing = append(existing, item)
+		}
+	}
+	if options.CreateMarkdownTemplates {
+		// The folder name is a fixed literal upstream (`new_command.py:87`),
+		// not derived from any flag.
+		item := templateItem{desc: "Markdown templates", path: "markdown"}
+		wrote, err := writeTemplatesIfAbsent("markdown", copyMarkdownTemplates)
+		if err != nil {
+			fail(stderr, err)
+			return exitValidationError
+		}
+		if wrote {
+			created = append(created, item)
+		} else {
+			existing = append(existing, item)
+		}
 	}
 
-	_, _ = fmt.Fprint(stdout, newBanner(path, templatesRows))
+	_, _ = fmt.Fprint(stdout, newBanner(path, templateRows(created, existing)))
 	return 0
 }
 
-// writeTypstTemplatesIfAbsent writes the Typst template folder unless one
-// already sits there — `new_command.py:110-115` skips a creator whose path
-// already exists rather than overwriting it.
-func writeTypstTemplatesIfAbsent(folder string) (created bool, err error) {
+// templateItem is one row of the "Also created" / "Not modified" block —
+// `new_command.py`'s `(description, path)` pair, minus the input file, which
+// the banner's first row already covers.
+type templateItem struct {
+	desc string
+	path string
+}
+
+// writeTemplatesIfAbsent writes a template folder unless one already sits
+// there — `new_command.py:110-115` skips a creator whose path already exists
+// rather than overwriting it.
+func writeTemplatesIfAbsent(folder string, copy func(string) error) (created bool, err error) {
 	if _, statErr := os.Stat(folder); statErr == nil {
 		return false, nil
 	} else if !errors.Is(statErr, os.ErrNotExist) {
 		return false, statErr
 	}
-	if err := copyTypstTemplates(folder); err != nil {
+	if err := copy(folder); err != nil {
 		return false, err
 	}
 	return true, nil
 }
 
-// typstTemplatesRows is the "Also created" / "Not modified" block
-// `new_command.py:150-166` appends to the "Get started" panel.
-func typstTemplatesRows(theme string, created bool) []PanelRow {
-	rows := []PanelRow{{IsText: true}}
-	if created {
-		rows = append(rows,
-			PanelRow{Text: "Also created:"},
-			PanelRow{Text: fmt.Sprintf("  ○ Typst templates: ./%s", theme)},
-		)
-	} else {
-		rows = append(rows,
-			PanelRow{Text: "Not modified (already exist):"},
-			PanelRow{Text: fmt.Sprintf("  - Typst templates: ./%s", theme)},
-		)
+// templateRows is the "Also created" / "Not modified" block
+// `new_command.py:150-166` appends to the "Get started" panel. **Each section
+// gets its own leading blank row**, independently of the other — a `--create-
+// typst-templates --create-markdown-templates` run where one folder already
+// exists produces both sections, each with one entry.
+func templateRows(created, existing []templateItem) []PanelRow {
+	var rows []PanelRow
+	if len(created) > 0 {
+		rows = append(rows, PanelRow{IsText: true}, PanelRow{Text: "Also created:"})
+		for _, item := range created {
+			rows = append(rows, PanelRow{Text: fmt.Sprintf("  ○ %s: ./%s", item.desc, item.path)})
+		}
 	}
-	return append(rows,
-		PanelRow{IsText: true},
-		PanelRow{Text: "Templates are for advanced design customization. You can ignore or delete them."},
-	)
+	if len(existing) > 0 {
+		rows = append(rows, PanelRow{IsText: true}, PanelRow{Text: "Not modified (already exist):"})
+		for _, item := range existing {
+			rows = append(rows, PanelRow{Text: fmt.Sprintf("  - %s: ./%s", item.desc, item.path)})
+		}
+	}
+	if len(created) > 0 || len(existing) > 0 {
+		rows = append(rows, PanelRow{IsText: true},
+			PanelRow{Text: "Templates are for advanced design customization. You can ignore or delete them."})
+	}
+	return rows
 }
 
 // sampleVariant maps the theme and locale flags onto a captured sample.
