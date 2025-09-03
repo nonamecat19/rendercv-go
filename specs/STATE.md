@@ -26,7 +26,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 9 | Typst renderer (`.typ` emission) + iteration 6's T10 + iteration 8's Wave C | [009](009-typst-renderer/spec.md) | **green** — verified by a fresh context, which returned FAIL on four items; all four fixed and pinned | 24 / 24 |
 | 10 | wazero + WASI typst → PDF, then PNG | [010](010-typst-compilation/spec.md) | **gate cleared 2026-08-08; landed and running in the suite.** The compiler, the fonts and `fontawesome` are vendored and embedded (D-007). Every render case now produces a PDF and its PNGs, and `AssertPDF` compares text, page count and geometry. **Not yet verified by a fresh context** | 14 / 14 in the suite |
 | 11 | Markdown + HTML renderers | [011](011-markdown-and-html/spec.md) | **verified — FAIL, demoted from green.** 24/24 on the corpus, but a `"` in any CV breaks the HTML and raw HTML is dropped. Not green | 24 / 24 corpus, blockers open |
-| 12 | CLI (`new`, `render`, `create-theme`, overrides, watcher) | [012](012-cli/spec.md) | **in progress.** `render` and `new` are wired and their goldens pass, error panels included. `create-theme` and `--create-typst-templates` are still unwritten; the five help panels are written and verified (see below), and three of them are unreachable by construction under D-010 | 25 / 35 `TestParity` cases |
+| 12 | CLI (`new`, `render`, `create-theme`, overrides, watcher) | [012](012-cli/spec.md) | **in progress.** `render` and `new` are wired and their goldens pass, error panels included. `create-theme` is now registered and `--create-typst-templates` writes the folder (see below); their two corpus cases stay red by construction under D-008. The five help panels are written and verified, and three of them are unreachable by construction under D-010 | 33 / 43 `TestParity` cases, **not yet verified by a fresh context** |
 | 13 | Parity closeout (sample generator, version, error handler, packaging) | — | — | 0 |
 | 14 | Lua-scripted custom themes (D-002) + the two folder messages | [014](014-lua-custom-themes/spec.md) | **verified — FAIL.** Three of four blockers fixed; the rest is open work, listed below. Not green | 4 / 4 criteria, 11 findings |
 
@@ -35,7 +35,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | Axis | Gate command | Status |
 |---|---|---|
 | 1 — artifacts byte-identical | `just test-parity` | **PDF and PNG now compare, and every render case passes.** 14 render cases produce a PDF matched on extracted text, page count and page geometry, plus their PNGs on name and dimensions. Previously: **72 passing comparisons on the corpus, and the corpus is narrower than that number suggests** — 8 of the 24 cases share one byte-identical `.md`, so there are 14 distinct Markdown documents, and a verifier broke the HTML with a double quote. Every text artifact — 24/24 `.typ`, `.md` and `.html` — byte-identical against the vendored Python (`TestCorpusTypstIsByteIdentical`), over the 21 corpus inputs plus three the corpus cannot express. PDF and PNG are iteration 10's. The 15 CLI-driven artifact cases stay red until iteration 12: they shell `rendercv-go render`, which does not exist. |
-| 2 — CLI surface | `just test-parity` | **25 of 35 `TestParity` cases pass — and the suite is much narrower than the axis.** Six CLI surfaces measured against the vendored binary produced exit 70 and no output, and every corpus case passed throughout; see "The corpus could not see the CLI" below. The ten that do not: four help pages, **written and verified**, unreachable by construction under D-010; `cli_create_theme_help`, which renders identically and waits only on the command being registered; `create_theme` and `new_typst_templates`, unwritten and unreachable under D-008; `err_not_yaml` (a YAML span and message suffix); and `err_missing_file` / `err_bad_override_key`, whose goldens are Python tracebacks. **The port also ignores `COLUMNS` — an undeclared axis-2 divergence no golden can see.** |
+| 2 — CLI surface | `just test-parity` | **33 of 43 `TestParity` cases pass — and the suite is much narrower than the axis.** `create-theme` is now registered (`cli_create_theme_help` passes) and `--create-typst-templates` writes its folder, both through `internal/cli/customtheme.go`'s `copyTypstTemplates` + `init.lua`. The ten that still fail: four help pages, **written and verified**, unreachable by construction under D-010; `create_theme` and `new_typst_templates`, unreachable under D-008 (both compare template *source*, and the port's loader reads the pongo2 transform, not upstream's Jinja); `err_not_yaml` (a YAML span and message suffix); and `err_missing_file` / `err_bad_override_key`, whose goldens are Python tracebacks. **The port also ignores `COLUMNS` — an undeclared axis-2 divergence no golden can see.** |
 | 3 — JSON Schema | `just schema-diff` | **green.** All 227 `$defs` byte-identical; the command exits 0. The oracle is `tools/genschema`, not the parity suite — `TestSchemaParity` shells `rendercv-go schema` and stays red until iteration 12. |
 | 4 — validation errors | `just test-parity` | **4/7 passing** (`err_empty_yaml`, `err_unknown_theme`, `err_unknown_locale`, `err_wrong_input`). Rich's error table is reproduced and its three width stages are pinned. **verified — FAIL.** The 25-record differential is real and mutation-discriminating, but it gates far less than the axis: 6 of 13 dictionary rows, 2 of 8 username rules. Two blockers open (below). 0/7 corpus cases. |
 
@@ -118,6 +118,49 @@ divergence already recorded here.
 - **`just check` still fails on three lint issues**, all three present at `50c6c01` and none of
   them this pass's: an unchecked `module.Close`, a type assertion on a wrapped error, and the
   unused `themeOf`.
+
+## `create-theme` and `--create-typst-templates` landed — 2026-08-09
+
+Both were the last two things spec 012 §3 named as unwritten. Neither needed a new human gate:
+D-008 (approved 2026-08-08) already decided what a written-out custom theme folder must contain,
+so this pass is that decision implemented, not a new one.
+
+**`internal/cli/customtheme.go` is new** and both features share it:
+
+- `copyTypstTemplates(dest)` walks `templater.BuiltinTemplates()`'s `typst/` subtree — the port's
+  own pongo2 transform, already embedded for rendering — and writes the same thirteen files
+  `copy_templates("typst", …)` copies upstream: the four top-level fragments and the nine entry
+  templates.
+- `writeThemeInitLua` writes `init.lua` in place of `__init__.py`, per D-008. It is a documented
+  empty table (`return {}`) rather than a transliteration of `ClassicTheme`'s 857-line pydantic
+  model — `luatheme.Options` reads whatever a script returns keyed like `design:`, so there is no
+  class for a starter to derive from, and restating every classic-theme default as a comment would
+  be a golden by another name.
+- `CreateTheme` (`create-theme <name>`) validates the name against `custom_theme_name_pattern`
+  (`^[a-z0-9]+$`), rejects an existing folder with upstream's exact wording, writes the fourteen
+  files, and prints the "Theme created" panel — upstream's text with `__init__.py` renamed to
+  `init.lua` throughout, D-008's user-visible half.
+- `new --create-typst-templates` now writes the same thirteen files into `./<theme>/` (defaulting
+  to `classic`, upstream's own default) instead of returning "not implemented", and the "Get
+  started" panel grows upstream's "Also created" / "Not modified (already exist)" block
+  (`new_command.py:150-166`).
+
+**Round-tripped by hand, not just by the suite**: a theme `create-theme` writes is a theme
+`render --design` (via `design.theme: <name>`) loads and renders without complaint — the folder
+check that used to reject unknown custom themes finds `init.lua` and the `.j2.typ` set it just
+wrote.
+
+`TestParity` moved from 25/35 to **33/43** (the suite grew eight cases since that count was taken;
+this pass accounts for the +8 pass delta, not the count change). `cli_create_theme_help` is a
+genuine new pass — the help data was already captured, only the command's registration was
+missing. `create_theme` and `new_typst_templates` are still red, and stay red: both compare
+template *source*, and D-008 already recorded why the port cannot produce upstream's Jinja bytes
+without breaking the theme it just wrote. `specs/divergences.md`'s D-008 entry now names both
+cases instead of one.
+
+**Not done in this pass**: `new --create-markdown-templates` (G-9) is a separate flag, a separate
+template set, and no corpus case names it — left for whoever picks up G-9. No fresh-context
+verification has run over this change.
 
 ## The help renderer landed and moved no case — 2026-08-08
 
