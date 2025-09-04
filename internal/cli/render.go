@@ -78,11 +78,28 @@ type RenderOptions struct {
 // axis 2, so this was a divergence in the contract with nothing recording it.
 const exitValidationError = 1
 
+// errWatchNotImplemented is what `--watch` reports until iteration 13 ports
+// the watcher.
+var errWatchNotImplemented = errors.New(
+	"--watch is not implemented yet: it needs a file watcher, spec 012 §6.2's " +
+		"deferred iteration-13 work (see internal/cli/render.go)")
+
 // Render is the `render` command (spec 012 §2).
 //
 // **PDF and PNG are iteration 10's**, so this writes the three text artifacts
 // and reports the two it cannot produce rather than pretending they exist.
 func Render(options RenderOptions, stdout, stderr io.Writer) int {
+	// **`--watch` used to parse and silently do a single render**, which is a
+	// worse failure than rejecting it: upstream `--watch` never returns until
+	// a watched file changes, so a one-shot render that exits 0 answers a
+	// different question than the one asked (G-10). The watcher itself is
+	// spec §6.2's, iteration 13's work; until it lands, saying so beats
+	// pretending nothing was requested.
+	if options.Watch {
+		fail(stderr, errWatchNotImplemented)
+		return exitValidationError
+	}
+
 	raw, err := os.ReadFile(options.InputPath)
 	if err != nil {
 		// The trailing `!` is upstream's own message text, not this port's
