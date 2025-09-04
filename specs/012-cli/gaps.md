@@ -62,39 +62,37 @@ Try 'rendercv new -h' for help.
 
 ## 4. `create-theme` is unregistered and the port now lies about it
 
-**G-5.** `create-theme mytheme` → upstream creates the folder, exit 0. The port exits **2** with
-`No such command 'create-theme'.` while its own `--help` lists the command.
+**G-5 — closed, 2026-08-09.** `create-theme mytheme` → upstream creates the folder, exit 0. The
+port used to exit **2** with `No such command 'create-theme'.` while its own `--help` listed the
+command — worse than the earlier silent exit 70, since it asserted a false thing.
 
-**This is a regression introduced on 2026-08-08.** Before the usage-error work the port exited 70
-in silence; the new root `Args` handler replaced that with a confident false statement. Silence was
-wrong; asserting the command does not exist is worse.
-
-D-008 approved the file set. One question inside it is open and is a **design decision, not a
-transcription**: upstream generates the theme's `__init__.py` from `classic_theme.py`, and the port
-has no equivalent source — `design.Overrides("classic")` is empty, because classic *is* the base
-tree. See §8.
+The command is registered (`internal/cli/customtheme.go`, `internal/cli/root.go`). D-008's open
+question — the `__init__.py` equivalent — is answered by writing `init.lua` as a documented empty
+table, not by porting `classic_theme.py`'s 857 lines: a Lua declaration has no pydantic class to
+derive from, `luatheme.Options` reads whatever a script returns, and restating every classic-theme
+default as a comment would be a golden by another name. See §8.
 
 ## 5. The `render_command` settings block is half-wired
 
-**G-6. `settings.render_command.dont_generate_*` is ignored.** Upstream gates inside each
-generator on the **merged model** (`renderer/pdf_png.py:33,63`, `typst.py:23`, `markdown.py:22`,
-`html.py:26`); the port gates on the CLI flag alone (`internal/cli/render.go:147,166,175`). So a
-document — or a `--settings` overlay — setting `dont_generate_pdf: true` still gets a PDF and both
-PNGs from the port.
+**G-6 — closed, 2026-08-08 (`e78ad3d`).** `settings.render_command.dont_generate_*` was ignored:
+upstream gates inside each generator on the **merged model** (`renderer/pdf_png.py:33,63`,
+`typst.py:23`, `markdown.py:22`, `html.py:26`), and the port gated on the CLI flag alone. Fixed by
+routing generation through `settings.Resolved` instead of the CLI options directly, so the flags,
+the document and a `--settings` overlay are one source of truth. Verified by hand this pass:
+`dont_generate_pdf: true` in the document, no CLI flag, produces no PDF (PNG is unaffected, as
+upstream's own flag independence requires).
 
-This is why wiring `--settings` was not enough: the overlay is read and its most visible effect
-discarded.
+**G-7 — closed, 2026-08-08 (`c03fe1d`).** `settings.render_command.design` and `.locale` were
+never resolved. Upstream's `collect_input_file_paths` (`run_rendercv.py:113-122`) resolves each
+relative to the **input file's** directory when the CLI flag did not supply one. Measured before
+the fix: 240 differing `.typ` lines, the port rendering `classic` where upstream rendered the named
+theme; after, byte-identical. Verified by hand this pass: `sub/cv.yaml` naming `mydesign.yaml`
+(theme `engineeringresumes`) with no `-d` flag renders `engineeringresumes`'s fonts, not
+`classic`'s.
 
-**G-7. `settings.render_command.design` and `.locale` are never resolved.** Upstream
-`collect_input_file_paths` (`run_rendercv.py:113-122`) resolves each relative to the **input
-file's** directory when the CLI flag did not supply one, and `render_command.py:205-215` feeds
-them in. Measured on `sub/cv.yaml` naming `mydesign.yaml`: **240 differing `.typ` lines** —
-upstream renders `engineeringresumes`, the port renders `classic`.
-
-**G-8. `output_folder` resolves against the working directory, not the input file's.** Upstream
-types it `PlannedPathRelativeToInput` (`schema/models/settings/render_command.py:30`). Measured:
-`render sub2/cv.yaml -o pyO` writes `sub2/pyO/` upstream and `./goO/` here. Pre-existing, and
-reachable for the first time now that `-o` parses.
+**G-8 — closed (`555d7e0`).** `output_folder` now resolves against the input file's directory
+(`PlannedPathRelativeToInput`, `schema/models/settings/render_command.py:30`), not the working
+directory.
 
 ## 6. Two options are declared and unread
 
@@ -143,8 +141,14 @@ Three candidates, none measured against anything because upstream has no counter
 3. **A small representative subset** — arbitrary, and arbitrary is what this port keeps getting
    caught by.
 
-**Recommendation: 1.** Upstream's file is complete and editable, and completeness is the property
-the user relies on when they delete the lines they do not want.
+**Recommendation was 1; implemented was 2.** `writeThemeInitLua` (`internal/cli/customtheme.go`)
+ships an empty table with a commented example rather than the full classic tree. Not measured
+against upstream — there is nothing to measure against — and worth revisiting against the
+recommendation above if a user reports the empty file is unhelpful. The reasoning at the time: a
+Lua declaration's value *is* its type (no annotation exists to carry one independently), so a
+"complete" starter would mean re-deriving all of `ClassicTheme`'s ~30 fields into Lua syntax by
+hand — itself a small port with its own drift risk — for a theme a user is, by definition, about to
+change.
 
 ## 9. Acceptance criteria
 
