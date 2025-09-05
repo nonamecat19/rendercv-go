@@ -102,12 +102,12 @@ through `copyBuiltinTemplates("markdown", …)`, the same path `--create-typst-t
 flags at once (`internal/cli/new.go`). No corpus case names the flag, so nothing in `TestParity`
 moved; verified by hand against `new_command.py:150-166`'s shape.
 
-**G-10.** `render --watch` parses and does nothing; upstream loops. `spec.md` §6.2 defers the
-watcher to iteration 13, so the *feature* is out of scope — but accepting the flag and exiting 0
-is a behavior difference, where rejecting it was not.
-
-**Declared-and-unread is a worse failure than undeclared**, because the CLI now accepts the flag
-silently instead of reporting it. Both were introduced on 2026-08-08.
+**G-10 — closed narrowly, 2026-08-09.** `render --watch` parsed and did nothing; upstream loops.
+`spec.md` §6.2 defers the watcher itself to iteration 13, so it is not implemented here — but
+`Render` now rejects `--watch` with an explicit "not implemented" message and exit 1 instead of
+silently doing a single render and exiting 0 as if the flag had been honored. Declared-and-unread
+was a worse failure than undeclared; declared-and-refused is at least honest about what happened.
+The watcher itself is still iteration 13's.
 
 ## 7. The console width is ignored
 
