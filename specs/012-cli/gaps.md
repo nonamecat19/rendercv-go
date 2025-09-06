@@ -11,12 +11,20 @@ Every row was measured against the vendored CLI at `COLUMNS=80 NO_COLOR=1 TERM=d
 below was present, so a green suite is not evidence for any of it. The gate is a differential
 against the vendored binary, one vector at a time.
 
+**All eleven G-numbered findings are closed as of 2026-08-09** (G-10 narrowly: the flag is rejected
+rather than silently ignored, but the watcher feature itself is still iteration 13's, per spec §6.2
+— unchanged). Some were fixed across several 2026-08-08 commits this file never recorded; that gap
+in the record, not in the code, is what this pass closed. §8's open design question (`init.lua`'s
+contents) is unaffected and still open.
+
 ---
 
 ## 1. `--` ends option parsing
 
-**G-1.** Click drops a bare `--` from the argument vector and treats **every following token** as
-an extra — declared flags included.
+**G-1 — closed.** Click drops a bare `--` from the argument vector and treats **every following
+token** as an extra — declared flags included. `internal/cli/args.go:115` now matches: verified by
+hand this pass, `render cv.yaml -- -notyp -nomd -nopdf -nopng -q` produces upstream's extra-
+arguments message and `render cv.yaml --` renders normally.
 
 | Input | Upstream |
 |---|---|
@@ -28,17 +36,16 @@ keeps parsing the rest as flags.
 
 ## 2. `--YAMLLOCATION` is declared and never read
 
-**G-2.** Upstream declares it (`render_command.py:190-197`) purely so the help panel has a row
-describing the dotted-override mechanism; the function binds it to `_` and nothing reads it.
-`spec.md` §2 behavior 6 already tabulates it. The port does not declare it, so
-`--YAMLLOCATION zzz` becomes the override key `YAMLLOCATION` and the model rejects it.
+**G-2 — closed.** Upstream declares it (`render_command.py:190-197`) purely so the help panel has
+a row describing the dotted-override mechanism; the function binds it to `_` and nothing reads it.
+`spec.md` §2 behavior 6 already tabulates it. `internal/cli/root.go:74` now declares and discards
+it the same way. Verified by hand this pass: `--YAMLLOCATION zzz` renders normally, exit 0,
+matching upstream's silence rather than becoming an override key the model rejects.
 
-Upstream: exit 0, silent. Port: exit 1, a validation panel.
+## 3. Two usage errors the port used to answer with exit 70 and silence
 
-## 3. Two usage errors the port answers with exit 70 and silence
-
-**G-3. A declared option missing its value.** Exit **2**, an `Error` panel on stderr, and — unlike
-every other usage error — **no usage line and no `Try …` line**.
+**G-3 — closed. A declared option missing its value.** Exit **2**, an `Error` panel on stderr, and
+— unlike every other usage error — **no usage line and no `Try …` line**.
 
 ```
 ╭─ Error ──────────────────────────────────────────────────────────────────────╮
@@ -47,8 +54,9 @@ every other usage error — **no usage line and no `Try …` line**.
 ```
 
 Measured for `--output-folder` and `--design`; the option's own spelling is interpolated.
+`flagUsageError` (`internal/cli/root.go`) produces this; verified by hand this pass.
 
-**G-4. An unknown option outside `render`.** Exit **2**, *with* the usage line:
+**G-4 — closed. An unknown option outside `render`.** Exit **2**, *with* the usage line:
 
 ```
 Usage: rendercv new [OPTIONS] FULL_NAME
@@ -59,6 +67,8 @@ Try 'rendercv new -h' for help.
 ```
 
 `render` never reaches this, because `ignore_unknown_options` sends its unknowns to the extras.
+Verified by hand this pass: `new "John Doe" -d` produces exactly this shape (binary name aside,
+D-001).
 
 ## 4. `create-theme` is unregistered and the port now lies about it
 
