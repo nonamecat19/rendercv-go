@@ -674,13 +674,21 @@ func fail(stderr io.Writer, err error) {
 	_, _ = fmt.Fprintln(stderr, err)
 }
 
-// timing is the duration Rich prints beside each artifact.
+// timing is the duration Rich prints beside each artifact — `run_rendercv.py:57`
+// (`f"{(end - start) * 1000:.0f}"`) concatenated with `" ms"` in
+// `progress_panel.py:97`. Upstream always reports milliseconds, rounded to the
+// nearest whole one; there is no seconds form.
 //
 // **Its content is not part of the contract and its shape is.** The conformance
 // harness rewrites `\d+(\.\d+)?\s?(ms|s)` to `<duration> `, consuming the
 // padding that follows — so a timing that does not match that pattern survives
 // into the comparison and fails, and one that does is erased on both sides.
+//
+// **A fresh-context verifier caught the port printing `%.1fs`** (seconds, one
+// decimal) where upstream always prints whole milliseconds — invisible to
+// `TestParity` because the harness's own pattern matches both shapes, but a
+// real, undocumented divergence in anything reading raw output.
 func timing(since time.Time) string {
-	elapsed := time.Since(since).Seconds()
-	return fmt.Sprintf("%.1fs", elapsed)
+	elapsed := time.Since(since)
+	return fmt.Sprintf("%.0f ms", elapsed.Seconds()*1000)
 }
