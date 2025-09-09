@@ -81,8 +81,7 @@ const exitValidationError = 1
 // errWatchNotImplemented is what `--watch` reports until iteration 13 ports
 // the watcher.
 var errWatchNotImplemented = errors.New(
-	"--watch is not implemented yet: it needs a file watcher, spec 012 §6.2's " +
-		"deferred iteration-13 work (see internal/cli/render.go)")
+	"--watch is not implemented yet: rendercv-go does not have a file watcher")
 
 // Render is the `render` command (spec 012 §2).
 //
