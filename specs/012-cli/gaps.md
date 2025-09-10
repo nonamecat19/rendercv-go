@@ -17,6 +17,21 @@ rather than silently ignored, but the watcher feature itself is still iteration 
 in the record, not in the code, is what this pass closed. §8's open design question (`init.lua`'s
 contents) is unaffected and still open.
 
+**A fresh-context verifier ran after that closure pass** and, correctly, did not just re-trust the
+prose — it found two undeclared divergences no G-number covered (both fixed the same day: `render`'s
+three panels were printing an extra trailing newline the vendored CLI never does, and the duration
+column was `%.1fs` where upstream is always whole milliseconds — see `internal/cli/render.go`'s
+`writeLivePanel` and `timing`). It also found process debt this file records without yet fixing:
+
+- **No test gates G-5, G-7, G-8, G-9 or G-10.** Each was verified once by hand against the vendored
+  CLI and by nothing since. A regression in any of them would not fail `go test`.
+- **`err_missing_file` / `err_bad_override_key` still have no `divergences.md` entry**, though
+  `STATE.md` has said since 2026-08-08 that they need one (they are Python tracebacks; a Go binary
+  cannot and should not produce them). Still a human gate, still open.
+- **`err_not_yaml`'s span defect is broader than its one corpus case**: any document with a
+  duplicate mapping key shows the same wrong single-line location instead of a range. Recorded in
+  kind at `STATE.md`, not by scope.
+
 ---
 
 ## 1. `--` ends option parsing
@@ -31,8 +46,7 @@ arguments message and `render cv.yaml --` renders normally.
 | `render cv.yaml --` | renders normally, exit 0 — `--` is dropped and no extra remains |
 | `render cv.yaml -- -notyp -nomd -nopdf -nopng -q` | `There is a problem with the extra arguments (-notyp,-nomd,-nopdf,-nopng,-q)! Each key should have a corresponding value.` |
 
-So `-notyp` after `--` is **not** a flag. The port instead collects `--` itself as an extra and
-keeps parsing the rest as flags.
+So `-notyp` after `--` is **not** a flag — and now isn't one in the port either.
 
 ## 2. `--YAMLLOCATION` is declared and never read
 
@@ -130,7 +144,7 @@ result panel, `COLUMNS=60` a 60-column one.
 | Width | Upstream | Port |
 |---|---|---|
 | 100 | 100-column output | now 100-column |
-| 60 | wraps at 58, boxes at 60 | now matches |
+| 60 | wraps at 57, boxes at 60 | now matches |
 
 **Still no golden can see this**: every one is captured at 80, so the fix is unverified by
 `TestParity` and rests on the hand check above plus `panel_test.go`/`helptable_test.go`.
