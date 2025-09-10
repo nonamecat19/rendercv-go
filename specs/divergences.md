@@ -184,6 +184,9 @@ Each entry: what differs · upstream citation · why parity is impossible or und
   --create-typst-templates` writes the same thirteen `.typ` files through the same
   `copyTypstTemplates` path (`internal/cli/customtheme.go`), so `new_typst_templates` fails on
   exactly the same four fragments and stays red for the same reason — not a second divergence.
+  `create_theme` also differs on **stdout**, not just the file set: the panel's second step reads
+  `Edit ./mytheme/__init__.py to:` upstream and `Edit ./mytheme/init.lua to:` here — the same
+  substitution, one more place it shows.
 
 ---
 
@@ -212,7 +215,8 @@ Each entry: what differs · upstream citation · why parity is impossible or und
 
 **Status:** approved (human gate, 2026-08-08) · **Iteration:** 12
 
-- **Differs:** three of the five `cli_*_help` goldens cannot be byte-identical, on two lines each.
+- **Differs:** four of the five `cli_*_help` goldens cannot be byte-identical, on two lines each
+  (`cli_help` and `cli_help_short` share the same page and both carry the token).
 - **Upstream:** `typer/rich_utils.py:535-620`, rendering the help for `rendercv`, `rendercv render`
   and `rendercv new`.
 - **Why it is not just D-001 or D-009:** every help page quotes commands the reader is meant to
