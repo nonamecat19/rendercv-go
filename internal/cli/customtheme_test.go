@@ -66,6 +66,101 @@ func TestRenderAcceptsABuiltinTheme(t *testing.T) {
 	}
 }
 
+// TestCreateThemeWritesTheFileSet is G-5: `create-theme` was unregistered and
+// exited 2 with "No such command". Pins D-008's fourteen files — the thirteen
+// pongo2-transformed `.typ` templates plus `init.lua` in place of upstream's
+// `__init__.py` — so a regression that drops a file or reverts to writing
+// `__init__.py` fails a test rather than waiting for another verifier pass.
+func TestCreateThemeWritesTheFileSet(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	var stdout, stderr bytes.Buffer
+	if code := cli.CreateTheme(cli.CreateThemeOptions{ThemeName: "mytheme"},
+		&stdout, &stderr); code != 0 {
+		t.Fatalf("exit = %d, stderr = %q", code, stderr.String())
+	}
+
+	want := []string{
+		"Header.j2.typ", "Preamble.j2.typ", "SectionBeginning.j2.typ", "SectionEnding.j2.typ",
+		"init.lua",
+		"entries/BulletEntry.j2.typ", "entries/EducationEntry.j2.typ",
+		"entries/ExperienceEntry.j2.typ", "entries/NormalEntry.j2.typ",
+		"entries/NumberedEntry.j2.typ", "entries/OneLineEntry.j2.typ",
+		"entries/PublicationEntry.j2.typ", "entries/ReversedNumberedEntry.j2.typ",
+		"entries/TextEntry.j2.typ",
+	}
+	for _, rel := range want {
+		if _, err := os.Stat(filepath.Join(dir, "mytheme", rel)); err != nil {
+			t.Errorf("mytheme/%s: %v", rel, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(dir, "mytheme", "__init__.py")); err == nil {
+		t.Error("mytheme/__init__.py exists — D-008 says init.lua replaces it, not sits beside it")
+	}
+}
+
+// TestCreateThemeRoundTrips is D-008's central claim made executable: a theme
+// `create-theme` writes must be a theme `render` can load. Renders a document
+// naming the freshly-written folder and requires it to succeed — the same
+// check `TestRenderReportsAMissingThemeFolder` exists to fail without.
+func TestCreateThemeRoundTrips(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	var ctOut, ctErr bytes.Buffer
+	if code := cli.CreateTheme(cli.CreateThemeOptions{ThemeName: "mytheme"},
+		&ctOut, &ctErr); code != 0 {
+		t.Fatalf("create-theme exit = %d, stderr = %q", code, ctErr.String())
+	}
+
+	input := filepath.Join(dir, "cv.yaml")
+	if err := os.WriteFile(input, []byte(
+		"cv:\n  name: John Doe\ndesign:\n  theme: mytheme\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	if code := cli.Render(cli.RenderOptions{
+		InputPath: input, OutputFolder: filepath.Join(dir, "out"),
+		NoPDF: true, NoPNG: true,
+	}, &stdout, &stderr); code != 0 {
+		t.Fatalf("render exit = %d, stdout = %q, stderr = %q", code, stdout.String(), stderr.String())
+	}
+}
+
+// TestCreateThemeRejectsBadName pins upstream's `custom_theme_name_pattern`
+// message (`design.py:60`), and TestCreateThemeRejectsExistingFolder pins the
+// other guard `create_theme_command.py` runs before writing anything.
+func TestCreateThemeRejectsBadName(t *testing.T) {
+	t.Chdir(t.TempDir())
+	var stdout, stderr bytes.Buffer
+	code := cli.CreateTheme(cli.CreateThemeOptions{ThemeName: "Bad_Name"}, &stdout, &stderr)
+	if code == 0 {
+		t.Fatal("exit code = 0, want a failure")
+	}
+	if !strings.Contains(flatten(stdout.String()), "lowercase letters and digits") {
+		t.Errorf("stdout = %q, want upstream's name-pattern message", stdout.String())
+	}
+}
+
+func TestCreateThemeRejectsExistingFolder(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	if err := os.Mkdir(filepath.Join(dir, "mytheme"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := cli.CreateTheme(cli.CreateThemeOptions{ThemeName: "mytheme"}, &stdout, &stderr)
+	if code == 0 {
+		t.Fatal("exit code = 0, want a failure")
+	}
+	if !strings.Contains(flatten(stdout.String()), "already exists") {
+		t.Errorf("stdout = %q, want upstream's already-exists message", stdout.String())
+	}
+}
+
 // flatten strips a panel's borders and collapses the wrapping, so a test can
 // assert on a message rather than on where the box happened to break it.
 func flatten(panel string) string {
