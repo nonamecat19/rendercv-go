@@ -318,10 +318,11 @@ func TestRenderFlagInventory(t *testing.T) {
 			},
 		},
 		{
-			// **`--watch` is declared and not implemented** (spec §6.2), but it
-			// must still *parse*: upstream accepts it, so rejecting it is an
-			// axis-2 difference on the argument vector regardless of what the
-			// port then does with it.
+			// **`--watch` must still *parse***, even though `Render` now
+			// refuses it once parsed (G-10, spec §6.2 defers the watcher to
+			// iteration 13): upstream accepts the flag on the argument
+			// vector, so rejecting it at the parser would be a separate,
+			// axis-2 difference from the one this port has chosen.
 			name: "watch long",
 			args: []string{"--watch"},
 			check: func(t *testing.T, o RenderOptions) {
