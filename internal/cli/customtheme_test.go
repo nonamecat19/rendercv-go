@@ -161,6 +161,60 @@ func TestCreateThemeRejectsExistingFolder(t *testing.T) {
 	}
 }
 
+// TestRenderReportsAMissingInputFile pins the shape D-011 says the port
+// produces instead of upstream's `err_missing_file` traceback: an `Error`
+// panel on stdout naming the file, exit 1, nothing on stderr. The corpus case
+// itself stays red forever (it compares against a Python stack trace), so
+// this is what actually gates the port's own behavior on that vector.
+func TestRenderReportsAMissingInputFile(t *testing.T) {
+	dir := t.TempDir()
+	missing := filepath.Join(dir, "does_not_exist.yaml")
+
+	var stdout, stderr bytes.Buffer
+	code := cli.Render(cli.RenderOptions{
+		InputPath: missing, OutputFolder: filepath.Join(dir, "out"),
+		NoPDF: true, NoPNG: true,
+	}, &stdout, &stderr)
+
+	if code == 0 {
+		t.Error("exit code = 0, want a failure")
+	}
+	if !strings.Contains(flatten(stdout.String()), "does not exist") {
+		t.Errorf("stdout = %q, want a does-not-exist message", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Errorf("stderr = %q, want nothing written", stderr.String())
+	}
+}
+
+// TestRenderReportsAnUnknownOverrideKey pins the shape D-011 says the port
+// produces instead of upstream's `err_bad_override_key` traceback: the same
+// validation-error table every other unknown-field case gets, exit 1.
+func TestRenderReportsAnUnknownOverrideKey(t *testing.T) {
+	dir := t.TempDir()
+	input := filepath.Join(dir, "cv.yaml")
+	if err := os.WriteFile(input, []byte("cv:\n  name: John Doe\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := cli.Render(cli.RenderOptions{
+		InputPath: input, OutputFolder: filepath.Join(dir, "out"),
+		Extras: []string{"--no_such_field", "value"},
+		NoPDF:  true, NoPNG: true,
+	}, &stdout, &stderr)
+
+	if code == 0 {
+		t.Error("exit code = 0, want a failure")
+	}
+	if !strings.Contains(flatten(stdout.String()), "This field is unknown for this object") {
+		t.Errorf("stdout = %q, want the unknown-field validation table", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Errorf("stderr = %q, want nothing written", stderr.String())
+	}
+}
+
 // flatten strips a panel's borders and collapses the wrapping, so a test can
 // assert on a message rather than on where the box happened to break it.
 func flatten(panel string) string {
