@@ -37,9 +37,16 @@ column was `%.1fs` where upstream is always whole milliseconds — see `internal
   2026-08-09 (human-approved): D-011.** Both are unhandled-exception tracebacks with this
   machine's absolute paths baked in — non-reproducible even for upstream, let alone a Go binary.
   The port's own shape on both vectors is now pinned (previous bullet).
-- **`err_not_yaml`'s span defect is broader than its one corpus case**: any document with a
-  duplicate mapping key shows the same wrong single-line location instead of a range. Recorded in
-  kind at `STATE.md`, not by scope.
+- ~~`err_not_yaml`'s span defect~~ **The corpus case is fixed, 2026-08-09 — `TestParity` moved to
+  34/42.** `yamlErrorLocation` (`internal/schema/modelbuilder/yamlerror.go`) now widens the span to
+  EOF for the one measured shape (an unterminated flow sequence — goccy's token is ruamel's
+  `context_mark`, and the `problem_mark` upstream also reports is EOF, computable as the
+  document's own newline count). Byte-diffed against the vendored CLI: identical, not just
+  normalized-equal. **Scoped, not general**: a duplicate mapping key (goccy's "already defined" →
+  ruamel's "while constructing a mapping") is a different failure shape, unmeasured against
+  upstream's marks, and still gets a single-line span rather than a guessed one — `internal/schema/
+  modelbuilder/yamlerror_test.go`'s `TestSpanWideningIsScopedToTheMappedCase` pins that it stays
+  narrow until someone measures the duplicate-key case too.
 
 ---
 
