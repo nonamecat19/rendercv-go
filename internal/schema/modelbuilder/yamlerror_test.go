@@ -134,7 +134,7 @@ func TestParserMessageNormalization(t *testing.T) {
 // Spec §3.85 — a parser failure carrying no position yields an absent YAML
 // location rather than a fabricated one.
 func TestParserErrorWithoutMarks(t *testing.T) {
-	record := yamlSyntaxValidationError(marklessParserError{}, schemaerr.SourceMain)
+	record := yamlSyntaxValidationError(marklessParserError{}, "", schemaerr.SourceMain)
 
 	if record.YamlLocation != nil {
 		t.Errorf("yaml location = %+v, want absent", record.YamlLocation)
@@ -281,5 +281,56 @@ func TestUnmappedParserMessageFallsThrough(t *testing.T) {
 		if strings.Contains(message, row.ruamel) {
 			t.Errorf("an unmapped failure borrowed %q: %q", row.ruamel, message)
 		}
+	}
+}
+
+// TestUnterminatedFlowSequenceSpansToEOF is the corpus's one syntax case,
+// `this: [is, not, a, cv\n`, at the level of its location — `err_not_yaml`'s
+// remaining defect before this fix (`STATE.md`): the port reported `line 1`
+// where upstream reports `line 1 to line 2`, because goccy's token is only
+// the start of the unterminated construct (ruamel's context_mark) and has no
+// second mark of its own. `yamlErrorLocation` now synthesizes ruamel's
+// problem_mark as the document's true EOF for this one mapped shape.
+//
+// Byte-diffed against the vendored CLI this pass: identical, not just
+// normalized-equal.
+func TestUnterminatedFlowSequenceSpansToEOF(t *testing.T) {
+	_, err := ReadYamlWithValidationErrors("this: [is, not, a, cv\n", schemaerr.SourceMain)
+
+	var userErr *schemaerr.UserValidationError
+	if !errors.As(err, &userErr) {
+		t.Fatalf("expected *schemaerr.UserValidationError, got %T: %v", err, err)
+	}
+
+	span := userErr.Errors[0].YamlLocation
+	if span == nil {
+		t.Fatal("yaml location = nil, want a start-to-EOF span")
+	}
+	if span.Start.Line != 1 {
+		t.Errorf("start line = %d, want 1 (the opening `[`)", span.Start.Line)
+	}
+	if span.End.Line != 2 {
+		t.Errorf("end line = %d, want 2 (EOF, one newline after the `[`)", span.End.Line)
+	}
+}
+
+// TestSpanWideningIsScopedToTheMappedCase guards the other half: a syntax
+// error the port does not recognize as the flow-sequence shape must keep a
+// single-line span rather than being pushed to EOF on the assumption every
+// syntax error works the same way — a guess the corpus cannot check.
+func TestSpanWideningIsScopedToTheMappedCase(t *testing.T) {
+	_, err := ReadYamlWithValidationErrors("cv:\n  name: {John\n", schemaerr.SourceMain)
+
+	var userErr *schemaerr.UserValidationError
+	if !errors.As(err, &userErr) {
+		t.Fatalf("expected *schemaerr.UserValidationError, got %T: %v", err, err)
+	}
+
+	span := userErr.Errors[0].YamlLocation
+	if span == nil {
+		t.Fatal("yaml location = nil")
+	}
+	if span.Start != span.End {
+		t.Errorf("span = %+v, want a single-line span (unmapped shape, unmeasured)", span)
 	}
 }
