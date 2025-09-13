@@ -33,9 +33,10 @@ column was `%.1fs` where upstream is always whole milliseconds — see `internal
   `watch_test.go`). Each was mutation-checked by hand before being trusted: reverting the fix under
   test made the test fail (spot-checked for G-8 and G-10; the others follow the same file-set /
   panel-text assertions that already caught the earlier regressions).
-- **`err_missing_file` / `err_bad_override_key` still have no `divergences.md` entry**, though
-  `STATE.md` has said since 2026-08-08 that they need one (they are Python tracebacks; a Go binary
-  cannot and should not produce them). Still a human gate, still open.
+- ~~`err_missing_file` / `err_bad_override_key` have no `divergences.md` entry.~~ **Closed,
+  2026-08-09 (human-approved): D-011.** Both are unhandled-exception tracebacks with this
+  machine's absolute paths baked in — non-reproducible even for upstream, let alone a Go binary.
+  The port's own shape on both vectors is now pinned (previous bullet).
 - **`err_not_yaml`'s span defect is broader than its one corpus case**: any document with a
   duplicate mapping key shows the same wrong single-line location instead of a range. Recorded in
   kind at `STATE.md`, not by scope.
