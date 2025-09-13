@@ -259,3 +259,47 @@ re-wrapped lines, at equal length.
 - **New in this entry:** the rewrite rule finally has tests of its own
   (`internal/conformance/binaryname_test.go`). It had none, in a harness that iteration 1's audit
   already found to be the instrument every other claim rests on.
+
+---
+
+## D-011 — `err_missing_file` and `err_bad_override_key` are Python tracebacks
+
+**Status:** approved (human gate, 2026-08-09) · **Iteration:** 12
+
+- **Differs:** both goldens are ~5 KB Rich-rendered Python tracebacks: box-drawn frames, source
+  snippets, and absolute filesystem paths baked in twice over — once for every stack frame's file
+  location (`/home/nnc/Projects/rendercv-go/third_party/rendercv/src/rendercv/...`, this
+  machine's checkout) and once in the final exception message (a `testdata/.work/run/...` path
+  from the run that generated the golden). `rendercv-go` writes neither of these documents.
+- **Upstream:** in both cases the failure is an **unhandled exception**, not a `RenderCVUserError`
+  — the one path `error_handler.py:38-49`'s `handle_user_errors` decorator catches and prints as a
+  clean panel. Typer's default `sys.excepthook` (via `rich.traceback`) takes over instead:
+  - `err_missing_file` (`render does_not_exist.yaml --settings.current_date …`): a
+    `FileNotFoundError` from `pathlib.Path.read_text` inside `collect_input_file_paths`
+    (`render_command.py:205`) — the CLI resolves overlay files (design/locale named by a
+    `--settings` overlay, if any) before it opens or checks the *input* file, so a missing input
+    combined with certain flag shapes reaches an unguarded read rather than the `err_missing_file`
+    the corpus name implies exists as a clean message.
+  - `err_bad_override_key` (`render cv.yaml --no_such_field value`): a `KeyError` from
+    `pydantic_error_handling.py:216`'s `get_inner_yaml_object_from_its_key`, reached while
+    building a validation error's YAML-span coordinates for a key the document does not have.
+- **Why parity is impossible:** a Go binary has no CPython call stack, no `pathlib` frames, and no
+  way to print source lines from `third_party/rendercv`'s `.py` files — reproducing the traceback
+  would mean shipping a Python interpreter and this repository's own source tree inside
+  `rendercv-go`, which defeats the port. The absolute paths make the goldens **non-reproducible
+  even for upstream**: regenerating them on a different checkout or machine produces different
+  bytes, which is not true of any other golden in the corpus.
+- **Instead:** `rendercv-go` reports both as ordinary validation/user errors — the same `Error`
+  panel shape every other `err_*` case gets, on stdout, exit 1 — rather than attempting to
+  fabricate a traceback. This is arguably a *user-facing improvement* over upstream (a clean
+  message instead of a stack trace an end user cannot act on), but it is still a divergence: the
+  bytes do not match, by construction, forever.
+- **User notices:** a real error message instead of a Python stack trace with someone else's
+  filesystem paths in it.
+- **Consequence for the suite:** `err_missing_file` and `err_bad_override_key` are unreachable by
+  construction, like `create_theme` and the four `cli_*_help` cases under D-010. They stay red in
+  `TestParity` with this entry as the reason — `TestParity` still runs both invocations every
+  time the suite runs, so a crash or a wrong stream/exit code would be caught even though the byte
+  comparison never passes; only the exact panel *shape* for these two vectors has its own unit
+  test (`TestRenderReportsAMissingInputFile`, `TestRenderReportsAnUnknownOverrideKey`, both in
+  `internal/cli/customtheme_test.go`).
