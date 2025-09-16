@@ -1,5 +1,11 @@
 package design
 
+import (
+	"errors"
+
+	"github.com/nonamecat19/rendercv-go/internal/schema/luatheme"
+)
+
 // Effective resolves a theme's option tree to concrete values — iteration 6's
 // T10, cut to iteration 9 because the renderer is its first consumer.
 //
@@ -38,7 +44,18 @@ func EffectiveWithScript(theme string, script, document map[string]any) map[stri
 
 	values = deepMerge(values, Overrides(theme))
 	values = deepMerge(values, script)
-	values = deepMerge(values, document)
+
+	// **A document value that conflicts with what the script declared is
+	// dropped, not merged.** `ValidateScript` above only checks the script's own
+	// shapes against the base tree; it says nothing about a script-*invented*
+	// option, which has no tree shape to check against at all — that is
+	// `luatheme.Validate`'s job (spec 014 §4 criterion 2's other half, dead code
+	// until this call). Without it, `custom_note: {a: 1}` against a script
+	// default of `custom_note = "hello"` would merge the map straight through
+	// and print a Go type name into the artifact, the same failure mode
+	// `ValidateScript` exists to prevent — merging blindly at the end would have
+	// undone that check for every conflicting key anyway.
+	values = deepMerge(values, withoutConflicts(document, luatheme.Validate(script, document)))
 
 	// **A partial `font_family` mapping is not a deep merge**, and neither
 	// widening-per-layer nor widening-at-the-end reproduces it. Measured on
@@ -68,6 +85,44 @@ func EffectiveWithScript(theme string, script, document map[string]any) map[stri
 	resolveNulls(tree, tree.Root, values)
 	normalizeColors(tree, tree.Root, values)
 	return values
+}
+
+// withoutConflicts drops the document keys `luatheme.Validate` flagged,
+// leaving the script's (or the base tree's) default for that path in place —
+// the merge equivalent of `ValidateScript`'s whole-script drop, scoped to just
+// the offending key so a document error in one option cannot suppress a
+// correct one beside it.
+func withoutConflicts(document map[string]any, conflicts []error) map[string]any {
+	if len(conflicts) == 0 {
+		return document
+	}
+	paths := make(map[string]bool, len(conflicts))
+	for _, err := range conflicts {
+		var typeErr *luatheme.TypeError
+		if errors.As(err, &typeErr) {
+			paths[typeErr.Path] = true
+		}
+	}
+	return prunePaths(document, "", paths)
+}
+
+func prunePaths(document map[string]any, prefix string, paths map[string]bool) map[string]any {
+	out := make(map[string]any, len(document))
+	for key, value := range document {
+		path := key
+		if prefix != "" {
+			path = prefix + "." + key
+		}
+		if paths[path] {
+			continue
+		}
+		if nested, ok := value.(map[string]any); ok {
+			out[key] = prunePaths(nested, path, paths)
+			continue
+		}
+		out[key] = value
+	}
+	return out
 }
 
 // resolveNulls decides what a `null` in the merged tree means, which depends
