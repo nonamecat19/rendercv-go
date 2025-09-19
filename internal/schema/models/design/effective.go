@@ -45,6 +45,20 @@ func EffectiveWithScript(theme string, script, document map[string]any) map[stri
 	values = deepMerge(values, Overrides(theme))
 	values = deepMerge(values, script)
 
+	// **A script-less custom theme discards the whole document `design` block,
+	// not just its own (nonexistent) options.** Upstream's fallback constructs
+	// `ThemeOptionsAreNotProvided(theme=theme_name)` (`design.py:139-142`) —
+	// nothing but `theme` survives, so a document overriding, say,
+	// `design.colors.name` on a theme with no `init.lua` is silently ignored
+	// upstream: the artifact still carries classic's own default. A **built-in**
+	// theme is unaffected — it always has a nil script and must keep merging the
+	// document normally, which is why this checks the theme name and not just
+	// whether a script is present. Found by a fresh-context verifier
+	// (`specs/STATE.md`, iteration 14's second re-verification).
+	if script == nil && !IsBuiltinTheme(theme) {
+		document = nil
+	}
+
 	// **A document value that conflicts with what the script declared is
 	// dropped, not merged.** `ValidateScript` above only checks the script's own
 	// shapes against the base tree; it says nothing about a script-*invented*
@@ -55,6 +69,22 @@ func EffectiveWithScript(theme string, script, document map[string]any) map[stri
 	// and print a Go type name into the artifact, the same failure mode
 	// `ValidateScript` exists to prevent — merging blindly at the end would have
 	// undone that check for every conflicting key anyway.
+	//
+	// **This only catches conflicts against what the script declared.** A
+	// document setting a *base-tree* field — `page.size: {a: 1}` — that the
+	// script never mentions (an empty `return {}`, which is what `create-theme`
+	// itself writes, declares nothing at all) still merges straight through
+	// `deepMerge` below and leaks the same Go type name. `withoutTreeConflicts`
+	// closes that second path by checking the document against the tree-typed
+	// values already assembled above, for custom themes only — built-in themes
+	// go through `validateModel`'s real, error-producing check instead
+	// (`validate.go`), so this is deliberately silent-drop rather than a
+	// rejection: reproducing upstream's exit-1 `theme_data_model_class(**design)`
+	// forbid-extra validation needs the script loaded during *validation*, not
+	// only here at render time, and stays open (`specs/STATE.md`).
+	if !IsBuiltinTheme(theme) {
+		document = withoutTreeConflicts(document, values)
+	}
 	values = deepMerge(values, withoutConflicts(document, luatheme.Validate(script, document)))
 
 	// **A partial `font_family` mapping is not a deep merge**, and neither
@@ -85,6 +115,43 @@ func EffectiveWithScript(theme string, script, document map[string]any) map[stri
 	resolveNulls(tree, tree.Root, values)
 	normalizeColors(tree, tree.Root, values)
 	return values
+}
+
+// withoutTreeConflicts drops document keys whose shape disagrees with the
+// tree-typed value already assembled at that path — a group where a scalar
+// belongs, or the reverse — leaving the tree's (or the theme's, or the
+// script's) own value in place instead of merging the mismatch through.
+//
+// A key `values` does not know about at all is left alone: it is neither a
+// tree field nor something a script declared, so there is no typed value to
+// conflict with and no template reads it. This is not upstream's forbid-extra
+// rejection (spec 014's Finding 3, still open) — only the narrower leak this
+// exists to close, where a *typed* field gets overridden with the wrong shape
+// and reaches a template as a Go type name.
+func withoutTreeConflicts(document, values map[string]any) map[string]any {
+	if len(document) == 0 {
+		return document
+	}
+	out := make(map[string]any, len(document))
+	for key, docValue := range document {
+		treeValue, present := values[key]
+		if !present {
+			out[key] = docValue
+			continue
+		}
+
+		docNested, docIsMap := docValue.(map[string]any)
+		treeNested, treeIsMap := treeValue.(map[string]any)
+		switch {
+		case docIsMap && treeIsMap:
+			out[key] = withoutTreeConflicts(docNested, treeNested)
+		case docIsMap != treeIsMap:
+			// Dropped: the shapes disagree, so the typed value beneath survives.
+		default:
+			out[key] = docValue
+		}
+	}
+	return out
 }
 
 // withoutConflicts drops the document keys `luatheme.Validate` flagged,
