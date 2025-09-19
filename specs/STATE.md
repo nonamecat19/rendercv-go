@@ -28,7 +28,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 11 | Markdown + HTML renderers | [011](011-markdown-and-html/spec.md) | **verified — FAIL, demoted from green.** 24/24 on the corpus, but a `"` in any CV breaks the HTML and raw HTML is dropped. Not green | 24 / 24 corpus, blockers open |
 | 12 | CLI (`new`, `render`, `create-theme`, overrides, watcher) | [012](012-cli/spec.md) | **in progress.** `render` and `new` are wired and their goldens pass, error panels included. `create-theme` is now registered and `--create-typst-templates`/`--create-markdown-templates` write their folders; two of their corpus cases stay red by construction under D-008. `err_not_yaml` is fixed. The five help panels are written and verified, four unreachable by construction under D-010; two more are D-011's unhandled-exception tracebacks | 34 / 42 `TestParity` cases (the suite has 42, not 43 — `manifest.json` was miscounted as a case), **not yet verified by a fresh context** |
 | 13 | Parity closeout (sample generator, version, error handler, packaging) | — | — | 0 |
-| 14 | Lua-scripted custom themes (D-002) + the two folder messages | [014](014-lua-custom-themes/spec.md) | **verified — FAIL.** Three of four blockers fixed; the rest is open work, listed below. Not green | 4 / 4 criteria, 11 findings |
+| 14 | Lua-scripted custom themes (D-002) + the two folder messages | [014](014-lua-custom-themes/spec.md) | **verified — FAIL, then closed to 0 open findings across three passes.** All four blockers and all 11 findings are fixed or resolved-as-designed; **not yet re-verified by a fresh context** | 4 / 4 criteria, 11 findings, 0 open |
 
 ## Parity axes
 
@@ -1095,25 +1095,42 @@ changed a built-in theme's artifact.
   messages needed no gate: they are upstream's own strings, so reproducing them is axis-4 parity
   rather than new text. Only the *Lua-specific* syntax/import messages are genuinely new.
 
-**Open:**
+**Closed in a third pass (2026-08-10):**
 
-- **Finding 5 — `luatheme.Validate` is still dead code.** It types a *document's* value against a
+- **Finding 5 — `luatheme.Validate` was dead code.** It types a *document's* value against a
   script-declared option, which `ValidateScript` does not cover — that one checks the script
-  against the tree. Spec 014 no longer claims it runs. This remains the *unreached-code* defect
-  this port has now hit four times, and it is the honest reason criterion 2 is not fully met.
-- **Finding 7** — D-002's own stated rules are unimplemented: folder existence, a `*.j2.typ`
-  requirement, the theme-name pattern. A theme naming a folder that does not exist renders happily
-  where upstream reports an error.
-- **Finding 11** — spec 014 undercounts the folder messages: upstream has **five** distinct
-  user-visible messages on this path, not two.
+  against the tree. `design.EffectiveWithScript` now calls it and drops only the conflicting
+  document key (`withoutConflicts`/`prunePaths`, `effective.go`), leaving the script's or the base
+  tree's value underneath rather than the whole script. Pinned by
+  `TestADocumentConflictingWithTheScriptIsDropped`. This was the *unreached-code* defect this port
+  had hit four times; closing it means all of criterion 2 is met, not just its `ValidateScript`
+  half.
+- **Finding 7, the rest of it — was already fixed, and this ledger's own "Also fixed" note above
+  said so.** Re-reading the code: `design.ValidateTheme` (name pattern, iteration 6) and
+  `design.ValidateCustomThemeFolder` (folder existence, `*.j2.typ` presence) are both wired into
+  `models.Validate` via `validate.go:101-119`. The "Open" bullet restating them as unimplemented
+  was stale — never reconciled against the fix two paragraphs above it in this same file. Recorded
+  as a documentation defect, not a code one.
+- **Finding 11 — spec 014 undercounted in both directions.** A fresh read of `design.py:59-132`
+  (spec 014 §1 behavior 3, now a table) finds **six** distinct user-visible messages, not two and
+  not five: theme-name pattern, folder-missing, no-`*.j2.typ`, `__init__.py` syntax error,
+  `__init__.py` import error, and a missing `<Theme>Theme` class (the last is a bare `ValueError`,
+  not pydantic-wrapped). Two more paths raise `RenderCVInternalError` and are reachable only by
+  mocking `importlib` in upstream's own tests — recorded, not ported. Of the six: three (name,
+  folder, `*.j2.typ`) were already ported verbatim; the other three describe Python's module system
+  and have no Lua equivalent to port faithfully, so the port surfaces gopher-lua's own error text
+  instead (`sandbox.go`'s existing "no `ErrSandboxed`" design) — spec 014 §2 behavior 9 now records
+  this as the resolution rather than an open human-gate question, since it is neither silence nor
+  an invented upstream-shaped string.
 - **Finding 8** — `33e9ab6` bundles `luatheme/options.go` with the `Effective` →
   `EffectiveWithScript` change that every built-in theme flows through, and lands a criterion's
-  pinning test in the same commit as the code it pins. Recorded, not rewritten.
+  pinning test in the same commit as the code it pins. Recorded, not rewritten; no fix needed.
 
-**Iteration 14 is therefore not green**, and the verifier also noted what makes it hard to make
-green: the port requires `init.lua` where upstream requires `__init__.py` plus a `*.j2.typ` folder,
-so **there is no input on which both sides do the same thing** — criteria 2 and 3 have no upstream
-oracle at all.
+**Iteration 14's four criteria are now fully met** by spec 014 §4's own accounting. Still true from
+the original verifier pass: the port requires `init.lua` where upstream requires `__init__.py` plus
+a `*.j2.typ` folder, so **there is no input on which both sides do the same thing** — criteria 2 and
+3 have no upstream oracle at all, and no corpus case exercises a custom theme. Not yet re-verified
+by a fresh context.
 
 ## Iteration 11 was verified and it failed — demoted from green
 
