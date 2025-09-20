@@ -43,13 +43,18 @@ Each entry: what differs · upstream citation · why parity is impossible or und
   - `rendercv-go create-theme <name>` generates `init.lua` from the classic theme's option tree,
     mirroring upstream's copy-and-rename behavior.
   - A theme folder with no `init.lua` falls back to the classic theme's defaults with
-    `theme = <name>`. **Not yet exactly as upstream**: upstream's fallback
+    `theme = <name>`, and now **exactly as upstream**: upstream's fallback
     (`ThemeOptionsAreNotProvided(theme=theme_name)`, `design.py:139-142`) carries only `theme`, so
-    the document's own `design` block is discarded entirely. The port still merges the document
-    block on top regardless of whether a script exists — a document overriding
-    `design.colors.name` on a script-less custom theme changes the port's artifact and does not
-    change upstream's. Found by a fresh-context verifier 2026-08-10 (`specs/STATE.md`, iteration
-    14's second re-verification); open.
+    the document's own `design` block is discarded entirely, and `design.EffectiveWithScript` does
+    the same for any script-less non-built-in theme. **Still open**: a document value that
+    conflicts with a *base-tree-typed* field (`page.size: {a: 1}`) on a theme whose script exists
+    but never mentions that field — `create-theme`'s own generated `init.lua` is an empty
+    `return {}` — is dropped rather than merged (leak prevention, `effective.go`'s
+    `withoutTreeConflicts`), but a document setting an **unknown** key on a scripted custom theme
+    is still silently accepted where upstream's `theme_data_model_class(**design)` rejects it at
+    exit 1 (forbid-extra). That needs the script loaded during *validation*, not only at render
+    time, and is unfixed. Found by a fresh-context verifier 2026-08-10 (`specs/STATE.md`, iteration
+    14's second re-verification).
   - Upstream's other custom-theme rules are preserved unchanged: lowercase-alphanumeric theme
     name, folder beside the input file, folder must contain ≥1 `*.j2.typ`.
   - **Sandboxed.** The Lua state is opened without `io`, `os`, `package`, `debug` or `dofile`.
