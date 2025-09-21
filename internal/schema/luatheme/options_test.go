@@ -59,3 +59,49 @@ func TestNonValuesAreDropped(t *testing.T) {
 		t.Errorf("= %#v, want only the string option", got)
 	}
 }
+
+// **A Lua sequence must convert to a `[]string`, not an empty map.** A
+// sequence's keys are integers, and `Options`' string-keyed walk found none —
+// `sections = { show_time_spans_in = { "Experience" } }` used to become
+// `sections = {}`, which `design.ValidateScript` then saw as a shape conflict
+// against the tree's `[]string` field and dropped the **whole script**, every
+// other option included. Found by a fresh-context verifier (iteration 14's
+// fourth re-verification).
+func TestASequenceBecomesAStringList(t *testing.T) {
+	got := options(t, `return { sections = { show_time_spans_in = { "Experience", "Education" } } }`)
+
+	sections, ok := got["sections"].(map[string]any)
+	if !ok {
+		t.Fatalf("sections = %#v, want a nested map", got["sections"])
+	}
+	list, ok := sections["show_time_spans_in"].([]string)
+	if !ok || !reflect.DeepEqual(list, []string{"Experience", "Education"}) {
+		t.Errorf("show_time_spans_in = %#v, want []string{\"Experience\", \"Education\"}", sections["show_time_spans_in"])
+	}
+}
+
+// A non-string element inside a sequence is dropped, matching this file's own
+// rule for a function or userdata value elsewhere.
+func TestASequenceDropsNonStringElements(t *testing.T) {
+	got := options(t, `return { tags = { "a", 5, true, "b" } }`)
+
+	if list, ok := got["tags"].([]string); !ok || !reflect.DeepEqual(list, []string{"a", "b"}) {
+		t.Errorf("tags = %#v, want []string{\"a\", \"b\"}", got["tags"])
+	}
+}
+
+// A mixed table — some integer keys, some string keys — is not a sequence by
+// this file's own definition (`isSequence` requires every key to be exactly
+// `1..Len()`), so it still converts as a map and its non-string keys are
+// still dropped, the same as the top-level table always has been.
+func TestAMixedTableIsNotASequence(t *testing.T) {
+	got := options(t, `return { odd = { [1] = "a", name = "b" } }`)
+
+	odd, ok := got["odd"].(map[string]any)
+	if !ok {
+		t.Fatalf("odd = %#v, want a map (not a sequence)", got["odd"])
+	}
+	if len(odd) != 1 || odd["name"] != "b" {
+		t.Errorf("odd = %#v, want only the string key", odd)
+	}
+}

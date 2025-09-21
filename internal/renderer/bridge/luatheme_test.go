@@ -236,6 +236,23 @@ func TestABrokenScriptStillAppliesTheDocument(t *testing.T) {
 	}
 }
 
+// **A script declaring the tree's one list-valued option must not lose every
+// other option in the same table.** `luatheme.Options` used to convert a Lua
+// sequence to an empty map, which `design.ValidateScript` then saw as a shape
+// conflict and dropped the whole script — a theme setting
+// `sections.show_time_spans_in` alongside a `colors` override lost the colour
+// too, silently, at exit 0. Found by a fresh-context verifier (iteration 14's
+// fourth re-verification).
+func TestAScriptListOptionDoesNotDropTheRestOfTheScript(t *testing.T) {
+	doc := resolveWithTheme(t, "mytheme",
+		`return { sections = { show_time_spans_in = { "Experience" } }, colors = { name = "rgb(1, 2, 3)" } }`,
+		"")
+
+	if got := design.EffectiveString(doc.Design, "colors", "name"); got != "rgb(1, 2, 3)" {
+		t.Errorf("colors.name = %q, want the script's colour — the list option must not have dropped the whole script", got)
+	}
+}
+
 // A *document* value that mismatches what the script declared is dropped, and
 // the script's own value survives underneath it. `ValidateScript` alone
 // cannot catch this: `page.size` declared as a string is a perfectly valid
