@@ -65,7 +65,7 @@ func TestAScriptsDefaultLosesToTheDocument(t *testing.T) {
 	script := map[string]any{"colors": map[string]any{"name": "rgb(1, 2, 3)"}}
 
 	// With no document, the script's value is what the renderer sees.
-	withScript := design.EffectiveWithScript("mytheme", script, nil)
+	withScript := design.EffectiveWithScript("mytheme", script, nil, true)
 	if got := design.EffectiveString(withScript, "colors", "name"); got != "rgb(1, 2, 3)" {
 		t.Errorf("colors.name = %q, want the script's default", got)
 	}
@@ -73,7 +73,7 @@ func TestAScriptsDefaultLosesToTheDocument(t *testing.T) {
 	// The document overrides it, and the script's *other* values survive —
 	// the merge is deep at this layer too.
 	document := map[string]any{"colors": map[string]any{"name": "rgb(9, 9, 9)"}}
-	overridden := design.EffectiveWithScript("mytheme", script, document)
+	overridden := design.EffectiveWithScript("mytheme", script, document, true)
 	if got := design.EffectiveString(overridden, "colors", "name"); got != "rgb(9, 9, 9)" {
 		t.Errorf("colors.name = %q, want the document's value", got)
 	}
@@ -87,7 +87,7 @@ func TestAScriptsDefaultLosesToTheDocument(t *testing.T) {
 func TestANilScriptChangesNothing(t *testing.T) {
 	for _, theme := range []string{"classic", "sb2nov", "moderncv"} {
 		plain := design.Effective(theme, nil)
-		scripted := design.EffectiveWithScript(theme, nil, nil)
+		scripted := design.EffectiveWithScript(theme, nil, nil, false)
 		if design.EffectiveString(plain, "colors", "name") !=
 			design.EffectiveString(scripted, "colors", "name") {
 			t.Errorf("%s changed when a nil script was merged", theme)
