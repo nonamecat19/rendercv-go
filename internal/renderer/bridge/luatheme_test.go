@@ -209,6 +209,21 @@ func TestFontFamilyStringOverrideSurvivesTreeConflictPruning(t *testing.T) {
 	}
 }
 
+// **The font_family exemption must work in the other direction too**: a
+// script declaring a *scalar* `font_family` against a document overriding it
+// with the *mapping* form. `luatheme.Validate` classifies "a value" and "a
+// group of options" as different kinds and flagged this as a conflict even
+// after `withoutTreeConflicts` stopped doing the same — a second place the
+// same exemption was needed, found by the same verifier pass.
+func TestFontFamilyMappingOverrideSurvivesScriptConflictPruning(t *testing.T) {
+	doc := resolveWithTheme(t, "mytheme", `return { typography = { font_family = "Lato" } }`,
+		"  typography:\n    font_family:\n      body: Charter\n")
+
+	if got := design.EffectiveString(doc.Design, "typography", "font_family", "body"); got != "Charter" {
+		t.Errorf("font_family.body = %q, want the document's mapping override", got)
+	}
+}
+
 // **A list where a scalar belongs leaks the same way a mapping does.** The
 // first version of `withoutTreeConflicts` only compared map-vs-non-map, so
 // `page.size: [a4]` on an empty (`create-theme`'s own) script fell through

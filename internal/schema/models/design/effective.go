@@ -169,11 +169,17 @@ func withoutTreeConflictsAt(document, values map[string]any, prefix string) map[
 		if prefix != "" {
 			path = prefix + "." + key
 		}
+		// **`font_family` accepts either shape at every layer** (spec 006 §3.1
+		// behavior 12: a bare name, or the five-element mapping), so neither
+		// direction is a conflict here — only checking the string-over-mapping
+		// direction let a *mapping* document override vanish against a
+		// *scalar* script declaration, since `values[fontFamilyPath]` is still
+		// the script's un-widened string at this point in the pipeline
+		// (`widenFontFamilyIn` runs after this merge). Found by a
+		// fresh-context verifier (iteration 14's fourth re-verification).
 		if path == fontFamilyPath {
-			if _, isString := docValue.(string); isString {
-				out[key] = docValue
-				continue
-			}
+			out[key] = docValue
+			continue
 		}
 
 		docNested, docIsMap := docValue.(map[string]any)
@@ -217,7 +223,18 @@ func withoutConflicts(document map[string]any, conflicts []error) map[string]any
 	paths := make(map[string]bool, len(conflicts))
 	for _, err := range conflicts {
 		var typeErr *luatheme.TypeError
-		if errors.As(err, &typeErr) {
+		if errors.As(err, &typeErr) && typeErr.Path != fontFamilyPath {
+			// **`luatheme.Validate` does not know about the one field that
+			// accepts either shape.** A script declaring `font_family = "Lato"`
+			// (a scalar) against a document overriding it with the five-element
+			// mapping form is not a real conflict — both are valid `font_family`
+			// shapes (spec 006 §3.1 behavior 12) — but `kindOf` classifies them
+			// as "a value" and "a group of options" and flags it anyway.
+			// `withoutTreeConflicts` above already carries this same exemption;
+			// this is the second place a font_family conflict can be pruned from
+			// and it needs the same carve-out or the document's override is
+			// dropped right back out here. Found by a fresh-context verifier
+			// (iteration 14's fourth re-verification).
 			paths[typeErr.Path] = true
 		}
 	}
