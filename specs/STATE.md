@@ -28,7 +28,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 11 | Markdown + HTML renderers | [011](011-markdown-and-html/spec.md) | **verified — FAIL, demoted from green.** 24/24 on the corpus, but a `"` in any CV breaks the HTML and raw HTML is dropped. Not green | 24 / 24 corpus, blockers open |
 | 12 | CLI (`new`, `render`, `create-theme`, overrides, watcher) | [012](012-cli/spec.md) | **in progress.** `render` and `new` are wired and their goldens pass, error panels included. `create-theme` is now registered and `--create-typst-templates`/`--create-markdown-templates` write their folders; two of their corpus cases stay red by construction under D-008. `err_not_yaml` is fixed. The five help panels are written and verified, four unreachable by construction under D-010; two more are D-011's unhandled-exception tracebacks | 34 / 42 `TestParity` cases (the suite has 42, not 43 — `manifest.json` was miscounted as a case), **not yet verified by a fresh context** |
 | 13 | Parity closeout (sample generator, version, error handler, packaging) | — | — | 0 |
-| 14 | Lua-scripted custom themes (D-002) + the two folder messages | [014](014-lua-custom-themes/spec.md) | **re-verified 3×, 2026-08-10 — FAIL each time.** Every blocker each pass found is fixed (`396b982`, `31fc0fe`, `852d483`); each fix's own follow-up verifier pass still found a new gap in it, twice. The forbid-extra rejection on a scripted custom theme's unknown keys is cut to a future pass — needs the script loaded during validation, not render — and was not re-verified as still-open by the third pass, only assumed so. Spec/ledger text is stale in places (majors, open). Still not green | 0 blockers reproduced by the latest pass, 1 known gap cut forward, majors/minors recorded |
+| 14 | Lua-scripted custom themes (D-002) + the two folder messages | [014](014-lua-custom-themes/spec.md) | **re-verified 4×, 2026-08-10 — FAIL each time.** Every blocker each pass found is fixed (`396b982`, `31fc0fe`, `852d483`, `d02d593`, `735a17a`); the 4th pass confirmed the 3rd pass's fixes hold under attack and found one new blocker (a script-side list option) plus a minor the fix for that blocker's neighbor exposed. The forbid-extra rejection on a scripted custom theme's unknown keys is cut to a future pass — needs the script loaded during validation, not render. Spec/ledger text is stale in places (majors, open). Still not green | 0 blockers reproduced by the 4th pass's own fixes (unverified), 1 known gap cut forward, majors/minors recorded |
 
 ## Parity axes
 
@@ -1267,6 +1267,70 @@ and a self-check after landing.
 **Not yet re-verified by a fresh context**: the three fixes in this section (self-checked and
 hand-reproduced against the verifier's own repro commands only, same caveat as the previous pass),
 and the majors/minor above. Iteration 14 stays demoted.
+
+## Iteration 14 re-verified a fourth time 2026-08-10 — FAIL, 5 findings, 1 blocker
+
+A fresh context checked the third pass's three fixes by trying hard to break them a second way,
+rather than just re-running their own reproductions. Two of the three held under attack; the third
+had a fourth door the first three passes never tried.
+
+**Confirmed holding, independently reproduced**: the font-family exemption (fix 1, byte-identical
+`.typ` against a real `__init__.py`/`init.lua` pair); the `shapeKind` list generalization (fix 2,
+including a zero-byte `init.lua`); the `hasScript` threading (fix 3, syntax error / runtime error /
+`return nil` / `return "hello"` / zero-byte / whitespace-only `init.lua` all keep the document;
+genuinely absent `init.lua` discards it — matches upstream exactly on both). Also held under new
+adversarial probes: a dotted document key colliding with the font-family exemption string, unicode
+keys, 5-level nesting, a null-valued group, a built-in theme with the same malformed `page.size`
+(errors identically to upstream, byte-for-byte).
+
+**Blocker, fixed same day (`d02d593`):** a **script-side** list option leaks the identical Go-type-
+name garbage the previous three passes' blockers were all about, through a door none of them
+tried. `luatheme.Options` walked every Lua table as string-keyed, so a script declaring
+`sections.show_time_spans_in = { "Experience" }` — the tree's one list-valued option — converted
+the sequence to an **empty map**, not a list. `design.ValidateScript` then saw the empty map as a
+shape conflict against the tree's `[]string` field and dropped the **whole script table**, every
+other option in it included, silently, at exit 0. `Options` now detects a Lua sequence (keys
+exactly `1..Len()`, nothing else mixed in) and converts it to `[]string`. Pinned by
+`TestASequenceBecomesAStringList`, `TestASequenceDropsNonStringElements`,
+`TestAMixedTableIsNotASequence` (`internal/schema/luatheme/options_test.go`) and
+`TestAScriptListOptionDoesNotDropTheRestOfTheScript` (`internal/renderer/bridge/luatheme_test.go`).
+
+**Major, undeclared divergence until this pass, fixed as part of the same blocker:** a script
+declaring the tree's list-valued option silently discarding every *other* option in the same table
+was reachable from an ordinary theme and named in neither `spec.md` nor `divergences.md` before
+this fix. Closed by the same commit; no longer a live divergence.
+
+**Minor found while reproducing the blocker's own repro, fixed same day (`735a17a`):** the
+font-family exemption from the previous pass was **one-directional** — it only protected a document
+*scalar* against a mapping tree value, so a script declaring `typography.font_family = "Lato"`
+against a document override in the five-element **mapping** form silently lost the document's value
+(`typography-font-family-body: "Lato"` where upstream and the pre-regression port both give
+`"Charter"`). Tracing it further found the exemption was needed in **two** places, not one:
+`withoutTreeConflicts` (which the previous pass's fix already covered directionally) and
+`withoutConflicts`'s use of `luatheme.Validate` (which had no exemption at all and pruned the
+document's override right back out even after the first check let it through). Both made
+unconditional for the one path where either shape is valid. Pinned by
+`TestFontFamilyMappingOverrideSurvivesScriptConflictPruning`.
+
+**Major, spec/ledger accuracy, still open:** `specs/014-lua-custom-themes/spec.md` §5 still reads
+"All four acceptance criteria met" and "not verified by a fresh context" — this is now the fourth
+verified-FAIL pass and the text has not been corrected across any of them. `specs/divergences.md`'s
+D-002 entry's two remaining unverified claims (`create-theme` "from the classic theme's option
+tree", the optional `validate` function) are independently confirmed still wrong and still
+uncorrected: upstream's generated `__init__.py` is 857 lines: the port's `init.lua` is 15 ending in
+`return {}`.
+
+**Minor, commit discipline:** `396b982` and `31fc0fe` each bundle two independent fixes with their
+own tests — genuine `AGENTS.md` §7 violations. `852d483`'s `hasScript` threading across two
+packages plus its callers and test is judged **not** a bundle — one logical change touched several
+files, which §7 does not forbid. `d02d593` and `735a17a` (this pass's own commits) were split one
+fix per commit deliberately, unlike the two before them.
+
+`TestParity` unchanged at the same 8-case baseline across every command run in this pass — no
+regression from either fix. **Not yet re-verified by a fifth pass.** The still-open items are the
+forbid-extra rejection on unknown design keys (cut to a future scoped unit, needs the script loaded
+during validation) and the two spec/ledger staleness majors above, which need editing rather than
+code.
 
 ## Iteration 11 was verified and it failed — demoted from green
 
