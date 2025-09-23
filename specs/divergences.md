@@ -37,11 +37,20 @@ Each entry: what differs · upstream citation · why parity is impossible or und
   the single-static-binary goal.
 - **Instead:** the same capability, in **Lua**, via an embedded pure-Go interpreter
   (`github.com/yuin/gopher-lua` — Lua 5.1, no CGO). A custom theme provides `<theme>/init.lua`
-  returning a table with the theme name, its option defaults, and an optional `validate` function.
-  This keeps upstream's actual feature — themes that *compute* and *check* their own options —
-  rather than downgrading it to a static manifest.
-  - `rendercv-go create-theme <name>` generates `init.lua` from the classic theme's option tree,
-    mirroring upstream's copy-and-rename behavior.
+  returning a table with the theme name and its option defaults. **Not yet accurate**: this
+  paragraph used to also claim "and an optional `validate` function" and that this "keeps upstream's
+  actual feature — themes that *compute* and *check* their own options" — nothing in
+  `internal/schema/luatheme` looks for a `validate` key or calls back into a script after loading
+  it, so a script is a **static** declaration only, closer to the "downgrading it to a static
+  manifest" this paragraph said it avoided. `luatheme.Validate` (the Go function of that name) types
+  a *document's* value against what the script declared; it is not the script computing or checking
+  anything itself. Found by a fresh-context verifier, twice (`specs/STATE.md`, iteration 14's third
+  and fourth re-verifications); open.
+  - `rendercv-go create-theme <name>` generates `init.lua` as an empty `return {}` behind a short
+    comment block (`internal/cli/customtheme.go:117-132`), **not** "from the classic theme's option
+    tree" as this line used to claim — upstream's generated `__init__.py` is 857 lines transcribing
+    `ClassicTheme`'s full pydantic model; the port's `init.lua` declares nothing at all. Found by
+    the same verifier pass; open.
   - A theme folder with no `init.lua` falls back to the classic theme's defaults with
     `theme = <name>`, and now **exactly as upstream**: upstream's fallback
     (`ThemeOptionsAreNotProvided(theme=theme_name)`, `design.py:139-142`) carries only `theme`, so
