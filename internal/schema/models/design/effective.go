@@ -96,17 +96,29 @@ func EffectiveWithScript(theme string, script, document map[string]any, hasScrip
 	if !IsBuiltinTheme(theme) {
 		document = withoutTreeConflicts(document, values)
 	}
-	values = deepMerge(values, withoutConflicts(document, luatheme.Validate(script, document)))
+	resolvedDocument := withoutConflicts(document, luatheme.Validate(script, document))
+	values = deepMerge(values, resolvedDocument)
 
-	// **A partial `font_family` mapping is not a deep merge**, and neither
-	// widening-per-layer nor widening-at-the-end reproduces it. Measured on
+	// **A partial `font_family` mapping is not a deep merge.** Measured on
 	// `theme: opal` (whose own font is Lato) plus `font_family.body: Charter`:
 	// upstream emits Charter for `body` and **`Source Sans 3`** — the *base*
 	// `FontFamily` default — for the other four, not Lato. pydantic builds a new
-	// `FontFamily` from the document's mapping, so the theme's value is replaced
-	// wholesale rather than merged into. Recorded as an open finding in
-	// `STATE.md`; two attempts to fix it by moving the widening both produced a
-	// different wrong answer.
+	// `FontFamily` from the document's mapping, so whatever the theme or script
+	// declared is replaced wholesale rather than merged into. `deepMerge` above
+	// cannot express that on its own: by the time it runs, the existing value at
+	// `typography.font_family` may already be a bare string (the theme's or the
+	// script's), and merging a map "into" a string produces a merge onto an
+	// **empty** map, not onto `FontFamily`'s own defaults — dropping the four
+	// sibling fields to the zero value instead of their declared default. So a
+	// document mapping override is re-applied here, onto a fresh set of base
+	// defaults, overriding whatever `deepMerge` just did for that one field.
+	if docTypography, ok := resolvedDocument["typography"].(map[string]any); ok {
+		if docFontFamily, ok := docTypography["font_family"].(map[string]any); ok {
+			if typography, ok := values["typography"].(map[string]any); ok {
+				typography["font_family"] = deepMerge(defaultsOf(tree, "FontFamily"), docFontFamily)
+			}
+		}
+	}
 
 	// The discriminator is the theme's own name, not the base's.
 	values["theme"] = theme
