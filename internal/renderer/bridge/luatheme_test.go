@@ -295,3 +295,23 @@ func TestADocumentConflictingWithTheScriptIsDropped(t *testing.T) {
 		t.Errorf("page.size = %q, want the script's own value, document's conflicting override dropped", got)
 	}
 }
+
+// **A YAML word-form boolean against a script-declared `bool` option must not
+// be pruned as a type conflict, and must reach the tree as an actual `bool`.**
+// `show_footer: no` resolves to the raw string `"no"` (`ResolveScalar` only
+// recognizes `true`/`false`), which pydantic's `str_as_bool` — and this port's
+// own schema-validation layer — accept as a real boolean. Before this fix,
+// `luatheme.kindOf` classified `"no"` as "a value" against the script's
+// "true or false" and `withoutConflicts` pruned the whole override back out,
+// leaving the script's own default; even past that, the raw string would have
+// reached the Typst emitter as an unquoted, uncompilable token. Found by a
+// fresh-context verifier (iteration 14's fifth re-verification).
+func TestWordFormBooleanOverridesAScriptDeclaredBool(t *testing.T) {
+	doc := resolveWithTheme(t, "mytheme", `return { page = { show_footer = true } }`,
+		"  page:\n    show_footer: no\n")
+
+	if got := design.EffectiveBool(doc.Design, "page", "show_footer"); got {
+		t.Errorf("page.show_footer = %v, want false (the document's word-form override) — got the script's true, "+
+			"meaning the override was pruned as a type conflict or left as the unconverted string", got)
+	}
+}

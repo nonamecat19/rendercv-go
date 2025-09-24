@@ -2,6 +2,7 @@ package design
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/luatheme"
 )
@@ -137,6 +138,7 @@ func EffectiveWithScript(theme string, script, document map[string]any, hasScrip
 
 	resolveNulls(tree, tree.Root, values)
 	normalizeColors(tree, tree.Root, values)
+	normalizeBools(tree, tree.Root, values)
 	return values
 }
 
@@ -332,6 +334,40 @@ func normalizeColors(tree Tree, model string, values map[string]any) {
 			}
 			if color, err := ParseColor(text); err == nil {
 				values[declared.Name] = color.String()
+			}
+		default:
+		}
+	}
+}
+
+// normalizeBools coerces a `KindBool` field's value the way pydantic's
+// `str_as_bool` does: a document (or a script) can write the value as a
+// YAML word-form boolean (`show_footer: no`) or as `0`/`1`, and those reach
+// this map as the raw text or number rather than a Go `bool` — the design
+// block's projection keeps every scalar's source text (`mappingOf`,
+// `internal/renderer/bridge/model.go`), and neither `deepMerge` nor
+// `luatheme.Validate`'s type check converts it. Left uncoerced, the Typst
+// emitter interpolates the literal text `no` where a `false` token belongs,
+// which does not compile — measured on both a scripted and a built-in theme.
+func normalizeBools(tree Tree, model string, values map[string]any) {
+	for _, declared := range tree.Models[model].Fields {
+		switch declared.Kind {
+		case KindNested:
+			if nested, ok := values[declared.Name].(map[string]any); ok {
+				normalizeBools(tree, declared.Nested, nested)
+			}
+		case KindBool:
+			switch value := values[declared.Name].(type) {
+			case bool:
+				// already the right shape
+			case string:
+				if boolFalsy[strings.ToLower(value)] {
+					values[declared.Name] = false
+				} else if boolWords[strings.ToLower(value)] {
+					values[declared.Name] = true
+				}
+			case int:
+				values[declared.Name] = value != 0
 			}
 		default:
 		}

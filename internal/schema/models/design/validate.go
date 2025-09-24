@@ -284,6 +284,12 @@ var boolWords = map[string]bool{
 	"1": true, "on": true, "t": true, "true": true, "y": true, "yes": true,
 }
 
+// boolFalsy is boolWords' falsy half — the strings pydantic coerces to `false`.
+// Everything else in boolWords is truthy.
+var boolFalsy = map[string]bool{
+	"0": true, "off": true, "f": true, "false": true, "n": true, "no": true,
+}
+
 // validBoolNode is pydantic's bool coercion, which is lax in one direction and
 // not the other. Measured:
 //

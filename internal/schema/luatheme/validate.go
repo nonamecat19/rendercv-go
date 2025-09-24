@@ -3,6 +3,7 @@ package luatheme
 import (
 	"fmt"
 	"sort"
+	"strings"
 )
 
 // TypeError is a document value whose kind does not match what the theme script
@@ -76,17 +77,42 @@ func walk(script, document map[string]any, prefix string, errs *[]error) {
 // types alone. Numbers and strings are therefore one kind here: what this
 // catches is a *mapping* written where a scalar belongs and the reverse, which
 // is the mistake that produces an unreadable failure further down.
+//
+// **A YAML word-form boolean is the same carve-out.** `show_footer: no`
+// resolves to the raw string `"no"`, not a Go `bool` (`ResolveScalar` only
+// recognizes `true`/`false`), but pydantic's `str_as_bool` — and this port's
+// own `validBoolNode` at the schema-validation layer — accept it as a real
+// boolean. Classifying it as "a value" against a script's declared `true or
+// false` would flag a legal override as a conflict and `withoutConflicts`
+// would prune it back out before it ever reaches the merge. Found by a
+// fresh-context verifier (iteration 14's fifth re-verification).
 func kindOf(value any) string {
-	switch value.(type) {
+	switch v := value.(type) {
 	case map[string]any:
 		return "a group of options"
 	case []string, []any:
 		return "a list"
 	case bool:
 		return "true or false"
+	case string:
+		if boolWords[strings.ToLower(v)] {
+			return "true or false"
+		}
+		return "a value"
 	default:
 		return "a value"
 	}
+}
+
+// boolWords is the set of strings pydantic's `str_as_bool` coerces to a bool,
+// matched case-insensitively. Mirrors
+// `internal/schema/models/design/validate.go`'s table of the same name —
+// duplicated rather than imported because that package already imports this
+// one (`luatheme.Validate`), and a shared bool-words table is not worth an
+// import cycle.
+var boolWords = map[string]bool{
+	"0": true, "off": true, "f": true, "false": true, "n": true, "no": true,
+	"1": true, "on": true, "t": true, "true": true, "y": true, "yes": true,
 }
 
 func sortedKeys(values map[string]any) []string {
