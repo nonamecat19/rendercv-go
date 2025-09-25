@@ -124,12 +124,14 @@ this iteration's contract.
 
 ## 5. Status
 
-**Verified four times by a fresh context, FAIL every time** (`specs/STATE.md`, "Iteration 14 [re-]
-verified..." sections, 2026-08-10). Each pass found real defects the previous one's own tests could
-not see — three blockers on the first pass, regressions in the fix itself on the second and third,
-a fourth door into the same leak class on the fourth. Every finding so far has been fixed and pinned
-by a test; the four §4 boxes above reflect what the fixes cover today, not a claim that the criteria
-are closed for good. One item is deliberately still open rather than fixed: upstream's
+**Verified six times by a fresh context, FAIL every time through the 5th** (`specs/STATE.md`,
+"Iteration 14 [re-]verified..." sections, 2026-08-10). Each pass found real defects the previous
+one's own tests could not see — three blockers on the first pass, regressions in the fix itself on
+the second, third and sixth passes, a fourth door into the same leak class on the fourth, and two
+blockers reaching *built-in* themes (not just scripted custom ones) on the fifth. Every finding so
+far has been fixed and pinned by a test; the four §4 boxes above reflect what the fixes cover today,
+not a claim that the criteria are closed for good. One item is deliberately still open rather than
+fixed: upstream's
 forbid-extra rejection of an unknown design key on a scripted custom theme (`theme_data_model_class`,
 `design.py:135`) needs the theme's script loaded during *validation*, not only at render time, and
 is cut to a future scoped `tasks.md` unit.
