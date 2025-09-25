@@ -315,3 +315,21 @@ func TestWordFormBooleanOverridesAScriptDeclaredBool(t *testing.T) {
 			"meaning the override was pruned as a type conflict or left as the unconverted string", got)
 	}
 }
+
+// **The bool-word carve-out must not swallow a legal string that merely spells
+// one.** A script-declared *string* option (`custom_note`, no base-tree shape
+// to fall back on) against a document override of `'On'` — a quoted, legal
+// YAML string — is not a bool-vs-string conflict at all; both sides are
+// strings. An earlier fix made `kindOf` itself classify any bool-word string
+// as kind "true or false" regardless of what the *other* side was, which made
+// this exact case look like agreement and silently dropped the document's
+// override. Found by a fresh-context verifier (iteration 14's sixth
+// re-verification).
+func TestABoolWordStringOverridesAScriptDeclaredStringOption(t *testing.T) {
+	doc := resolveWithTheme(t, "mytheme", `return { custom_note = "hello" }`,
+		"  custom_note: 'On'\n")
+
+	if got := design.EffectiveString(doc.Design, "custom_note"); got != "On" {
+		t.Errorf("custom_note = %q, want the document's string override %q", got, "On")
+	}
+}
