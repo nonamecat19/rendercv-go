@@ -69,13 +69,18 @@ themes in sandboxed Lua (`gopher-lua`) instead. So the question is not *whether*
    system and have no faithful Lua equivalent: "import error" does not map at all, because Lua
    `init.lua` has no imports, and "missing class" does not map because a Lua declaration is a
    table, not a class to look up by name. Whatever the port emitted for these would be *new
-   user-visible text*, extending D-002 rather than fitting inside it. **The port's actual choice**
-   is to surface Lua's own error text unmodified rather than inventing an upstream-shaped
-   replacement (`luatheme.Run`, `sandbox.go`'s "there is deliberately no `ErrSandboxed`" note) — a
-   parse failure fails with gopher-lua's own message naming the line, and a non-table return fails
-   with "the script returned %s, want a table of theme options". This is not silence and not a
-   fabricated upstream string, so it does not need the human gate the two original findings
-   assumed; recorded here as the resolution rather than left as an open question.
+   user-visible text*, extending D-002 rather than fitting inside it.
+   **What the port actually does today is not the resolution described in an earlier draft of
+   this section.** `luatheme.Run` does produce gopher-lua's own error text — a parse failure
+   names the line, a non-table return says "the script returned %s, want a table of theme
+   options" — but `themeScript` (`internal/renderer/bridge/model.go`) discards that error and
+   returns a nil options map, and `EffectiveWithScript` then falls back to the theme's base
+   defaults exactly as it would for a missing script. The artifact renders at exit 0 with no
+   message at all; the broken script is invisible. Surfacing gopher-lua's message (or inventing
+   upstream-shaped wording) is still an open, human-gated choice — recorded as such in
+   `divergences.md` D-002 — not a closed one. A fresh-context verifier caught this contradiction
+   (iteration 14's fifth re-verification): the code's own comment at `themeScript` already said
+   the gap was open; this section had drifted from it.
 
 ## 3. Out of scope
 
@@ -138,9 +143,10 @@ The three folder/name checks of §1 behavior 3 (a)(b)(c) are wired and ported ve
 (`design.ValidateTheme`, `design.ValidateCustomThemeFolder`), reached from `models.Validate` via
 `internal/schema/models/design/validate.go`, so a bad theme name, a missing folder, or a folder
 with no `*.j2.typ` reports upstream's own text rather than rendering happily. The three Lua-only
-checks — (d)(e)(f) in the table — surface gopher-lua's own error text rather than an
-upstream-shaped string, which §2 behavior 9 records as the resolution, not an open human-gate
-question.
+checks — (d)(e)(f) in the table — are **not surfaced at all**: `themeScript` discards
+`luatheme.Run`'s error and falls back silently, exit 0 (§2 behavior 9, corrected). Whether to
+surface gopher-lua's own text or invent upstream-shaped wording is still open behind the human
+gate.
 
 **No corpus case exercises any of it** — the corpus has no custom theme — so every claim here rests
 on unit tests rather than on a differential against upstream. Unblocked — D-002 is approved and no other gate applies. The honest ordering is
