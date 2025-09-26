@@ -8,6 +8,7 @@ import (
 	"github.com/nonamecat19/rendercv-go/internal/renderer/templater/process"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv/entries"
+	"github.com/nonamecat19/rendercv-go/internal/schema/models/design"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/valctx"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamlreader"
@@ -160,5 +161,31 @@ settings:
 	}
 	if model.PDFTitle != "NAME's CV" {
 		t.Errorf("pdf title = %q, want it unsubstituted", model.PDFTitle)
+	}
+}
+
+// **A YAML boolean spelled `TRUE` must reach the design tree as `true`, not
+// `false`.** `ResolveScalar` classifies `TRUE` (along with `True`/`true`) as
+// `KindBool`, but `mappingOf`'s own conversion only recognized the literal
+// spellings `"true"`, `"True"`, `"yes"`, `"on"` for that kind — `"TRUE"`
+// fell through to `false`, landing on the *wrong* boolean rather than an
+// uncoerced one, and reaching a built-in theme with no script involved.
+// `normalizeBools` (iteration 14's fifth re-verification) never sees this,
+// because by the time it runs the value is already a Go `bool`. Found by a
+// fresh-context verifier (iteration 14's seventh re-verification).
+func TestAllCapsBooleanReachesTheDesignTree(t *testing.T) {
+	node, err := yamlreader.ReadString(minimal + "\ndesign:\n  typography:\n    bold:\n      connections: TRUE\n")
+	if err != nil {
+		t.Fatalf("reading the document: %v", err)
+	}
+	validated, errs := models.Validate(node,
+		&valctx.ValidationContext{CurrentDate: now}, schemaerr.SourceMain)
+	if len(errs) > 0 {
+		t.Fatalf("the document did not validate: %v", errs)
+	}
+	doc := bridge.Resolve(validated, now)
+
+	if got := design.EffectiveBool(doc.Design, "typography", "bold", "connections"); !got {
+		t.Errorf("typography.bold.connections = %v, want true", got)
 	}
 }
