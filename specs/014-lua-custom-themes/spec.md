@@ -124,17 +124,31 @@ this iteration's contract.
 
 ## 5. Status
 
-**Verified six times by a fresh context, FAIL every time through the 5th** (`specs/STATE.md`,
-"Iteration 14 [re-]verified..." sections, 2026-08-10). Each pass found real defects the previous
-one's own tests could not see — three blockers on the first pass, regressions in the fix itself on
-the second, third and sixth passes, a fourth door into the same leak class on the fourth, and two
-blockers reaching *built-in* themes (not just scripted custom ones) on the fifth. Every finding so
-far has been fixed and pinned by a test; the four §4 boxes above reflect what the fixes cover today,
-not a claim that the criteria are closed for good. One item is deliberately still open rather than
-fixed: upstream's
+**Verified seven times by a fresh context, FAIL every time** (`specs/STATE.md`, "Iteration 14
+[re-]verified..." sections, 2026-08-10). Each pass found real defects the previous one's own tests
+could not see — three blockers on the first pass, regressions in the fix itself on the second,
+third and sixth passes, a fourth door into the same leak class on the fourth, two blockers reaching
+*built-in* themes (not just scripted custom ones) on the fifth, and two more on the seventh — one of
+which proved the fifth and sixth passes' scripted-`font_family`-as-mapping test coverage had been
+vacuous, because `ValidateScript` was silently discarding those scripts whole before any of the
+assertions ran. Every finding so far has been fixed and pinned by a test; the four §4 boxes above
+reflect what the fixes cover today, not a claim that the criteria are closed for good.
+
+**Two items are deliberately still open rather than fixed.** The first is upstream's
 forbid-extra rejection of an unknown design key on a scripted custom theme (`theme_data_model_class`,
 `design.py:135`) needs the theme's script loaded during *validation*, not only at render time, and
 is cut to a future scoped `tasks.md` unit.
+
+**The second, found by the 7th pass, is wider than the first and not yet in `divergences.md`.**
+`design.Validate` (`internal/schema/models/design/validate.go`) returns immediately after
+`ValidateTheme` for any non-built-in theme — "a custom theme's options are its own" — which
+matches upstream only when the theme folder has **no** script. With a script present, upstream
+still runs `theme_data_model_class(**design)` and refuses an **invalid value on a known key**, not
+just an unrecognized one: `page.size: bogus` against a scripted theme is upstream exit 1, and the
+port renders `page-size: "bogus"` into the artifact at exit 0. The forbid-extra gap above is about
+keys the script never declared; this is about values on keys it did. Both need the same
+prerequisite — the script loaded during validation — so closing one is most of the way to closing
+the other, but they are measured as two separate holes and only one was previously recorded.
 
 **Wired.** `bridge.Resolve` looks for `<theme>/init.lua` beside the input file — upstream's
 `validate_design` position, because the options must exist before anything reads the effective
