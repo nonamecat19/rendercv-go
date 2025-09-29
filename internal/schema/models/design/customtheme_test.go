@@ -82,6 +82,22 @@ func TestAScriptsDefaultLosesToTheDocument(t *testing.T) {
 	}
 }
 
+// A list is neither of `font_family`'s two legal shapes (a bare name or the
+// five-element mapping), and the ninth re-verification found the document-side
+// carve-out let one through unchecked — it reached the template engine as a
+// slice where a dict-or-string was expected, a raw internal error rather than
+// the panel a bad shape produces everywhere else. The script's own font stays
+// in place instead.
+func TestAFontFamilyListOverrideIsDropped(t *testing.T) {
+	script := map[string]any{"typography": map[string]any{"font_family": "Lato"}}
+	document := map[string]any{"typography": map[string]any{"font_family": []string{"a", "b"}}}
+
+	values := design.EffectiveWithScript("mytheme", script, document, true)
+	if got := design.EffectiveString(values, "typography", "font_family", "body"); got != "Lato" {
+		t.Errorf("typography.font_family.body = %q, want the script's Lato, unreplaced by the list", got)
+	}
+}
+
 // A nil script is the built-in case: nothing changes for the nine themes that
 // have no script at all.
 func TestANilScriptChangesNothing(t *testing.T) {
