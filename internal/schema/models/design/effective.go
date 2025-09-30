@@ -596,6 +596,32 @@ func validateScript(tree Tree, model string, script map[string]any, prefix strin
 			validateScript(tree, "FontFamily", nested, path, errs)
 			continue
 		}
+		// **`KindStringList` must be checked before the generic map conflict
+		// below.** Lua has one table type for both a sequence and a mapping,
+		// and an *empty* table (`{}` — literally what `create-theme` writes
+		// for every field it doesn't set) has no elements to distinguish the
+		// two by, so `luatheme.Options` converts it to an empty Go map rather
+		// than an empty `[]string`. The generic `isNested` check below would
+		// otherwise flag that as "a group of options" and `themeScript` drops
+		// the whole script. An empty map here is the one ambiguous case;
+		// nothing else does. Found by a fresh-context verifier (iteration 14's
+		// ninth re-verification).
+		if declared.Kind == KindStringList {
+			switch shapeKind(value) {
+			case "list":
+			case "map":
+				if len(value.(map[string]any)) != 0 {
+					*errs = append(*errs, &ScriptConflict{
+						Path: path, Declared: "a group of options", Wanted: "a list of items",
+					})
+				}
+			default:
+				*errs = append(*errs, &ScriptConflict{
+					Path: path, Declared: "a value", Wanted: "a list of items",
+				})
+			}
+			continue
+		}
 		if isNested {
 			*errs = append(*errs, &ScriptConflict{
 				Path: path, Declared: "a group of options", Wanted: "a value",
@@ -605,20 +631,10 @@ func validateScript(tree Tree, model string, script map[string]any, prefix strin
 		// **A list where a scalar belongs prints a Go type name the same way a
 		// map does** — `page.size = {"a4"}` in Lua is a sequence, which
 		// `luatheme.Options` turns into `[]string`, and nothing here checked
-		// list shapes at all. `KindStringList` is the tree's one field that
-		// wants a list (`sections.show_time_spans_in`); every other kind
-		// reaching this point wants a scalar. Found by a fresh-context verifier
-		// (iteration 14's eighth re-verification).
-		isList := shapeKind(value) == "list"
-		if declared.Kind == KindStringList {
-			if !isList {
-				*errs = append(*errs, &ScriptConflict{
-					Path: path, Declared: "a value", Wanted: "a list of items",
-				})
-			}
-			continue
-		}
-		if isList {
+		// list shapes at all. Every kind reaching this point other than
+		// `KindStringList` (handled above) wants a scalar. Found by a
+		// fresh-context verifier (iteration 14's eighth re-verification).
+		if shapeKind(value) == "list" {
 			*errs = append(*errs, &ScriptConflict{
 				Path: path, Declared: "a list of items", Wanted: "a value",
 			})
