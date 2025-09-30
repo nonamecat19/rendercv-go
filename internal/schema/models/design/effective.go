@@ -45,6 +45,17 @@ func EffectiveWithScript(theme string, script, document map[string]any, hasScrip
 	values := defaultsOf(tree, tree.Root)
 
 	values = deepMerge(values, Overrides(theme))
+	// **An empty Lua table at a `KindStringList` field must become an empty
+	// list before this merge, not after.** Lua has one table type for both a
+	// sequence and a mapping, so `luatheme.Options` turns `{}` into an empty
+	// Go map; `ValidateScript` already carves out that ambiguity (see its own
+	// comment above), but this merge is a second, independent place the same
+	// empty map does damage — deepMerge writes it over the tree's `[]string`
+	// base default, so `withoutTreeConflictsAt` below then sees a **map** at
+	// that path and drops the document's real list override as a shape
+	// conflict, silently losing a legitimate `show_time_spans_in` override.
+	// Found by a fresh-context verifier (iteration 14's tenth re-verification).
+	normalizeScriptStringLists(tree, tree.Root, script)
 	values = deepMerge(values, script)
 
 	// **A theme with genuinely no script file discards the whole document
@@ -396,6 +407,31 @@ func normalizeBools(tree Tree, model string, values map[string]any) {
 				}
 			case int:
 				values[declared.Name] = value != 0
+			}
+		default:
+		}
+	}
+}
+
+// normalizeScriptStringLists rewrites an empty map at a `KindStringList`
+// field to an empty list, in place, so `deepMerge` writes the shape the tree
+// actually expects rather than the ambiguous Lua encoding of an empty table.
+// A non-empty map at that path is left alone — `validateScript` already
+// rejects it as a real conflict, and this function is not the one that
+// enforces that.
+func normalizeScriptStringLists(tree Tree, model string, script map[string]any) {
+	if script == nil {
+		return
+	}
+	for _, declared := range tree.Models[model].Fields {
+		switch declared.Kind {
+		case KindNested:
+			if nested, ok := script[declared.Name].(map[string]any); ok {
+				normalizeScriptStringLists(tree, declared.Nested, nested)
+			}
+		case KindStringList:
+			if nested, ok := script[declared.Name].(map[string]any); ok && len(nested) == 0 {
+				script[declared.Name] = []string{}
 			}
 		default:
 		}
