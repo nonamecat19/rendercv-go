@@ -146,7 +146,21 @@ func validateModel(
 ) []schemaerr.ValidationError {
 	fields := make([]binder.Field, 0, len(tree.Models[model].Fields))
 	for _, field := range tree.Models[model].Fields {
-		fields = append(fields, binder.Field{Name: field.Name, Value: valueKind(field)})
+		fields = append(fields, binder.Field{
+			Name: field.Name, Value: valueKind(field),
+			// **Every design field has a default, so none is `Required`** — a
+			// document naming only `theme` inherits the rest. But a default is
+			// not the same as `X | None`: only `KindOptionalString`
+			// (`degree_column`) is actually typed nullable upstream, so an
+			// explicit null anywhere else is a type failure, not an absence.
+			// `!Required` alone made `checkValue` treat the two the same,
+			// which is exactly backwards for this tree — silently defaulting
+			// `colors.name: null` to the *base* tree's colour rather than
+			// rejecting it, and to a different colour than the theme's own.
+			// Found by a fresh-context verifier (iteration 14's eleventh
+			// re-verification).
+			TypeRejectsNull: field.Kind != KindOptionalString,
+		})
 	}
 
 	result, errs := binder.Bind(
@@ -158,9 +172,17 @@ func validateModel(
 
 	for _, field := range tree.Models[model].Fields {
 		value, present := result.Value(field.Name)
-		if !present || value == nil || value.Kind == yamldoc.KindNull {
+		if !present || value == nil {
 			continue
 		}
+		// **A null still reaches `validateField` here**, unlike an absent key
+		// — every kind's own arm already handles `KindNull` correctly
+		// (`validColorNode`, `validBoolNode`, the literal and nested-model
+		// arms), it was only this blanket skip that kept them from ever
+		// seeing one. The `ValueString`-family kinds are no-ops in
+		// `validateField` either way, since `TypeRejectsNull` above is what
+		// reports their null now. Found by a fresh-context verifier
+		// (iteration 14's eleventh re-verification).
 		errs = append(errs, validateField(field, value, tree, theme,
 			append(append([]string(nil), location...), field.Name), source)...)
 	}

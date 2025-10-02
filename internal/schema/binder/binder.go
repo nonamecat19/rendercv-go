@@ -77,6 +77,15 @@ type Field struct {
 	Name     string
 	Required bool
 
+	// TypeRejectsNull marks a field whose declared type does not admit `None`
+	// even though the field itself has a default and so is not Required — the
+	// design tree's case: `top_margin: str = "2cm"`, not `str | None`. Without
+	// this, `isNull && !Required` treats an explicit null the same as an
+	// absent key for every optional field, which is only correct for the
+	// fields upstream actually types `X | None`. Left false (the old
+	// behavior) for every existing caller; only the design package sets it.
+	TypeRejectsNull bool
+
 	// Value is the field's declared shape. The zero value, ValueAny, means the
 	// value is bound as a raw node and never checked, which is what every field
 	// declared before spec 003 §3.13 did.
@@ -375,7 +384,7 @@ func checkValue(
 	}
 
 	isNull := value == nil || value.Kind == yamldoc.KindNull
-	if isNull && !field.Required {
+	if isNull && !field.Required && !field.TypeRejectsNull {
 		return nil
 	}
 
