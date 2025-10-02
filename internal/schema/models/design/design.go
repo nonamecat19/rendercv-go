@@ -12,6 +12,7 @@ package design
 import (
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
@@ -66,11 +67,17 @@ func ValidateTheme(
 	location []string,
 	source schemaerr.YamlSource,
 ) []schemaerr.ValidationError {
-	if node == nil || node.Kind == yamldoc.KindNull {
-		return nil
-	}
-
-	name := node.Raw
+	// **The candidate name is Python's `str(design["theme"])`, not the raw
+	// token** (`design.py:57`: `theme_name = str(design["theme"])`). A null
+	// used to skip this whole check — `design.py` never sees an absent key
+	// here either, but a *null* value stringifies to `"None"`, which fails
+	// the pattern the same as any other non-lowercase-alphanumeric name.
+	// `true`/`false` stringify to `"True"`/`"False"` (capitalized, so they
+	// fail too), and a sequence or mapping stringifies to Python's own
+	// bracketed repr, which is also what the rejection message quotes.
+	// Found by a fresh-context verifier (iteration 14's twelfth
+	// re-verification).
+	name := themeNameRepr(node)
 	for _, builtIn := range BuiltInThemes {
 		if name == builtIn {
 			return nil
@@ -80,7 +87,10 @@ func ValidateTheme(
 		return nil
 	}
 
-	span := node.Span
+	var span yamldoc.Span
+	if node != nil {
+		span = node.Span
+	}
 	return []schemaerr.ValidationError{{
 		Code: CodeTheme,
 		// Already final: `("design", "theme")`, whatever the caller's location.
@@ -93,4 +103,58 @@ func ValidateTheme(
 				" digits. The provided value is `%s`.", name),
 		Input: name,
 	}}
+}
+
+// themeNameRepr is Python's `str()` of the raw `design.theme` value — the
+// candidate name upstream tests against the pattern, at the top level (an
+// unquoted scalar; `None`/`True`/`False` for the three non-string scalars;
+// Python's own bracketed repr for a sequence or mapping).
+func themeNameRepr(node *yamldoc.Node) string {
+	if node == nil || node.Kind == yamldoc.KindNull {
+		return "None"
+	}
+	switch node.Kind {
+	case yamldoc.KindBool:
+		return pythonBoolRepr(node)
+	case yamldoc.KindSequence:
+		parts := make([]string, 0, len(node.Elems))
+		for _, elem := range node.Elems {
+			parts = append(parts, pythonElemRepr(elem))
+		}
+		return "[" + strings.Join(parts, ", ") + "]"
+	case yamldoc.KindMapping:
+		parts := make([]string, 0, len(node.Items))
+		for _, item := range node.Items {
+			parts = append(parts, "'"+item.Key+"': "+pythonElemRepr(item.Value))
+		}
+		return "{" + strings.Join(parts, ", ") + "}"
+	default:
+		return node.Raw
+	}
+}
+
+// pythonElemRepr is the same repr, one level down — where a string is
+// quoted, because Python's `repr()` is what a container's own `str()` uses
+// for its elements.
+func pythonElemRepr(node *yamldoc.Node) string {
+	if node == nil || node.Kind == yamldoc.KindNull {
+		return "None"
+	}
+	switch node.Kind {
+	case yamldoc.KindString:
+		return "'" + node.Raw + "'"
+	case yamldoc.KindBool:
+		return pythonBoolRepr(node)
+	case yamldoc.KindSequence, yamldoc.KindMapping:
+		return themeNameRepr(node)
+	default:
+		return node.Raw
+	}
+}
+
+func pythonBoolRepr(node *yamldoc.Node) string {
+	if strings.EqualFold(node.Raw, "true") {
+		return "True"
+	}
+	return "False"
 }

@@ -77,6 +77,47 @@ func TestValidateTheme(t *testing.T) {
 	}
 }
 
+// **The candidate name is Python's `str()` of the value, not the raw YAML
+// token.** A null used to skip the whole check by returning early; `true`
+// stringified as its own raw text (`"true"`, lowercase, which happens to
+// match the pattern) rather than Python's `"True"`; and a sequence or
+// mapping had no text at all, so the message's backtick-quoted value was
+// empty. All four fail the pattern and are rejected the way upstream
+// rejects `str(None)`, `str(True)`, `str(['a', 'b'])` and `str({'a': 1})`.
+// Found by a fresh-context verifier (iteration 14's twelfth
+// re-verification).
+func TestValidateThemeNonStringValues(t *testing.T) {
+	tests := []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{name: "null", value: "null", want: "None"},
+		{name: "true", value: "true", want: "True"},
+		{name: "false", value: "false", want: "False"},
+		{name: "a sequence", value: "[a, b]", want: "['a', 'b']"},
+		{name: "a mapping", value: "{a: 1}", want: "{'a': 1}"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			errs := design.ValidateTheme(
+				themeNode(t, test.value), []string{"design"}, schemaerr.SourceMain,
+			)
+			if len(errs) != 1 {
+				t.Fatalf("errs = %+v, want exactly one", errs)
+			}
+			want := "The custom theme name should only contain lowercase letters and" +
+				" digits. The provided value is `" + test.want + "`."
+			if errs[0].Message != want {
+				t.Errorf("message =\n  %q\nwant\n  %q", errs[0].Message, want)
+			}
+			if errs[0].Input != test.want {
+				t.Errorf("input = %q, want %q", errs[0].Input, test.want)
+			}
+		})
+	}
+}
+
 // Spec 004 §3.17 behavior 65: the location is pinned, and the pin is what keeps
 // it.
 //
