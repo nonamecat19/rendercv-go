@@ -359,10 +359,21 @@ func validColorNode(node *yamldoc.Node) error {
 		_, err := ParseColor(node.Raw)
 		return err
 	case yamldoc.KindSequence:
-		if len(node.Elems) != 3 && len(node.Elems) != 4 {
-			return errColorTupleLength
+		// **Only the tuple's length was ever checked.** `[300, 0, 0]`,
+		// `[-1, 0, 0]` and `[a, b, c]` all validated as long as they had
+		// three or four elements, where upstream's `parse_color_value`
+		// range- and type-checks each one — measured against `theme:
+		// sb2nov` with each of those three shapes. Found by a fresh-context
+		// verifier (iteration 14's twelfth re-verification).
+		elements := make([]string, len(node.Elems))
+		for i, elem := range node.Elems {
+			if elem == nil {
+				return errColorNotAValue
+			}
+			elements[i] = elem.Raw
 		}
-		return nil
+		_, err := ParseColorTuple(elements)
+		return err
 	case yamldoc.KindNull, yamldoc.KindBool, yamldoc.KindInt, yamldoc.KindFloat,
 		yamldoc.KindMapping:
 		// Fall through to the shape message below.

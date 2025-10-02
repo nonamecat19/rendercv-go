@@ -272,6 +272,23 @@ func TestNullDegreeColumnIsAccepted(t *testing.T) {
 	}
 }
 
+// A colour tuple with an out-of-range element must fail validation, not just
+// a wrong-length one — `validColorNode` used to check only length.
+func TestOutOfRangeColorTupleIsRejected(t *testing.T) {
+	doc, err := yamlreader.ReadString("theme: sb2nov\ncolors:\n  name: [300, 0, 0]\n")
+	if err != nil {
+		t.Fatalf("ReadString: %v", err)
+	}
+	node := &yamldoc.Node{Kind: yamldoc.KindMapping, Items: doc.Items}
+	errs := design.Validate(node, []string{"design"}, schemaerr.SourceMain, nil)
+	if len(errs) == 0 {
+		t.Fatal("errs = none, want a failure at design.colors.name")
+	}
+	if got := strings.Join(errs[0].SchemaLocation, "."); got != "design.colors.name" {
+		t.Errorf("location = %q, want design.colors.name", got)
+	}
+}
+
 // The nine built-in names, in the order the discriminated union discovers them.
 func TestBuiltInThemes(t *testing.T) {
 	want := []string{
