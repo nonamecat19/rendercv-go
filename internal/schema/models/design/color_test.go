@@ -176,6 +176,37 @@ func TestSequenceColorRendersAsRGB(t *testing.T) {
 	}
 }
 
+// **A tuple element written as a bool word or a hex/octal/binary integer
+// literal still resolves.** `float(True)` is `1.0` in Python and
+// `float(0x10)` is `16.0` — `strconv.ParseFloat` alone rejects both tokens,
+// which is what let a document write `colors.name: [true, 0, 0]` and get
+// rejected where upstream accepts it. Found by a fresh-context verifier
+// (iteration 14's thirteenth re-verification).
+func TestParseColorTupleAcceptsNonDecimalChannels(t *testing.T) {
+	tests := []struct {
+		name     string
+		elements []string
+		want     string
+	}{
+		{name: "a true channel", elements: []string{"true", "0", "0"}, want: "rgb(1, 0, 0)"},
+		{name: "a false channel", elements: []string{"false", "0", "0"}, want: "rgb(0, 0, 0)"},
+		{name: "a hex channel", elements: []string{"0x10", "0", "0"}, want: "rgb(16, 0, 0)"},
+		{name: "an octal channel", elements: []string{"0o17", "0", "0"}, want: "rgb(15, 0, 0)"},
+		{name: "a binary channel", elements: []string{"0b101", "0", "0"}, want: "rgb(5, 0, 0)"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			color, err := design.ParseColorTuple(test.elements)
+			if err != nil {
+				t.Fatalf("ParseColorTuple(%v) = %v, want success", test.elements, err)
+			}
+			if got := color.String(); got != test.want {
+				t.Errorf("= %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
 // The code is the library's, asserted as upstream's literal rather than as the
 // Go constant.
 func TestColorErrorCode(t *testing.T) {

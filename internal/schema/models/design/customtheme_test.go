@@ -117,6 +117,28 @@ func TestAnEmptyScriptStringListDoesNotShadowTheDocument(t *testing.T) {
 	}
 }
 
+// **A colour accepts a tuple at every layer, not just a string** — the
+// script's own declaration, and a document overriding a scripted theme's
+// colour. `ValidateScript` used to flag a script's tuple as a shape
+// conflict (dropping the whole script), and `withoutTreeConflictsAt` used
+// to drop a document's tuple override as a shape conflict against the
+// tree's scalar `Color.String()` default. Found by a fresh-context
+// verifier (iteration 14's thirteenth re-verification).
+func TestColorTupleSurvivesScriptAndDocument(t *testing.T) {
+	script := map[string]any{"colors": map[string]any{"name": []string{"1", "2", "3"}}}
+
+	scriptOnly := design.EffectiveWithScript("mytheme", script, nil, true)
+	if got := design.EffectiveString(scriptOnly, "colors", "name"); got != "rgb(1, 2, 3)" {
+		t.Errorf("colors.name = %q, want the script's tuple as rgb(1, 2, 3)", got)
+	}
+
+	document := map[string]any{"colors": map[string]any{"name": []string{"4", "5", "6"}}}
+	overridden := design.EffectiveWithScript("mytheme", script, document, true)
+	if got := design.EffectiveString(overridden, "colors", "name"); got != "rgb(4, 5, 6)" {
+		t.Errorf("colors.name = %q, want the document's tuple as rgb(4, 5, 6)", got)
+	}
+}
+
 // A nil script is the built-in case: nothing changes for the nine themes that
 // have no script at all.
 func TestANilScriptChangesNothing(t *testing.T) {

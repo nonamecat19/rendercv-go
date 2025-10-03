@@ -242,6 +242,24 @@ func withoutTreeConflictsAt(document, values map[string]any, prefix string) map[
 			continue
 		}
 		if shapeKind(docValue) != shapeKind(treeValue) {
+			// **A colour tuple is a legal alternate shape for a colour
+			// field**, the same way a mapping is for `font_family` above —
+			// but this function has no tree Kind to check against, only the
+			// shape of the value already assembled at this path. A colour
+			// field's tree value is always a scalar `Color.String()`, so
+			// "the tree value is a string a colour parses" is a safe proxy:
+			// a document override list against, say, `page.size` (a
+			// literal) would have to be a list of one of its own members to
+			// pass `ParseColor`, which none of `page.size`'s literals are.
+			// A document list here already validated at the field's real
+			// declared shape (`validColorNode`), before it ever reached this
+			// merge — this only keeps it from being pruned on the way in.
+			// Found by a fresh-context verifier (iteration 14's thirteenth
+			// re-verification).
+			if treeText, isText := treeValue.(string); isText && shapeKind(docValue) == "list" && ValidColor(treeText) {
+				out[key] = docValue
+				continue
+			}
 			// Dropped: the shapes disagree, so the typed value beneath survives.
 			continue
 		}
@@ -667,6 +685,18 @@ func validateScript(tree Tree, model string, script map[string]any, prefix strin
 					Path: path, Declared: "a value", Wanted: "a list of items",
 				})
 			}
+			continue
+		}
+		// **A colour accepts a tuple, not just a string.** `Colors.name = (1,
+		// 2, 3)` is legal upstream (`color.py`'s `Color.__init__` takes a
+		// tuple or a list directly), so a script declaring one used to be
+		// flagged as a value where a group belongs — `isNested` is false for
+		// a Lua sequence turned `[]string`, so it actually fell to the
+		// list-check below and was rejected there instead, but the effect is
+		// the same: the whole script dropped over a legal shape. Found by a
+		// fresh-context verifier (iteration 14's thirteenth
+		// re-verification).
+		if declared.Kind == KindColor && shapeKind(value) == "list" {
 			continue
 		}
 		if isNested {
