@@ -108,7 +108,7 @@ func EffectiveWithScript(theme string, script, document map[string]any, hasScrip
 	if !IsBuiltinTheme(theme) {
 		document = withoutTreeConflicts(document, values)
 	}
-	resolvedDocument := withoutConflicts(document, luatheme.Validate(script, document))
+	resolvedDocument := withoutConflicts(script, document, luatheme.Validate(script, document))
 	values = deepMerge(values, resolvedDocument)
 
 	// **A partial `font_family` mapping is not a deep merge.** Measured on
@@ -260,6 +260,18 @@ func withoutTreeConflictsAt(document, values map[string]any, prefix string) map[
 				out[key] = docValue
 				continue
 			}
+			// **The reverse direction is just as real.** A scripted theme
+			// can declare a colour as a tuple (`colors.name = {1, 2, 3}`),
+			// which by this point in the merge is the *tree* value at this
+			// path — so a document overriding it with an ordinary string
+			// (`colors: {name: red}`) hits the same shape mismatch from the
+			// other side and was silently dropped, keeping the script's
+			// colour instead of the document's. Found by a fresh-context
+			// verifier (iteration 14's fourteenth re-verification).
+			if docText, isText := docValue.(string); isText && shapeKind(treeValue) == "list" && ValidColor(docText) {
+				out[key] = docValue
+				continue
+			}
 			// Dropped: the shapes disagree, so the typed value beneath survives.
 			continue
 		}
@@ -287,14 +299,17 @@ func shapeKind(value any) string {
 // the merge equivalent of `ValidateScript`'s whole-script drop, scoped to just
 // the offending key so a document error in one option cannot suppress a
 // correct one beside it.
-func withoutConflicts(document map[string]any, conflicts []error) map[string]any {
+func withoutConflicts(script, document map[string]any, conflicts []error) map[string]any {
 	if len(conflicts) == 0 {
 		return document
 	}
 	paths := make(map[string]bool, len(conflicts))
 	for _, err := range conflicts {
 		var typeErr *luatheme.TypeError
-		if errors.As(err, &typeErr) && typeErr.Path != fontFamilyPath {
+		if !errors.As(err, &typeErr) {
+			continue
+		}
+		if typeErr.Path == fontFamilyPath {
 			// **`luatheme.Validate` does not know about the one field that
 			// accepts either shape.** A script declaring `font_family = "Lato"`
 			// (a scalar) against a document overriding it with the five-element
@@ -306,10 +321,51 @@ func withoutConflicts(document map[string]any, conflicts []error) map[string]any
 			// and it needs the same carve-out or the document's override is
 			// dropped right back out here. Found by a fresh-context verifier
 			// (iteration 14's fourth re-verification).
-			paths[typeErr.Path] = true
+			continue
 		}
+		// **A colour conflict here is the same false positive as
+		// font_family's, one level more generic.** `luatheme.Validate` has
+		// no design-tree Kind to check against — it only compares Go
+		// shapes — so a script declaring `colors.name` as a string against
+		// a document overriding it with a tuple (or the reverse) reads as
+		// "a value" vs "a list" and gets flagged, even though both are
+		// legal `Color` shapes. `withoutTreeConflictsAt` already carves
+		// this out for the *tree's* default; this is the second site,
+		// symmetric with font_family's, for a *script's* declared colour.
+		// Found by a fresh-context verifier (iteration 14's fourteenth
+		// re-verification).
+		if looksLikeColorConflict(script, document, typeErr.Path) {
+			continue
+		}
+		paths[typeErr.Path] = true
 	}
 	return prunePaths(document, "", paths)
+}
+
+// looksLikeColorConflict reports whether a script/document mismatch at path
+// is a colour field's two legal shapes talking past each other — a scalar
+// `Color` string on one side and a tuple on the other. `luatheme` cannot
+// import this package's `ParseColor`/`ParseColorTuple` (this package already
+// imports `luatheme`), so this is a narrower proxy: one side must be a list
+// and the other a string `ValidColor` accepts, which no other field's legal
+// document value satisfies (a `page.size` literal like `a4` is not a colour
+// name).
+func looksLikeColorConflict(script, document map[string]any, path string) bool {
+	parts := strings.Split(path, ".")
+	scriptValue := lookup(script, parts)
+	docValue := lookup(document, parts)
+
+	scriptIsColorScalar := isColorScalar(scriptValue)
+	docIsColorScalar := isColorScalar(docValue)
+	scriptIsList := shapeKind(scriptValue) == "list"
+	docIsList := shapeKind(docValue) == "list"
+
+	return (scriptIsList && docIsColorScalar) || (docIsList && scriptIsColorScalar)
+}
+
+func isColorScalar(value any) bool {
+	text, ok := value.(string)
+	return ok && ValidColor(text)
 }
 
 func prunePaths(document map[string]any, prefix string, paths map[string]bool) map[string]any {
@@ -697,6 +753,21 @@ func validateScript(tree Tree, model string, script map[string]any, prefix strin
 		// fresh-context verifier (iteration 14's thirteenth
 		// re-verification).
 		if declared.Kind == KindColor && shapeKind(value) == "list" {
+			// **The carve-out must still check the tuple, not just its
+			// shape.** A shape-only pass let `colors.name = {300, 2, 3}`
+			// and `colors.name = {1, 2}` through unchecked, so an invalid
+			// tuple reached `normalizeColors`, failed to parse there too,
+			// and was left as the raw `[]string` — a Go type name in the
+			// artifact, the exact failure this whole family of carve-outs
+			// exists to prevent. Found by a fresh-context verifier
+			// (iteration 14's fourteenth re-verification).
+			if list, ok := value.([]string); ok {
+				if _, err := ParseColorTuple(list); err != nil {
+					*errs = append(*errs, &ScriptConflict{
+						Path: path, Declared: "an invalid color tuple", Wanted: "a valid color",
+					})
+				}
+			}
 			continue
 		}
 		if isNested {

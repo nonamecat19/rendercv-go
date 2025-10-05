@@ -139,6 +139,30 @@ func TestColorTupleSurvivesScriptAndDocument(t *testing.T) {
 	}
 }
 
+// **A colour's two legal shapes have to survive each other in both
+// directions**, not just tuple-over-tuple: a document scalar overriding a
+// script's tuple, and a document tuple overriding a script's scalar. Both
+// used to be pruned as a shape conflict — one at `withoutConflicts`
+// (`luatheme.Validate`'s generic shape comparison has no `Color` carve-out),
+// the other at `withoutTreeConflictsAt` (whose colour carve-out only checked
+// one direction). Found by a fresh-context verifier (iteration 14's
+// fourteenth re-verification).
+func TestColorScalarAndTupleOverrideEachOtherAcrossScript(t *testing.T) {
+	scalarScript := map[string]any{"colors": map[string]any{"name": "rgb(9, 9, 9)"}}
+	tupleDocument := map[string]any{"colors": map[string]any{"name": []string{"7", "8", "9"}}}
+	values := design.EffectiveWithScript("mytheme", scalarScript, tupleDocument, true)
+	if got := design.EffectiveString(values, "colors", "name"); got != "rgb(7, 8, 9)" {
+		t.Errorf("colors.name = %q, want the document's tuple as rgb(7, 8, 9)", got)
+	}
+
+	tupleScript := map[string]any{"colors": map[string]any{"name": []string{"1", "2", "3"}}}
+	scalarDocument := map[string]any{"colors": map[string]any{"name": "red"}}
+	values = design.EffectiveWithScript("mytheme", tupleScript, scalarDocument, true)
+	if got := design.EffectiveString(values, "colors", "name"); got != "rgb(255, 0, 0)" {
+		t.Errorf("colors.name = %q, want the document's red as rgb(255, 0, 0)", got)
+	}
+}
+
 // A nil script is the built-in case: nothing changes for the nine themes that
 // have no script at all.
 func TestANilScriptChangesNothing(t *testing.T) {
