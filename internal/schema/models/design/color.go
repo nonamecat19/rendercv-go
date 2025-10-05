@@ -277,6 +277,10 @@ func parseChannel(text string, max float64) (float64, error) {
 // upstream — fail here. Found by a fresh-context verifier (iteration 14's
 // thirteenth re-verification).
 func parseNumericText(text string) (float64, bool) {
+	// `float(" 1 ")` succeeds in Python — surrounding whitespace is stripped
+	// before anything else. Found by a fresh-context verifier (iteration
+	// 14's fourteenth re-verification).
+	text = strings.TrimSpace(text)
 	switch strings.ToLower(text) {
 	case "true":
 		return 1, true
@@ -307,15 +311,24 @@ func parseAlpha(text string) (*float64, error) {
 	}
 
 	var value float64
-	var err error
 	if percent, found := strings.CutSuffix(text, "%"); found {
-		value, err = strconv.ParseFloat(percent, 64)
-		value /= 100
+		parsed, err := strconv.ParseFloat(percent, 64)
+		if err != nil {
+			return nil, errors.New(messageAlphaNotFloat)
+		}
+		value = parsed / 100
 	} else {
-		value, err = strconv.ParseFloat(text, 64)
-	}
-	if err != nil {
-		return nil, errors.New(messageAlphaNotFloat)
+		// **`parse_float_alpha` is also `float(value)`** — a bool or a
+		// hex/octal/binary literal alpha is upstream's `float(True)`/
+		// `float(0x0)`, the same coercion `parseChannel` already got.
+		// `strconv.ParseFloat` alone rejected both. Found by a
+		// fresh-context verifier (iteration 14's fourteenth
+		// re-verification).
+		parsed, ok := parseNumericText(text)
+		if !ok {
+			return nil, errors.New(messageAlphaNotFloat)
+		}
+		value = parsed
 	}
 
 	return normalizeAlpha(value)

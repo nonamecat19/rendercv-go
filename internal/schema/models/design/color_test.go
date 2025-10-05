@@ -207,6 +207,34 @@ func TestParseColorTupleAcceptsNonDecimalChannels(t *testing.T) {
 	}
 }
 
+// `parse_float_alpha` is also `float(value)` — the same coercion `parseChannel`
+// already got in pass 13. Only `parseAlpha`'s non-percent branch still called
+// `strconv.ParseFloat` directly. Found by a fresh-context verifier (iteration
+// 14's fourteenth re-verification).
+func TestParseColorTupleAcceptsNonDecimalAlpha(t *testing.T) {
+	tests := []struct {
+		name     string
+		elements []string
+		want     string
+	}{
+		// alpha of 1 (true) becomes absent, the same as any other alpha of 1.
+		{name: "a true alpha", elements: []string{"1", "2", "3", "true"}, want: "rgb(1, 2, 3)"},
+		{name: "a false alpha", elements: []string{"1", "2", "3", "false"}, want: "rgba(1, 2, 3, 0.0)"},
+		{name: "a hex alpha", elements: []string{"1", "2", "3", "0x0"}, want: "rgba(1, 2, 3, 0.0)"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			color, err := design.ParseColorTuple(test.elements)
+			if err != nil {
+				t.Fatalf("ParseColorTuple(%v) = %v, want success", test.elements, err)
+			}
+			if got := color.String(); got != test.want {
+				t.Errorf("= %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
 // The code is the library's, asserted as upstream's literal rather than as the
 // Go constant.
 func TestColorErrorCode(t *testing.T) {
