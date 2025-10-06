@@ -289,6 +289,42 @@ func TestOutOfRangeColorTupleIsRejected(t *testing.T) {
 	}
 }
 
+// **A quoted colour-tuple element must not get the bool-word/hex/octal/
+// binary coercion an unquoted one gets.** `colors.name: ["0x10", 0, 0]`
+// hands upstream's `float()` a `str`, which raises on that spelling exactly
+// as it would on any other non-numeric text — only `colors.name: [0x10, 0,
+// 0]`, which YAML itself resolves to an `int`, is legal. Found by a
+// fresh-context verifier (iteration 14's sixteenth re-verification).
+func TestQuotedColorTupleElementsAreNotCoerced(t *testing.T) {
+	tests := []struct {
+		name string
+		yaml string
+		want bool // true = must fail
+	}{
+		{name: "a quoted hex channel", yaml: `["0x10", 0, 0]`, want: true},
+		{name: "a quoted bool-word channel", yaml: `["true", 0, 0]`, want: true},
+		{name: "an unquoted hex channel", yaml: `[0x10, 0, 0]`, want: false},
+		{name: "an unquoted bool-word channel", yaml: `[true, 0, 0]`, want: false},
+		{name: "a quoted hex percent alpha", yaml: `[0, 0, 0, "0x10%"]`, want: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			doc, err := yamlreader.ReadString("theme: sb2nov\ncolors:\n  name: " + test.yaml + "\n")
+			if err != nil {
+				t.Fatalf("ReadString: %v", err)
+			}
+			node := &yamldoc.Node{Kind: yamldoc.KindMapping, Items: doc.Items}
+			errs := design.Validate(node, []string{"design"}, schemaerr.SourceMain, nil)
+			if test.want && len(errs) == 0 {
+				t.Error("errs = none, want a failure")
+			}
+			if !test.want && len(errs) != 0 {
+				t.Errorf("errs = %+v, want none", errs)
+			}
+		})
+	}
+}
+
 // A null alpha is `parse_float_alpha(None)`, which returns `None` rather
 // than raising — so a four-element tuple with a null fourth element is
 // exactly the equivalent three-element tuple, not a validation failure.

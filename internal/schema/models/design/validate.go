@@ -365,7 +365,7 @@ func validColorNode(node *yamldoc.Node) error {
 		// range- and type-checks each one — measured against `theme:
 		// sb2nov` with each of those three shapes. Found by a fresh-context
 		// verifier (iteration 14's twelfth re-verification).
-		elements := make([]string, 0, len(node.Elems))
+		elements := make([]colorElement, 0, len(node.Elems))
 		for i, elem := range node.Elems {
 			if elem == nil {
 				return errColorNotAValue
@@ -383,9 +383,18 @@ func validColorNode(node *yamldoc.Node) error {
 			if i == 3 && len(node.Elems) == 4 && elem.Kind == yamldoc.KindNull {
 				continue
 			}
-			elements = append(elements, elem.Raw)
+			// **Only a `KindBool` or `KindInt` element is eligible for the
+			// bool-word/hex/octal/binary coercion.** A `KindString` element
+			// — `colors.name: ["0x10", 0, 0]` — hands upstream's
+			// `float()` a Python `str`, which raises on that spelling
+			// exactly as it would on any other non-numeric text; only an
+			// *unquoted* `0x10` YAML itself resolves to an `int` gets the
+			// coercion. Found by a fresh-context verifier (iteration 14's
+			// sixteenth re-verification).
+			coerce := elem.Kind == yamldoc.KindBool || elem.Kind == yamldoc.KindInt
+			elements = append(elements, colorElement{Raw: elem.Raw, Coerce: coerce})
 		}
-		_, err := ParseColorTuple(elements)
+		_, err := parseColorElements(elements)
 		return err
 	case yamldoc.KindNull, yamldoc.KindBool, yamldoc.KindInt, yamldoc.KindFloat,
 		yamldoc.KindMapping:

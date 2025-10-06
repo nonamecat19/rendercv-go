@@ -118,13 +118,45 @@ func ParseColor(value string) (Color, error) {
 // actually range- and type-checks each element, the same way `ParseColor`
 // does for a string. Found by a fresh-context verifier (iteration 14's
 // twelfth re-verification).
+//
+// **This treats every element as eligible for the bool-word/hex/octal/binary
+// coercion**, which is only correct once the document has already validated
+// — `ColorElements` is what `validColorNode` actually calls, because that
+// coercion is only sound for an element YAML itself resolved to a bool or an
+// int, not a merely bool-or-hex-*looking* quoted string. This variant exists
+// for `normalizeColors`, whose `[]string` input has already lost that
+// distinction by the time it gets there (`bridge.mappingOf`'s projection),
+// on a value that either already passed validation or is inside the
+// documented "value validation skipped when a script exists" gap either way.
 func ParseColorTuple(elements []string) (Color, error) {
+	typed := make([]colorElement, len(elements))
+	for i, raw := range elements {
+		typed[i] = colorElement{Raw: raw, Coerce: true}
+	}
+	return parseColorElements(typed)
+}
+
+// colorElement is one colour-tuple element together with whether the
+// bool-word/hex/octal/binary coercion is legal for it — true only when YAML
+// itself resolved the node to a bool or an int, matching `float(value)`
+// being called on that parsed Python object rather than on a string that
+// happens to spell the same token.
+type colorElement struct {
+	Raw    string
+	Coerce bool
+}
+
+// parseColorElements is `ParseColorTuple` with each element's coercion
+// eligibility carried alongside its text — what `validColorNode` actually
+// calls, since it still has each element's `yamldoc.Kind`. Found by a
+// fresh-context verifier (iteration 14's sixteenth re-verification).
+func parseColorElements(elements []colorElement) (Color, error) {
 	if len(elements) != 3 && len(elements) != 4 {
 		return Color{}, errColorTupleLength
 	}
 	channelValues := make([]float64, 3)
 	for i := 0; i < 3; i++ {
-		value, err := parseChannel(elements[i], 255)
+		value, err := parseChannel(elements[i].Raw, 255, elements[i].Coerce)
 		if err != nil {
 			return Color{}, err
 		}
@@ -132,7 +164,7 @@ func ParseColorTuple(elements []string) (Color, error) {
 	}
 	var alpha *float64
 	if len(elements) == 4 {
-		value, err := parseAlpha(elements[3])
+		value, err := parseAlpha(elements[3].Raw, elements[3].Coerce)
 		if err != nil {
 			return Color{}, err
 		}
@@ -197,13 +229,13 @@ func hexColor(match []string, width int) (Color, error) {
 func rgbColor(match []string) (Color, error) {
 	values := [3]float64{}
 	for i := range values {
-		value, err := parseChannel(match[i+1], 255)
+		value, err := parseChannel(match[i+1], 255, false)
 		if err != nil {
 			return Color{}, err
 		}
 		values[i] = value
 	}
-	alpha, err := parseAlpha(match[4])
+	alpha, err := parseAlpha(match[4], false)
 	if err != nil {
 		return Color{}, err
 	}
@@ -214,11 +246,11 @@ func rgbColor(match []string) (Color, error) {
 // degrees, radians or turns — and saturation and lightness are percentages, so
 // they are parsed against a maximum of 100 rather than 255.
 func hslColor(match []string) (Color, error) {
-	saturation, err := parseChannel(match[3], 100)
+	saturation, err := parseChannel(match[3], 100, false)
 	if err != nil {
 		return Color{}, err
 	}
-	lightness, err := parseChannel(match[4], 100)
+	lightness, err := parseChannel(match[4], 100, false)
 	if err != nil {
 		return Color{}, err
 	}
@@ -236,7 +268,7 @@ func hslColor(match []string) (Color, error) {
 		hue = pythonMod(hue, 360) / 360
 	}
 
-	alpha, err := parseAlpha(match[5])
+	alpha, err := parseAlpha(match[5], false)
 	if err != nil {
 		return Color{}, err
 	}
@@ -255,8 +287,8 @@ func channels(r, g, b float64, alpha *float64) (Color, error) {
 
 // parseChannel is `parse_color_value`: a number scaled into 0-1, rejected
 // outside the range.
-func parseChannel(text string, max float64) (float64, error) {
-	value, ok := parseNumericText(text)
+func parseChannel(text string, max float64, coerce bool) (float64, error) {
+	value, ok := parseNumericText(text, coerce)
 	if !ok {
 		return 0, errors.New(messageChannelNotNumber)
 	}
@@ -285,11 +317,31 @@ func parseChannel(text string, max float64) (float64, error) {
 // `colors.name: [true, 0, 0]` and `colors.name: [0x10, 0, 0]` — both valid
 // upstream — fail here. Found by a fresh-context verifier (iteration 14's
 // thirteenth re-verification).
-func parseNumericText(text string) (float64, bool) {
+//
+// **`coerce` gates the bool-word and hex/octal/binary branches**, and it
+// must be false for a genuinely `KindString` element. `parse_color_value`
+// is `float(value)` on whatever Python object YAML already resolved — a
+// bool-word or hex-literal *token* only becomes that coercible object when
+// YAML itself parsed it as a bool or an int; a document that quoted the
+// same spelling (`colors.name: ["0x10", 0, 0]`) hands `float()` a `str`,
+// and `float("0x10")` raises just as it does for any other non-numeric
+// string. Passing every element through unconditionally coerced a quoted
+// `"0x10"`/`"true"` the same as an unquoted one, accepting documents
+// upstream rejects. Found by a fresh-context verifier (iteration 14's
+// sixteenth re-verification).
+func parseNumericText(text string, coerce bool) (float64, bool) {
 	// `float(" 1 ")` succeeds in Python — surrounding whitespace is stripped
-	// before anything else. Found by a fresh-context verifier (iteration
-	// 14's fourteenth re-verification).
+	// before anything else, coerced or not (a plain decimal string strips
+	// the same way). Found by a fresh-context verifier (iteration 14's
+	// fourteenth re-verification).
 	text = strings.TrimSpace(text)
+	if !coerce {
+		value, err := strconv.ParseFloat(text, 64)
+		if err != nil {
+			return 0, false
+		}
+		return value, true
+	}
 	switch strings.ToLower(text) {
 	case "true":
 		return 1, true
@@ -328,7 +380,7 @@ func parseNumericText(text string) (float64, bool) {
 // parseAlpha is `parse_float_alpha`. **An alpha of exactly 1 becomes absent**,
 // which is why `rgba(1,2,3,1)` renders as `rgb(1, 2, 3)` — the `a` in the input
 // does not survive into the output.
-func parseAlpha(text string) (*float64, error) {
+func parseAlpha(text string, coerce bool) (*float64, error) {
 	if text == "" {
 		return nil, nil
 	}
@@ -341,7 +393,15 @@ func parseAlpha(text string) (*float64, error) {
 		// second, unrelated `ParseFloat` call. Pass 14 fixed this branch's
 		// sibling below and missed this one. Found by a fresh-context
 		// verifier (iteration 14's fifteenth re-verification).
-		parsed, ok := parseNumericText(percent)
+		//
+		// **A `%`-suffixed value is always string-sourced** — only a `str`
+		// can end in a literal `%` character, so `color.py:387` guards this
+		// whole branch with `isinstance(value, str)`. `coerce` is therefore
+		// always false here regardless of the caller's own element, the
+		// same way it always is for a `KindString` element elsewhere.
+		// Found by a fresh-context verifier (iteration 14's sixteenth
+		// re-verification).
+		parsed, ok := parseNumericText(percent, false)
 		if !ok {
 			return nil, errors.New(messageAlphaNotFloat)
 		}
@@ -353,7 +413,7 @@ func parseAlpha(text string) (*float64, error) {
 		// `strconv.ParseFloat` alone rejected both. Found by a
 		// fresh-context verifier (iteration 14's fourteenth
 		// re-verification).
-		parsed, ok := parseNumericText(text)
+		parsed, ok := parseNumericText(text, coerce)
 		if !ok {
 			return nil, errors.New(messageAlphaNotFloat)
 		}
