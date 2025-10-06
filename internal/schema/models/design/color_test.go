@@ -235,6 +235,47 @@ func TestParseColorTupleAcceptsNonDecimalAlpha(t *testing.T) {
 	}
 }
 
+// The percent branch had not been routed through the same numeric coercion
+// or whitespace trim as the plain-number branch. Found by a fresh-context
+// verifier (iteration 14's fifteenth re-verification).
+func TestParseColorTupleAcceptsWhitespaceInAPercentAlpha(t *testing.T) {
+	color, err := design.ParseColorTuple([]string{"10", "20", "30", " 50%"})
+	if err != nil {
+		t.Fatalf("ParseColorTuple = %v, want success", err)
+	}
+	if got := color.String(); got != "rgba(10, 20, 30, 0.5)" {
+		t.Errorf("= %q, want rgba(10, 20, 30, 0.5)", got)
+	}
+}
+
+// A NaN channel or alpha is a range failure, not a silent pass-through —
+// `value < 0 || value > max` is false in both directions for NaN, which is
+// the *accept* condition here (inverted from Python's chained comparison),
+// so it used to reach `int(NaN)` and print undefined-overflow garbage into
+// the artifact. And a token upstream's YAML resolver would not classify as
+// an integer at all — an uppercase-prefixed `0X1F`, `0O17` — must still fail
+// as "not a number", not be accepted the way `strconv.ParseInt`'s
+// case-insensitive base-0 parsing would take it. Found by a fresh-context
+// verifier (iteration 14's fifteenth re-verification).
+func TestParseColorTupleRejectsNaNAndCaseSensitivePrefixes(t *testing.T) {
+	tests := []struct {
+		name     string
+		elements []string
+	}{
+		{name: "a NaN channel", elements: []string{"nan", "0", "0"}},
+		{name: "a NaN alpha", elements: []string{"1", "2", "3", "nan"}},
+		{name: "an uppercase hex channel", elements: []string{"0X1F", "0", "0"}},
+		{name: "an uppercase octal channel", elements: []string{"0O17", "0", "0"}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := design.ParseColorTuple(test.elements); err == nil {
+				t.Errorf("ParseColorTuple(%v) succeeded, want a failure", test.elements)
+			}
+		})
+	}
+}
+
 // The code is the library's, asserted as upstream's literal rather than as the
 // Go constant.
 func TestColorErrorCode(t *testing.T) {
