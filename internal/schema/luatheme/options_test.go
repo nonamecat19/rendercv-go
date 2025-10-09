@@ -97,6 +97,35 @@ func TestASequenceKeepsNumberAndBoolElementsAsText(t *testing.T) {
 	}
 }
 
+// **A table with a hole must recover as a sparse sequence, not an empty
+// map.** `{"a", nil, "c"}` has keys `{1, 3}`, which is not a clean
+// `1..Len()` sequence — but it has no string keys either, so it used to
+// fall through `Options`' string-keyed walk and vanish entirely, silently
+// dropping both real elements. Found by a fresh-context verifier
+// (iteration 14's Lua-slice sweep).
+func TestATableWithAHoleRecoversAsASparseSequence(t *testing.T) {
+	got := options(t, `
+		local hole = nil
+		return { tags = { "a", hole, "c" } }
+	`)
+
+	want := []string{"a", "c"}
+	if list, ok := got["tags"].([]string); !ok || !reflect.DeepEqual(list, want) {
+		t.Errorf("tags = %#v, want %#v", got["tags"], want)
+	}
+}
+
+// The explicit sparse-index form must recover identically to the
+// hole-in-a-constructor form above, and out of key order.
+func TestASparselyIndexedTableIsOrderedByIndex(t *testing.T) {
+	got := options(t, `return { tags = {[3] = "c", [1] = "a"} }`)
+
+	want := []string{"a", "c"}
+	if list, ok := got["tags"].([]string); !ok || !reflect.DeepEqual(list, want) {
+		t.Errorf("tags = %#v, want %#v", got["tags"], want)
+	}
+}
+
 // A mixed table — some integer keys, some string keys — is not a sequence by
 // this file's own definition (`isSequence` requires every key to be exactly
 // `1..Len()`), so it still converts as a map and its non-string keys are

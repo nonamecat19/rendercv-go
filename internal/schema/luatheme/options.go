@@ -1,6 +1,7 @@
 package luatheme
 
 import (
+	"sort"
 	"strconv"
 
 	lua "github.com/yuin/gopher-lua"
@@ -66,6 +67,21 @@ func convert(value lua.LValue) (any, bool) {
 		if isSequence(typed) {
 			return sequenceOf(typed), true
 		}
+		// **A table with a hole is still a sequence, not a map.**
+		// `{"education", nil, "publications"}` has keys `{1, 3}` — a gap
+		// `isSequence` (correctly) refuses to call a clean sequence — but
+		// it has no string keys either, so the walk below found nothing
+		// and this fell through to an empty map, silently dropping both
+		// real elements instead of just the hole. Every design field a
+		// script can build this way with numeric keys is list-shaped
+		// (`KindStringList`, or a colour tuple), never a genuine map keyed
+		// by number, so a table with only numeric keys and at least one
+		// gap is recovered as the sparse sequence its author almost
+		// certainly meant, rather than silently emptied. Found by a
+		// fresh-context verifier (iteration 14's Lua-slice sweep).
+		if isNumericKeyedOnly(typed) {
+			return sparseSequenceOf(typed), true
+		}
 		return Options(typed), true
 	}
 	return nil, false
@@ -102,6 +118,58 @@ func isSequence(table *lua.LTable) bool {
 // script's own colour tuple silently loses every element and reaches the
 // artifact as an empty list. Found by a fresh-context verifier (iteration
 // 14's thirteenth re-verification).
+// isNumericKeyedOnly reports whether every key in a non-empty table is a
+// Lua number — the shape `isSequence` rejects only because of a gap, not
+// because the table is genuinely a string-keyed map.
+func isNumericKeyedOnly(table *lua.LTable) bool {
+	hasAny := false
+	allNumeric := true
+	table.ForEach(func(key, _ lua.LValue) {
+		hasAny = true
+		if _, isNumber := key.(lua.LNumber); !isNumber {
+			allNumeric = false
+		}
+	})
+	return hasAny && allNumeric
+}
+
+// sparseSequenceOf is `sequenceOf` for a table whose numeric keys have a
+// gap: it walks every key rather than `1..Len()` (`Len()` is undefined for
+// a table with a hole), converts each value the same way `sequenceOf`
+// does, and orders the result by key — so `{[1]="a", [3]="b"}` recovers as
+// `["a", "b"]`, the hole simply skipped rather than losing everything.
+func sparseSequenceOf(table *lua.LTable) []string {
+	type indexed struct {
+		index float64
+		text  string
+	}
+	var items []indexed
+	table.ForEach(func(key, value lua.LValue) {
+		index, isNumber := key.(lua.LNumber)
+		if !isNumber {
+			return
+		}
+		switch element := value.(type) {
+		case lua.LString:
+			items = append(items, indexed{float64(index), string(element)})
+		case lua.LNumber:
+			if float64(element) == float64(int64(element)) {
+				items = append(items, indexed{float64(index), strconv.FormatInt(int64(element), 10)})
+			} else {
+				items = append(items, indexed{float64(index), strconv.FormatFloat(float64(element), 'g', -1, 64)})
+			}
+		case lua.LBool:
+			items = append(items, indexed{float64(index), strconv.FormatBool(bool(element))})
+		}
+	})
+	sort.Slice(items, func(i, j int) bool { return items[i].index < items[j].index })
+	out := make([]string, len(items))
+	for i, item := range items {
+		out[i] = item.text
+	}
+	return out
+}
+
 func sequenceOf(table *lua.LTable) []string {
 	length := table.Len()
 	out := make([]string, 0, length)
