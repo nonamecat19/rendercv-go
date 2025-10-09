@@ -276,6 +276,42 @@ func TestParseColorTupleRejectsNaNAndCaseSensitivePrefixes(t *testing.T) {
 	}
 }
 
+// **`round(x, 2)` rounds the exact binary value, not `x*100` rounded then
+// divided.** `0.075` is not exactly `0.075` in float64 — its true value sits
+// fractionally below — so Python rounds it down to `0.07`; multiplying by
+// 100 first lands on exactly `7.5` and rounds up to `0.08`, the wrong
+// answer. And an alpha that only *rounds* to 1 (not one that's already
+// close to it, which never reaches this code at all) is still a Python
+// `float`, so it prints `1.0`, not `1`. Found by a fresh-context verifier
+// (iteration 14's colour-slice sweep).
+func TestAlphaRoundsOnTheExactBinaryValue(t *testing.T) {
+	tests := []struct {
+		alpha string
+		want  string
+	}{
+		{"0.075", "rgba(1, 2, 3, 0.07)"},
+		{"0.005", "rgba(1, 2, 3, 0.01)"},
+		{"0.015", "rgba(1, 2, 3, 0.01)"},
+		{"0.025", "rgba(1, 2, 3, 0.03)"},
+		{"0.065", "rgba(1, 2, 3, 0.07)"},
+		{"0.085", "rgba(1, 2, 3, 0.09)"},
+		{"0.155", "rgba(1, 2, 3, 0.15)"},
+		{"0.265", "rgba(1, 2, 3, 0.27)"},
+		{"0.996", "rgba(1, 2, 3, 1.0)"},
+	}
+	for _, test := range tests {
+		t.Run(test.alpha, func(t *testing.T) {
+			color, err := design.ParseColorTuple([]string{"1", "2", "3", test.alpha})
+			if err != nil {
+				t.Fatalf("ParseColorTuple = %v, want success", err)
+			}
+			if got := color.String(); got != test.want {
+				t.Errorf("= %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
 // The code is the library's, asserted as upstream's literal rather than as the
 // Go constant.
 func TestColorErrorCode(t *testing.T) {
