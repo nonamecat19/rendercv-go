@@ -35,7 +35,16 @@ var BuiltInThemes = []string{
 
 // customThemeNamePattern is `^[a-z0-9]+$` (design/design.py:17). A name that
 // fails it cannot be a folder name upstream is willing to load.
-var customThemeNamePattern = regexp.MustCompile(`^[a-z0-9]+$`)
+//
+// **A trailing `\n` is not a failure.** Python's `$` matches at the end of
+// the string *or* immediately before one trailing newline — a documented
+// quirk of `re`, not specific to this pattern — so `re.match(r"^[a-z0-9]+$",
+// "mytheme\n")` is true. A theme name ending in `\n` (reachable through a
+// block scalar) used to fail the shape check here and report the wrong one
+// of iteration 14's own two messages; upstream falls through to the folder
+// checks instead. Found by a fresh-context verifier (iteration 14's
+// non-colour-design-slice sweep).
+var customThemeNamePattern = regexp.MustCompile(`^[a-z0-9]+\n?$`)
 
 // CodeTheme is the kind the shape check raises
 // (models/custom_error_types.py:6). No dictionary row matches its message.

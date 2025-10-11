@@ -118,6 +118,20 @@ func TestValidateThemeNonStringValues(t *testing.T) {
 	}
 }
 
+// **A trailing `\n` is not a shape failure.** Python's `$` matches at the
+// end of the string or just before one trailing newline, so
+// `re.match(r"^[a-z0-9]+$", "mytheme\n")` is true — a name check reached
+// only through a block scalar (`theme: |\n  mytheme\n`), but real. Found by
+// a fresh-context verifier (iteration 14's non-colour-design-slice sweep).
+func TestValidateThemeAllowsATrailingNewline(t *testing.T) {
+	errs := design.ValidateTheme(
+		themeNode(t, `"mytheme\n"`), []string{"design"}, schemaerr.SourceMain,
+	)
+	if len(errs) != 0 {
+		t.Errorf("errs = %+v, want none — a trailing newline passes upstream's $", errs)
+	}
+}
+
 // Spec 004 §3.17 behavior 65: the location is pinned, and the pin is what keeps
 // it.
 //
