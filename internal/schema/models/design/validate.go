@@ -2,7 +2,6 @@ package design
 
 import (
 	"errors"
-	"path/filepath"
 	"strings"
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/binder"
@@ -14,12 +13,58 @@ import (
 // relativeTo is what a custom theme's folder is resolved against: the input
 // file's directory, or the working directory when there is no input file
 // (`design.py:55-56`).
+//
+// **`uncleanedDir`, not `filepath.Dir`.** `Dir` calls `Clean`, which
+// collapses every `..` segment — Python's `PurePath.parent` does not, so
+// `rendercv render ./bb/../bb/CV.yaml` resolves a theme against
+// `./bb/../bb`, not the fully-simplified `bb`. `absoluteLikePython`
+// (customtheme.go) only stopped the *next* cleaning step; this one runs
+// first and had already thrown the information away. Found by a
+// fresh-context verifier (iteration 14's nineteenth re-verification).
 func relativeTo(ctx *valctx.ValidationContext) string {
 	path, ok := ctx.InputPath()
 	if !ok {
 		return "."
 	}
-	return filepath.Dir(path)
+	return uncleanedDir(path)
+}
+
+// uncleanedDir is `PurePath.parent`: `pathlib`'s own parse, which drops
+// empty and `.` segments but — unlike `filepath.Clean` — never resolves a
+// `..` segment against its neighbor. `Path("./bb/../bb/CV.yaml").parent` is
+// `bb/../bb`, not `bb` and not `./bb/../bb`.
+func uncleanedDir(path string) string {
+	absolute, parts := pathlibParts(path)
+	if len(parts) == 0 {
+		return "."
+	}
+	return pathlibJoin(absolute, parts[:len(parts)-1])
+}
+
+// pathlibParts is `pathlib`'s POSIX parser: split on `/`, drop empty and
+// `.` segments, keep everything else — `..` included — in order.
+func pathlibParts(path string) (absolute bool, parts []string) {
+	absolute = strings.HasPrefix(path, "/")
+	for _, segment := range strings.Split(path, "/") {
+		if segment == "" || segment == "." {
+			continue
+		}
+		parts = append(parts, segment)
+	}
+	return absolute, parts
+}
+
+// pathlibJoin reassembles what `pathlibParts` split, the way `pathlib`
+// prints a path: an empty, relative result is `.`, never `""`.
+func pathlibJoin(absolute bool, parts []string) string {
+	joined := strings.Join(parts, "/")
+	if absolute {
+		return "/" + joined
+	}
+	if joined == "" {
+		return "."
+	}
+	return joined
 }
 
 // CodeModelAttributesType is a `design` that is not a mapping. It is the only
