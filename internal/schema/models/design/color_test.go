@@ -298,6 +298,11 @@ func TestAlphaRoundsOnTheExactBinaryValue(t *testing.T) {
 		{"0.155", "rgba(1, 2, 3, 0.15)"},
 		{"0.265", "rgba(1, 2, 3, 0.27)"},
 		{"0.996", "rgba(1, 2, 3, 1.0)"},
+		// **`-0.0 == 0` is true in Go, and equality alone throws the sign
+		// away.** Python's `str(round(-0.0, 2))` is `'-0.0'`. Found by a
+		// fresh-context verifier (iteration 14's nineteenth
+		// re-verification).
+		{"-0.0", "rgba(1, 2, 3, -0.0)"},
 	}
 	for _, test := range tests {
 		t.Run(test.alpha, func(t *testing.T) {
