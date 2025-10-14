@@ -25,6 +25,23 @@ func TestSandboxBlocksEscapes(t *testing.T) {
 		{"loadfile", `loadfile("/etc/passwd") return {}`},
 		{"package", `local p = package.path return {}`},
 		{"debug", `debug.getinfo(1) return {}`},
+		// **The other ten of the seventeen names `blocked` (sandbox.go)
+		// lists**, previously verified only by reading the source, not by
+		// a test — a fresh-context verifier's own transcript is not what
+		// spec 014 §4's fourth criterion means by "asserted rather than
+		// assumed": deleting one of these ten from `blocked` failed
+		// nothing here before. Found by a fresh-context verifier
+		// (iteration 14's nineteenth re-verification).
+		{"print", `print("x") return {}`},
+		{"_printregs", `_printregs() return {}`},
+		{"collectgarbage", `collectgarbage("collect") return {}`},
+		{"newproxy", `local p = newproxy() return {}`},
+		{"module", `module("x") return {}`},
+		{"channel", `local c = channel.make() return {}`},
+		{"load", `local f = load("return 1") return {}`},
+		{"loadstring", `local f = loadstring("return 1") return {}`},
+		{"setfenv", `setfenv(1, {}) return {}`},
+		{"getfenv", `local e = getfenv(1) return {}`},
 	} {
 		t.Run(script.name, func(t *testing.T) {
 			if _, err := luatheme.Run(script.body); err == nil {
