@@ -1,6 +1,9 @@
 package luatheme_test
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -16,12 +19,23 @@ import (
 // table-driven test, so removing one from the list fails loudly instead of
 // quietly widening what a theme can do.
 func TestSandboxBlocksEscapes(t *testing.T) {
+	// **`dofile("/etc/passwd")` errors whether or not `dofile` is
+	// blocked** — `/etc/passwd` is not valid Lua, so the test passed for
+	// the wrong reason: removing `dofile` from `blocked` failed nothing.
+	// A harmless, genuinely valid `.lua` file makes the *block* the only
+	// thing that can raise an error. Found by a fresh-context verifier
+	// (iteration 14's twentieth re-verification).
+	harmless := filepath.Join(t.TempDir(), "harmless.lua")
+	if err := os.WriteFile(harmless, []byte("return nil"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
 	for _, script := range []struct{ name, body string }{
 		{"io", `local f = io.open("/etc/passwd") return {}`},
 		{"os execute", `os.execute("true") return {}`},
 		{"os getenv", `local v = os.getenv("HOME") return {}`},
 		{"require", `require("os") return {}`},
-		{"dofile", `dofile("/etc/passwd") return {}`},
+		{"dofile", fmt.Sprintf(`dofile(%q) return {}`, harmless)},
 		{"loadfile", `loadfile("/etc/passwd") return {}`},
 		{"package", `local p = package.path return {}`},
 		{"debug", `debug.getinfo(1) return {}`},
@@ -38,7 +52,14 @@ func TestSandboxBlocksEscapes(t *testing.T) {
 		{"newproxy", `local p = newproxy() return {}`},
 		{"module", `module("x") return {}`},
 		{"channel", `local c = channel.make() return {}`},
-		{"load", `local f = load("return 1") return {}`},
+		// **`load("return 1")` errors whether or not `load` is blocked
+		// too** — gopher-lua's `load` is Lua 5.1's, which takes a chunk
+		// *reader function*, not a string; unblocked, this call itself
+		// raises "bad argument #1". `load(function() ... end)` is the
+		// well-formed 5.1 call and would succeed if `load` were reachable.
+		// Found by a fresh-context verifier (iteration 14's twentieth
+		// re-verification).
+		{"load", `local f = load(function() return "return 1" end) return {}`},
 		{"loadstring", `local f = loadstring("return 1") return {}`},
 		{"setfenv", `setfenv(1, {}) return {}`},
 		{"getfenv", `local e = getfenv(1) return {}`},
