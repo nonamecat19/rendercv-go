@@ -131,9 +131,33 @@ func ParseColor(value string) (Color, error) {
 func ParseColorTuple(elements []string) (Color, error) {
 	typed := make([]colorElement, len(elements))
 	for i, raw := range elements {
-		typed[i] = colorElement{Raw: raw, Coerce: true}
+		typed[i] = colorElement{Raw: raw, Coerce: true, IsPythonInt: looksLikePlainInt(raw)}
 	}
 	return parseColorElements(typed)
+}
+
+// looksLikePlainInt is `validColorNode`'s `elem.Kind == yamldoc.KindInt`,
+// reconstructed from text alone — this function's caller has already lost
+// the original `yamldoc.Kind` by the time a document's sequence reaches
+// here (`bridge.mappingOf`'s projection). A plain decimal integer is far
+// the common case for an unquoted YAML int; a hex/octal/binary literal
+// never produces a signed zero in the first place (`strconv.ParseInt`'s
+// `int64` has none), so only the plain-decimal shape needs the check.
+func looksLikePlainInt(text string) bool {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return false
+	}
+	unsigned := strings.TrimLeft(trimmed, "+-")
+	if unsigned == "" {
+		return false
+	}
+	for _, r := range unsigned {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // colorElement is one colour-tuple element together with whether the
@@ -144,6 +168,17 @@ func ParseColorTuple(elements []string) (Color, error) {
 type colorElement struct {
 	Raw    string
 	Coerce bool
+
+	// IsPythonInt marks an element YAML itself resolved to a plain integer
+	// (`KindInt`, no decimal point). **A Python `int` has no negative
+	// zero** — `-0 == 0` and `float(0)` is always `+0.0` — where a `float`
+	// or a quoted `str` does (`float(-0.0)` and `float("-0")` are both
+	// `-0.0`). `strconv.ParseFloat("-0", 64)` produces Go's signed zero
+	// regardless of the source, which the fix for a *float*-sourced
+	// `-0.0` alpha (below) would otherwise print as `-0.0` for an
+	// int-sourced `-0` too — a value Python never produces. Found by a
+	// fresh-context verifier (iteration 14's twentieth re-verification).
+	IsPythonInt bool
 }
 
 // parseColorElements is `ParseColorTuple` with each element's coercion
@@ -167,6 +202,10 @@ func parseColorElements(elements []colorElement) (Color, error) {
 		value, err := parseAlpha(elements[3].Raw, elements[3].Coerce)
 		if err != nil {
 			return Color{}, err
+		}
+		if value != nil && *value == 0 && elements[3].IsPythonInt {
+			positive := math.Copysign(0, 1)
+			value = &positive
 		}
 		alpha = value
 	}

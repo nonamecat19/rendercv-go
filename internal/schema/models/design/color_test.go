@@ -303,6 +303,13 @@ func TestAlphaRoundsOnTheExactBinaryValue(t *testing.T) {
 		// fresh-context verifier (iteration 14's nineteenth
 		// re-verification).
 		{"-0.0", "rgba(1, 2, 3, -0.0)"},
+		// **A plain integer `-0` has no negative zero in Python** —
+		// `int(-0) == 0` and `float(0)` is always `+0.0` — where a float
+		// or a quoted string does. Regression: the `-0.0` fix above,
+		// applied without this distinction, printed `-0.0` for an
+		// int-sourced `-0` too. Found by a fresh-context verifier
+		// (iteration 14's twentieth re-verification).
+		{"-0", "rgba(1, 2, 3, 0.0)"},
 	}
 	for _, test := range tests {
 		t.Run(test.alpha, func(t *testing.T) {

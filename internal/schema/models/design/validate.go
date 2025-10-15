@@ -437,7 +437,9 @@ func validColorNode(node *yamldoc.Node) error {
 			// coercion. Found by a fresh-context verifier (iteration 14's
 			// sixteenth re-verification).
 			coerce := elem.Kind == yamldoc.KindBool || elem.Kind == yamldoc.KindInt
-			elements = append(elements, colorElement{Raw: elem.Raw, Coerce: coerce})
+			elements = append(elements, colorElement{
+				Raw: elem.Raw, Coerce: coerce, IsPythonInt: elem.Kind == yamldoc.KindInt,
+			})
 		}
 		_, err := parseColorElements(elements)
 		return err
