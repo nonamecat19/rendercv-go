@@ -124,22 +124,23 @@ this iteration's contract.
 
 ## 5. Status
 
-**Verified nine times by a fresh context, FAIL every time** (`specs/STATE.md`, "Iteration 14
-[re-]verified..." sections, 2026-08-10). Each pass found real defects the previous one's own tests
-could not see — three blockers on the first pass, regressions in the fix itself on the second,
-third and sixth passes, a fourth door into the same leak class on the fourth, two blockers reaching
-*built-in* themes (not just scripted custom ones) on the fifth, two more on the seventh — one of
-which proved the fifth and sixth passes' scripted-`font_family`-as-mapping test coverage had been
-vacuous, because `ValidateScript` was silently discarding those scripts whole before any of the
-assertions ran — and the eighth found the seventh's own carve-out only checked shape, not contents,
-plus a pre-existing list-shape blind spot in `ValidateScript`. The ninth found two more holes in
-exactly the code the eighth had just touched: a document-side list at `font_family` and a
-script-side empty table for the tree's one list-valued field, the latter tripping the same
-all-or-nothing script-drop as the fourth and seventh passes' findings. The ninth pass also caught
-that the eighth's three fixes had shipped with no test at all; every finding is fixed and pinned by
-a test now. The four §4 boxes above reflect what the fixes cover today, not a claim that the
-criteria are closed for good — nine passes finding a defect each time is reason to expect a tenth
-would too.
+**Re-verified 19 times by a fresh context as of 2026-08-10, FAIL every pass through the 19th** —
+the authoritative, maintained account is `specs/STATE.md`'s iteration 14 row and its dated log
+entries ("Iteration 14's Nth re-verification"); this paragraph is a narrative summary of the first
+nine and goes stale every time it isn't updated in lockstep, which is itself a finding (pass 19).
+Read `STATE.md` for the current count and the full defect history, not this file. Passes one
+through nine: three blockers on the first, regressions in the fix itself on the second, third and
+sixth, a fourth door into the same leak class on the fourth, two blockers reaching *built-in*
+themes (not just scripted custom ones) on the fifth, two more on the seventh — one of which proved
+the fifth and sixth passes' scripted-`font_family`-as-mapping test coverage had been vacuous,
+because `ValidateScript` was silently discarding those scripts whole before any assertion ran —
+and the eighth found the seventh's own carve-out checked shape but not contents, plus a
+pre-existing list-shape blind spot in `ValidateScript`; the ninth found two more holes in exactly
+the code the eighth had just touched, and caught that the eighth's fixes had shipped with no test.
+Passes 10 through 19 continued the same pattern across colour-tuple parsing, null handling,
+theme-name stringification, the Lua sandbox's resource bounds, and path/symlink handling — see
+`STATE.md` for each. The four §4 boxes above reflect what the fixes cover today, not a claim that
+the criteria are closed for good.
 
 **Two items are deliberately still open rather than fixed.** The first is upstream's
 forbid-extra rejection of an unknown design key on a scripted custom theme (`theme_data_model_class`,

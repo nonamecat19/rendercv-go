@@ -108,16 +108,6 @@ func isSequence(table *lua.LTable) bool {
 	return sequence && count == length
 }
 
-// sequenceOf reads a Lua sequence into the `[]string` shape `EffectiveStrings`
-// and the tree's `KindStringList` fields already expect — but a sequence is
-// also how a colour tuple arrives (`colors.name = {1, 2, 3}`), whose elements
-// are numbers, not strings. **Only a function or userdata is genuinely not a
-// design value**; a number or a bool has to survive as the text a document's
-// equivalent YAML sequence would carry (`design/validate.go`'s
-// `ParseColorTuple` and `parseNumericText` parse exactly this shape), or a
-// script's own colour tuple silently loses every element and reaches the
-// artifact as an empty list. Found by a fresh-context verifier (iteration
-// 14's thirteenth re-verification).
 // isNumericKeyedOnly reports whether every key in a non-empty table is a
 // Lua number — the shape `isSequence` rejects only because of a gap, not
 // because the table is genuinely a string-keyed map.
@@ -170,6 +160,16 @@ func sparseSequenceOf(table *lua.LTable) []string {
 	return out
 }
 
+// sequenceOf reads a Lua sequence into the `[]string` shape `EffectiveStrings`
+// and the tree's `KindStringList` fields already expect — but a sequence is
+// also how a colour tuple arrives (`colors.name = {1, 2, 3}`), whose elements
+// are numbers, not strings. **Only a function or userdata is genuinely not a
+// design value**; a number or a bool has to survive as the text a document's
+// equivalent YAML sequence would carry (`design/validate.go`'s
+// `ParseColorTuple` and `parseNumericText` parse exactly this shape), or a
+// script's own colour tuple silently loses every element and reaches the
+// artifact as an empty list. Found by a fresh-context verifier (iteration
+// 14's thirteenth re-verification).
 func sequenceOf(table *lua.LTable) []string {
 	length := table.Len()
 	out := make([]string, 0, length)
