@@ -78,7 +78,9 @@ func TestDocumentNamedOverlaysResolveAgainstInputDir(t *testing.T) {
 	raw := []byte("cv:\n  name: John Doe\nsettings:\n  render_command:\n" +
 		"    design: mydesign.yaml\n    locale: mylocale.yaml\n")
 
-	resolveNamedOverlays(&options, raw)
+	if err := resolveNamedOverlays(&options, raw); err != nil {
+		t.Fatalf("resolveNamedOverlays: %v", err)
+	}
 
 	if want := filepath.Join("sub", "mydesign.yaml"); options.DesignPath != want {
 		t.Errorf("DesignPath = %q, want %q", options.DesignPath, want)
@@ -99,7 +101,9 @@ func TestCLIFlagWinsOverDocumentNamedOverlay(t *testing.T) {
 	raw := []byte("cv:\n  name: John Doe\nsettings:\n  render_command:\n" +
 		"    design: mydesign.yaml\n")
 
-	resolveNamedOverlays(&options, raw)
+	if err := resolveNamedOverlays(&options, raw); err != nil {
+		t.Fatalf("resolveNamedOverlays: %v", err)
+	}
 
 	if options.DesignPath != "cli-design.yaml" {
 		t.Errorf("DesignPath = %q, want the CLI flag's value untouched", options.DesignPath)
