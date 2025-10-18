@@ -51,7 +51,7 @@ func yamlSyntaxValidationError(
 		SchemaLocation: nil,
 		YamlLocation:   yamlErrorLocation(parserErr, content),
 		YamlSource:     source,
-		Message:        fmt.Sprintf("This is not a valid YAML file. %s", parserMessage(parserErr.Error())),
+		Message:        fmt.Sprintf("This is not a valid YAML file. %s", parserMessage(parserErr.Error(), content)),
 		Input:          schemaerr.InputEllipsis,
 	}
 }
@@ -86,11 +86,20 @@ var ruamelPhrasing = []struct{ goccy, ruamel string }{
 //
 // The first line is mapped onto ruamel's phrasing first, so what upstream
 // interpolates and what the port interpolates agree for the mapped set.
-func parserMessage(text string) string {
+func parserMessage(text, content string) string {
 	if i := strings.IndexByte(text, '\n'); i >= 0 {
 		text = text[:i]
 	}
 	text = strings.TrimSpace(text)
+
+	// **An unterminated flow collection has two ruamel phrasings, not one**, and
+	// goccy's message cannot tell them apart: `cv: [` and `cv: [a` produce the
+	// identical `sequence end token ']' not found`. ruamel distinguishes them by
+	// what its parser was doing when the stream ended — see
+	// flowNodeExpectedAtEOF.
+	if flowNodeExpectedAtEOF(text, content) {
+		return "while parsing a flow node."
+	}
 
 	for _, row := range ruamelPhrasing {
 		if strings.Contains(text, row.goccy) {
@@ -119,6 +128,111 @@ func parserMessage(text string) string {
 var unterminatedConstructMessages = []string{
 	"sequence end token", // `this: [is, not, a, cv` — the corpus case
 	"flow map content",   // `name: {John` — measured separately, same shape
+	"flow mapping end",   // `name: {` — the empty shape, see flowNodeExpectedAtEOF
+}
+
+// flowNodeExpectedAtEOF reports whether ruamel would have been *waiting for a
+// node* when the stream ended, rather than waiting for a separator or a closing
+// delimiter.
+//
+// **This is the difference between two ruamel phrasings that goccy reports
+// identically.** `cv: [a` and `cv: [` both come out of goccy as `sequence end
+// token ']' not found`, but ruamel says `while parsing a flow sequence` for the
+// first and `while parsing a flow node` for the second — and it reports them at
+// different places: the sequence form carries a context mark at the opening
+// `[` and a problem mark at EOF, so it spans lines, while the node form puts
+// both marks at EOF and so reports a single line.
+//
+// The discriminator, measured against ruamel on eleven shapes: the parser wants
+// a node exactly when the last significant character of the document is an
+// opening flow delimiter or a comma. Comments and blank lines are not
+// significant; a trailing comma counts, so `cv: [a,` is the node form even
+// though it has content, and `cv: {a: 1,` likewise.
+func flowNodeExpectedAtEOF(message, content string) bool {
+	unterminated := false
+	for _, candidate := range unterminatedConstructMessages {
+		if strings.Contains(message, candidate) {
+			unterminated = true
+			break
+		}
+	}
+	if !unterminated {
+		return false
+	}
+
+	switch lastSignificantByte(content) {
+	case '[', '{', ',':
+		return true
+	default:
+		return false
+	}
+}
+
+// lastSignificantByte returns the final byte of the document that YAML would
+// treat as content, skipping trailing whitespace and comments. It is
+// quote-aware, because a `#` inside a quoted scalar does not open a comment and
+// a `[` inside one is not a delimiter — `cv: ["a#b"` and `cv: ["a["` are both
+// the sequence form, measured.
+func lastSignificantByte(content string) byte {
+	var last byte
+	inSingle, inDouble, inComment := false, false, false
+	var prev byte
+
+	for i := 0; i < len(content); i++ {
+		c := content[i]
+
+		switch {
+		case inComment:
+			if c == '\n' {
+				inComment = false
+			}
+			prev = c
+			continue
+		case inSingle:
+			if c == '\'' {
+				inSingle = false
+			}
+			last, prev = c, c
+			continue
+		case inDouble:
+			// A backslash escapes the next byte, so an escaped quote does not
+			// close the scalar.
+			if c == '\\' && i+1 < len(content) {
+				i++
+				last, prev = content[i], content[i]
+				continue
+			}
+			if c == '"' {
+				inDouble = false
+			}
+			last, prev = c, c
+			continue
+		}
+
+		// A `#` opens a comment only at the start of a line or after
+		// whitespace; `a#b` is a single plain scalar.
+		if c == '#' && (prev == 0 || prev == ' ' || prev == '\t' || prev == '\n') {
+			inComment = true
+			prev = c
+			continue
+		}
+
+		switch c {
+		case '\'':
+			inSingle = true
+			last = c
+		case '"':
+			inDouble = true
+			last = c
+		case ' ', '\t', '\n', '\r':
+			// not significant
+		default:
+			last = c
+		}
+		prev = c
+	}
+
+	return last
 }
 
 // yamlErrorLocation mirrors get_yaml_error_location
@@ -149,6 +263,16 @@ func yamlErrorLocation(parserErr goyaml.Error, content string) *yamldoc.Span {
 	end := start
 
 	message := parserErr.Error()
+
+	// **The node form collapses to EOF instead of spanning to it.** ruamel puts
+	// both marks at the end of the stream when it was waiting for a node, so
+	// the location is a single line and not a range — `cv: [` reports `line 2`,
+	// where `cv: [a` reports `line 1 to line 2`.
+	if flowNodeExpectedAtEOF(message, content) {
+		eof := yamldoc.Position{Line: strings.Count(content, "\n") + 1, Column: 1}
+		return &yamldoc.Span{Start: eof, End: eof}
+	}
+
 	for _, unterminated := range unterminatedConstructMessages {
 		if strings.Contains(message, unterminated) {
 			if eof := strings.Count(content, "\n") + 1; eof > end.Line {
