@@ -131,6 +131,22 @@ var unterminatedConstructMessages = []string{
 	"flow mapping end",   // `name: {` — the empty shape, see flowNodeExpectedAtEOF
 }
 
+// spanToEOFMessages are every failure whose span runs from the token to the
+// end of the stream — the unterminated flow collections above, plus an
+// unterminated quoted scalar, whose scanner likewise reads to EOF hunting for
+// the closing quote. Measured: `cv: "a` reports `line 1 to line 2` and
+// `cv: "a\nb\nc` reports `line 1 to line 4`.
+//
+// **The quoted case is deliberately not in unterminatedConstructMessages**,
+// because that list also gates flowNodeExpectedAtEOF and a quoted scalar can
+// legitimately end in a comma: `cv: ["a,` is ruamel's *quoted scalar* failure,
+// not its flow-node one, so routing it through the node check would report the
+// wrong construct at the wrong line.
+var spanToEOFMessages = append(
+	append([]string{}, unterminatedConstructMessages...),
+	"quoted text",
+)
+
 // flowNodeExpectedAtEOF reports whether ruamel would have been *waiting for a
 // node* when the stream ended, rather than waiting for a separator or a closing
 // delimiter.
@@ -273,7 +289,7 @@ func yamlErrorLocation(parserErr goyaml.Error, content string) *yamldoc.Span {
 		return &yamldoc.Span{Start: eof, End: eof}
 	}
 
-	for _, unterminated := range unterminatedConstructMessages {
+	for _, unterminated := range spanToEOFMessages {
 		if strings.Contains(message, unterminated) {
 			if eof := strings.Count(content, "\n") + 1; eof > end.Line {
 				end = yamldoc.Position{Line: eof, Column: 1}
