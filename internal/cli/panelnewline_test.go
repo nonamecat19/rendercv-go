@@ -123,3 +123,42 @@ func TestPanelTrailingNewline(t *testing.T) {
 		})
 	}
 }
+
+// TestNewPanelTrailingNewline is the same rule for `new`, which the first
+// version of the split missed. `new_command.py` builds **no** `ProgressPanel`
+// at all and carries `@handle_user_errors` (`new_command.py:27`), so every
+// `RenderCVUserError` it raises takes the `rich.print` path unconditionally —
+// there is no Live branch for it to fall into.
+//
+// Measured against the vendored CLI at `COLUMNS=80`: 638 bytes for the theme
+// case and 894 for the locale case, both ending 0a, both byte-identical to the
+// port after this fix.
+func TestNewPanelTrailingNewline(t *testing.T) {
+	cases := []struct {
+		name    string
+		options NewOptions
+	}{
+		{name: "unknown theme", options: NewOptions{Name: "John Doe", Theme: "nosuch"}},
+		{name: "unknown locale", options: NewOptions{Name: "John Doe", Locale: "nosuch"}},
+	}
+
+	for _, row := range cases {
+		t.Run(row.name, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+
+			var stdout, stderr bytes.Buffer
+			if code := New(row.options, &stdout, &stderr); code == 0 {
+				t.Fatalf("exit = 0, want a failure; stdout = %q", stdout.String())
+			}
+
+			got := stdout.String()
+			if got == "" {
+				t.Fatalf("no panel on stdout; stderr = %q", stderr.String())
+			}
+			if !strings.HasSuffix(got, "\n") {
+				t.Errorf("panel does not end with a newline (last bytes %q)",
+					got[max(len(got)-8, 0):])
+			}
+		})
+	}
+}

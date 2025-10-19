@@ -62,8 +62,13 @@ func New(options NewOptions, stdout, stderr io.Writer) int {
 	// included (`new_command.py:65-77`): an unknown theme or locale is a
 	// `RenderCVUserError`, which reaches the user as the `Error` panel and
 	// exit 1.
+	// **`new` has no `ProgressPanel` at all** (`new_command.py` builds no Live),
+	// so every `RenderCVUserError` it raises escapes to `@handle_user_errors`
+	// and is printed with `rich.print`, which ends with a newline. The
+	// trailing-newline fix for `render` split the two writers but left this
+	// call on the Live one, so the panel was a byte short.
 	if err := checkNewFlags(options); err != nil {
-		failPanel(stdout, err)
+		failPrintedPanel(stdout, err)
 		return exitValidationError
 	}
 
