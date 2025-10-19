@@ -96,3 +96,65 @@ func TestNewTemplatesReportsExistingFolders(t *testing.T) {
 		t.Errorf("classic/: %v", err)
 	}
 }
+
+// TestNewDoesNotOverwriteAnExistingInputFile pins the exists-or-create rule of
+// `new_command.py:110-119`, where the YAML input file is one item of the same
+// loop the template folders go through rather than a special case.
+//
+// The port wrote it unconditionally and then hardcoded the "Created" row, so
+// `new` silently destroyed a CV the user had already filled in **and reported
+// the opposite of what it did** — measured against the vendored CLI, which
+// leaves a pre-existing file byte-for-byte untouched.
+func TestNewDoesNotOverwriteAnExistingInputFile(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	path := filepath.Join(dir, "John_Doe_CV.yaml")
+	const mine = "cv:\n  name: John Doe # my own work\n"
+	if err := os.WriteFile(path, []byte(mine), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := cli.New(cli.NewOptions{Name: "John Doe"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit = %d, stderr = %q", code, stderr.String())
+	}
+
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != mine {
+		t.Errorf("the existing input file was overwritten:\n%s", after)
+	}
+
+	// The panel must report what actually happened, and only the created form
+	// carries the check mark.
+	if !strings.Contains(stdout.String(), "Your YAML input file already exists: ./John_Doe_CV.yaml") {
+		t.Errorf("stdout missing the already-exists row:\n%s", stdout.String())
+	}
+	if strings.Contains(stdout.String(), "✓ Created your YAML input file") {
+		t.Errorf("stdout claims it created the file:\n%s", stdout.String())
+	}
+}
+
+// The other half of the same rule: an absent input file is still written, and
+// still reported as created.
+func TestNewCreatesAnAbsentInputFile(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	var stdout, stderr bytes.Buffer
+	code := cli.New(cli.NewOptions{Name: "John Doe"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("exit = %d, stderr = %q", code, stderr.String())
+	}
+
+	if _, err := os.Stat(filepath.Join(dir, "John_Doe_CV.yaml")); err != nil {
+		t.Errorf("John_Doe_CV.yaml: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "✓ Created your YAML input file: ./John_Doe_CV.yaml") {
+		t.Errorf("stdout missing the created row:\n%s", stdout.String())
+	}
+}
