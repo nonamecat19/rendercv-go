@@ -314,6 +314,80 @@ func TestUnterminatedFlowSequenceSpansToEOF(t *testing.T) {
 	}
 }
 
+// TestMultiDocumentStreamIsRejected pins ruamel's composer failure. Upstream
+// loads the input with a plain `YAML().load`, which composes one document and
+// raises when a second begins; the port read `Docs[0]` and ignored the rest,
+// so `---\ncv:\n  name: A\n---\nb: 2\n` rendered A's CV at exit 0 where
+// upstream exits 1.
+//
+// The marks are not the failing token's: ruamel's context mark is where the
+// first document's *content* began and its problem mark is the second
+// document's `---`. Every pair below was read off the raised ruamel exception
+// and confirmed end to end against the vendored CLI.
+func TestMultiDocumentStreamIsRejected(t *testing.T) {
+	tests := []struct {
+		name               string
+		src                string
+		startLine, endLine int
+	}{
+		{
+			name: "an explicit first document",
+			src:  "---\ncv:\n  name: A\n---\nb: 2\n", startLine: 2, endLine: 4,
+		},
+		{
+			name: "an implicit first document",
+			src:  "cv:\n  name: A\n---\nb: 2\n", startLine: 1, endLine: 3,
+		},
+		{
+			name: "an end marker between the two",
+			src:  "a: 1\n...\n---\nb: 2\n", startLine: 1, endLine: 3,
+		},
+		{
+			// Three documents report the *first* extra one, not the last.
+			name: "three documents",
+			src:  "---\na: 1\n---\nb: 2\n---\nc: 3\n", startLine: 2, endLine: 3,
+		},
+	}
+
+	const want = "This is not a valid YAML file. expected a single document in the stream."
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := ReadYamlWithValidationErrors(test.src, schemaerr.SourceMain)
+
+			var userErr *schemaerr.UserValidationError
+			if !errors.As(err, &userErr) {
+				t.Fatalf("expected *schemaerr.UserValidationError, got %T: %v", err, err)
+			}
+
+			if got := userErr.Errors[0].Message; got != want {
+				t.Errorf("message =\n  %q\nwant\n  %q", got, want)
+			}
+
+			span := userErr.Errors[0].YamlLocation
+			if span == nil {
+				t.Fatal("yaml location = nil, want a span")
+			}
+			if span.Start.Line != test.startLine || span.End.Line != test.endLine {
+				t.Errorf("location = line %d to line %d, want line %d to line %d",
+					span.Start.Line, span.End.Line, test.startLine, test.endLine)
+			}
+		})
+	}
+}
+
+// A single document carrying the optional `---` and `...` markers is not a
+// multi-document stream, and must keep parsing as it always did.
+func TestSingleDocumentWithMarkersStillParses(t *testing.T) {
+	for _, src := range []string{"---\ncv:\n  name: A\n", "a: 1\n...\n", "---\na: 1\n...\n"} {
+		t.Run(src, func(t *testing.T) {
+			if _, err := ReadYamlWithValidationErrors(src, schemaerr.SourceMain); err != nil {
+				t.Errorf("err = %v, want nil", err)
+			}
+		})
+	}
+}
+
 // TestFlowNodeShapeReportsAtEOF pins the second of ruamel's two phrasings for
 // an unterminated flow collection. goccy reports `cv: [` and `cv: [a`
 // identically (`sequence end token ']' not found`), but ruamel does not: it
