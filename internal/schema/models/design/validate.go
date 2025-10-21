@@ -362,12 +362,24 @@ var boolFalsy = map[string]bool{
 //
 //	show_footer: yes         accepted        — a truthy word
 //	show_footer: 1           accepted        — an int, but only 0 or 1
+//	show_footer: 1.0         accepted        — a float, but only 0.0 or 1.0
+//	show_footer: 0x1         accepted        — any int spelling worth 0 or 1
 //	show_footer: "yes please" bool_parsing   — a string it cannot interpret
-//	show_footer: 1.5          bool_type      — a float is not coerced at all
+//	show_footer: 1.5          bool_type      — a float that is not whole
 //	show_footer: [1]          bool_type      — nor is a collection
 //
-// The two codes are the whole point: a string that fails is `bool_parsing`, and
-// anything that is not a string or an int is `bool_type`.
+// **A number is judged by its value, not by its spelling.** pydantic's lax bool
+// mode takes any `int` worth 0 or 1 and any `float` that is exactly 0.0 or 1.0,
+// so `1.0`, `0.0`, `-0.0`, `1e0`, `0x1`, `0o1`, `0b1` and `+1` all render — the
+// coercion is real, `links.underline: 0o0` emitting `links-underline: false,`
+// byte for byte. This arm used to reject every float outright and compare an
+// int's *text* against `"0"`/`"1"`, which failed all eight. Found by a
+// fresh-context verifier (iteration 14's twenty-second re-verification).
+//
+// `parseNumericText` is the colour tuple's `float()`, reused here for the same
+// reason: only a value YAML itself resolved to an int is eligible for the
+// hex/octal/binary coercion, so a quoted `"0x1"` — a Python `str` upstream —
+// stays a string and fails, as `float("0x1")` does.
 func validBoolNode(node *yamldoc.Node) error {
 	switch node.Kind {
 	case yamldoc.KindBool:
@@ -377,13 +389,16 @@ func validBoolNode(node *yamldoc.Node) error {
 			return nil
 		}
 		return errBoolParsing
-	case yamldoc.KindInt:
-		if node.Raw == "0" || node.Raw == "1" {
+	case yamldoc.KindInt, yamldoc.KindFloat:
+		// A `.nan`/`.inf` token does not parse here at all, which is the same
+		// answer its value would earn: neither is 0 or 1.
+		if value, ok := parseNumericText(node.Raw, node.Kind == yamldoc.KindInt); ok &&
+			(value == 0 || value == 1) {
 			return nil
 		}
 		return errBoolType
-	case yamldoc.KindNull, yamldoc.KindFloat, yamldoc.KindMapping, yamldoc.KindSequence:
-		// A float is not coerced even when it is 1.0, and a collection never is.
+	case yamldoc.KindNull, yamldoc.KindMapping, yamldoc.KindSequence:
+		// A collection is never coerced.
 	}
 	return errBoolType
 }
