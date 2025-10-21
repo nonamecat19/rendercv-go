@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
@@ -353,5 +354,30 @@ func TestBlockScalarsInASequence(t *testing.T) {
 	entry := value(t, doc, "notes").Elems[0]
 	if entry.Raw != "first\nsecond\n" {
 		t.Errorf("= %q, want the block's body", entry.Raw)
+	}
+}
+
+// TestExplicitNullDocumentIsEmpty pins upstream's actual predicate. Its check
+// is `yaml.load(file_content) is None` (`yaml_reader.py:55-57`), so a document
+// whose whole value is an explicit null loads to `None` exactly as a zero-byte
+// file does and reports the same `RenderCVUserError`.
+//
+// The port keyed on the *absence* of a document instead, so `null` fell
+// through to the model builder and reached the user as a validation table
+// (1504 bytes) where upstream prints the 553-byte `Error` panel. All six
+// spellings below are byte-identical against the vendored CLI after the fix.
+func TestExplicitNullDocumentIsEmpty(t *testing.T) {
+	for _, src := range []string{"null\n", "~\n", "Null\n", "NULL\n", "# comment\n", ""} {
+		t.Run(strings.TrimSpace(src), func(t *testing.T) {
+			_, err := yamlreader.ReadString(src)
+
+			var userErr *schemaerr.UserError
+			if !errors.As(err, &userErr) {
+				t.Fatalf("err = %v (%T), want *schemaerr.UserError", err, err)
+			}
+			if userErr.Message != "The input file is empty!" {
+				t.Errorf("message = %q, want %q", userErr.Message, "The input file is empty!")
+			}
+		})
 	}
 }
