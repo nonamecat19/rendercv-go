@@ -95,12 +95,56 @@ func TestDesignBlock(t *testing.T) {
 			location: "design.page.show_footer",
 		},
 		{
-			// bool_type, because a float is not coerced at all — the code
-			// differs from the row above and the message does too.
+			// bool_type, because a fractional float is a shape pydantic will
+			// not narrow — the code differs from the row above and the message
+			// does too.
 			name:     "a float where a boolean belongs",
 			input:    "design:\n  theme: classic\n  page:\n    show_footer: 1.5\n",
 			code:     "bool_type",
 			message:  "Input should be a valid boolean",
+			location: "design.page.show_footer",
+		},
+		{
+			// A tiny exponent is fractional too, so it takes the same code as
+			// `1.5` rather than the whole-number one below.
+			name:     "a fractional exponent where a boolean belongs",
+			input:    "design:\n  theme: classic\n  page:\n    show_footer: 1e-7\n",
+			code:     "bool_type",
+			message:  "Input should be a valid boolean",
+			location: "design.page.show_footer",
+		},
+		{
+			// **A whole number that is not 0 or 1 is bool_parsing**: pydantic
+			// narrows it to an int and then fails *reading* it as a bool. The
+			// port used to report bool_type here, printing a message two lines
+			// shorter than upstream's in the validation panel. Measured on `2`,
+			// `-1`, `2.0` and `1_0`; found by a fresh-context verifier
+			// (iteration 14's twenty-second re-verification).
+			name:     "an integer where a boolean belongs",
+			input:    "design:\n  theme: classic\n  page:\n    show_footer: 2\n",
+			code:     "bool_parsing",
+			message:  "Input should be a valid boolean, unable to interpret input",
+			location: "design.page.show_footer",
+		},
+		{
+			name:     "a negative integer where a boolean belongs",
+			input:    "design:\n  theme: classic\n  page:\n    show_footer: -1\n",
+			code:     "bool_parsing",
+			message:  "Input should be a valid boolean, unable to interpret input",
+			location: "design.page.show_footer",
+		},
+		{
+			name:     "a whole float where a boolean belongs",
+			input:    "design:\n  theme: classic\n  page:\n    show_footer: 2.0\n",
+			code:     "bool_parsing",
+			message:  "Input should be a valid boolean, unable to interpret input",
+			location: "design.page.show_footer",
+		},
+		{
+			name:     "a digit-separated integer where a boolean belongs",
+			input:    "design:\n  theme: classic\n  page:\n    show_footer: 1_0\n",
+			code:     "bool_parsing",
+			message:  "Input should be a valid boolean, unable to interpret input",
 			location: "design.page.show_footer",
 		},
 		{

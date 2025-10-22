@@ -2,6 +2,7 @@ package design
 
 import (
 	"errors"
+	"math"
 	"strings"
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/binder"
@@ -317,7 +318,7 @@ func validateField(
 
 	case KindBool:
 		if err := validBoolNode(node); err != nil {
-			return one(node, boolCode(node), err.Error(), location, source)
+			return one(node, boolCode(err), err.Error(), location, source)
 		}
 
 	case KindFontFamily:
@@ -365,6 +366,7 @@ var boolFalsy = map[string]bool{
 //	show_footer: 1.0         accepted        — a float, but only 0.0 or 1.0
 //	show_footer: 0x1         accepted        — any int spelling worth 0 or 1
 //	show_footer: "yes please" bool_parsing   — a string it cannot interpret
+//	show_footer: 2            bool_parsing   — a whole number that is not 0 or 1
 //	show_footer: 1.5          bool_type      — a float that is not whole
 //	show_footer: [1]          bool_type      — nor is a collection
 //
@@ -391,10 +393,21 @@ func validBoolNode(node *yamldoc.Node) error {
 		return errBoolParsing
 	case yamldoc.KindInt, yamldoc.KindFloat:
 		// A `.nan`/`.inf` token does not parse here at all, which is the same
-		// answer its value would earn: neither is 0 or 1.
-		if value, ok := parseNumericText(node.Raw, node.Kind == yamldoc.KindInt); ok &&
-			(value == 0 || value == 1) {
+		// answer its value would earn: neither is 0 or 1, and neither is whole.
+		value, ok := parseNumericText(node.Raw, node.Kind == yamldoc.KindInt)
+		switch {
+		case ok && (value == 0 || value == 1):
 			return nil
+		case ok && isWholeNumber(value):
+			// **A number that is whole but not 0 or 1 is `bool_parsing`, not
+			// `bool_type`.** pydantic's lax mode narrows an integral float to an
+			// int and then fails *reading* it as a bool, which is a different
+			// pydantic error from the one a shape it will not even try earns —
+			// measured differing on `2`, `-1`, `2.0` and `1_0`. Only a
+			// non-integral float (`1.5`, `1e-7`, `.nan`, `.inf`) stays
+			// `bool_type`. Found by a fresh-context verifier (iteration 14's
+			// twenty-second re-verification).
+			return errBoolParsing
 		}
 		return errBoolType
 	case yamldoc.KindNull, yamldoc.KindMapping, yamldoc.KindSequence:
@@ -403,8 +416,17 @@ func validBoolNode(node *yamldoc.Node) error {
 	return errBoolType
 }
 
-func boolCode(node *yamldoc.Node) schemaerr.Code {
-	if node.Kind == yamldoc.KindString {
+// isWholeNumber is Python's `float.is_integer()`, which is false for both a NaN
+// and an infinity as well as for a fractional value.
+func isWholeNumber(value float64) bool {
+	return !math.IsNaN(value) && !math.IsInf(value, 0) && value == math.Trunc(value)
+}
+
+// boolCode reads the code off the error `validBoolNode` returned rather than off
+// the node's shape: a number carries either code depending on its *value*, so
+// the shape alone can no longer tell them apart.
+func boolCode(err error) schemaerr.Code {
+	if errors.Is(err, errBoolParsing) {
 		return CodeBoolParsing
 	}
 	return CodeBoolType
