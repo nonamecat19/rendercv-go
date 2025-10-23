@@ -162,3 +162,52 @@ func TestNewPanelTrailingNewline(t *testing.T) {
 		})
 	}
 }
+
+// TestQuietSilencesTheLiveConsoleOnly pins which panels `--quiet` suppresses.
+//
+// Upstream builds the whole `ProgressPanel` on
+// `rich.console.Console(quiet=quiet)` (`progress_panel.py:62`), so **every**
+// panel that renders through the Live — the success box, `print_user_error`
+// and `print_validation_errors` alike — emits nothing under `-q`. The port
+// gated only the success box, so a validation failure printed its full
+// 1599-byte table where upstream prints zero bytes.
+//
+// The `@handle_user_errors` panel is a plain `rich.print` on a different
+// console and is **not** suppressed: an empty input file under `-q` is 553
+// bytes on both sides. All four rows measured against the vendored CLI.
+func TestQuietSilencesTheLiveConsoleOnly(t *testing.T) {
+	const validCV = "cv:\n  name: John Doe\n"
+
+	cases := []struct {
+		name   string
+		yaml   string
+		silent bool
+	}{
+		{name: "validation error", yaml: validCV[:len(validCV)-1] + "\ndesign:\n  theme: nosuchtheme\n", silent: true},
+		{name: "malformed yaml", yaml: "cv: [\n", silent: true},
+		{name: "success panel", yaml: validCV, silent: true},
+		// The decorator path, outside the Live's console.
+		{name: "empty input file", yaml: "", silent: false},
+	}
+
+	for _, row := range cases {
+		t.Run(row.name, func(t *testing.T) {
+			dir := t.TempDir()
+			input := filepath.Join(dir, "cv.yaml")
+			if err := os.WriteFile(input, []byte(row.yaml), 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			var stdout, stderr bytes.Buffer
+			Render(RenderOptions{
+				InputPath: input, Quiet: true,
+				NoTypst: true, NoPDF: true, NoPNG: true, NoMarkdown: true, NoHTML: true,
+			}, &stdout, &stderr)
+
+			if silent := stdout.Len() == 0; silent != row.silent {
+				t.Errorf("stdout empty = %v, want %v (%d bytes: %q)",
+					silent, row.silent, stdout.Len(), stdout.String())
+			}
+		})
+	}
+}
