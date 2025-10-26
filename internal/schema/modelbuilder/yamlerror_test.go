@@ -731,3 +731,93 @@ func TestFlowInterruptedByABlockLine(t *testing.T) {
 		})
 	}
 }
+
+// TestScanStopsAtADocumentMarker pins that a `---` or `...` ends the stream
+// ruamel's scanner was reading, so an unterminated construct spans to the
+// marker rather than to the physical end of the file.
+//
+// A marker *before* the construct began does not count, and a marker must be
+// unquoted at column 1 — a `"..."` scalar is ordinary content. Measured
+// against ruamel's own marks on every row.
+func TestScanStopsAtADocumentMarker(t *testing.T) {
+	tests := []struct {
+		name               string
+		src                string
+		startLine, endLine int
+	}{
+		{name: "an end marker", src: "cv: [a\n...\n", startLine: 1, endLine: 2},
+		// The `b: 1` here belongs to the *next* document, so it is not the line
+		// that broke this flow — the marker ends the scan before it.
+		{name: "a start marker", src: "cv: [a\n---\nb: 1\n", startLine: 1, endLine: 2},
+		{name: "a marker further down", src: "cv: [a\nb\n...\n", startLine: 1, endLine: 3},
+		// A leading marker precedes the flow, so the scan still reaches EOF.
+		{name: "a leading marker does not clamp", src: "---\ncv: [a\n", startLine: 2, endLine: 3},
+		{name: "leading and trailing markers", src: "---\ncv: [a\n...\n", startLine: 2, endLine: 3},
+		// Quoted dots are content, not a marker, so this one runs to EOF.
+		{name: "dots inside a quoted scalar", src: "cv: [a\n\"...\"\n", startLine: 1, endLine: 3},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := ReadYamlWithValidationErrors(test.src, schemaerr.SourceMain)
+
+			var userErr *schemaerr.UserValidationError
+			if !errors.As(err, &userErr) {
+				t.Fatalf("expected *schemaerr.UserValidationError, got %T: %v", err, err)
+			}
+			span := userErr.Errors[0].YamlLocation
+			if span == nil {
+				t.Fatal("yaml location = nil, want a span")
+			}
+			if span.Start.Line != test.startLine || span.End.Line != test.endLine {
+				t.Errorf("location = line %d to line %d, want line %d to line %d",
+					span.Start.Line, span.End.Line, test.startLine, test.endLine)
+			}
+		})
+	}
+}
+
+// TestAKeyIndicatorOnlyBreaksASatisfiedFlow pins the rule that decides whether
+// a later line ends an open flow collection or is swallowed by it.
+//
+// A colon followed by whitespace makes a line a block-mapping entry, which a
+// flow collection cannot contain — but only when the flow is not already
+// expecting an element. Straight after a comma or the opening delimiter the
+// same text is a legal single-pair flow mapping, and the scan runs on.
+//
+// The empty-flow row is the control for the marker interaction: `cv: [` with a
+// `...` after it is the flow-*node* form, reported at the marker's line alone.
+func TestAKeyIndicatorOnlyBreaksASatisfiedFlow(t *testing.T) {
+	tests := []struct {
+		name               string
+		src                string
+		startLine, endLine int
+	}{
+		{name: "a block line after an element", src: "cv: [a\nb: c\n", startLine: 1, endLine: 2},
+		{name: "indented, which goccy routes elsewhere", src: "cv: [a\n  b: c\n", startLine: 1, endLine: 2},
+		// After a comma the flow wants an element, and `c: d` is one.
+		{name: "a flow pair after a comma", src: "cv: [a,\n  b,\nc: d\n", startLine: 1, endLine: 4},
+		// No space after the colon, so not a key indicator at all.
+		{name: "a colon with no space", src: "cv: [a\nb:c\n", startLine: 1, endLine: 3},
+		{name: "a bare scalar continues the flow", src: "cv: [a\nb\n", startLine: 1, endLine: 3},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := ReadYamlWithValidationErrors(test.src, schemaerr.SourceMain)
+
+			var userErr *schemaerr.UserValidationError
+			if !errors.As(err, &userErr) {
+				t.Fatalf("expected *schemaerr.UserValidationError, got %T: %v", err, err)
+			}
+			span := userErr.Errors[0].YamlLocation
+			if span == nil {
+				t.Fatal("yaml location = nil, want a span")
+			}
+			if span.Start.Line != test.startLine || span.End.Line != test.endLine {
+				t.Errorf("location = line %d to line %d, want line %d to line %d",
+					span.Start.Line, span.End.Line, test.startLine, test.endLine)
+			}
+		})
+	}
+}

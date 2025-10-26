@@ -218,6 +218,88 @@ func flowNodeExpectedAtEOF(message, content string) bool {
 	}
 }
 
+// breakingLine is the first line after `open` that carries a YAML key
+// indicator — a colon followed by whitespace or the end of the line, outside
+// quotes — or 0 when no line does.
+//
+// That indicator is what makes a line a block-mapping entry, which an open
+// flow collection cannot contain, so it is where ruamel's scan stops. `b` and
+// `b:c` carry none and are swallowed by the flow instead. Measured on all
+// three, indented and not.
+// **A key indicator only breaks the flow when the flow is not expecting an
+// element.** After a comma or the opening delimiter, `c: d` is a legal
+// single-pair flow mapping and the collection swallows it — `cv: [a,\n b,\nc: d`
+// runs to EOF — whereas after a complete element the parser wants `,` or the
+// closer, so `cv: [a\n  b: c` stops at the second line.
+func breakingLine(content string, open int) int {
+	lines := strings.Split(content, "\n")
+	// The scan cannot run past the end of the stream, so a block line in a
+	// *following* document is not the one that broke this flow.
+	limit := min(streamEndLine(content, open), len(lines))
+
+	for i := open + 1; i < limit; i++ {
+		if !hasKeyIndicator(lines[i-1]) {
+			continue
+		}
+		switch lastSignificantByte(strings.Join(lines[:i-1], "\n")) {
+		case ',', '[', '{':
+			continue // an element is expected here, so this line is one
+		}
+		return i
+	}
+	return 0
+}
+
+// hasKeyIndicator reports whether a line carries an unquoted `: ` (or a
+// trailing `:`).
+func hasKeyIndicator(text string) bool {
+	inSingle, inDouble := false, false
+	for i := 0; i < len(text); i++ {
+		switch c := text[i]; {
+		case inSingle:
+			if c == '\'' {
+				inSingle = false
+			}
+		case inDouble:
+			if c == '\\' && i+1 < len(text) {
+				i++
+			} else if c == '"' {
+				inDouble = false
+			}
+		case c == '\'':
+			inSingle = true
+		case c == '"':
+			inDouble = true
+		case c == ':':
+			if i+1 == len(text) || text[i+1] == ' ' || text[i+1] == '\t' {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// streamEndLine is where ruamel's scanner stops when it runs off the end of a
+// construct: the first document marker after `after`, or the physical end of
+// the file when there is none.
+//
+// **A `---` or `...` ends the scan before the file does.** `cv: [a\n...` is
+// `line 1 to line 2`, not to line 3, because the marker closes the stream the
+// scanner was reading. A marker *before* the construct began does not count —
+// a leading `---` leaves an unterminated flow spanning to the true EOF — and a
+// marker must be unquoted at column 1, so a `"..."` scalar is not one.
+func streamEndLine(content string, after int) int {
+	lines := strings.Split(content, "\n")
+	for i := after + 1; i <= len(lines); i++ {
+		text := lines[i-1]
+		if text == "---" || text == "..." ||
+			strings.HasPrefix(text, "--- ") || strings.HasPrefix(text, "... ") {
+			return i
+		}
+	}
+	return strings.Count(content, "\n") + 1
+}
+
 // outermostFlowOpenLine returns the line of the outermost flow delimiter that
 // is still open when line `before` is reached — ruamel's context mark for a
 // flow collection a block line interrupted.
@@ -345,6 +427,14 @@ func keyColumn(text string) int {
 // a `[` inside one is not a delimiter — `cv: ["a#b"` and `cv: ["a["` are both
 // the sequence form, measured.
 func lastSignificantByte(content string) byte {
+	// **A document marker ends the stream the scanner was reading.** Without
+	// this, `cv: [\n...\n` ends in the `.` of the marker rather than the `[`,
+	// so the flow-node form is missed and the location comes out as a span.
+	if end := streamEndLine(content, 0); end <= strings.Count(content, "\n") {
+		lines := strings.Split(content, "\n")
+		content = strings.Join(lines[:end-1], "\n")
+	}
+
 	var last byte
 	inSingle, inDouble, inComment := false, false, false
 	var prev byte
@@ -441,21 +531,32 @@ func yamlErrorLocation(parserErr goyaml.Error, content string) *yamldoc.Span {
 	// the location is a single line and not a range — `cv: [` reports `line 2`,
 	// where `cv: [a` reports `line 1 to line 2`.
 	if flowNodeExpectedAtEOF(message, content) {
-		eof := yamldoc.Position{Line: strings.Count(content, "\n") + 1, Column: 1}
+		eof := yamldoc.Position{Line: streamEndLine(content, start.Line), Column: 1}
 		return &yamldoc.Span{Start: eof, End: eof}
 	}
 
-	// **A block line that interrupted an open flow collection** spans from the
-	// delimiter that opened it to the line that broke it. goccy's token is
-	// ruamel's *problem* mark here — the opposite of the unterminated-to-EOF
-	// shapes, where the token is its context mark — so the opening delimiter is
-	// recovered from the source instead. Measured: `cv: [a\nb: c\nd: e` is
-	// `line 1 to line 2`, not to EOF.
+	// **An open flow collection that a later line disturbed** spans from the
+	// delimiter that opened it to wherever ruamel's scan stopped. **Neither
+	// mark is goccy's token**, so both are recovered from the source: goccy
+	// reports the same message at the same line whether the next line is
+	// `b: c`, a bare `b`, or an indented `  b: c`, while ruamel stops at the
+	// first two differently and at the third differently again.
+	//
+	// The scan stops at the first line carrying a **key indicator** — a colon
+	// followed by whitespace or end of line — because a flow collection cannot
+	// contain a block mapping. A plain scalar, a quoted scalar and `b:c` (no
+	// space, so not a key) are all swallowed by the flow, and the scan runs on
+	// to a document marker or the end of the file instead. Measured on all of
+	// them.
 	if strings.Contains(message, "must be specified") {
-		if open := outermostFlowOpenLine(content, start.Line); open > 0 && open < start.Line {
+		if open := outermostFlowOpenLine(content, start.Line+1); open > 0 {
+			end := breakingLine(content, open)
+			if end == 0 {
+				end = streamEndLine(content, open)
+			}
 			return &yamldoc.Span{
 				Start: yamldoc.Position{Line: open, Column: 1},
-				End:   start,
+				End:   yamldoc.Position{Line: end, Column: 1},
 			}
 		}
 	}
@@ -478,8 +579,15 @@ func yamlErrorLocation(parserErr goyaml.Error, content string) *yamldoc.Span {
 
 	for _, unterminated := range spanToEOFMessages {
 		if strings.Contains(message, unterminated) {
-			if eof := strings.Count(content, "\n") + 1; eof > end.Line {
-				end = yamldoc.Position{Line: eof, Column: 1}
+			// **A block line can stop this scan short of the end**, and goccy
+			// routes an *indented* one here rather than to the branch above:
+			// `cv: [a\n  b: c` is `line 1 to line 2`, not to EOF.
+			stop := breakingLine(content, start.Line)
+			if stop == 0 {
+				stop = streamEndLine(content, start.Line)
+			}
+			if stop > end.Line {
+				end = yamldoc.Position{Line: stop, Column: 1}
 			}
 			break
 		}
