@@ -99,3 +99,88 @@ func TestNormalize(t *testing.T) {
 		})
 	}
 }
+
+// TestNormalizeSplitsShortClusters pins click's `_match_short_opt` fallback.
+//
+// A single-dash token that is not an exact match in the option table is not
+// simply an extra: click walks it one character at a time against the
+// **one-character** options, and a match that takes a value swallows the rest
+// of the token — or the following argument when it sits at the end.
+// Characters that match nothing come back together as one `-xyz` extra.
+//
+// Every row was measured against the vendored CLI, checking the output folder
+// it actually wrote as well as its exit code, because a mis-split silently
+// renders to the wrong directory rather than failing.
+func TestNormalizeSplitsShortClusters(t *testing.T) {
+	cases := []struct {
+		name   string
+		args   []string
+		rest   []string
+		extras []string
+	}{
+		{
+			// The value is the remainder of the token: upstream writes ./OUT.
+			name: "a value option with an attached value",
+			args: []string{"render", "cv.yaml", "-oOUT"},
+			rest: []string{"render", "cv.yaml", "--output-folder", "OUT"},
+		},
+		{
+			// **The `=` is not stripped** for a short option: upstream writes
+			// a folder literally named `=OUT`.
+			name: "an equals sign is part of the value",
+			args: []string{"render", "cv.yaml", "-o=OUT"},
+			rest: []string{"render", "cv.yaml", "--output-folder", "=OUT"},
+		},
+		{
+			name: "a repeated boolean",
+			args: []string{"render", "cv.yaml", "-qq"},
+			rest: []string{"render", "cv.yaml", "--quiet", "--quiet"},
+		},
+		{
+			// A boolean then a value option, which takes the next token.
+			name: "a boolean followed by a value option",
+			args: []string{"render", "cv.yaml", "-qo", "OUT"},
+			rest: []string{"render", "cv.yaml", "--quiet", "--output-folder", "OUT"},
+		},
+		{
+			// Both halves at once: `t`, `y` and `p` match nothing and come
+			// back as `-typ`, while `o` matches and takes `ut.typ`.
+			name:   "unknown characters and a match in one token",
+			args:   []string{"render", "cv.yaml", "-typout.typ"},
+			rest:   []string{"render", "cv.yaml", "--output-folder", "ut.typ"},
+			extras: []string{"-typ"},
+		},
+		{
+			name:   "no character matches anything",
+			args:   []string{"render", "cv.yaml", "-xyz"},
+			extras: []string{"-xyz"},
+			rest:   []string{"render", "cv.yaml"},
+		},
+		{
+			// The exact table still wins: `-notyp` is a whole word, not a
+			// cluster of `n`, `o`, `t`, `y`, `p`.
+			name: "an exact whole-word form is not split",
+			args: []string{"render", "cv.yaml", "-notyp"},
+			rest: []string{"render", "cv.yaml", "--dont-generate-typst"},
+		},
+		{
+			// `-lc` likewise, which would otherwise split into two unknowns.
+			name: "a two-letter whole-word form is not split",
+			args: []string{"render", "cv.yaml", "-lc", "en.yaml"},
+			rest: []string{"render", "cv.yaml", "--locale-catalog", "en.yaml"},
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			rest, extras := Normalize(test.args)
+
+			if !reflect.DeepEqual(rest, test.rest) {
+				t.Errorf("rest = %q, want %q", rest, test.rest)
+			}
+			if len(extras) != len(test.extras) || (len(extras) > 0 && !slices.Equal(extras, test.extras)) {
+				t.Errorf("extras = %q, want %q", extras, test.extras)
+			}
+		})
+	}
+}

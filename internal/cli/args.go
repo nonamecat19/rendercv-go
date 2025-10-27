@@ -74,6 +74,54 @@ var renderBoolFlags = map[string]bool{
 	"help":                   true,
 }
 
+// renderShortChars are the one-character members of renderShortFlags, which
+// are the only options click's `_match_short_opt` can match inside a cluster.
+// The whole-word forms (`-typ`, `-nopdf`, `-lc`) are matched exactly, before
+// any splitting, and never participate here.
+var renderShortChars = map[byte]string{
+	'o': "output-folder",
+	'd': "design",
+	's': "settings",
+	'w': "watch",
+	'q': "quiet",
+	'h': "help",
+}
+
+// splitShortCluster walks a single-dash token character by character the way
+// click's `_match_short_opt` does, appending each match's long form to rest.
+//
+// A matched option that takes a value consumes the **rest of the token** as
+// that value, or the following argument when it sits at the end — so `-oOUT`
+// and `-o OUT` are the same invocation, and parsing of the token stops there.
+// Characters that match nothing are collected and returned together, to be
+// re-emitted as one `-xyz` extra exactly as click does.
+func splitShortCluster(arg string, rest *[]string, args []string, i *int) (consumed bool, unknown string) {
+	var unmatched []byte
+
+	for pos := 1; pos < len(arg); pos++ {
+		long, ok := renderShortChars[arg[pos]]
+		if !ok {
+			unmatched = append(unmatched, arg[pos])
+			continue
+		}
+
+		*rest = append(*rest, "--"+long)
+		consumed = true
+
+		if !renderValueFlags[long] {
+			continue
+		}
+		if remainder := arg[pos+1:]; remainder != "" {
+			*rest = append(*rest, remainder)
+		} else if *i+1 < len(args) {
+			*rest = append(*rest, args[*i+1])
+			*i++
+		}
+		break // a value option swallows the remainder of the token
+	}
+	return consumed, string(unmatched)
+}
+
 // Normalize rewrites `render`'s single-dash spellings into their long form and
 // splits the vector into what a flag parser can read and what it cannot.
 //
@@ -141,8 +189,8 @@ func Normalize(args []string) (rest, extras []string) {
 			extras = append(extras, arg)
 
 		case strings.HasPrefix(arg, "-") && arg != "-":
-			// A single-dash token: either one of upstream's whole-word short
-			// forms, or an extra.
+			// A single-dash token: one of upstream's whole-word short forms,
+			// or a cluster click splits per character.
 			if replacement := renderShortFlags[strings.TrimPrefix(arg, "-")]; replacement != "" {
 				rest = append(rest, "--"+replacement)
 				if renderValueFlags[replacement] && i+1 < len(args) {
@@ -151,7 +199,27 @@ func Normalize(args []string) (rest, extras []string) {
 				}
 				continue
 			}
-			extras = append(extras, arg)
+
+			// **An inexact single-dash token is not simply an extra.** click
+			// tries `_match_long_opt` first — that is the exact table above,
+			// which is how the whole-word forms `-notyp` and `-lc` work — and
+			// falls back to `_match_short_opt`, which walks the token one
+			// character at a time against the *one-character* options only.
+			//
+			// Measured: `-oOUT` sets the output folder to `OUT`, `-o=OUT` sets
+			// it to `=OUT` (the `=` is not stripped for a short option), `-qq`
+			// is `--quiet` twice, `-qo OUT` takes its value from the next
+			// token, and `-typout.typ` does **both** halves at once — `t`, `y`
+			// and `p` are unknown and come back as the single extra `-typ`,
+			// while `o` matches and swallows the rest of the token as its
+			// value.
+			consumed, unknown := splitShortCluster(arg, &rest, args, &i)
+			if unknown != "" {
+				extras = append(extras, "-"+unknown)
+			}
+			if !consumed && unknown == "" {
+				extras = append(extras, arg)
+			}
 
 		case arg == "render" && !seenInput && len(rest) == 0:
 			rest = append(rest, arg)
