@@ -15,6 +15,9 @@ import (
 )
 
 func parse(src string) (*yamldoc.Node, error) {
+	if err := checkTabs(src); err != nil {
+		return nil, err
+	}
 	file, err := parseTolerantOfQuotedTabs(src)
 	if err != nil {
 		return nil, fmt.Errorf("yaml parse: %w", err)
@@ -30,6 +33,102 @@ func parse(src string) (*yamldoc.Node, error) {
 		return nil, nil
 	}
 	return buildNode(body), nil
+}
+
+// TabError is ruamel's scanner refusing a tab used as separation whitespace.
+//
+// **goccy accepts tabs in seven measured positions where ruamel rejects them**
+// — after a sequence dash, after a `:`, inside a plain scalar, trailing, before
+// a comment, before a flow collection — so the port rendered documents
+// upstream refuses at exit 1.
+//
+// ruamel reports no context mark for these, so the location is the tab's own
+// line alone.
+type TabError struct {
+	Line int
+}
+
+func (e *TabError) Error() string { return "while scanning for the next token" }
+
+// checkTabs reproduces where YAML forbids a tab, which is everywhere it would
+// act as indentation or separation in block context.
+//
+// A tab is **legal** in four regions, all measured against ruamel: inside a
+// quoted scalar (including its continuation indentation), inside a block
+// scalar's content, inside a comment's text, and anywhere within a flow
+// collection. Outside those it is an error at the line it appears on.
+func checkTabs(src string) error {
+	lines := strings.Split(src, "\n")
+
+	var (
+		flowDepth   int
+		inSingle    bool
+		inDouble    bool
+		blockIndent = -1 // >= 0 while inside a block scalar's content
+	)
+
+	for number, text := range lines {
+		// A block scalar's content is anything indented past its header, plus
+		// blank lines. Tabs inside it are ordinary characters.
+		if blockIndent >= 0 && !inSingle && !inDouble {
+			if strings.TrimSpace(text) == "" || indentWidth(text) > blockIndent {
+				continue
+			}
+			blockIndent = -1
+		}
+
+		inComment := false
+		var prev byte
+
+		for i := 0; i < len(text); i++ {
+			c := text[i]
+
+			switch {
+			case inComment:
+			case inSingle:
+				if c == '\'' {
+					inSingle = false
+				}
+			case inDouble:
+				if c == '\\' && i+1 < len(text) {
+					i++
+				} else if c == '"' {
+					inDouble = false
+				}
+			case c == '\t':
+				if flowDepth == 0 {
+					return &TabError{Line: number + 1}
+				}
+			case c == '#' && (prev == 0 || prev == ' ' || prev == '\t'):
+				inComment = true
+			case c == '\'':
+				inSingle = true
+			case c == '"':
+				inDouble = true
+			case c == '[' || c == '{':
+				flowDepth++
+			case c == ']' || c == '}':
+				if flowDepth > 0 {
+					flowDepth--
+				}
+			case (c == '|' || c == '>') && flowDepth == 0 && isBlockScalarHeader(text[i:]):
+				blockIndent = indentWidth(text)
+			}
+			prev = c
+		}
+	}
+	return nil
+}
+
+// isBlockScalarHeader reports whether a `|` or `>` at the end of a line opens
+// a block scalar, allowing for the chomping and indentation indicators.
+func isBlockScalarHeader(rest string) bool {
+	return strings.TrimRight(strings.TrimLeft(rest[1:], "+-0123456789"), " \t") == ""
+}
+
+// indentWidth is the number of leading spaces and tabs on a line.
+func indentWidth(text string) int {
+	return len(text) - len(strings.TrimLeft(text, " \t"))
 }
 
 // quotedTabIndent is goccy's complaint about a continuation line inside a

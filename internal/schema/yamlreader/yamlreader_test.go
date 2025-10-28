@@ -432,3 +432,61 @@ func TestTabOutsideAQuotedScalarStillFails(t *testing.T) {
 		})
 	}
 }
+
+// TestTabsOutsideTheLegalRegions pins where YAML forbids a tab.
+//
+// **goccy accepts a tab in seven of these positions and ruamel rejects all of
+// them**, so the port rendered documents upstream refuses at exit 1. A tab is
+// legal only inside a quoted scalar, a block scalar's content, a comment's
+// text, or a flow collection; anywhere else it is separation whitespace, which
+// YAML does not allow to be a tab.
+//
+// Every row was measured against ruamel and then end-to-end against the
+// vendored CLI, where all eighteen shapes here and in the companion test are
+// now byte-identical.
+func TestTabsOutsideTheLegalRegions(t *testing.T) {
+	rejected := map[string]string{
+		"indenting a key":          "cv:\n\tname: a\n",
+		"at the root":              "\ta: 1\n",
+		"after a sequence dash":    "cv:\n  -\ta\n",
+		"after a colon":            "cv:\tvalue\n",
+		"after a nested colon":     "cv:\n  name:\tJohn\n",
+		"inside a plain scalar":    "cv:\n  name: a\tb\n",
+		"a plain continuation":     "cv:\n  name: x\n\ty\n",
+		"trailing":                 "cv:\n  name: a\t\n",
+		"on a blank line":          "cv:\n  name: a\n\t\nx: 1\n",
+		"under a block scalar":     "cv:\n  name: |\n    x\n\ty\n",
+		"before a comment":         "cv:\n  name: a\t# c\n",
+		"before a flow collection": "cv:\n  x:\t[a]\n",
+	}
+
+	for name, src := range rejected {
+		t.Run(name, func(t *testing.T) {
+			var tabErr *yamlreader.TabError
+			if _, err := yamlreader.ReadString(src); !errors.As(err, &tabErr) {
+				t.Fatalf("err = %v (%T), want *yamlreader.TabError", err, err)
+			}
+		})
+	}
+}
+
+// The four regions where a tab is ordinary content. These are the rows that
+// make the check above safe to have: a rule that rejected any of them would
+// refuse valid CVs, which is worse than the divergence it closes.
+func TestTabsInsideTheLegalRegions(t *testing.T) {
+	accepted := map[string]string{
+		"a quoted continuation":   "cv:\n  name: \"a\n\tb\"\n",
+		"inside a quoted scalar":  "cv:\n  name: \"a\tb\"\n",
+		"in block scalar content": "cv:\n  name: |\n    a\tb\n",
+		"in a comment":            "# a\tb\ncv:\n  name: John\n",
+		"in a flow collection":    "cv:\n  x: [a,\tb]\n",
+	}
+
+	for name, src := range accepted {
+		t.Run(name, func(t *testing.T) {
+			if _, err := yamlreader.ReadString(src); err != nil {
+				t.Errorf("err = %v, want the document to parse", err)
+			}
+		})
+	}
+}
