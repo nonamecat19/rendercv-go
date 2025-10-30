@@ -28,6 +28,26 @@ func TestKindValues(t *testing.T) {
 	if yamldoc.KindSequence != 6 {
 		t.Error("KindSequence should be 6")
 	}
+	if yamldoc.KindTagged != 7 {
+		t.Error("KindTagged should be 7")
+	}
+}
+
+// TestTaggedKeyMarkerIsSeparateFromTheKeyText pins the shape spec 015 §3.3
+// chose: a tagged key keeps its text — the Input Value column needs it — and
+// carries the marker beside it, rather than being spelled into Key itself
+// where it could accidentally match a field name.
+func TestTaggedKeyMarkerIsSeparateFromTheKeyText(t *testing.T) {
+	item := yamldoc.Item{Key: "name", KeyTagged: true}
+	if item.Key != "name" {
+		t.Errorf("Key = %q, want the untagged text", item.Key)
+	}
+	if !item.KeyTagged {
+		t.Error("KeyTagged = false")
+	}
+	if (yamldoc.Item{Key: "name"}).KeyTagged {
+		t.Error("an ordinary key reads as tagged")
+	}
 }
 
 func TestPosition(t *testing.T) {
