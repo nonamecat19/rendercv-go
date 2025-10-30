@@ -72,6 +72,24 @@ func TestRenderInput(t *testing.T) {
 			node: &yamldoc.Node{Kind: yamldoc.KindString, Raw: "not_a_valid_url"},
 			want: "not_a_valid_url",
 		},
+		// YAML 1.1's bool spellings, which only an explicit `!!bool` tag can
+		// bring to a KindBool node: `!!bool yes` is `True` upstream, and this
+		// arm read anything but `true` as `False`.
+		{
+			name: "a tagged yes renders as Python's True",
+			node: &yamldoc.Node{Kind: yamldoc.KindBool, Raw: "yes"},
+			want: "True",
+		},
+		{
+			name: "a tagged on renders as Python's True",
+			node: &yamldoc.Node{Kind: yamldoc.KindBool, Raw: "On"},
+			want: "True",
+		},
+		{
+			name: "a tagged off renders as Python's False",
+			node: &yamldoc.Node{Kind: yamldoc.KindBool, Raw: "off"},
+			want: "False",
+		},
 	}
 
 	for _, test := range tests {

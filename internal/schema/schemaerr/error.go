@@ -1,8 +1,6 @@
 package schemaerr
 
 import (
-	"strings"
-
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
 )
 
@@ -134,7 +132,7 @@ func RenderInput(node *yamldoc.Node) string {
 		// Python-`str()` resolver for a case no plausible CV reaches.
 		// Found by a fresh-context verifier (iteration 14's fourteenth
 		// re-verification).
-		if strings.EqualFold(node.Raw, "true") {
+		if yamldoc.BoolIsTrue(node.Raw) {
 			return "True"
 		}
 		return "False"

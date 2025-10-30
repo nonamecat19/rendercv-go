@@ -121,7 +121,7 @@ func resolveRenderCommand(node *yamldoc.Node) RenderCommand {
 		if item.Value == nil {
 			continue
 		}
-		on := item.Value.Kind == yamldoc.KindBool && item.Value.Raw == "true"
+		on := item.Value.Kind == yamldoc.KindBool && yamldoc.BoolIsTrue(item.Value.Raw)
 		switch item.Key {
 		case "dont_generate_typst":
 			out.DontGenerateTypst = on

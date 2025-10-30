@@ -3,7 +3,6 @@ package bridge
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/nonamecat19/rendercv-go/internal/renderer/templater/process"
@@ -283,7 +282,7 @@ func mappingOf(node *yamldoc.Node) map[string]any {
 			// `normalizeBools` (spec 014's fifth re-verification) that coerces
 			// those once the design tree is fully merged. Found by a
 			// fresh-context verifier (iteration 14's seventh re-verification).
-			out[item.Key] = strings.EqualFold(item.Value.Raw, "true")
+			out[item.Key] = yamldoc.BoolIsTrue(item.Value.Raw)
 		default:
 			out[item.Key] = item.Value.Raw
 		}

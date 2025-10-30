@@ -159,7 +159,7 @@ func dumpValue(node *yamldoc.Node) any {
 		}
 		return node.Raw
 	case yamldoc.KindBool:
-		return node.Raw == "true" || node.Raw == "True" || node.Raw == "yes" || node.Raw == "on"
+		return yamldoc.BoolIsTrue(node.Raw)
 	case yamldoc.KindSequence:
 		return dumpSequence(node)
 	case yamldoc.KindMapping:

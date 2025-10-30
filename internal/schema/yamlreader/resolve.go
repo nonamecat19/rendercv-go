@@ -45,6 +45,43 @@ func ResolveScalar(raw string, style yamldoc.ScalarStyle) yamldoc.Kind {
 	return yamldoc.KindString
 }
 
+// ResolveTag answers the same question as ResolveScalar — what type is this
+// scalar — for a scalar carrying an explicit tag, which supplies the answer
+// instead of leaving it to the text.
+//
+// A tag ruamel has a constructor for **forces** that type, whatever the text
+// says and whatever style it was written in: `!!int "200"` is the integer 200
+// and `!!bool "yes"` is `True` (measured through upstream's own loader). The
+// forcing tags and the kinds they name:
+//
+//   - `!!int`, `!!float`, `!!bool` — the constructor parses the scalar, and
+//     raises if it cannot. A text that does not parse is left with the forced
+//     kind here; upstream's `ValueError`/`KeyError` is an unhandled-exception
+//     traceback, the D-011 class, recorded rather than reproduced.
+//   - `!!null` — `None` regardless of the text, so `!!null x` is a null and the
+//     `x` is gone (`ok` is reported with an empty raw by the caller).
+//   - `!!timestamp` — a plain string, and **only because upstream replaces that
+//     constructor** with `construct_scalar` (`yaml_reader.py:83-86`); ruamel's
+//     own would give a `date`.
+//
+// Every other tag — `!!str` included, and every unknown one — makes the scalar
+// opaque, which is KindTagged's job and not this function's.
+func ResolveTag(tag string) (yamldoc.Kind, bool) {
+	switch tag {
+	case "!!int":
+		return yamldoc.KindInt, true
+	case "!!float":
+		return yamldoc.KindFloat, true
+	case "!!bool":
+		return yamldoc.KindBool, true
+	case "!!null":
+		return yamldoc.KindNull, true
+	case "!!timestamp":
+		return yamldoc.KindString, true
+	}
+	return yamldoc.KindTagged, false
+}
+
 func isInteger(s string) bool {
 	if s == "" {
 		return false
