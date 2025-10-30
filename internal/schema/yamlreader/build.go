@@ -248,6 +248,8 @@ func buildNode(n ast.Node) *yamldoc.Node {
 		return buildSequence(v)
 	case *ast.AnchorNode:
 		return buildNode(v.Value)
+	case *ast.TagNode:
+		return buildTagged(v)
 	case *ast.LiteralNode:
 		return buildLiteral(v)
 	case *ast.StringNode:
@@ -267,6 +269,31 @@ func buildNode(n ast.Node) *yamldoc.Node {
 	default:
 		return &yamldoc.Node{Kind: yamldoc.KindNull}
 	}
+}
+
+// buildTagged resolves a node carrying an explicit tag.
+//
+// **It branches on the node's shape before it looks at the tag**, because
+// upstream does: ruamel registers `construct_unknown` for every tag it has no
+// constructor for (`ruamel/yaml/constructor.py:1724`), and that function tests
+// `isinstance(node, MappingNode)` / `SequenceNode` / `ScalarNode`
+// (`:1598-1640`), so a tag on a collection is dropped and the collection is an
+// ordinary one. `construct_yaml_str` defers to the same function whenever the
+// node carries a tag handle (`:1181-1184`), which is why an explicit `!!str`
+// is not the no-op it looks like.
+//
+// A *known scalar* tag over a collection (`!!str [1, 2]`, which upstream reads
+// as a plain sequence) never reaches here: goccy's parser refuses the document
+// with `unexpected scalar value type`. Recorded as a divergence.
+// The scalar half of the rule — a tag that forces a kind, and a tag that makes
+// the scalar opaque — is spec 015 §3.2's own unit and is not here yet; until it
+// lands a tagged scalar resolves as it would untagged, which is what the reader
+// did for every node before it had this case at all.
+func buildTagged(node *ast.TagNode) *yamldoc.Node {
+	if node.Value == nil {
+		return &yamldoc.Node{Kind: yamldoc.KindNull}
+	}
+	return buildNode(node.Value)
 }
 
 func buildPlainScalar(tok *token.Token) *yamldoc.Node {
