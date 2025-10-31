@@ -90,6 +90,19 @@ func TestRenderInput(t *testing.T) {
 			node: &yamldoc.Node{Kind: yamldoc.KindBool, Raw: "off"},
 			want: "False",
 		},
+		// An opaque tagged scalar renders as its text, not as `None`: upstream's
+		// TaggedScalar keeps the value it could not type, and the table echoes
+		// it while the field still fails.
+		{
+			name: "an opaque tagged scalar renders as its text",
+			node: &yamldoc.Node{Kind: yamldoc.KindTagged, Raw: "Bob"},
+			want: "Bob",
+		},
+		{
+			name: "an empty opaque tagged scalar renders as nothing",
+			node: &yamldoc.Node{Kind: yamldoc.KindTagged, Raw: ""},
+			want: "",
+		},
 	}
 
 	for _, test := range tests {
