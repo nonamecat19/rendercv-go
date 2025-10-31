@@ -285,9 +285,6 @@ func buildNode(n ast.Node) *yamldoc.Node {
 // A *known scalar* tag over a collection (`!!str [1, 2]`, which upstream reads
 // as a plain sequence) never reaches here: goccy's parser refuses the document
 // with `unexpected scalar value type`. Recorded as a divergence.
-// The opaque half of the scalar rule — a tag naming no constructed type, which
-// upstream turns into a `TaggedScalar` — is its own unit and is not here yet;
-// until it lands such a scalar resolves as it would untagged.
 func buildTagged(node *ast.TagNode) *yamldoc.Node {
 	if node.Value == nil {
 		return &yamldoc.Node{Kind: yamldoc.KindNull}
@@ -301,6 +298,16 @@ func buildTagged(node *ast.TagNode) *yamldoc.Node {
 
 	kind, forced := ResolveTag(tagName(node))
 	if !forced {
+		// Opaque: ruamel's TaggedScalar, which keeps the scalar's text and
+		// nothing else. A tag with no value at all carries the empty string
+		// rather than a null — `a: !!str` is `TaggedScalar('')` upstream, and
+		// goccy synthesizes a `null` token for it, so the text has to be
+		// dropped here or the empty case would read as the four letters
+		// `null`. `a: !!str null`, where the user wrote them, keeps them.
+		inner.Kind = kind
+		if !hasWrittenValue(node) {
+			inner.Raw = ""
+		}
 		return inner
 	}
 
@@ -312,6 +319,24 @@ func buildTagged(node *ast.TagNode) *yamldoc.Node {
 		inner.Raw = ""
 	}
 	return inner
+}
+
+// hasWrittenValue reports whether a tagged node has a value in the source at
+// all, as opposed to the null goccy synthesizes for a bare `a: !!str`.
+//
+// The discriminator is position: a synthesized token is reported *inside* the
+// tag (one column past its start), while anything the user wrote begins after
+// the tag ends. Measured on all four spellings — a bare tag, a written `null`,
+// a written `~`, and a bare `!!null`.
+func hasWrittenValue(node *ast.TagNode) bool {
+	tok := node.Value.GetToken()
+	if node.Start == nil || node.Start.Position == nil || tok == nil || tok.Position == nil {
+		return true
+	}
+	if tok.Position.Line != node.Start.Position.Line {
+		return true
+	}
+	return tok.Position.Column >= node.Start.Position.Column+len(node.Start.Value)
 }
 
 // tagName is the tag as written — `!!str`, `!unknown`, `!!python/object`.
