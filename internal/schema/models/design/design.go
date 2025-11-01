@@ -87,9 +87,15 @@ func ValidateTheme(
 	// Found by a fresh-context verifier (iteration 14's twelfth
 	// re-verification).
 	name := themeNameRepr(node)
-	for _, builtIn := range BuiltInThemes {
-		if name == builtIn {
-			return nil
+	if node != nil && node.Kind == yamldoc.KindString {
+		// Only a real string can be the discriminator's own value; a tagged
+		// scalar spelling `classic` is a TaggedScalar upstream and matches no
+		// member (see `isBuiltIn`). It still reaches the name-shape check
+		// below, which runs on `str(design["theme"])`.
+		for _, builtIn := range BuiltInThemes {
+			if name == builtIn {
+				return nil
+			}
 		}
 	}
 	if customThemeNamePattern.MatchString(name) {
