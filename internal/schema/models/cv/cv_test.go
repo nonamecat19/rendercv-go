@@ -279,3 +279,60 @@ func TestDeclaredFieldErrorsPrecedeExtraKeys(t *testing.T) {
 		}
 	}
 }
+
+// The three plain-text fields are `str | None` upstream (cv.py:32, :36, :40),
+// and pydantic's lax mode coerces nothing to a `str`. They were declared with
+// no shape, so **`cv.name: 200` rendered a CV named `200` at exit 0** where
+// upstream exits 1 — measured against the vendored Python, which reports
+// `cv.name │ 200 │ Input should be a valid string.`
+//
+// Found while porting explicit YAML tags (spec 015): a tag made these nodes
+// reach the field instead of being dropped as nulls, which is what had hidden
+// the gap.
+func TestPlainTextFieldsRejectANonString(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		field string
+	}{
+		{name: "an integer name", input: "name: 200\n", field: "cv.name"},
+		{name: "a float name", input: "name: 0.5\n", field: "cv.name"},
+		{name: "a bool name", input: "name: true\n", field: "cv.name"},
+		{name: "a tagged name", input: "name: !!str Bob\n", field: "cv.name"},
+		{name: "an integer headline", input: "headline: 200\n", field: "cv.headline"},
+		{name: "an integer location", input: "location: 200\n", field: "cv.location"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, errs := cv.Validate(
+				parse(t, tc.input), []string{"cv"}, schemaerr.SourceMain, testOptions())
+			if len(errs) != 1 {
+				t.Fatalf("errors = %+v, want exactly one", errs)
+			}
+			if got := strings.Join(errs[0].SchemaLocation, "."); got != tc.field {
+				t.Errorf("location = %q, want %q", got, tc.field)
+			}
+			if errs[0].Message != "Input should be a valid string" {
+				t.Errorf("message = %q, want the string-type message", errs[0].Message)
+			}
+		})
+	}
+}
+
+// A string is still a string, tags aside — the shape check must not reject the
+// documents every corpus case is built from.
+func TestPlainTextFieldsAcceptAString(t *testing.T) {
+	for _, input := range []string{
+		"name: John Doe\n", "name: \"200\"\n", "name: '0.5'\n", "name: null\n",
+		"headline: Engineer\n", "location: Istanbul\n",
+	} {
+		t.Run(input, func(t *testing.T) {
+			_, errs := cv.Validate(
+				parse(t, input), []string{"cv"}, schemaerr.SourceMain, testOptions())
+			if len(errs) != 0 {
+				t.Errorf("errors = %+v, want none", errs)
+			}
+		})
+	}
+}
