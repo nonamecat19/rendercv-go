@@ -294,6 +294,9 @@ func buildTagged(node *ast.TagNode) *yamldoc.Node {
 	switch inner.Kind {
 	case yamldoc.KindMapping, yamldoc.KindSequence:
 		return inner
+	case yamldoc.KindNull, yamldoc.KindBool, yamldoc.KindInt, yamldoc.KindFloat,
+		yamldoc.KindString, yamldoc.KindTagged:
+		// A scalar; the tag decides its kind below.
 	}
 
 	kind, forced := ResolveTag(tagName(node))
