@@ -37,6 +37,10 @@ const (
 	CodeStringType     schemaerr.Code = "string_type"
 	CodeListType       schemaerr.Code = "list_type"
 
+	// CodeInvalidKey is pydantic-core's code for a mapping key that is not a
+	// string, which only an explicit tag produces here (spec 015 §3.3).
+	CodeInvalidKey schemaerr.Code = "invalid_key"
+
 	// The two codes only a date field's union arms produce (ValueType.branches).
 	CodeIntType      schemaerr.Code = "int_type"
 	CodeLiteralError schemaerr.Code = "literal_error"
@@ -57,6 +61,10 @@ const (
 	// Pydantic's own text, both measured and both dictionary keys — the
 	// pipeline replaces them, so these are what it must see.
 	messageStringType = "Input should be a valid string"
+
+	// pydantic's own text for a non-string key, which no dictionary row
+	// rewrites — the pipeline only adds its trailing period.
+	messageInvalidKey = "Keys should be strings"
 	messageListType   = "Input should be a valid list"
 
 	// The union-arm texts of ValueType.branches, pydantic's own as well.
@@ -289,12 +297,32 @@ func Bind(
 		}}
 	}
 
+	var errs []schemaerr.ValidationError
+
 	declared := make(map[string]struct{}, len(spec.Fields))
 	for _, field := range spec.Fields {
 		declared[field.Name] = struct{}{}
 	}
 
 	for _, item := range node.Items {
+		if item.KeyTagged {
+			// **The key is not looked up at all.** An explicitly tagged key is a
+			// TaggedScalar upstream, so pydantic reports it against the
+			// enclosing mapping — no key appended to the location — and echoes
+			// the key's own text, then never considers the field it spells
+			// (measured: `cv: {!!str name: Bob}` gives `cv │ name │ Keys should
+			// be strings.`). Binding it would silently accept a document
+			// upstream rejects.
+			errs = append(errs, schemaerr.ValidationError{
+				Code:           CodeInvalidKey,
+				SchemaLocation: append([]string(nil), location...),
+				YamlLocation:   &yamldoc.Span{Start: item.KeySpan.Start, End: item.KeySpan.End},
+				YamlSource:     source,
+				Message:        messageInvalidKey,
+				Input:          item.Key,
+			})
+			continue
+		}
 		if _, ok := declared[item.Key]; !ok {
 			// Spec §5.15: the value is never consulted, so a null-valued
 			// unknown key is rejected like any other.
@@ -330,7 +358,6 @@ func Bind(
 	// mutually exclusive: a required field written as null reports its type
 	// failure, not its absence (spec 003 §5.7).
 	//
-	var errs []schemaerr.ValidationError
 	for _, field := range spec.Fields {
 		value, present := result.Values[field.Name]
 		if !present {

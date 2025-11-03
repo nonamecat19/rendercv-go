@@ -1,6 +1,7 @@
 package binder_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/binder"
@@ -220,4 +221,45 @@ func bindAll(
 ) (*binder.Result, []schemaerr.ValidationError) {
 	result, errs := binder.Bind(node, spec, location, source)
 	return result, append(errs, result.ExtraErrors...)
+}
+
+// A key written with an explicit tag is upstream's TaggedScalar, which pydantic
+// refuses to look up at all: it reports `Keys should be strings.` against the
+// **enclosing** mapping — no key appended — echoes the key's own text, and never
+// binds the field the key spells (measured on `cv: {!!str name: Bob}`, spec 015
+// §3.3). Binding it would accept a document upstream rejects.
+func TestATaggedKeyIsNotAKey(t *testing.T) {
+	node := &yamldoc.Node{
+		Kind: yamldoc.KindMapping,
+		Items: []yamldoc.Item{
+			{Key: "name", KeyTagged: true, Value: &yamldoc.Node{
+				Kind: yamldoc.KindString, Raw: "Bob",
+			}},
+		},
+	}
+	spec := binder.Spec{
+		Model:  "Cv",
+		Policy: binder.ForbidExtra,
+		Fields: []binder.Field{{Name: "name", Value: binder.ValueString}},
+	}
+
+	result, errs := binder.Bind(node, spec, []string{"cv"}, schemaerr.SourceMain)
+	if len(errs) != 1 {
+		t.Fatalf("errors = %+v, want exactly one", errs)
+	}
+	if errs[0].Code != binder.CodeInvalidKey {
+		t.Errorf("code = %q, want invalid_key", errs[0].Code)
+	}
+	if errs[0].Message != "Keys should be strings" {
+		t.Errorf("message = %q", errs[0].Message)
+	}
+	if got := strings.Join(errs[0].SchemaLocation, "."); got != "cv" {
+		t.Errorf("location = %q, want the enclosing mapping `cv`", got)
+	}
+	if errs[0].Input != "name" {
+		t.Errorf("input = %q, want the key's text", errs[0].Input)
+	}
+	if _, bound := result.Value("name"); bound {
+		t.Error("the tagged key bound its field")
+	}
 }
