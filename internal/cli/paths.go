@@ -25,7 +25,12 @@ const (
 type PathInput struct {
 	// Name is `cv.name` **before** processing — the placeholders spell the
 	// user's own text, not the escaped Typst one.
-	Name         string
+	// **nil is `None`**, an absent or null `cv.name`, which upstream filters
+	// out of the placeholder table entirely; a non-nil empty string is
+	// `cv.name: ""`, which keeps the plain `NAME` key. A plain string cannot
+	// hold that difference, and the zero value has to mean the absent case.
+	// See namePlaceholders.
+	Name         *string
 	OutputFolder string
 	Catalog      locale.Catalog
 	CurrentDate  process.Catalog
@@ -74,22 +79,36 @@ func resolveOutputFolder(path, folder string) string {
 // namePlaceholders is the seven name spellings plus the eight date ones
 // (`:73-104`).
 //
-// **A nameless CV drops them all** rather than substituting an empty string:
-// upstream filters `None` out of the table, so `NAME_IN_SNAKE_CASE_CV.typ` stays
-// literal for a document with no `cv.name`.
+// **The table is filtered on `None`, not on falsiness, and the two differ for
+// exactly one input.** The six derived spellings are each written
+// `x.replace(...) if cv.name else None` (`:77-102`), so an *empty-string* name
+// makes them `None` and they are dropped — but plain `NAME` is
+// `rendercv_model.cv.name` with no guard (`:76`), and `""` is not `None`, so it
+// survives and substitutes to nothing. `cv.name: ""` therefore writes
+// `_IN_SNAKE_CASE_CV.typ`: the `NAME` prefix of the longer placeholder is
+// replaced with the empty string and the rest of the literal stays. Measured
+// against the vendored Python.
+//
+// An absent or null name drops all seven, and the file keeps its literal
+// `NAME_IN_SNAKE_CASE_CV.typ` name — `plainName` maps both to the empty string,
+// so NameIsNone is what separates them here.
 func namePlaceholders(input PathInput) map[string]string {
 	out := map[string]string{}
 	for name, value := range input.Placeholders {
 		out[name] = value
 	}
-	if input.Name == "" {
+	if input.Name == nil {
+		return out
+	}
+	name := *input.Name
+	out["NAME"] = name
+	if name == "" {
 		return out
 	}
 
-	underscored := strings.ReplaceAll(input.Name, " ", "_")
-	hyphenated := strings.ReplaceAll(input.Name, " ", "-")
+	underscored := strings.ReplaceAll(name, " ", "_")
+	hyphenated := strings.ReplaceAll(name, " ", "-")
 
-	out["NAME"] = input.Name
 	out["NAME_IN_SNAKE_CASE"] = underscored
 	out["NAME_IN_LOWER_SNAKE_CASE"] = strings.ToLower(underscored)
 	out["NAME_IN_UPPER_SNAKE_CASE"] = strings.ToUpper(underscored)

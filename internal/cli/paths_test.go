@@ -11,7 +11,8 @@ func TestResolvePath(t *testing.T) {
 	// ResolvePath creates the parent directories, so the test runs in a scratch
 	// directory rather than the package's.
 	t.Chdir(t.TempDir())
-	input := PathInput{Name: "John Doe", OutputFolder: "rendercv_output"}
+	name := "John Doe"
+	input := PathInput{Name: &name, OutputFolder: "rendercv_output"}
 
 	cases := []struct {
 		name     string
@@ -64,6 +65,26 @@ func TestResolvePathWithNoName(t *testing.T) {
 	}
 	if !strings.HasSuffix(filepath.ToSlash(got), "NAME_IN_SNAKE_CASE_CV.typ") {
 		t.Errorf("= %q, want the placeholder kept", got)
+	}
+}
+
+// An **empty-string** name is not an absent one, and the two write different
+// files. Only the six derived spellings are guarded by `if cv.name`
+// (`path_resolver.py:77-102`); plain `NAME` is the value itself (`:76`), and
+// `""` is not `None`, so it stays in the table and substitutes to nothing —
+// leaving the rest of the longer placeholder's literal text behind. Measured
+// against the vendored Python: `cv.name: ""` writes
+// `rendercv_output/_IN_SNAKE_CASE_CV.typ`.
+func TestResolvePathWithAnEmptyName(t *testing.T) {
+	t.Chdir(t.TempDir())
+	empty := ""
+	got, err := ResolvePath("OUTPUT_FOLDER/NAME_IN_SNAKE_CASE_CV.typ",
+		PathInput{Name: &empty, OutputFolder: "rendercv_output"})
+	if err != nil {
+		t.Fatalf("ResolvePath: %v", err)
+	}
+	if want := "rendercv_output/_IN_SNAKE_CASE_CV.typ"; filepath.ToSlash(got) != want {
+		t.Errorf("= %q, want %q", filepath.ToSlash(got), want)
 	}
 }
 
