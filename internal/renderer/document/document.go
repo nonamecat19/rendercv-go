@@ -319,7 +319,7 @@ func contextOf(model process.Model, document bridge.Document, photo any) pongo2.
 			"headline": model.Headline,
 			// The three underscore-prefixed names are upstream's private
 			// attributes, which its templates read directly.
-			"_plain_name":  model.PlainName,
+			"_plain_name":  model.PlainNameForTemplate(),
 			"_connections": model.Connections,
 			"_top_note":    model.TopNote,
 			"_footer":      model.Footer,
