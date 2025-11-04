@@ -47,6 +47,41 @@ const emailTemplatePrefix = "value is not a valid email address: "
 // `Value error, ` prefix, which is behavior 4b's point.
 const codeValueError schemaerr.Code = "value_error"
 
+// The two type codes a non-string value earns before its format is ever
+// examined. `EmailStr` and `PhoneNumber` are both `str` subtypes, so pydantic
+// reports `string_type`; `HttpUrl` has its own, whose text names both shapes it
+// accepts.
+const (
+	codeStringType schemaerr.Code = "string_type"
+	codeURLType    schemaerr.Code = "url_type"
+
+	messageStringType = "Input should be a valid string"
+	messageURLType    = "URL input should be a string or URL"
+)
+
+// nonStringError is the type failure every one of the three element validators
+// owes a non-string value.
+//
+// **The format check never runs on a value that is not a string.** `EmailStr`,
+// `PhoneNumber` and `HttpUrl` are all validated by pydantic *after* the input
+// has been read as a string, so `cv.email: 5` is `Input should be a valid
+// string.` upstream — not `An email address must have an @-sign.`, which is what
+// the port said, having handed the raw token to the format validator. Measured
+// on int, float, bool, mapping, a tagged scalar, and per-element inside the list
+// form, for all three fields.
+func nonStringError(
+	node *yamldoc.Node,
+	code schemaerr.Code,
+	message string,
+	location []string,
+	source schemaerr.YamlSource,
+) []schemaerr.ValidationError {
+	if node != nil && node.Kind == yamldoc.KindString {
+		return nil
+	}
+	return []schemaerr.ValidationError{elementError(code, message, location, node, source)}
+}
+
 func validateEmailElement(
 	node *yamldoc.Node,
 	location []string,
@@ -54,6 +89,9 @@ func validateEmailElement(
 ) []schemaerr.ValidationError {
 	if node == nil || node.Kind == yamldoc.KindNull {
 		return nil
+	}
+	if errs := nonStringError(node, codeStringType, messageStringType, location, source); errs != nil {
+		return errs
 	}
 	if _, err := emailaddr.Validate(node.Raw); err != nil {
 		return []schemaerr.ValidationError{elementError(
@@ -71,6 +109,9 @@ func validatePhoneElement(
 	if node == nil || node.Kind == yamldoc.KindNull {
 		return nil
 	}
+	if errs := nonStringError(node, codeStringType, messageStringType, location, source); errs != nil {
+		return errs
+	}
 	if _, err := phonenum.Validate(node.Raw); err != nil {
 		// The dictionary key, not its replacement — see phonenum.MessageInvalid.
 		return []schemaerr.ValidationError{elementError(
@@ -87,6 +128,9 @@ func validateWebsiteElement(
 ) []schemaerr.ValidationError {
 	if node == nil || node.Kind == yamldoc.KindNull {
 		return nil
+	}
+	if errs := nonStringError(node, codeURLType, messageURLType, location, source); errs != nil {
+		return errs
 	}
 	_, err := httpurl.Validate(node.Raw)
 	if err == nil {
