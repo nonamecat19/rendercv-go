@@ -330,3 +330,78 @@ re-wrapped lines, at equal length.
   comparison never passes; only the exact panel *shape* for these two vectors has its own unit
   test (`TestRenderReportsAMissingInputFile`, `TestRenderReportsAnUnknownOverrideKey`, both in
   `internal/cli/customtheme_test.go`).
+
+---
+
+## D-012 — Six explicit YAML tags do not resolve the way ruamel resolves them
+
+**Status:** approved · **Iteration:** 15
+
+- **Differs:** six tag spellings out of the twenty-four measured in
+  [`specs/015-yaml-tags/spec.md`](015-yaml-tags/spec.md) §3.2 do not reach upstream's answer. The
+  other eighteen do, byte for byte.
+- **Upstream:** `ruamel/yaml/constructor.py:1598-1640` (`construct_unknown`), `:1181-1184`
+  (`construct_yaml_str` deferring to it whenever a node carries a tag handle), `:432-445` (the
+  YAML 1.1 bool table), `:1724` (`add_constructor(None, …)`);
+  `src/rendercv/schema/yaml_reader.py:53`, `:83-86`. `ruamel/…` paths are relative to
+  `third_party/rendercv/.venv/lib/python3.12/site-packages/`, the dependency the submodule pins.
+
+Three groups, three different reasons.
+
+### 1. Three Python types the port's `Kind` set has no member for
+
+| Document | Upstream | `rendercv-go` |
+|---|---|---|
+| `cv.name: !!binary aGk=` | `bytes`, which pydantic coerces to `str` — the CV renders as `hi` | opaque, exit 1 |
+| `!!set {x}` | `CommentedSet`; the Input Value column reads `set(odict_keys(['x']))` | a sequence-shaped message, exit 1 both, different bytes |
+| `!!omap [{x: 1}]` | `CommentedOrderedMap`, with its own construction error | a different YAML-error phrasing, exit 1 both |
+
+**Why not:** each needs a new node kind carrying a Python container's own `str()` spelling, for a
+tag no CV has a reason to use. `!!binary` is the only one of the three where upstream *renders* and
+the port does not.
+
+### 2. Three shapes goccy's parser refuses outright
+
+| Document | Upstream | `rendercv-go` |
+|---|---|---|
+| `a: !!str [1, 2]` — any *known scalar* tag over a collection | transparent; a plain sequence | `unexpected scalar value type`, a YAML-error table |
+| `a: !!str` with a sibling key on the next line | `TaggedScalar('')` | `unexpected scalar value`, a YAML-error table |
+| `a: !!merge x` | an ordinary `TaggedScalar` | `could not find merge key` |
+
+**Why not:** the fault is in the parser, before any node exists to reinterpret. Fixing it means the
+retry-and-reparse technique `parseTolerantOfQuotedTabs` uses
+(`internal/schema/yamlreader/build.go:151`), and that technique is only safe when the substitution
+provably cannot change a value — true of a tab folded away inside a quoted scalar, not obviously
+true of deleting a tag token. A bare `a: !!str` **alone on its line does** work; only the
+sibling-key form fails.
+
+### 3. Four constructor crashes, which are D-011's class
+
+`!!int bogus`, `!!float bogus`, `!!bool bogus` and a valueless `!!int` raise
+`ValueError`/`KeyError`/`IndexError` inside ruamel — not `MarkedYAMLError`, so they are not caught
+with the scanner and parser errors. Upstream prints a **rich traceback on stderr, nothing on
+stdout, exit 1**.
+
+**Why not:** reproducing a Python traceback is D-011's open question, not this iteration's. The
+port keeps the forced kind and reports an ordinary validation record at exit 1, which is
+deliberately the closest available behavior — before iteration 15 these documents *rendered* at
+exit 0.
+
+### What the user notices
+
+Nothing, unless they write an explicit tag — which no example, no template and no generated file in
+either project does. Where the port diverges it is stricter in five of the six cases and laxer in
+one (`!!binary`).
+
+### Four upstream internal errors found while measuring this, **not caused by tags**
+
+Recorded here because this is where they were measured; each is D-011's class, not this entry's.
+
+| Document | Upstream | `rendercv-go` |
+|---|---|---|
+| `cv: {1: x}`, and any other non-string key | `RenderCVInternalError: Key '1' not found in the YAML file.` | a validation record |
+| `cv: {true: x}` | same | a validation record |
+| `cv: {!!int 1: x}` | same | a validation record |
+| `cv.website: []` | `RenderCVInternalError: website key present but value is None` | renders at exit 0 |
+
+The last is the only case in this entry where the port renders and upstream does not.
