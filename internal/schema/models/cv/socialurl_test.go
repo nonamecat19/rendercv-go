@@ -48,7 +48,12 @@ func TestGeneratedURLs(t *testing.T) {
 		{"YouTube", "johndoe", "https://youtube.com/@johndoe"},
 		{"Google Scholar", "abc123", "https://scholar.google.com/citations?user=abc123"},
 		{"Telegram", "johndoe", "https://t.me/johndoe"},
-		{"WhatsApp", "+905419999999", "https://wa.me/+905419999999"},
+		// **Quoted, and it has to be.** YAML resolves `+905419999999` to an
+		// integer (measured through upstream's own loader), and `username` is
+		// `str` (social_network.py:55), so an unquoted phone number is
+		// `Input should be a valid string.` upstream — see
+		// TestNumericUsernameIsRejected. The port used to render it.
+		{"WhatsApp", `"+905419999999"`, "https://wa.me/+905419999999"},
 		{"Leetcode", "johndoe", "https://leetcode.com/u/johndoe"},
 		{"X", "johndoe", "https://x.com/johndoe"},
 		{"Bluesky", "john.bsky.social", "https://bsky.app/profile/john.bsky.social"},
@@ -131,5 +136,32 @@ func TestUnknownNetworkMessage(t *testing.T) {
 	}
 	if final[0].Message != want+"." {
 		t.Errorf("final message = %q, want the raw text plus a period", final[0].Message)
+	}
+}
+
+// A username YAML resolves to a number is not a string, and upstream says so:
+// `username: +905419999999` reports `Input should be a valid string.` with the
+// integer's own `str()` in the Input Value column — `905419999999`, the `+`
+// gone. The port rendered a CV instead, because `username` was declared with no
+// shape at all.
+//
+// The Input Value column is **still** the port's raw token here rather than
+// Python's `str(int)`, which is the numeric-repr gap deferred since iteration
+// 14's pass 13 — this is the most plausible trigger for it found so far, since a
+// WhatsApp username is a phone number.
+func TestNumericUsernameIsRejected(t *testing.T) {
+	for _, username := range []string{"+905419999999", "905419999999", "0x1f", "1_000"} {
+		t.Run(username, func(t *testing.T) {
+			_, errs := cv.ValidateSocialNetwork(
+				parse(t, "network: WhatsApp\nusername: "+username+"\n"),
+				[]string{"cv", "social_networks", "0"}, schemaerr.SourceMain,
+			)
+			if len(errs) != 1 {
+				t.Fatalf("errs = %+v, want exactly one", errs)
+			}
+			if errs[0].Message != "Input should be a valid string" {
+				t.Errorf("message = %q, want the string-type message", errs[0].Message)
+			}
+		})
 	}
 }

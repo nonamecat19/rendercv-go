@@ -110,7 +110,11 @@ var publicationOwnFields = []binder.Field{
 		//
 		// No ScalarCode: a URL fails in three distinguishable ways and the error
 		// carries whichever applies.
-		Value: binder.ValueString,
+		//
+		// ValueURL, not ValueString: HttpUrl's *type* error names both shapes it
+		// accepts (`URL input should be a string or URL`), which is what
+		// `url: 5` earns before any parse is attempted.
+		Value: binder.ValueURL,
 		Scalar: func(raw string, _ bool) error {
 			_, err := httpurl.Validate(raw)
 			return err

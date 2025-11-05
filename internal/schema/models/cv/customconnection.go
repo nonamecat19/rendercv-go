@@ -18,8 +18,10 @@ import (
 // default either, so the key must still be present (binder.Field's doc
 // comment on Required). Extra keys are rejected.
 var customConnectionFields = []binder.Field{
-	{Name: "fontawesome_icon", Required: true},
-	{Name: "placeholder", Required: true},
+	// Both are `str` (custom_connection.py:7-8) and both were declared with no
+	// shape, so a non-string rendered at exit 0 where upstream exits 1.
+	{Name: "fontawesome_icon", Required: true, Value: binder.ValueString},
+	{Name: "placeholder", Required: true, Value: binder.ValueString},
 	{
 		Name:     "url",
 		Required: true,
