@@ -2,6 +2,7 @@ package typstc_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -83,7 +84,7 @@ func TestCompileReportsDiagnostics(t *testing.T) {
 	}
 
 	var compileErr *typstc.Error
-	if !asError(err, &compileErr) {
+	if !errors.As(err, &compileErr) {
 		t.Fatalf("error is %T, want *typstc.Error", err)
 	}
 	if !strings.Contains(compileErr.Diagnostics, "deliberate") {
@@ -133,21 +134,4 @@ func write(t *testing.T, dir, name, body string) string {
 		t.Fatalf("writing %s: %v", name, err)
 	}
 	return path
-}
-
-// asError is errors.As, spelled out so the test file needs no import that the
-// assertion above would otherwise hide.
-func asError(err error, target **typstc.Error) bool {
-	for err != nil {
-		if hit, ok := err.(*typstc.Error); ok {
-			*target = hit
-			return true
-		}
-		unwrapped, ok := err.(interface{ Unwrap() error })
-		if !ok {
-			return false
-		}
-		err = unwrapped.Unwrap()
-	}
-	return false
 }
