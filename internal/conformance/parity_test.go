@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/nonamecat19/rendercv-go/internal/conformance"
+	"github.com/nonamecat19/rendercv-go/internal/schema/models"
 )
 
 // TestParity runs every corpus case and compares rendercv-go against the recorded
@@ -62,18 +63,26 @@ func TestParity(t *testing.T) {
 
 // TestSchemaParity is axis 3: the generated JSON schema must equal upstream's, key
 // order included.
+//
+// **It runs the generator, not a subcommand, and that is the contract rather than
+// a convenience.** This test used to shell `rendercv-go schema` — a command axis
+// 2 forbids the port from having, since upstream's CLI has exactly three (`new`,
+// `render`, `create-theme`) and generates its own `schema.json` from
+// `generate_json_schema_file`, outside the CLI. So the test was permanently red
+// against a *correct* port, and could only have been made green by breaking axis
+// 2 to satisfy axis 3. `models.SchemaJSON` is the equivalent generation path axis
+// 3's own parenthetical allows, and is what `tools/genschema` and `just
+// schema-diff` already use.
 func TestSchemaParity(t *testing.T) {
 	root := conformance.RepoRoot(t)
 	want := readFile(t, filepath.Join(root, "third_party/rendercv/schema.json"))
 
-	got := conformance.Run(t, conformance.Case{
-		Name: "schema",
-		Axis: "schema",
-		Args: []string{"schema"},
-	}, nil)
+	got, err := models.SchemaJSON()
+	if err != nil {
+		t.Fatalf("models.SchemaJSON: %v", err)
+	}
 
-	conformance.AssertExitCode(t, 0, got.ExitCode)
-	conformance.AssertText(t, "schema.json", want, got.Stdout)
+	conformance.AssertText(t, "schema.json", want, got)
 }
 
 // isByteComparable reports whether an artifact is subject to byte-for-byte parity.
