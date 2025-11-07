@@ -30,6 +30,14 @@ func TestParity(t *testing.T) {
 			golden := conformance.LoadGolden(t, c.Name)
 			got := conformance.Run(t, c, corpus.Env)
 
+			// A case an approved divergence forbids gets the inverted
+			// comparison instead: it must still run, and it must still differ.
+			// See conformance.Unreachable for why this is not a skip.
+			if entry, ok := conformance.UnreachableFor(c.Name); ok {
+				conformance.AssertUnreachable(t, entry, golden, got)
+				return
+			}
+
 			// Axis 2: exit code and output layout.
 			conformance.AssertExitCode(t, golden.ExitCode, got.ExitCode)
 			conformance.AssertFileSet(t, golden.Files, got.Files)
@@ -117,4 +125,21 @@ func containsPath(paths []string, want string) bool {
 		}
 	}
 	return false
+}
+
+// TestUnreachableCasesExist keeps the forbidden list honest from the other side:
+// a name that no longer matches a corpus case would silently stop asserting
+// anything, which is how such a list becomes a mute button.
+func TestUnreachableCasesExist(t *testing.T) {
+	corpus := conformance.LoadCorpus(t)
+	names := make(map[string]bool, len(corpus.Cases))
+	for _, c := range corpus.Cases {
+		names[c.Name] = true
+	}
+	for _, entry := range conformance.UnreachableCases() {
+		if !names[entry.Case] {
+			t.Errorf("unreachableCases names %q (%s), which the corpus does not have",
+				entry.Case, entry.Divergence)
+		}
+	}
 }
