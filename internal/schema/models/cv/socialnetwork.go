@@ -364,8 +364,18 @@ func ValidateSocialNetwork(
 		return model, append(errs, result.ExtraErrors...)
 	}
 
+	// Membership is tested on the **node**, not on its text. `network` is a
+	// `Literal[...]` (social_network.py:13-31, :54), and a `TaggedScalar` is no
+	// more a member of a literal set of strings than the integer `5` is — so
+	// `network: !!str LinkedIn` earns the same `literal_error` a misspelled name
+	// does, with its own text in the Input Value column (measured: 2155 bytes,
+	// exit 1, where the port rendered five artifacts at exit 0).
+	//
+	// The field is deliberately not declared ValueString: upstream never reports
+	// `string_type` here. Every non-string reaches the literal enumeration
+	// instead, measured on `5`, `null` and a mapping.
 	name := SocialNetworkName(value.Raw)
-	if !IsSocialNetworkName(name) {
+	if !isTextNode(value) || !IsSocialNetworkName(name) {
 		span := value.Span
 		errs = append(errs, schemaerr.ValidationError{
 			Code:           CodeLiteral,
