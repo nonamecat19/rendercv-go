@@ -298,5 +298,157 @@
   {
     "In": "text <br/> more",
     "Out": "<p>text <br/> more</p>"
+  },
+  {
+    "In": "*a **bold** thing*",
+    "Out": "<p><em>a </em><em>bold</em><em> thing</em></p>"
+  },
+  {
+    "In": "**a *em* thing**",
+    "Out": "<p><strong>a <em>em</em> thing</strong></p>"
+  },
+  {
+    "In": "_a __b__ c_",
+    "Out": "<p><em>a __b__ c</em></p>"
+  },
+  {
+    "In": "*just em*",
+    "Out": "<p><em>just em</em></p>"
+  },
+  {
+    "In": "**just strong**",
+    "Out": "<p><strong>just strong</strong></p>"
+  },
+  {
+    "In": "![*em*](i.png)",
+    "Out": "<p><img alt=\"*em*\" src=\"i.png\" /></p>"
+  },
+  {
+    "In": "![a `c` b](i.png)",
+    "Out": "<p><img alt=\"a c b\" src=\"i.png\" /></p>"
+  },
+  {
+    "In": "![plain](i.png)",
+    "Out": "<p><img alt=\"plain\" src=\"i.png\" /></p>"
+  },
+  {
+    "In": "![a](i.png \"t\")",
+    "Out": "<p><img alt=\"a\" src=\"i.png\" title=\"t\" /></p>"
+  },
+  {
+    "In": "![](i.png)",
+    "Out": "<p><img alt=\"\" src=\"i.png\" /></p>"
+  },
+  {
+    "In": "![a\\*b](i.png)",
+    "Out": "<p><img alt=\"a*b\" src=\"i.png\" /></p>"
+  },
+  {
+    "In": "![a<b](i.png)",
+    "Out": "<p><img alt=\"a&lt;b\" src=\"i.png\" /></p>"
+  },
+  {
+    "In": "<a@b.com>",
+    "Out": "<p><a href=\"&#109;&#97;&#105;&#108;&#116;&#111;&#58;&#97;&#64;&#98;&#46;&#99;&#111;&#109;\">&#97;&#64;&#98;&#46;&#99;&#111;&#109;</a></p>"
+  },
+  {
+    "In": "<mailto:a@b.com>",
+    "Out": "<p><a href=\"&#109;&#97;&#105;&#108;&#116;&#111;&#58;&#97;&#64;&#98;&#46;&#99;&#111;&#109;\">&#97;&#64;&#98;&#46;&#99;&#111;&#109;</a></p>"
+  },
+  {
+    "In": "<http://x.com>",
+    "Out": "<p><a href=\"http://x.com\">http://x.com</a></p>"
+  },
+  {
+    "In": "<https://x.com/a?b=c&d>",
+    "Out": "<p><a href=\"https://x.com/a?b=c&amp;d\">https://x.com/a?b=c&amp;d</a></p>"
+  },
+  {
+    "In": "Mail <first.last+tag@sub.example.co.uk> now",
+    "Out": "<p>Mail <a href=\"&#109;&#97;&#105;&#108;&#116;&#111;&#58;&#102;&#105;&#114;&#115;&#116;&#46;&#108;&#97;&#115;&#116;&#43;&#116;&#97;&#103;&#64;&#115;&#117;&#98;&#46;&#101;&#120;&#97;&#109;&#112;&#108;&#101;&#46;&#99;&#111;&#46;&#117;&#107;\">&#102;&#105;&#114;&#115;&#116;&#46;&#108;&#97;&#115;&#116;&#43;&#116;&#97;&#103;&#64;&#115;&#117;&#98;&#46;&#101;&#120;&#97;&#109;&#112;&#108;&#101;&#46;&#99;&#111;&#46;&#117;&#107;</a> now</p>"
+  },
+  {
+    "In": "```\ncode\n```",
+    "Out": "<p><code>code</code></p>"
+  },
+  {
+    "In": "```python\nx = 1\n```",
+    "Out": "<p><code>python\nx = 1</code></p>"
+  },
+  {
+    "In": "a ``` b",
+    "Out": "<p>a ``` b</p>"
+  },
+  {
+    "In": "~~~\ncode\n~~~",
+    "Out": "<p>~~~\ncode\n~~~</p>"
+  },
+  {
+    "In": "    indented code",
+    "Out": "<pre><code>indented code\n</code></pre>"
+  },
+  {
+    "In": "`inline code`",
+    "Out": "<p><code>inline code</code></p>"
+  },
+  {
+    "In": "- item\n\n  continued",
+    "Out": "<ul>\n<li>item</li>\n</ul>\n<p>continued</p>"
+  },
+  {
+    "In": "- item\n\n    continued",
+    "Out": "<ul>\n<li>\n<p>item</p>\n<p>continued</p>\n</li>\n</ul>"
+  },
+  {
+    "In": "- item\n  lazy",
+    "Out": "<ul>\n<li>item\n  lazy</li>\n</ul>"
+  },
+  {
+    "In": "- a\n- b\n\n  tail",
+    "Out": "<ul>\n<li>a</li>\n<li>b</li>\n</ul>\n<p>tail</p>"
+  },
+  {
+    "In": "[t](a b)",
+    "Out": "<p><a href=\"a b\">t</a></p>"
+  },
+  {
+    "In": "[t](a%20b)",
+    "Out": "<p><a href=\"a%20b\">t</a></p>"
+  },
+  {
+    "In": "[t](<a b>)",
+    "Out": "<p><a href=\"a b\">t</a></p>"
+  },
+  {
+    "In": "[t](a)",
+    "Out": "<p><a href=\"a\">t</a></p>"
+  },
+  {
+    "In": "- <div>block</div>",
+    "Out": "<ul>\n<li><div>block</div></li>\n</ul>"
+  },
+  {
+    "In": "<div>\nblock\n</div>",
+    "Out": "<div>\nblock\n</div>"
+  },
+  {
+    "In": "text\n<div>block</div>",
+    "Out": "<p>text</p>\n<div>block</div>"
+  },
+  {
+    "In": "<span>inline</span>",
+    "Out": "<p><span>inline</span></p>"
+  },
+  {
+    "In": "a\rb",
+    "Out": "<p>a\nb</p>"
+  },
+  {
+    "In": "a\r\nb",
+    "Out": "<p>a\nb</p>"
+  },
+  {
+    "In": "- x\r- y",
+    "Out": "<ul>\n<li>x</li>\n<li>y</li>\n</ul>"
   }
 ]
