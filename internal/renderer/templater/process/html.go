@@ -59,6 +59,7 @@ var converter = goldmark.New(
 			// win: goldmark registers node renderers from the end of the sorted
 			// list backwards, so the lowest priority is registered last.
 			util.Prioritized(imageRenderer{writer: pythonMarkdownWriter}, 100),
+			util.Prioritized(codeSpanRenderer{writer: pythonMarkdownWriter}, 101),
 		),
 	),
 )
