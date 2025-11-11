@@ -1,43 +1,65 @@
-// Command sampleprobe captures the starter CV that `rendercv new` writes, for
-// each theme and locale the corpus exercises, into
-// internal/cli/samples/<variant>.yaml.
+// Command sampleprobe regenerates the starter CV's raw blocks and the two
+// fixtures that gate the generator, by running tools/sampleprobe/probe.py
+// against the vendored Python RenderCV.
 //
-// **The sample is data, not logic.** Upstream builds it from its own models, and
-// a hand-written copy of 369 lines would be a golden by another name
-// (AGENTS.md §10.1). This runs the vendored CLI and stores what it produced.
+// **What is data and what is logic.** Upstream's starter CV is a pydantic dump
+// of `RenderCVModel` (`schema/sample_generator.py:217-221`) put through four
+// string transforms (`:151-195`). The transforms are logic and
+// internal/cli/sample implements them; the dump is data and this captures it.
+// The capture is decomposed along the two axes spec 013 §3.1 behavior 14
+// measures — the `cv` and `settings` blocks carry neither, the `design` block is
+// a function of the theme alone and the `locale` block of the locale alone — so
+// 33 blocks stand in for 198 documents. probe.py refuses to emit anything unless
+// that decomposition rejoins the whole dump byte for byte, for every pair.
 //
-// **What this tool cannot check.** Only the variants listed below. `rendercv
-// new` accepts any theme/locale pair, so a combination no golden uses is
-// uncaptured — and a name other than "John Doe" is not captured at all, which
-// is the open question `internal/cli/new.go` has to answer before the command
-// can serve an arbitrary name.
+// **What this tool cannot check.** It captures upstream's *output*; it does not
+// derive it. A field pydantic would add, drop or reorder in a future release
+// shows up here only after a submodule bump and a rerun. The two fixtures it
+// writes alongside — the 198 document digests and the `cv.name` battery — are
+// what turn that data into a checkable claim.
 //
-// GENERATED, never hand-edited; regenerate with `just sampleprobe`.
+// GENERATED, never hand-edited (AGENTS.md §10.1); this program is their only
+// author. None of it is under testdata/golden, so a rerun changes no golden and
+// needs no human gate.
+//
+// Usage:
+//
+//	go run ./tools/sampleprobe    # or: just sampleprobe
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
+	"strings"
 )
 
 const (
 	upstreamDir = "third_party/rendercv"
-	outDir      = "internal/cli/samples"
+	scriptPath  = "tools/sampleprobe/probe.py"
+	blocksDir   = "internal/cli/sample/blocks"
+	fixtureDir  = "internal/cli/sample/testdata"
+
+	themeCount  = 9
+	localeCount = 22
 )
 
-// variants are the eight `new_*` corpus cases, keyed by the name the fixture
-// takes. The empty argument list is the default sample.
-var variants = map[string][]string{
-	"default":                  {},
-	"locale_arabic":            {"--locale", "arabic"},
-	"locale_french":            {"--locale", "french"},
-	"locale_japanese":          {"--locale", "japanese"},
-	"locale_turkish":           {"--locale", "turkish"},
-	"theme_engineeringresumes": {"--theme", "engineeringresumes"},
-	"theme_moderncv":           {"--theme", "moderncv"},
+// probe is probe.py's output.
+type probe struct {
+	Version   string            `json:"version"`
+	Themes    []string          `json:"themes"`
+	Locales   []string          `json:"locales"`
+	Cv        string            `json:"cv"`
+	Settings  string            `json:"settings"`
+	Design    map[string]string `json:"design"`
+	Locale    map[string]string `json:"locale"`
+	Documents map[string]string `json:"documents"`
+	Names     []struct {
+		Name   string `json:"name"`
+		Region string `json:"region"`
+	} `json:"names"`
 }
 
 func main() {
@@ -52,62 +74,125 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	target := filepath.Join(root, outDir)
-	if err := os.RemoveAll(target); err != nil {
-		return err
+
+	// The submodule's own interpreter, by path. `uv run … rendercv` from
+	// outside the submodule resolves to whatever `rendercv` is on PATH.
+	cmd := exec.Command(
+		filepath.Join(root, upstreamDir, ".venv/bin/python"),
+		filepath.Join(root, scriptPath),
+	)
+	cmd.Dir = filepath.Join(root, upstreamDir)
+	cmd.Stderr = os.Stderr
+	out, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("run probe.py: %w", err)
 	}
-	if err := os.MkdirAll(target, 0o755); err != nil {
+
+	var p probe
+	if err := json.Unmarshal(out, &p); err != nil {
+		return fmt.Errorf("parse probe output: %w", err)
+	}
+	if err := check(p); err != nil {
 		return err
 	}
 
-	names := make([]string, 0, len(variants))
-	for name := range variants {
-		names = append(names, name)
+	blocks := filepath.Join(root, blocksDir)
+	if err := os.RemoveAll(blocks); err != nil {
+		return err
 	}
-	sort.Strings(names)
-
-	for _, name := range names {
-		yaml, err := capture(root, variants[name])
-		if err != nil {
-			return fmt.Errorf("%s: %w", name, err)
-		}
-		if err := os.WriteFile(filepath.Join(target, name+".yaml"), yaml, 0o644); err != nil {
+	files := map[string]string{
+		"cv.yaml":       p.Cv,
+		"settings.yaml": p.Settings,
+	}
+	for theme, block := range p.Design {
+		files["design/"+theme+".yaml"] = block
+	}
+	for locale, block := range p.Locale {
+		files["locale/"+locale+".yaml"] = block
+	}
+	for name, content := range files {
+		target := filepath.Join(blocks, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 			return err
 		}
-		fmt.Printf("%-26s %d bytes\n", name, len(yaml))
+		if err := os.WriteFile(target, []byte(content), 0o644); err != nil {
+			return err
+		}
 	}
+	fmt.Printf("wrote %d blocks to %s\n", len(files), blocksDir)
+
+	if err := writeFixture(root, "matrix.json", map[string]any{
+		"version":   p.Version,
+		"themes":    p.Themes,
+		"locales":   p.Locales,
+		"documents": p.Documents,
+	}); err != nil {
+		return err
+	}
+	return writeFixture(root, "names.json", p.Names)
+}
+
+// writeFixture writes one test fixture, newline-terminated so the file is a
+// well-formed text file rather than a bare JSON blob.
+func writeFixture(root, name string, value any) error {
+	encoded, err := json.MarshalIndent(value, "", " ")
+	if err != nil {
+		return err
+	}
+	target := filepath.Join(root, fixtureDir, name)
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(target, append(encoded, '\n'), 0o644); err != nil {
+		return err
+	}
+	fmt.Println("wrote", filepath.Join(fixtureDir, name))
 	return nil
 }
 
-func capture(root string, args []string) ([]byte, error) {
-	scratch, err := os.MkdirTemp("", "sampleprobe-")
-	if err != nil {
-		return nil, err
+// check rejects an output upstream could not have produced, so a broken import
+// or a half-finished run fails here rather than overwriting good data with
+// nothing. It is not a parity assertion: probe.py asserts the decomposition,
+// and internal/cli/sample's tests assert the generator.
+func check(p probe) error {
+	switch {
+	case p.Version == "":
+		return fmt.Errorf("no version")
+	case len(p.Themes) != themeCount:
+		return fmt.Errorf("got %d themes, want %d", len(p.Themes), themeCount)
+	case len(p.Locales) != localeCount:
+		return fmt.Errorf("got %d locales, want %d", len(p.Locales), localeCount)
+	case len(p.Design) != themeCount:
+		return fmt.Errorf("got %d design blocks, want %d", len(p.Design), themeCount)
+	case len(p.Locale) != localeCount:
+		return fmt.Errorf("got %d locale blocks, want %d", len(p.Locale), localeCount)
+	case len(p.Documents) != themeCount*localeCount:
+		return fmt.Errorf("got %d digests, want %d", len(p.Documents), themeCount*localeCount)
+	case len(p.Names) == 0:
+		return fmt.Errorf("no name battery")
 	}
-	defer func() { _ = os.RemoveAll(scratch) }()
 
-	// `uv run` resolves the project from its working directory, so the project
-	// is named explicitly and the working directory stays the scratch one —
-	// which is where `new` writes.
-	argv := []string{
-		"run", "--frozen", "--all-extras",
-		"--project", filepath.Join(root, upstreamDir),
-		"rendercv", "new", "John Doe",
+	// The four blocks are spliced by their first line: the generator splits the
+	// dump on `design:\n  theme: …` and `locale:\n  language: …`
+	// (`schema/sample_generator.py:168-190`), so a block that does not start
+	// with its own discriminator would break the surgery silently.
+	if !strings.HasPrefix(p.Cv, "cv:\n  name: John Doe\n") {
+		return fmt.Errorf("the cv block does not start with cv:/name:")
 	}
-	cmd := exec.Command("uv", append(argv, args...)...)
-	cmd.Dir = scratch
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return nil, fmt.Errorf("upstream failed: %s", out)
+	if !strings.HasPrefix(p.Settings, "settings:\n") {
+		return fmt.Errorf("the settings block does not start with settings:")
 	}
-
-	matches, err := filepath.Glob(filepath.Join(scratch, "*.yaml"))
-	if err != nil {
-		return nil, err
+	for theme, block := range p.Design {
+		if !strings.HasPrefix(block, "design:\n  theme: "+theme+"\n") {
+			return fmt.Errorf("the %s design block does not start with its theme", theme)
+		}
 	}
-	if len(matches) != 1 {
-		return nil, fmt.Errorf("produced %d yaml files", len(matches))
+	for locale, block := range p.Locale {
+		if !strings.HasPrefix(block, "locale:\n  language: "+locale+"\n") {
+			return fmt.Errorf("the %s locale block does not start with its language", locale)
+		}
 	}
-	return os.ReadFile(matches[0])
+	return nil
 }
 
 func repoRoot() (string, error) {

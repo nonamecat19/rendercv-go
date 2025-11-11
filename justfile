@@ -139,6 +139,12 @@ dumpprobe:
 phoneprobe:
     go run ./tools/phoneprobe
 
+# Regenerate the starter CV's raw blocks — one `cv`, nine `design`, twenty-two
+# `locale`, one `settings` — plus the 198-document digest matrix and the
+# `cv.name` battery `new`'s generator is tested against. See tools/sampleprobe.
+sampleprobe:
+    go run ./tools/sampleprobe
+
 # Render every corpus input with the vendored Python and store the `.typ`, `.md`
 # and `.html`. This is the parity gate for iterations 9 and 11; see
 # tools/docprobe for what it skips.
