@@ -96,7 +96,7 @@ func Validate(
 		}
 	}
 
-	if errs := ValidateLanguage(language, location, source); len(errs) > 0 {
+	if errs := ValidateLanguage(node, language, location, source); len(errs) > 0 {
 		return errs
 	}
 	return ValidateCatalog(node, language.Raw, location, source)
@@ -136,16 +136,25 @@ func blockError(
 // raises it while resolving which union member to use, before any member's
 // fields are reached. Measured — `{language: klingon}` gives `("locale",)`.
 //
+// block is the locale mapping and language is its discriminator. Both are
+// needed because the record splits between them: the message quotes the tag,
+// while the location, the span and the **Input Value column** all belong to the
+// block — pydantic's `input` for this failure is the object it was resolving a
+// member for, so the column reads `...` and never the tag. Echoing the tag there
+// looked right on every input and was wrong on all of them (measured on `en`,
+// `klingon`, `null` and `5`; 1970 bytes each, first difference at byte 769).
+//
 // The locale package raises no custom failures of its own; it has neither a
 // field nor a model validator, so every other locale failure is a plain
 // pydantic message through the ordinary path, with the discriminator element
 // dropped by the pipeline's step 2 (spec 004 §3.17 behavior 67).
 func ValidateLanguage(
-	node *yamldoc.Node,
+	block *yamldoc.Node,
+	language *yamldoc.Node,
 	location []string,
 	source schemaerr.YamlSource,
 ) []schemaerr.ValidationError {
-	if node == nil {
+	if language == nil {
 		return nil
 	}
 
@@ -153,22 +162,16 @@ func ValidateLanguage(
 	// gives `Input tag 'None'`, because pydantic reads the key, finds `None`, and
 	// matches it against the tags. Treating it as "unspecified, use the default"
 	// is the reading that looks right and accepts a document upstream rejects.
-	value := schemaerr.RenderInput(node)
+	tag := schemaerr.RenderInput(language)
 	for _, known := range Languages {
-		if value == known {
+		if tag == known {
 			return nil
 		}
 	}
 
-	span := node.Span
-	return []schemaerr.ValidationError{{
-		Code:           CodeUnionTag,
-		SchemaLocation: append([]string(nil), location...),
-		YamlLocation:   &span,
-		YamlSource:     source,
-		Message:        unknownLanguageMessage(value),
-		Input:          schemaerr.RenderInput(node),
-	}}
+	return []schemaerr.ValidationError{
+		blockError(block, CodeUnionTag, unknownLanguageMessage(tag), location, source),
+	}
 }
 
 // unknownLanguageMessage is pydantic's `union_tag_invalid` text, built from the
