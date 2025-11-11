@@ -65,6 +65,30 @@ func TestUnknownLanguage(t *testing.T) {
 	}
 }
 
+// A TaggedScalar is no tag of the discriminator, however its text reads: the
+// union is over `str` literals and a TaggedScalar is not one.
+//
+// Measured on `locale: {language: !!str english}`, which upstream rejects with
+// the whole enumeration (1970 bytes) where the port let the tag through and
+// reported `string_type` from the catalog binder (1318 bytes).
+func TestATaggedLanguageIsNoTag(t *testing.T) {
+	for _, src := range []string{"!!str english", "!u turkish"} {
+		t.Run(src, func(t *testing.T) {
+			block, language := localeBlock(t, src)
+			errs := locale.ValidateLanguage(block, language, []string{"locale"}, schemaerr.SourceMain)
+			if len(errs) != 1 {
+				t.Fatalf("errs = %+v, want exactly one", errs)
+			}
+			if errs[0].Code != locale.CodeUnionTag {
+				t.Errorf("code = %q, want union_tag_invalid", errs[0].Code)
+			}
+			if !strings.Contains(errs[0].Message, "found using 'language'") {
+				t.Errorf("message = %q, want the discriminator failure", errs[0].Message)
+			}
+		})
+	}
+}
+
 // All twenty-two are accepted, including the non-ASCII one.
 func TestEveryLanguageAccepted(t *testing.T) {
 	if len(locale.Languages) != 22 {

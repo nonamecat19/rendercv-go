@@ -162,10 +162,18 @@ func ValidateLanguage(
 	// gives `Input tag 'None'`, because pydantic reads the key, finds `None`, and
 	// matches it against the tags. Treating it as "unspecified, use the default"
 	// is the reading that looks right and accepts a document upstream rejects.
+	// Membership is tested on the node, not on its text: only a real string can
+	// be one of the discriminator's tags. A `TaggedScalar` is not, however its
+	// text reads, so `language: !!str english` is `union_tag_invalid` with
+	// `english` quoted in the message — measured at 1970 bytes, where the port
+	// let the tag through and reported `string_type` from the catalog binder
+	// instead.
 	tag := schemaerr.RenderInput(language)
-	for _, known := range Languages {
-		if tag == known {
-			return nil
+	if language.Kind == yamldoc.KindString {
+		for _, known := range Languages {
+			if tag == known {
+				return nil
+			}
 		}
 	}
 
