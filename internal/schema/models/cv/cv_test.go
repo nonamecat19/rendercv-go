@@ -6,6 +6,7 @@ import (
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/binder"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv"
+	"github.com/nonamecat19/rendercv-go/internal/schema/models/inputpath"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamlreader"
@@ -234,6 +235,49 @@ func TestValidateResolvesPhoto(t *testing.T) {
 	}
 	if model.PhotoValue.Kind != cv.PhotoKindURL {
 		t.Errorf("photo kind = %v, want the URL branch for a nonexistent path", model.PhotoValue.Kind)
+	}
+}
+
+// Both arms of the photo union take a `str`, so a non-string fails on type
+// before either arm runs: upstream reports pydantic's `path_type`, not a
+// resolution message naming a file the user never wrote.
+//
+// Measured on 5, true, 1.5, a sequence, a mapping and a tagged scalar — all six
+// 1411 bytes at exit 1, against the port's 1318 for the scalars and a bare
+// `open : no such file or directory` for the two collections, whose empty Raw
+// resolved to the empty path and reached the renderer.
+func TestANonStringPhotoIsAPathTypeFailure(t *testing.T) {
+	tests := []struct {
+		src       string
+		wantInput string
+	}{
+		{src: "photo: 5\n", wantInput: "5"},
+		// `str(True)`, not the YAML token.
+		{src: "photo: true\n", wantInput: "True"},
+		{src: "photo: 1.5\n", wantInput: "1.5"},
+		{src: "photo: []\n", wantInput: "..."},
+		{src: "photo: {}\n", wantInput: "..."},
+		{src: "photo: !!str x\n", wantInput: "x"},
+	}
+
+	for _, test := range tests {
+		t.Run(strings.TrimSpace(test.src), func(t *testing.T) {
+			_, errs := cv.Validate(
+				parse(t, test.src), []string{"cv"}, schemaerr.SourceMain, testOptions(),
+			)
+			if len(errs) != 1 {
+				t.Fatalf("errs = %+v, want exactly one", errs)
+			}
+			if errs[0].Code != inputpath.CodePathType {
+				t.Errorf("code = %q, want path_type", errs[0].Code)
+			}
+			if errs[0].Message != inputpath.MessagePathType {
+				t.Errorf("message = %q", errs[0].Message)
+			}
+			if errs[0].Input != test.wantInput {
+				t.Errorf("input = %q, want %q", errs[0].Input, test.wantInput)
+			}
+		})
 	}
 }
 

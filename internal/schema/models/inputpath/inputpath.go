@@ -17,6 +17,20 @@ import (
 // error messages of path.py:45-55 are raised with.
 const pathOtherErrorCode schemaerr.Code = "rendercv_other_error"
 
+// CodePathType is pydantic's code for a value no path type can be built from,
+// and MessagePathType is its text. `pathlib.Path` takes a `str` and nothing
+// else — not an int, not a bool, not a list, and not a `TaggedScalar` — so a
+// non-string never reaches resolution and never earns a resolution message
+// (measured on `cv.photo: 5`, which upstream reports as a path *type* failure
+// while the port reported "The file `5` does not exist.").
+//
+// The class is spelled the way Python prints it, because upstream interpolates
+// the type object itself.
+const (
+	CodePathType    schemaerr.Code = "path_type"
+	MessagePathType                = "Input is not a valid path for <class 'pathlib.Path'>"
+)
+
 // ResolutionBase returns the directory a relative path is resolved against:
 // the input file's parent directory when the context carries one, otherwise
 // the process working directory (schema/models/path.py:38-39, spec §3.36).
