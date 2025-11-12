@@ -25,10 +25,19 @@ var customConnectionFields = []binder.Field{
 	{
 		Name:     "url",
 		Required: true,
-		// Declared `pydantic.HttpUrl` (custom_connection.py:9), one of the four
-		// sites of spec 004 §3.13 behavior 41. Required-but-nullable: an explicit
-		// null is the declared default and validates nothing, so the shape stays
-		// ValueAny and the check runs from the scalar hook.
+		// Declared `pydantic.HttpUrl | None` with no default
+		// (custom_connection.py:9), one of the four sites of spec 004 §3.13
+		// behavior 41: the key must be present and an explicit null is a valid
+		// value, which is what TypeAdmitsNull says.
+		//
+		// The shape was ValueAny — the only way to let that null through before
+		// TypeAdmitsNull existed — and so every non-string reached the URL parser
+		// and earned `This is not a valid URL.` where upstream reports HttpUrl's
+		// *type* failure. Measured on 5, true, a sequence and `!!str
+		// https://example.com`, all 1411 bytes at exit 1 against the port's 1318
+		// and, for the tagged one, a rendered CV at exit 0.
+		TypeAdmitsNull: true,
+		Value:          binder.ValueURL,
 		Scalar: func(raw string, _ bool) error {
 			_, err := httpurl.Validate(raw)
 			return err

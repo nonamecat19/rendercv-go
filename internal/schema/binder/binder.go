@@ -99,6 +99,18 @@ type Field struct {
 	// behavior) for every existing caller; only the design package sets it.
 	TypeRejectsNull bool
 
+	// TypeAdmitsNull is TypeRejectsNull's mirror, for the other asymmetric case:
+	// a field with **no default** — so Required — whose declared type is still
+	// `X | None`. `custom_connections[].url` is the one
+	// (custom_connection.py:9): the key must be present, an explicit null is a
+	// valid value, and anything else is checked against Value.
+	//
+	// Without it such a field has to be declared ValueAny to let the null
+	// through, which is how a non-string reached the URL parser and reported
+	// `This is not a valid URL.` where upstream reports the *type* failure
+	// `URL input should be a string or URL.`
+	TypeAdmitsNull bool
+
 	// Value is the field's declared shape. The zero value, ValueAny, means the
 	// value is bound as a raw node and never checked, which is what every field
 	// declared before spec 003 §3.13 did.
@@ -423,7 +435,7 @@ func checkValue(
 	}
 
 	isNull := value == nil || value.Kind == yamldoc.KindNull
-	if isNull && !field.Required && !field.TypeRejectsNull {
+	if isNull && (field.TypeAdmitsNull || (!field.Required && !field.TypeRejectsNull)) {
 		return nil
 	}
 
