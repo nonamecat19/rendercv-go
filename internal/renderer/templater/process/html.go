@@ -45,7 +45,8 @@ var converter = goldmark.New(
 	goldmark.WithParser(parser.NewParser(
 		parser.WithBlockParsers(withoutFencedCode(parser.DefaultBlockParsers())...),
 		parser.WithInlineParsers(append(parser.DefaultInlineParsers(),
-			util.Prioritized(automailParser{}, 250))...),
+			util.Prioritized(automailParser{}, 250),
+			util.Prioritized(imageParser{}, 150))...),
 		parser.WithParagraphTransformers(parser.DefaultParagraphTransformers()...),
 		parser.WithASTTransformers(util.Prioritized(linkTitleSplitter{}, 100)),
 	)),
