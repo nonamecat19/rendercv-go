@@ -63,6 +63,7 @@ var converter = goldmark.New(
 			// list backwards, so the lowest priority is registered last.
 			util.Prioritized(imageRenderer{writer: pythonMarkdownWriter}, 100),
 			util.Prioritized(codeSpanRenderer{writer: pythonMarkdownWriter}, 101),
+			util.Prioritized(linkRenderer{writer: pythonMarkdownWriter}, 103),
 			util.Prioritized(autoLinkRenderer{inner: defaultNodeRendererFunc(
 				ast.KindAutoLink, html.NewRenderer(
 					html.WithUnsafe(), html.WithXHTML(),

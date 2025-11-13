@@ -204,9 +204,8 @@ func (r imageRenderer) renderImage(
 	_, _ = w.WriteString(`<img alt="`)
 	r.writer.writeAttribute(w, altText(n, source))
 	_, _ = w.WriteString(`" src="`)
-	// The destination is a URL, so it keeps goldmark's URL escaping — python
-	// escapes the same characters there.
-	r.writer.SecureWrite(w, util.URLEscape(n.Destination, true))
+	// No URL escaping: python-markdown does none — see `link.go`.
+	r.writer.writeAttribute(w, n.Destination)
 	_ = w.WriteByte('"')
 	if n.Title != nil {
 		_, _ = w.WriteString(` title="`)
