@@ -46,14 +46,20 @@ func ResolutionBase(ctx *valctx.ValidationContext) (string, error) {
 }
 
 // resolveRelativePath mirrors schema/models/path.py:resolve_relative_path
-// (path.py:12-57). An empty path short-circuits: no resolution and no
-// existence check (spec §3.38). An absolute path is left unchanged
-// (spec §3.37). When mustExist is true, the resolved path must exist
-// (§4.5) and must be a regular file (§4.6); both messages interpolate the
-// path relative to the resolution base (spec §3.39).
+// (path.py:12-57). An absolute path is left unchanged (spec §3.37). When
+// mustExist is true, the resolved path must exist (§4.5) and must be a regular
+// file (§4.6); both messages interpolate the path relative to the resolution
+// base (spec §3.39).
+//
+// **An empty path does not short-circuit**, which spec §3.38 has backwards.
+// Upstream's guard is `if path:` on a `pathlib.Path`, and `Path("")` is
+// `PosixPath('.')` — truthy. So an empty string resolves to the base directory
+// and fails the is-a-file check: `photo: ""` gives "The path `.` is not a
+// file." Returning it unresolved instead handed the renderer an empty photo
+// path, which it reported as `open : no such file or directory`.
 func resolveRelativePath(path string, ctx *valctx.ValidationContext, mustExist bool) (string, error) {
 	if path == "" {
-		return "", nil
+		path = "."
 	}
 
 	base, err := ResolutionBase(ctx)

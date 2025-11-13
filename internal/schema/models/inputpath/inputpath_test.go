@@ -142,23 +142,35 @@ func TestAbsolutePathLeftUnchanged(t *testing.T) {
 	}
 }
 
-func TestEmptyPathShortCircuits(t *testing.T) {
-	ctx := &valctx.ValidationContext{InputFilePath: "/nonexistent/root/input.yaml"}
+// An empty path is **not** a short-circuit, which spec §3.38 has backwards.
+// Upstream guards with `if path:` on a `pathlib.Path`, and `Path("")` is
+// `PosixPath('.')` — truthy — so an empty string resolves to the base directory
+// and then fails the is-a-file check.
+//
+// Measured: `cv.photo: ""` gives "The path `.` is not a file." at exit 1, where
+// the port returned the empty path unresolved and the renderer failed later
+// with `open : no such file or directory`.
+func TestAnEmptyPathIsTheCurrentDirectory(t *testing.T) {
+	tmp := t.TempDir()
+	ctx := &valctx.ValidationContext{InputFilePath: filepath.Join(tmp, "input.yaml")}
 
-	got, err := inputpath.ResolveExistingPath("", ctx)
-	if err != nil {
-		t.Fatalf("ResolveExistingPath(\"\") error = %v, want nil (spec §3.38)", err)
+	_, err := inputpath.ResolveExistingPath("", ctx)
+	var failure *schemaerr.ValidationError
+	if !errors.As(err, &failure) {
+		t.Fatalf("ResolveExistingPath(\"\") error = %v, want a validation failure", err)
 	}
-	if got.Value != "" {
-		t.Errorf("ResolveExistingPath(\"\") = %q, want empty", got.Value)
+	if failure.Message != "The path `.` is not a file." {
+		t.Errorf("message = %q", failure.Message)
 	}
 
+	// The planned type never checks existence, so it resolves the same path and
+	// reports nothing.
 	gotPlanned, err := inputpath.ResolvePlannedPath("", ctx)
 	if err != nil {
 		t.Fatalf("ResolvePlannedPath(\"\") error = %v, want nil", err)
 	}
-	if gotPlanned.Value != "" {
-		t.Errorf("ResolvePlannedPath(\"\") = %q, want empty", gotPlanned.Value)
+	if gotPlanned.Value != tmp {
+		t.Errorf("ResolvePlannedPath(\"\") = %q, want the resolution base %q", gotPlanned.Value, tmp)
 	}
 }
 
