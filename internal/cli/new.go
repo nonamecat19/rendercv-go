@@ -11,6 +11,7 @@ import (
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/design"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/locale"
+	"github.com/nonamecat19/rendercv-go/internal/version"
 )
 
 // samples are the starter CVs `rendercv new` writes, captured from the vendored
@@ -227,10 +228,13 @@ func sampleVariant(options NewOptions) (string, error) {
 	}
 }
 
-// Version is the upstream version this port mirrors. It appears in `new`'s
-// greeting and is the one place the port must claim upstream's number rather
-// than its own.
-const Version = "2.8"
+// Version is the upstream version this port mirrors, and it lives in
+// internal/version because it has three user-visible sites, not one: `--version`
+// (`cli/app.py:41`), `new`'s greeting (`cli/new_command/print_welcome.py:14`)
+// and line 1 of every generated starter CV
+// (`schema/sample_generator.py:161-166`). Spec 013 §3.3 behavior 26: a bump that
+// misses any of the three is a byte divergence in a golden.
+const Version = version.RenderCV
 
 // newBanner is `new`'s stdout: a greeting, a links panel and a next-steps panel.
 //
