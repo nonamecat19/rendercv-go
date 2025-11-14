@@ -143,16 +143,41 @@ func normalizeNewlines(markdown string) string {
 }
 
 // flattenShallowLists moves every list marker indented by less than a tab length
-// to column 0, which is what python-markdown's list processor effectively does
-// with it.
+// to column 0, together with every **block** that starts there under-indented,
+// which is what python-markdown's list processor effectively does with both.
+//
+// The second half is the same `tab_length` rule seen from the other side.
+// `ListIndentProcessor` claims a block that follows a blank line as a child of
+// the item above it only when it is indented by a full 4, so
+//
+//   - item
+//
+//     continued
+//
+// is a list and then a **separate top-level paragraph** upstream, where
+// CommonMark keeps `continued` inside the item. Two spaces is what a person
+// naturally types to line text up under a bullet, so a CV reaches this.
+//
+// The rule is not restricted to lists because upstream's is not: a paragraph
+// opening at one to three spaces is dedented wherever it appears.
 func flattenShallowLists(markdown string) string {
 	lines := strings.Split(markdown, "\n")
+	afterBlank := true
 	for i, line := range lines {
-		match := listMarker.FindStringSubmatch(line)
-		if match == nil || len(match[1]) >= pythonMarkdownTabLength {
-			continue
+		blank := strings.TrimSpace(line) == ""
+		indent := len(line) - len(strings.TrimLeft(line, " "))
+
+		switch {
+		case blank:
+		case afterBlank && indent > 0 && indent < pythonMarkdownTabLength:
+			lines[i] = line[indent:]
+		default:
+			match := listMarker.FindStringSubmatch(line)
+			if match != nil && len(match[1]) < pythonMarkdownTabLength {
+				lines[i] = line[len(match[1]):]
+			}
 		}
-		lines[i] = line[len(match[1]):]
+		afterBlank = blank
 	}
 	return strings.Join(lines, "\n")
 }
