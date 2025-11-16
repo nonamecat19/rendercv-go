@@ -23,7 +23,8 @@ import (
 // dropped spaces, so the escaping, the hard-break `<br />` and the East-Asian
 // line-break rules all stay where they are.
 type textRenderer struct {
-	inner renderer.NodeRendererFunc
+	inner  renderer.NodeRendererFunc
+	writer pythonWriter
 }
 
 // RegisterFuncs claims the text node, and only that one.
@@ -34,18 +35,44 @@ func (r textRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer) {
 func (r textRenderer) renderText(
 	w util.BufWriter, source []byte, node ast.Node, entering bool,
 ) (ast.WalkStatus, error) {
-	status, err := r.inner(w, source, node, entering)
-	if err != nil || !entering {
-		return status, err
+	n := node.(*ast.Text)
+	if !entering || n.IsRaw() || (!n.SoftLineBreak() && !n.HardLineBreak()) {
+		return r.inner(w, source, node, entering)
 	}
 
-	n := node.(*ast.Text)
-	if n.IsRaw() || (!n.SoftLineBreak() && !n.HardLineBreak()) {
-		return status, err
+	r.writer.Write(w, n.Segment.Value(source))
+	trailing := source[n.Segment.Stop:lineEnd(source, n.Segment.Stop)]
+
+	switch {
+	case len(trailing) > 0 && trailing[0] == '\\':
+		// A backslash at end of line is not a break upstream at all: python's
+		// `LINE_BREAK_RE` is `  \n` and nothing else (`inlinepatterns.py:161`),
+		// and a newline is not in its escapable set, so the backslash stays as
+		// written and the line break stays soft.
+		_ = w.WriteByte('\\')
+	case n.HardLineBreak():
+		// The two spaces `LINE_BREAK_RE` consumes are the only two it consumes:
+		// `a   \n` keeps one before the `<br />` upstream, where goldmark trims
+		// every trailing space it finds.
+		_, _ = w.Write(trailing[:max(0, len(trailing)-2)])
+		_, _ = w.WriteString("<br />")
+	default:
+		_, _ = w.Write(trailing)
 	}
+	_ = w.WriteByte('\n')
 	_, _ = w.Write(continuationIndent(source, node))
 
-	return status, err
+	return ast.WalkContinue, nil
+}
+
+// lineEnd is the offset of the newline at or after `from`.
+func lineEnd(source []byte, from int) int {
+	for i := from; i < len(source); i++ {
+		if source[i] == '\n' {
+			return i
+		}
+	}
+	return len(source)
 }
 
 // continuationIndent is the whitespace the next line keeps: what stands in front
