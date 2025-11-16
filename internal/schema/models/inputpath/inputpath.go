@@ -26,10 +26,10 @@ const pathOtherErrorCode schemaerr.Code = "rendercv_other_error"
 //
 // The class is spelled the way Python prints it, because upstream interpolates
 // the type object itself.
-const (
-	CodePathType    schemaerr.Code = "path_type"
-	MessagePathType                = "Input is not a valid path for <class 'pathlib.Path'>"
-)
+const CodePathType schemaerr.Code = "path_type"
+
+// MessagePathType is that code's text.
+const MessagePathType = "Input is not a valid path for <class 'pathlib.Path'>"
 
 // ResolutionBase returns the directory a relative path is resolved against:
 // the input file's parent directory when the context carries one, otherwise
