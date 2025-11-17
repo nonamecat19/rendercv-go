@@ -94,13 +94,22 @@ func Panel(title string, rows []PanelRow) string {
 		if row.IsText || row.Text != "" {
 			body = row.Text
 		}
+		// **A newline inside a row is a hard break**, not a character: Rich's
+		// `Text` splits on it before it wraps, so each segment gets its own
+		// bordered line. `new "$(printf 'a\nb')"` reaches this — the file name
+		// keeps the newline, because `new` sanitizes nothing but spaces
+		// (`cli/new_command/new_command.py:81`) — and without the split the
+		// newline lands raw inside the box and breaks the border.
+		//
 		// **A row wider than the panel wraps**, and its continuation is not
 		// indented — measured on `theme_classic`, whose two PNG paths do not fit
 		// on one line and whose second line starts at the panel's first column.
-		for _, line := range wrap(body, inner) {
-			out.WriteString("│ ")
-			out.WriteString(pad(line, inner))
-			out.WriteString(" │\n")
+		for _, segment := range strings.Split(body, "\n") {
+			for _, line := range wrap(segment, inner) {
+				out.WriteString("│ ")
+				out.WriteString(pad(line, inner))
+				out.WriteString(" │\n")
+			}
 		}
 	}
 

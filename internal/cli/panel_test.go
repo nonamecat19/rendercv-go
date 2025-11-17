@@ -129,3 +129,29 @@ func TestPanelTracksTheConsoleWidth(t *testing.T) {
 		}
 	}
 }
+
+// TestPanelBreaksRowsOnNewlines is Rich's hard break: a `\n` inside a row is a
+// line boundary, not a character to print. `new` reaches it because it turns
+// only spaces into underscores (`cli/new_command/new_command.py:81`), so a name
+// with a newline in it produces a file name with a newline in it, and that file
+// name goes into two rows of the "Get started" panel.
+func TestPanelBreaksRowsOnNewlines(t *testing.T) {
+	t.Setenv("COLUMNS", "80")
+	panel := Panel("Get started", []PanelRow{{Text: "✓ Created: ./line1\nline2_CV.yaml"}})
+
+	lines := strings.Split(strings.TrimRight(panel, "\n"), "\n")
+	if len(lines) != 4 {
+		t.Fatalf("the panel has %d lines, want 4", len(lines))
+	}
+	for i, line := range lines {
+		if got := len([]rune(line)); got != 80 {
+			t.Errorf("line %d is %d wide, want 80: %q", i, got, line)
+		}
+	}
+	if !strings.HasPrefix(lines[1], "│ ✓ Created: ./line1 ") {
+		t.Errorf("the first segment is %q", lines[1])
+	}
+	if !strings.HasPrefix(lines[2], "│ line2_CV.yaml ") {
+		t.Errorf("the second segment is %q", lines[2])
+	}
+}
