@@ -10,17 +10,21 @@ import (
 	"github.com/nonamecat19/rendercv-go/internal/renderer/templater/process"
 )
 
-// Differential against python-markdown over 75 shapes. The fixture is CPython's
+// Differential against python-markdown over 113 shapes. The fixture is CPython's
 // own output, generated through the vendored submodule's `markdown.markdown` —
 // never hand-written (`AGENTS.md` §10.1).
 //
-// **It was red on purpose for one release and is not any more.** goldmark escapes
-// `"` everywhere and python-markdown escapes it only inside an attribute, so any
-// double quote in a CV produced a differing `.html`; `htmlescape.go` now
-// implements python-markdown's three escaping contexts, its narrower
-// backslash-escapable set, its verbatim treatment of entity-shaped tokens, its
-// XHTML void elements, and its link-title scanning. Measured before the change:
-// 33 of these 75 rows differed. After: the four in knownRemainder.
+// **The 75-row version of this fixture was the reason the port believed it was
+// nearly done.** A fresh-context verifier found eight further divergence classes
+// reachable from an ordinary CV highlight, none of them represented here and none
+// recorded as a divergence; the rows below were added first, red, and the fixes
+// followed one class per commit. Six of the eight closed, together with five more
+// classes the reproduction turned up on the way — tab expansion, code-span
+// newlines, URL escaping, line-break rules, and whitespace at the end of a block.
+//
+// Measured after that work: **5 of these 113 rows differ**, all of them in
+// `knownRemainder`, checked by running `MarkdownToHTML` over every `In` and
+// diffing against the fixture's `Out` — not read off a commit message.
 //
 // It lives behind the conformance tag because it needs no upstream process but
 // does encode upstream's exact output.
@@ -54,18 +58,36 @@ func TestMarkdownToHTMLMatchesPython(t *testing.T) {
 	}
 }
 
-// knownRemainder is the four shapes still differing, with the reason each is a
-// **separate** defect from the escaping this file's fix was about. All four were
-// already failing before that fix — measured in an isolated worktree at the
-// previous commit, where 33 of the 75 rows differed — so none is a regression,
-// and none involves a quote in text.
+// knownRemainder is the five shapes still differing. Each is pinned by an
+// **inverted** assertion above — the case still runs, still has to produce
+// output, and still has to differ — for the same reason
+// `conformance.AssertUnreachable` is: a list of tolerated mismatches that cannot
+// notice being fixed is a mute button.
 //
-// They are goldmark-versus-python-markdown differences in three areas this port
-// has not yet reproduced: paragraph-trailing whitespace, nested emphasis
-// ordering, and the escaping of a quote left inside a URL.
+// They fall into three classes, and each is a *reimplementation*, not an
+// oversight. None is recorded in `specs/divergences.md` yet; that file is human-
+// gated (`AGENTS.md` §5) and the proposals are with the iteration owner.
+//
+//  1. **Emphasis.** python-markdown resolves `*` and `_` with two regex-driven
+//     tree processors (`AsteriskProcessor`, `UnderscoreProcessor`,
+//     `inlinepatterns.py:93-94`) and CommonMark uses delimiter runs, so the two
+//     disagree on nesting order, on strong inside em, and on `_` between word
+//     characters. Matching would mean replacing goldmark's emphasis parser
+//     wholesale.
+//  2. **A destination with a space.** `getLink` balances parentheses and takes
+//     whatever is between them (`inlinepatterns.py:716-830`); CommonMark requires
+//     `<…>` around a space. goldmark's link parsing runs on a delimiter stack
+//     whose label handling is unexported, so a replacement parser cannot parse
+//     the label — the image one below it can only be written because upstream
+//     never parses an image's label at all.
+//  3. **A block-level tag inside a list item.** python-markdown stashes raw HTML
+//     in a preprocessor before any block parsing, so the `<div>` is part of the
+//     item's text; goldmark opens a real HTML block inside the item and the two
+//     differ by a newline.
 var knownRemainder = map[string]string{
-	"&; ":                                "goldmark strips a paragraph's trailing space; python keeps it",
-	"___strong em___":                    "the two libraries nest strong and em in opposite orders",
-	"line with trailing spaces   \nnext": "python keeps one space before a hard break, goldmark strips it",
-	"[t](u\"notitle)":                    "an unresolved title leaves a quote in the href, which python HTML-escapes and goldmark URL-escapes",
+	"___strong em___":    "the two libraries nest strong and em in opposite orders",
+	"*a **bold** thing*": "python closes and reopens the em around a nested strong",
+	"_a __b__ c_":        "python does not read `__` between word characters as strong",
+	"[t](a b)":           "python accepts an unbracketed space in a destination",
+	"- <div>block</div>": "python stashes the raw block before the list item is parsed",
 }
