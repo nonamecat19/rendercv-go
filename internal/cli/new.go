@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"embed"
 	"errors"
 	"fmt"
 	"io"
@@ -9,38 +8,11 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/nonamecat19/rendercv-go/internal/cli/sample"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/design"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/locale"
 	"github.com/nonamecat19/rendercv-go/internal/version"
 )
-
-// samples are the starter CVs `rendercv new` writes, captured from the vendored
-// Python by tools/sampleprobe. They are **data, not a template**: upstream
-// builds them from its own models, and 369 lines of hand-copied YAML would be a
-// golden by another name (AGENTS.md §10.1).
-//
-//go:embed samples/*.yaml
-var samples embed.FS
-
-// ErrSampleNameUnsupported is what `new` returns for a name other than the one
-// the samples were captured with.
-//
-// **The samples are per-name, and only `John Doe` was captured.** Upstream
-// generates the file from the name it is given, so `new "Jane Roe"` produces a
-// document with her name in `cv.name` *and* in the file name. This port cannot
-// synthesize that from a captured sample without knowing which of the ~40
-// occurrences of `John Doe` in the file are the name and which are sample prose
-// — the header's `John Doe`, yes, but also `John_Doe`, `johndoe` in URLs, and
-// `John Doe`'s appearance inside publication author lists.
-//
-// Guessing is exactly the kind of silent wrongness this port keeps finding, so
-// it reports instead. Resolving it needs either a real port of upstream's
-// sample builder or a probe that captures a second name and diffs the two — the
-// diff is the substitution rule, measured rather than assumed.
-var ErrSampleNameUnsupported = errors.New(
-	`only "John Doe" is supported by ` + "`new`" + ` so far: the starter CV is captured from
-upstream per name, and the substitution rule for another name has not been measured
-(see internal/cli/new.go)`)
 
 // NewOptions are `new`'s flags (spec 012 §3).
 type NewOptions struct {
@@ -73,19 +45,16 @@ func New(options NewOptions, stdout, stderr io.Writer) int {
 		return exitValidationError
 	}
 
-	if options.Name != "John Doe" {
-		fail(stderr, ErrSampleNameUnsupported)
-		return exitValidationError
-	}
-	variant, err := sampleVariant(options)
+	// The two flags default in typer's signature, not in the generator
+	// (`new_command.py:38`, `:49`), so an unset flag is `classic` / `english`
+	// here rather than an empty axis.
+	content, err := sample.Generate(
+		options.Name,
+		orDefault(options.Theme, defaultTheme),
+		orDefault(options.Locale, defaultLocale),
+	)
 	if err != nil {
 		fail(stderr, err)
-		return exitValidationError
-	}
-
-	content, err := samples.ReadFile("samples/" + variant + ".yaml")
-	if err != nil {
-		fail(stderr, fmt.Errorf("no starter CV for %s: %w", variant, err))
 		return exitValidationError
 	}
 
@@ -95,8 +64,8 @@ func New(options NewOptions, stdout, stderr io.Writer) int {
 	// creator never runs. The port wrote unconditionally and then hardcoded
 	// the "Created" row, so `new` silently overwrote a CV the user had already
 	// filled in and reported the opposite of what it did.
-	path := strings.ReplaceAll(options.Name, " ", "_") + "_CV.yaml"
-	inputFileCreated, err := writeFileIfAbsent(path, content)
+	path := sample.FileName(options.Name)
+	inputFileCreated, err := writeFileIfAbsent(path, []byte(content))
 	if err != nil {
 		fail(stderr, err)
 		return exitValidationError
@@ -107,10 +76,7 @@ func New(options NewOptions, stdout, stderr io.Writer) int {
 		// `theme` defaults to `"classic"` upstream (`new_command.py:35`), and
 		// that is the folder name `copy_templates` writes to whether or not
 		// the flag was given explicitly.
-		theme := options.Theme
-		if theme == "" {
-			theme = "classic"
-		}
+		theme := orDefault(options.Theme, defaultTheme)
 		item := templateItem{desc: "Typst templates", path: theme}
 		wrote, err := writeTemplatesIfAbsent(theme, copyTypstTemplates)
 		if err != nil {
@@ -206,27 +172,12 @@ func templateRows(created, existing []templateItem) []PanelRow {
 	return rows
 }
 
-// sampleVariant maps the theme and locale flags onto a captured sample.
-//
-// **Only one of the two may be non-default**, because that is all the probe
-// captured — the corpus has no case setting both, and inventing the combination
-// would mean shipping a sample no upstream run ever produced.
-func sampleVariant(options NewOptions) (string, error) {
-	theme := options.Theme
-	locale := options.Locale
-
-	switch {
-	case theme == "" && locale == "":
-		return "default", nil
-	case theme != "" && locale != "":
-		return "", errors.New("setting both --theme and --locale is not supported yet: " +
-			"no starter CV was captured for the combination")
-	case theme != "":
-		return "theme_" + theme, nil
-	default:
-		return "locale_" + locale, nil
-	}
-}
+// The two defaults typer declares for `new` (`new_command.py:38`, `:49`). The
+// port carries an unset flag as the empty string, so they are applied here.
+const (
+	defaultTheme  = "classic"
+	defaultLocale = "english"
+)
 
 // Version is the upstream version this port mirrors, and it lives in
 // internal/version because it has three user-visible sites, not one: `--version`
