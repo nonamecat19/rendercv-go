@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/nonamecat19/rendercv-go/internal/cli"
+	"github.com/nonamecat19/rendercv-go/internal/version"
 )
 
 // TestNewCreateTypstTemplates is G-9's other half: `--create-typst-templates`
@@ -156,5 +157,33 @@ func TestNewCreatesAnAbsentInputFile(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "✓ Created your YAML input file: ./John_Doe_CV.yaml") {
 		t.Errorf("stdout missing the created row:\n%s", stdout.String())
+	}
+}
+
+// TestNewReportsOneVersion is spec 013 §3.3 behavior 26's third and second
+// sites, checked together: the welcome banner and line 1 of the file `new`
+// writes must both carry the constant, so a bump cannot move one without the
+// other. The first site, `--version`, is pinned in exitcode_test.go.
+func TestNewReportsOneVersion(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	var stdout, stderr bytes.Buffer
+	if code := cli.New(cli.NewOptions{Name: "John Doe"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("exit = %d, stderr = %q", code, stderr.String())
+	}
+
+	banner := "Welcome to RenderCV v" + version.RenderCV + "!"
+	if !strings.Contains(stdout.String(), banner) {
+		t.Errorf("stdout has no %q:\n%s", banner, stdout.String())
+	}
+
+	content, err := os.ReadFile(filepath.Join(dir, "John_Doe_CV.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, _, _ := strings.Cut(string(content), "\n")
+	if !strings.Contains(first, "/refs/tags/v"+version.RenderCV+"/schema.json") {
+		t.Errorf("line 1 of the starter CV is %q", first)
 	}
 }
