@@ -300,6 +300,60 @@ func TestAnEmptyPhotoPathIsTheCurrentDirectory(t *testing.T) {
 	}
 }
 
+// The three collection fields check their own shape: the two `list[...]` fields
+// are pydantic's `list_type` and `sections`, a `dict[str, list[...]]`, is
+// `dict_type`. A null passes on all three — each defaults to None.
+//
+// The port skipped a value of the wrong shape and rendered the CV, so
+// `sections: abc` and `social_networks: 5` both left at exit 0 where upstream
+// exits 1 (measured at 1318 and 1411 bytes).
+func TestTheCollectionFieldsCheckTheirShape(t *testing.T) {
+	tests := []struct {
+		src     string
+		want    string
+		wantLoc string
+	}{
+		{src: "social_networks: 5\n", want: "Input should be a valid list", wantLoc: "cv.social_networks"},
+		{src: "social_networks: abc\n", want: "Input should be a valid list", wantLoc: "cv.social_networks"},
+		{src: "social_networks:\n  a: 1\n", want: "Input should be a valid list", wantLoc: "cv.social_networks"},
+		{src: "custom_connections: 5\n", want: "Input should be a valid list", wantLoc: "cv.custom_connections"},
+		{src: "sections: 5\n", want: "Input should be a valid dictionary", wantLoc: "cv.sections"},
+		{src: "sections: abc\n", want: "Input should be a valid dictionary", wantLoc: "cv.sections"},
+		{src: "sections: [a]\n", want: "Input should be a valid dictionary", wantLoc: "cv.sections"},
+		{src: "sections: !!str x\n", want: "Input should be a valid dictionary", wantLoc: "cv.sections"},
+	}
+
+	for _, test := range tests {
+		t.Run(strings.TrimSpace(test.src), func(t *testing.T) {
+			_, errs := cv.Validate(
+				parse(t, test.src), []string{"cv"}, schemaerr.SourceMain, testOptions(),
+			)
+			if len(errs) != 1 {
+				t.Fatalf("errs = %+v, want exactly one", errs)
+			}
+			if errs[0].Message != test.want {
+				t.Errorf("message = %q, want %q", errs[0].Message, test.want)
+			}
+			if got := strings.Join(errs[0].SchemaLocation, "."); got != test.wantLoc {
+				t.Errorf("location = %q, want %q", got, test.wantLoc)
+			}
+		})
+	}
+}
+
+// A null is each field's declared default and passes.
+func TestTheCollectionFieldsAcceptANull(t *testing.T) {
+	for _, src := range []string{"social_networks: null\n", "custom_connections: null\n", "sections: null\n"} {
+		t.Run(strings.TrimSpace(src), func(t *testing.T) {
+			if _, errs := cv.Validate(
+				parse(t, src), []string{"cv"}, schemaerr.SourceMain, testOptions(),
+			); len(errs) != 0 {
+				t.Fatalf("errs = %+v, want none", errs)
+			}
+		})
+	}
+}
+
 // Spec 004 §3.9 behavior 32 step 3 and §6 rule 2, on the measured seven-record
 // input: every declared field first in declaration order, then the unknown keys
 // in input order — including inside a nested model, which reports entirely

@@ -35,7 +35,10 @@ const (
 	CodeModelType      schemaerr.Code = "model_type"
 	CodeStringType     schemaerr.Code = "string_type"
 	CodeListType       schemaerr.Code = "list_type"
-	CodeURLType        schemaerr.Code = "url_type"
+	// CodeDictType is pydantic's code for a `dict[...]` field that is not a
+	// mapping — distinct from CodeModelType, which is a *model*'s and names it.
+	CodeDictType schemaerr.Code = "dict_type"
+	CodeURLType  schemaerr.Code = "url_type"
 
 	// CodeInvalidKey is pydantic-core's code for a mapping key that is not a
 	// string, which only an explicit tag produces here (spec 015 §3.3).
@@ -61,6 +64,16 @@ const (
 	// Pydantic's own text, both measured and both dictionary keys — the
 	// pipeline replaces them, so these are what it must see.
 	messageStringType = "Input should be a valid string"
+
+	// MessageListType is exported for the two collection fields whose shape
+	// check cannot live in a Spec: `cv.social_networks` and
+	// `cv.custom_connections` are validated in declaration order *after* Bind,
+	// so declaring them there would report them too early.
+	MessageListType = messageListType
+	// MessageDictType is the same for `cv.sections`. It is pydantic's
+	// `dict_type` text, which is CodeModelType's without a model name — the two
+	// codes differ but the sentence does not.
+	MessageDictType = messageModelType
 
 	// pydantic's own text for a non-string key, which no dictionary row
 	// rewrites — the pipeline only adds its trailing period.
