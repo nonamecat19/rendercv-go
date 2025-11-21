@@ -13,16 +13,6 @@ import (
 	"github.com/yuin/goldmark/util"
 )
 
-// converter is goldmark configured to match python-markdown's defaults where it
-// can.
-//
-// **`WithUnsafe` is not a security decision here, it is a parity one.**
-// python-markdown passes raw HTML through; goldmark replaces it with
-// `<!-- raw HTML omitted -->` unless told otherwise, so a `<b>` in a CV summary
-// vanished and a `<tag>` in ordinary prose took its surrounding text with it. A
-// verifier measured both. The input is the user's own CV, which the port
-// already renders verbatim into Typst, so passing it through is what the rest of
-// the pipeline does too.
 // listMarker is a list item's indentation and bullet.
 var listMarker = regexp.MustCompile(`^( +)([-*+] |\d+\. )`)
 
