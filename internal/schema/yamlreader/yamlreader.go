@@ -3,41 +3,27 @@ package yamlreader
 import (
 	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
 )
 
-var acceptedExtensions = map[string]bool{
-	".yaml":  true,
-	".yml":   true,
-	".json":  true,
-	".json5": true,
-}
-
-// ReadFile reads and parses a YAML input file, checking existence, extension
-// and emptiness in upstream's order (yaml_reader.py:34-60).
+// ReadFile reads and parses a YAML input file.
+//
+// **It performs no existence check and no extension check**, and that is
+// upstream's behavior rather than a simplification. `read_yaml` takes a
+// `pathlib.Path | str` (`yaml_reader.py:11`); only the `Path` branch checks
+// existence (`:33-37`) and the extension whitelist (`:39-47`), and the render
+// path's only caller (`schema/rendercv_model_builder.py:85`) passes the file's
+// **contents** as a string. So neither check is reachable from the CLI:
+// measured, a valid CV named `ok.txt` renders at exit 0, and a missing input
+// file reaches the traceback of spec 013 behavior 40, not a message.
+//
+// Both messages therefore lived here where nothing could surface them and
+// nothing could prove them gone. Implementing either reachably would make the
+// port stricter than upstream (spec 013 §3.6 behavior 43, §4.11);
+// `internal/cli/reachability_test.go` asserts neither string is in the source.
 func ReadFile(path string) (*yamldoc.Node, error) {
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return nil, &schemaerr.UserError{
-			Message: fmt.Sprintf("The input file `%s` doesn't exist!", path),
-		}
-	}
-
-	ext := filepath.Ext(path)
-	if !acceptedExtensions[ext] {
-		accepted := []string{".yaml", ".yml", ".json", ".json5"}
-		return nil, &schemaerr.UserError{
-			Message: fmt.Sprintf(
-				"The input file should have one of the following extensions: %s. The input file is %s.",
-				strings.Join(accepted, ", "),
-				filepath.Base(path),
-			),
-		}
-	}
-
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("reading %s: %w", path, err)

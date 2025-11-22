@@ -13,48 +13,28 @@ import (
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamlreader"
 )
 
-// Spec §4.1 — a nonexistent path, with the path interpolated exactly as
-// supplied rather than resolved.
-func TestNonexistentFile(t *testing.T) {
-	for _, path := range []string{"does_not_exist.yaml", "./nested/does_not_exist.yaml"} {
-		t.Run(path, func(t *testing.T) {
-			_, err := yamlreader.ReadFile(path)
+// Spec 002 §4.1, §4.2 and §5.1 pinned an existence check, an extension
+// whitelist and their ordering. **Spec 013 behavior 43 measured that none of
+// the three is reachable from upstream's CLI** — the render path passes
+// `read_yaml` a string, and only its `Path` branch performs those checks — so
+// the three tests that asserted them were pinning a divergence: a valid CV
+// named `ok.txt` renders at exit 0 upstream (measured against the vendored
+// binary) and errored here.
+//
+// The branches and their tests are gone. What replaces them is
+// `TestAnyExtensionIsAccepted` below plus `internal/cli/reachability_test.go`,
+// which asserts neither message appears anywhere in the port's source.
 
-			var userErr *schemaerr.UserError
-			if !errors.As(err, &userErr) {
-				t.Fatalf("err = %v (%T), want *schemaerr.UserError", err, err)
-			}
-			want := "The input file `" + path + "` doesn't exist!"
-			if userErr.Message != want {
-				t.Errorf("message = %q, want %q", userErr.Message, want)
-			}
-		})
-	}
-}
-
-// Spec §4.2 — the extension check, on the file's final component.
-func TestExtensionCheck(t *testing.T) {
+// TestAnyExtensionIsAccepted is behavior 43 at the reader level: the extension
+// is not consulted, so every one of spec 002 §4.2's formerly-rejected names
+// parses like any other file.
+func TestAnyExtensionIsAccepted(t *testing.T) {
 	dir := t.TempDir()
-	rejected := []string{"cv.txt", "cv.YAML", "cv.yamls", "cv"}
-	for _, name := range rejected {
-		t.Run("rejects "+name, func(t *testing.T) {
-			path := filepath.Join(dir, name)
-			write(t, path, "cv:\n  name: John\n")
-
-			_, err := yamlreader.ReadFile(path)
-			var userErr *schemaerr.UserError
-			if !errors.As(err, &userErr) {
-				t.Fatalf("err = %v (%T), want *schemaerr.UserError", err, err)
-			}
-			want := "The input file should have one of the following extensions:" +
-				" .yaml, .yml, .json, .json5. The input file is " + name + "."
-			if userErr.Message != want {
-				t.Errorf("message = %q, want %q", userErr.Message, want)
-			}
-		})
-	}
-	for _, name := range []string{"cv.yaml", "cv.yml", "cv.json", "cv.json5"} {
-		t.Run("accepts "+name, func(t *testing.T) {
+	for _, name := range []string{
+		"cv.txt", "cv.YAML", "cv.yamls", "cv",
+		"cv.yaml", "cv.yml", "cv.json", "cv.json5",
+	} {
+		t.Run(name, func(t *testing.T) {
 			path := filepath.Join(dir, name)
 			write(t, path, "cv:\n  name: John\n")
 
@@ -65,9 +45,10 @@ func TestExtensionCheck(t *testing.T) {
 	}
 }
 
-// Spec §5.1 — the extension check runs before the empty check, so a zero-byte
-// `x.txt` reports the extension error, not the empty-file one.
-func TestExtensionBeatsEmpty(t *testing.T) {
+// TestEmptyFileWithAnyExtension is the other half of spec 002 §5.1's ordering
+// claim. With the extension check gone there is nothing left to order against:
+// a zero-byte `x.txt` reports the empty-file error, the same as `x.yaml`.
+func TestEmptyFileWithAnyExtension(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "x.txt")
 	write(t, path, "")
 
@@ -76,10 +57,8 @@ func TestExtensionBeatsEmpty(t *testing.T) {
 	if !errors.As(err, &userErr) {
 		t.Fatalf("err = %v (%T), want *schemaerr.UserError", err, err)
 	}
-	want := "The input file should have one of the following extensions:" +
-		" .yaml, .yml, .json, .json5. The input file is x.txt."
-	if userErr.Message != want {
-		t.Errorf("message = %q, want the extension error %q", userErr.Message, want)
+	if userErr.Message != "The input file is empty!" {
+		t.Errorf("message = %q, want %q", userErr.Message, "The input file is empty!")
 	}
 }
 
