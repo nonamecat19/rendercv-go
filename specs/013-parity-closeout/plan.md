@@ -76,9 +76,21 @@ Consequences for the port:
   keeps reporting a clean error at the same exit code and stream, but must not do it with
   upstream's `read_yaml` wording, which no user can ever see upstream.
 
-So `errMissingFile`'s text is replaced, not its call sites — both the input read and `overlayFile`
-keep failing, at exit 1, on stdout, through path A. §8's criterion is textual: neither §4.11 string
-appears in the source.
+So `errMissingFile`'s call sites are unchanged — both the input read and `overlayFile` keep failing,
+at exit 1, on stdout, through path A. §8's criterion is textual: neither §4.11 string appears in the
+source.
+
+**Landed differently from this plan's first draft, and the difference is worth recording.** The
+draft assumed `internal/cli.errMissingFile` carried one of §4.11's strings. It does not — its text is
+`The file %s does not exist!`, which is nearer `schema/models/path.py:47` than either §4.11 message,
+and it covers a vector that is D-011's traceback upstream. The two strings were in
+`internal/schema/yamlreader.ReadFile`, together with a live existence check and extension whitelist
+that the CLI never reached but that every direct caller did. That is what T2 removed
+(`4b981bb`); `internal/cli/render.go` was not touched, which also kept T2 clear of T1.
+
+The removal contradicts spec 002 §4.1, §4.2 and §5.1, which asserted all three behaviors. Those
+sections pinned a divergence and their tests are gone; **spec 002 must be corrected** — T6's ledger
+entry records it.
 
 ## 5. Exit codes (T3)
 
