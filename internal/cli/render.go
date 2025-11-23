@@ -78,26 +78,26 @@ type RenderOptions struct {
 // axis 2, so this was a divergence in the contract with nothing recording it.
 const exitValidationError = 1
 
-// errWatchNotImplemented is what `--watch` reports until iteration 13 ports
-// the watcher.
-var errWatchNotImplemented = errors.New(
-	"--watch is not implemented yet: rendercv-go does not have a file watcher")
-
 // Render is the `render` command (spec 012 §2).
 //
-// **PDF and PNG are iteration 10's**, so this writes the three text artifacts
-// and reports the two it cannot produce rather than pretending they exist.
+// It is the dispatch upstream makes at `render_command.py:231-236`: inside the
+// progress panel, `--watch` runs the render through
+// `run_function_if_files_change` and everything else runs it once.
 func Render(options RenderOptions, stdout, stderr io.Writer) int {
-	// **`--watch` used to parse and silently do a single render**, which is a
-	// worse failure than rejecting it: upstream `--watch` never returns until
-	// a watched file changes, so a one-shot render that exits 0 answers a
-	// different question than the one asked (G-10). The watcher itself is
-	// spec §6.2's, iteration 13's work; until it lands, saying so beats
-	// pretending nothing was requested.
 	if options.Watch {
-		fail(stderr, errWatchNotImplemented)
-		return exitValidationError
+		return watch(options, stdout, stderr)
 	}
+	return renderOnce(options, stdout, stderr)
+}
+
+// renderOnce is one pass of the pipeline — the body of upstream's
+// `run_rendercv` (`cli/render_command/run_rendercv.py:127`), which is both what
+// a plain `render` does and what the watcher calls on every change.
+func renderOnce(options RenderOptions, stdout, stderr io.Writer) int {
+	// stderr is unused: every failure reaches the user as a Rich panel on
+	// stdout, which is what every `err_*` golden records. It stays in the
+	// signature because it is `render`'s stream pair.
+	_ = stderr
 
 	// **`--quiet` silences the console the progress panel renders on**, not
 	// just the success box: upstream builds the whole `ProgressPanel` on
