@@ -34,7 +34,7 @@ func execute(args []string, stdout, stderr io.Writer, run runners) int {
 	rest, extras := Normalize(args)
 
 	options := RenderOptions{Extras: extras}
-	code := 70
+	code := exitInternalError
 
 	render := &cobra.Command{
 		Use:  "render [input]",
@@ -173,7 +173,7 @@ func execute(args []string, stdout, stderr io.Writer, run runners) int {
 			writeUsageError(stderr, usage)
 			return exitUsageError
 		}
-		return 70
+		return exitInternalError
 	}
 	return code
 }
@@ -319,6 +319,15 @@ func missingArgument(cmd *cobra.Command, usage, placeholder string) error {
 // invocation carries, and the one shape of failure that is neither a validation
 // error (1) nor a success (0).
 //
-// **The port returned 70 for all of them**, which is this function's initial
-// value and therefore indistinguishable from an internal failure.
+// **The port returned 70 for all of them** until the parser learned click's
+// two shapes, which made them indistinguishable from an internal failure.
 const exitUsageError = 2
+
+// exitInternalError is what a failure this file cannot classify exits with.
+//
+// **Upstream has no such code.** Anything that is neither a `RenderCVUserError`
+// nor a click `UsageError` escapes to typer's `rich.traceback` excepthook,
+// which exits **1** like every other unhandled exception (spec 013 behavior 40)
+// — so an unclassified cobra error is 1 too. The sentinel used to be `70`, a
+// value §6.5 does not define and no upstream invocation can produce.
+const exitInternalError = 1
