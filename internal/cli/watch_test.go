@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"regexp"
 	"sync"
@@ -214,7 +215,7 @@ func TestWatchFirstRenderMatchesRenderOnce(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	restore := watchContext
-	watchContext = func() context.Context { return ctx }
+	watchContext = func() (context.Context, context.CancelFunc) { return ctx, cancel }
 	t.Cleanup(func() { watchContext = restore })
 
 	watched := options
@@ -245,6 +246,109 @@ func TestWatchFirstRenderMatchesRenderOnce(t *testing.T) {
 
 	if got, want := scrubDurations(first), scrubDurations(plain.String()); got != want {
 		t.Errorf("first --watch render = %q, want %q", got, want)
+	}
+}
+
+// TestInterruptCancelsWatchContext pins the handler itself, not the loop:
+// upstream catches `KeyboardInterrupt` (`watcher.py:65-70`) and returns
+// normally, so the port's watch context must end on SIGINT rather than let the
+// default disposition kill the process.
+//
+// The test sends the signal to itself, which is only survivable because
+// `watchContext` has installed a handler by then — that is the assertion.
+func TestInterruptCancelsWatchContext(t *testing.T) {
+	// A second registration so a SIGINT arriving after `stop` — a lost race on
+	// a loaded machine — cannot kill the test binary.
+	guard := make(chan os.Signal, 1)
+	signal.Notify(guard, os.Interrupt)
+	t.Cleanup(func() { signal.Stop(guard) })
+
+	ctx, stop := watchContext()
+	defer stop()
+
+	if err := ctx.Err(); err != nil {
+		t.Fatalf("watchContext is already done: %v", err)
+	}
+	interruptSelf(t)
+
+	select {
+	case <-ctx.Done():
+	case <-time.After(5 * time.Second):
+		t.Fatal("SIGINT did not cancel the watch context")
+	}
+}
+
+// TestWatchExitsZeroOnInterrupt is the measured divergence: interrupting
+// `render --watch` produced byte-identical output on both sides and **exit 130
+// against upstream's 0**, because nothing cancelled the watch context and Go's
+// default SIGINT disposition killed the process. `watcher.py:68-70` stops and
+// joins the observer and falls off the end of the function, so upstream's
+// `render` returns normally and typer exits 0.
+//
+// 130 is a code spec 013 §6.5 defines nowhere, and T3's inventory test cannot
+// see it: a signal death is not a `return`.
+func TestWatchExitsZeroOnInterrupt(t *testing.T) {
+	guard := make(chan os.Signal, 1)
+	signal.Notify(guard, os.Interrupt)
+	t.Cleanup(func() { signal.Stop(guard) })
+
+	dir := t.TempDir()
+	input := filepath.Join(dir, "cv.yaml")
+	if err := os.WriteFile(input, []byte("cv:\n  name: John Doe\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	options := RenderOptions{
+		InputPath:    input,
+		OutputFolder: filepath.Join(dir, "out"),
+		NoPDF:        true,
+		NoPNG:        true,
+		Watch:        true,
+	}
+
+	var live syncBuffer
+	done := make(chan int, 1)
+	go func() { done <- Render(options, &live, &live) }()
+
+	// The signal may only be sent once the watcher has installed its handler,
+	// and the first render is the observable proof that it has: `watch` calls
+	// `watchContext` before `watchLoop` renders.
+	deadline := time.Now().Add(10 * time.Second)
+	for live.Len() == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("--watch produced no first render")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	before := live.String()
+
+	interruptSelf(t)
+
+	select {
+	case code := <-done:
+		if code != 0 {
+			t.Errorf("Render --watch interrupted = %d, want 0 (upstream's)", code)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("Render --watch did not return on SIGINT")
+	}
+
+	// The interrupt must not add or drop a byte: upstream's 965 bytes are the
+	// first render's, and stopping the observer prints nothing.
+	if after := live.String(); after != before {
+		t.Errorf("stdout after the interrupt = %q, want %q", after, before)
+	}
+}
+
+// interruptSelf sends SIGINT to the test process. Only a test that has already
+// established a handler may call it.
+func interruptSelf(t *testing.T) {
+	t.Helper()
+	process, err := os.FindProcess(os.Getpid())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := process.Signal(os.Interrupt); err != nil {
+		t.Fatal(err)
 	}
 }
 
