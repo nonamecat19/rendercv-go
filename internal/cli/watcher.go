@@ -5,19 +5,35 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"path/filepath"
 
 	"github.com/fsnotify/fsnotify"
 )
 
-// watchContext is the context the watch loop runs under.
+// watchContext is the context the watch loop runs under, and the port's
+// `except KeyboardInterrupt` (`cli/render_command/watcher.py:68-70`).
 //
-// Upstream's loop is `while True: time.sleep(1)` and ends on
-// `KeyboardInterrupt` (`cli/render_command/watcher.py:65-70`), which in a Go
-// process is the signal handling `main` already owns — so production gets a
-// context that only the process's own end cancels. It is a variable because a
-// test cannot send itself an interrupt and still assert what happened.
-var watchContext = context.Background
+// **Upstream returns normally from an interrupted watch**: it catches the
+// exception, stops and joins the observer, and falls off the end of the
+// function, so `render --watch` interrupted with SIGINT exits **0**. The port
+// left the signal on Go's default disposition, which kills the process — the
+// same 965 bytes on stdout and **exit 130**, a code spec 013 §6.5 defines
+// nowhere. Measured on both sides.
+//
+// Only SIGINT is caught, because `KeyboardInterrupt` is only SIGINT: upstream
+// installs no SIGTERM handler and the port must not either.
+//
+// It is a variable so the handler is testable. A signal handler that only
+// exists in production is how this divergence got in.
+var watchContext = interruptContext
+
+// interruptContext is watchContext's production value: a context the handler
+// cancels on SIGINT. The returned stop deregisters the handler, restoring the
+// default disposition for any later signal.
+func interruptContext() (context.Context, context.CancelFunc) {
+	return signal.NotifyContext(context.Background(), os.Interrupt)
+}
 
 // WatchSet is `collect_input_file_paths`' values
 // (`cli/render_command/run_rendercv.py:99-124`) as absolute paths: the input
@@ -142,7 +158,13 @@ func watch(options RenderOptions, stdout, stderr io.Writer) int {
 		_ = resolveNamedOverlays(&resolved, raw)
 	}
 
-	if err := watchLoop(watchContext(), WatchSet(resolved), func() int {
+	// The handler is installed before the first render, so an interrupt during
+	// it is caught rather than fatal — upstream's observer is likewise started
+	// before the first render (`watcher.py:59-63`).
+	ctx, stop := watchContext()
+	defer stop()
+
+	if err := watchLoop(ctx, WatchSet(resolved), func() int {
 		return renderOnce(options, stdout, stderr)
 	}); err != nil {
 		failPanel(stdout, err)
