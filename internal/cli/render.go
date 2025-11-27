@@ -676,7 +676,15 @@ func failPanel(stdout io.Writer, err error) {
 		validationPanel(stdout, validation.Errors)
 		return
 	}
-	writeLivePanel(stdout, Panel("Error", []PanelRow{{Text: err.Error()}}))
+	// **An `OSError` is announced as one** (spec 013 §4.7 behavior 35):
+	// `run_rendercv` catches it above the validation clause and prefixes it
+	// (`run_rendercv.py:195-196`). The clause sits here rather than at the
+	// call sites because upstream's is one `except` around the whole pipeline.
+	message := err.Error()
+	if osMessage, isOS := osErrorMessage(err); isOS {
+		message = osMessage
+	}
+	writeLivePanel(stdout, Panel("Error", []PanelRow{{Text: message}}))
 }
 
 // failPrintedPanel is `failPanel`'s pre-progress-panel twin: the `Error` box the
