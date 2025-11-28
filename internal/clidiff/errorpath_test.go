@@ -43,9 +43,10 @@ func TestErrorHandlerPaths(t *testing.T) {
 		// rawEqual asks for full byte equality of stdout, which is only
 		// meaningful when the output carries neither a duration nor a path.
 		rawEqual bool
-		// openProposal names a §10 divergence proposal covering the *content*
-		// of this row's message; see compare.
-		openProposal string
+		// extra is an assertion this row needs on top of compare's, for a row
+		// whose contract is narrower than full byte equality. It never
+		// replaces an assertion, only adds one.
+		extra func(t *testing.T, upstream, port outcome)
 	}{
 		{
 			name: "empty input file",
@@ -133,14 +134,17 @@ func TestErrorHandlerPaths(t *testing.T) {
 					t.Cleanup(func() { _ = os.Chmod(out, 0o755) })
 				},
 			},
+			// 722 on both sides since `87cd21f` gave the port the `OS Error: `
+			// prefix and the absolute path. The equality is a coincidence of
+			// this errno's phrasing — upstream's body is 8 characters longer
+			// than the port's before wrapping — so it is asserted as a
+			// differential and not as a portable constant.
 			wantLastByte: "af",
 			wantExit:     1,
 			path:         "B",
-			// §10 P-3: Python's `[Errno 13] Permission denied: '<path>'` and
-			// Go's `<op> <path>: permission denied` cannot agree on the body of
-			// the `OS Error:` line. The panel, the stream, the last byte and
-			// the exit code are still the contract.
-			openProposal: "P-3",
+			// §10 P-3 covers the errno wording between the prefix and the
+			// path, and osErrorRow narrows the downgrade to exactly that.
+			extra: osErrorRow,
 		},
 		{
 			// The success panel is path B as well: the Live's last render is
@@ -166,10 +170,13 @@ func TestErrorHandlerPaths(t *testing.T) {
 
 			t.Logf("path %s\nupstream: %s\nport:     %s", tc.path, upstream, port)
 
-			compare(t, upstream, port, tc.openProposal)
+			compare(t, upstream, port)
 			if tc.rawEqual {
 				compareRaw(t, "stdout", upstream.stdout, port.stdout)
 				compareRaw(t, "stderr", upstream.stderr, port.stderr)
+			}
+			if tc.extra != nil {
+				tc.extra(t, upstream, port)
 			}
 
 			// The spec's own numbers, checked against the vendored Python

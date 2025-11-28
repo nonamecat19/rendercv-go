@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 const (
@@ -231,21 +232,17 @@ func differential(t *testing.T, inv invocation) (upstream, port outcome) {
 // byte, stream, exit code — on both streams plus the created file tree, with no
 // normalization of any kind.
 //
-// openProposal names a human-gated divergence proposal of spec 013 §10 when one
-// covers the *content* of this row's message. It downgrades the stdout size
-// comparison to a logged finding and nothing else: the last byte, the stream,
-// the exit code and the file tree are still the contract, because none of them
-// is what the proposal is about. An empty string asserts everything.
-func compare(t *testing.T, upstream, port outcome, openProposal string) {
+// Nothing here is downgradable. An earlier version took a proposal name and
+// weakened the stdout size check for the row P-3 covers; because that row also
+// set neither rawEqual nor wantBytes, the size check was the *last* assertion
+// reading those bytes and the row went blind to its own content — a same-length
+// swap of the port's whole panel passed. A row that needs a narrower contract
+// states it in an extra assertion (see osErrorRow), never by removing one.
+func compare(t *testing.T, upstream, port outcome) {
 	t.Helper()
 
 	if len(upstream.stdout) != len(port.stdout) {
-		if openProposal != "" {
-			t.Logf("KNOWN OPEN %s: stdout byte count upstream %d, port %d\nupstream:\n%s\nport:\n%s",
-				openProposal, len(upstream.stdout), len(port.stdout), upstream.stdout, port.stdout)
-		} else {
-			t.Errorf("stdout byte count: upstream %d, port %d", len(upstream.stdout), len(port.stdout))
-		}
+		t.Errorf("stdout byte count: upstream %d, port %d", len(upstream.stdout), len(port.stdout))
 	}
 	if lastByte(upstream.stdout) != lastByte(port.stdout) {
 		t.Errorf("stdout last byte: upstream %s, port %s (§6.2: path A ends 0a, path B ends af)",
@@ -265,6 +262,176 @@ func compare(t *testing.T, upstream, port outcome, openProposal string) {
 	}
 	if u, p := strings.Join(upstream.tree, "\n"), strings.Join(port.tree, "\n"); u != p {
 		t.Errorf("created file tree:\nupstream:\n%s\nport:\n%s", u, p)
+	}
+}
+
+// osErrorPrefix is `run_rendercv`'s third clause, `f"OS Error: {e}"`
+// (`cli/render_command/run_rendercv.py:194-196`). Both sides must announce the
+// failure with it; only what follows is P-3's.
+const osErrorPrefix = "OS Error: "
+
+// osErrorRow is row 6 of behavior 31's table, whose message body P-3 covers.
+//
+// The narrowing is to the **wording** and nothing else. The frame is compared
+// exactly, both sides must carry osErrorPrefix, and each side must interpolate
+// the absolute path of the file *this test* told it to write — asserted
+// symmetrically, because the two scratch directories are equal-length on
+// purpose and that trick would otherwise hide one side silently dropping its
+// path. What is left unasserted is the errno phrasing between the prefix and
+// the path, which is exactly what P-3 proposes to accept:
+//
+//	upstream: [Errno 13] Permission denied: '<path>'
+//	port:     open <path>: permission denied
+func osErrorRow(t *testing.T, upstream, port outcome) {
+	t.Helper()
+
+	compareFrames(t, upstream.stdout, port.stdout)
+
+	var bodies [2]string
+	for i, side := range []struct {
+		name string
+		out  outcome
+	}{{"upstream", upstream}, {"port", port}} {
+		body := unwrapPanel(side.out.stdout)
+		if !strings.HasPrefix(body, osErrorPrefix) {
+			t.Errorf("%s panel body does not start with %q: %q", side.name, osErrorPrefix, body)
+		}
+		// The path the test itself chose, not one scraped from the other
+		// side's output: scraping would prove only that the port echoes
+		// whatever upstream printed in a shape the scraper recognises.
+		want := filepath.Join(side.out.dir, "out", "John_Doe_CV.typ")
+		if !strings.Contains(body, want) {
+			t.Errorf("%s panel body does not name the file it failed to write.\nwant path: %s\nbody: %s",
+				side.name, want, body)
+		}
+		bodies[i] = strings.ReplaceAll(strings.TrimPrefix(body, osErrorPrefix), want, "<path>")
+	}
+
+	// Only claim P-3 when everything P-3 does *not* cover actually held.
+	// Reported unconditionally, this line asserted "the prefix, the path, the
+	// frame and the byte count all match" over the top of a row failing on
+	// precisely those, which is worse than silence.
+	if t.Failed() {
+		return
+	}
+	if bodies[0] != bodies[1] {
+		reportKnownOpen(t, "P-3", fmt.Sprintf(
+			"the OS Error wording differs; the prefix, the path, the frame and the byte count "+
+				"all match.\nupstream: %s\nport:     %s", bodies[0], bodies[1]))
+	}
+}
+
+// compareFrames asserts the two panels have the same geometry: the same number
+// of lines, and the same box-drawing skeleton on each. It is what keeps the
+// wording narrowing honest — a same-length swap that alters the border, the
+// title or the line count is not wording and goes red here.
+func compareFrames(t *testing.T, upstream, port []byte) {
+	t.Helper()
+
+	u, p := frame(upstream), frame(port)
+	if len(u) != len(p) {
+		t.Errorf("panel line count: upstream %d, port %d", len(u), len(p))
+		return
+	}
+	for i := range u {
+		if u[i] != p[i] {
+			t.Errorf("panel frame differs on line %d:\nupstream: %q\nport:     %q", i+1, u[i], p[i])
+		}
+	}
+}
+
+// frame reduces a panel to its skeleton.
+//
+// A border line is kept verbatim, which pins the title and the box width. A
+// body line keeps its two `│` and collapses everything between them to `x` of
+// the same display width, which pins how many lines the text wrapped into and
+// how wide the box is without pinning a single character of what it says —
+// where the words fall inside the body *is* the wording, and P-3 covers it.
+func frame(stdout []byte) []string {
+	lines := strings.Split(strings.TrimSuffix(string(stdout), "\n"), "\n")
+	out := make([]string, 0, len(lines))
+	for _, line := range lines {
+		inner, ok := strings.CutPrefix(line, "│")
+		if !ok {
+			out = append(out, line)
+			continue
+		}
+		inner, ok = strings.CutSuffix(inner, "│")
+		if !ok {
+			out = append(out, line)
+			continue
+		}
+		out = append(out, "│"+strings.Repeat("x", utf8.RuneCountInString(inner))+"│")
+	}
+	return out
+}
+
+// unwrapPanel joins a panel's body lines back into the string rich wrapped.
+//
+// Rich breaks a token too long for the box mid-token and adds nothing, so the
+// pieces concatenate directly — which is the only way a `contains` check can
+// see an absolute path that spans two lines. A break at a real space loses that
+// space, so this is usable for locating a path or a prefix and not for
+// reconstructing prose.
+func unwrapPanel(stdout []byte) string {
+	var b strings.Builder
+	for _, line := range strings.Split(string(stdout), "\n") {
+		inner, ok := strings.CutPrefix(line, "│")
+		if !ok {
+			continue
+		}
+		inner, ok = strings.CutSuffix(inner, "│")
+		if !ok {
+			continue
+		}
+		b.WriteString(strings.TrimSpace(inner))
+	}
+	return b.String()
+}
+
+// findingsPath is where reportKnownOpen leaves its record, outside the
+// repository (spec 013 §7.6). TestMain truncates it, so it always describes the
+// run that just happened.
+var findingsPath = filepath.Join(os.TempDir(), "rendercv-clidiff-findings.log")
+
+// TestMain empties the findings file so a stale line from an earlier run cannot
+// be read as this one's.
+func TestMain(m *testing.M) {
+	if err := os.WriteFile(findingsPath, nil, 0o644); err != nil {
+		fmt.Fprintf(os.Stderr, "clidiff: cannot truncate %s: %v\n", findingsPath, err)
+		os.Exit(1)
+	}
+	os.Exit(m.Run())
+}
+
+// reportKnownOpen records a divergence a human-gated proposal of spec 013 §10
+// covers.
+//
+// It does not use t.Logf, which `go test` shows only under -v. It does not rely
+// on stderr alone either: **`go test` discards a passing package's output
+// entirely without -v**, so the line a downgrade is announced with is invisible
+// in exactly the run that gates the iteration (`justfile:58`, no -v) — which is
+// how the P-3 downgrade went unnoticed long enough to grow blind. So it writes
+// both: stderr for a verbose or failing run, and findingsPath for the gating
+// one, where nothing else survives.
+func reportKnownOpen(t *testing.T, proposal, detail string) {
+	t.Helper()
+
+	line := fmt.Sprintf("KNOWN OPEN %s [%s]: %s\n", proposal, t.Name(), detail)
+	fmt.Fprint(os.Stderr, line)
+
+	file, err := os.OpenFile(findingsPath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0o644)
+	if err != nil {
+		t.Errorf("cannot record the %s finding in %s: %v", proposal, findingsPath, err)
+		return
+	}
+	defer func() {
+		if err := file.Close(); err != nil {
+			t.Errorf("closing %s: %v", findingsPath, err)
+		}
+	}()
+	if _, err := file.WriteString(line); err != nil {
+		t.Errorf("writing the %s finding to %s: %v", proposal, findingsPath, err)
 	}
 }
 
