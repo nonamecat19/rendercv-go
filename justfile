@@ -55,8 +55,19 @@ test-coverage:
     go test -coverprofile=coverage.out ./... && go tool cover -func=coverage.out | tail -1
 
 # The parity suite. This, and only this, is what "parity" means (AGENTS.md §10.6).
+#
+# The trailing cat is not decoration. `go test` discards a PASSING package's
+# output entirely without `-v` — t.Logf and os.Stderr alike — so a test that
+# records a known-open divergence and still passes cannot put that fact into
+# this log from inside Go. A verifier grepped for one and found it zero times
+# while the divergence was live. `internal/clidiff` therefore writes its
+# known-open findings to a file outside the repository, truncated per run, and
+# this prints them. `-v` on the whole suite is the other fix and is worse: it
+# buries the result of 40-odd packages to surface one line.
 test-parity: build
     go test -tags conformance ./...
+    @f="${TMPDIR:-/tmp}/rendercv-clidiff-findings.log"; \
+     if [ -s "$f" ]; then echo; echo "Known-open divergences asserted by the differential gate:"; cat "$f"; fi
 
 # Run one conformance case: `just parity-case classic_full`
 parity-case case: build
