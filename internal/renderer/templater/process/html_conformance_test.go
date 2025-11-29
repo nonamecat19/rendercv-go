@@ -4,9 +4,9 @@ package process_test
 
 import (
 	"encoding/json"
-	"os"
 	"testing"
 
+	"github.com/nonamecat19/rendercv-go/internal/conformance"
 	"github.com/nonamecat19/rendercv-go/internal/renderer/templater/process"
 )
 
@@ -28,11 +28,16 @@ import (
 //
 // It lives behind the conformance tag because it needs no upstream process but
 // does encode upstream's exact output.
+// **An absent fixture fails this test rather than skipping it.** It used to
+// skip, which meant the whole 113-row differential could leave `just
+// test-parity` without changing a single character of its output —
+// `conformance.RequireInput` makes the fixture's absence loud, with the shared
+// opt-out for someone who deliberately has not generated it
+// (`internal/conformance/requireinput.go`).
 func TestMarkdownToHTMLMatchesPython(t *testing.T) {
-	raw, err := os.ReadFile("testdata/html.json")
-	if err != nil {
-		t.Skipf("no fixture: %v", err)
-	}
+	raw := conformance.RequireInput(t, "testdata/html.json",
+		"the 113-row python-markdown differential",
+		"regenerate it through the vendored submodule's `markdown.markdown` (AGENTS.md §10.1)")
 	var rows []struct{ In, Out string }
 	if err := json.Unmarshal(raw, &rows); err != nil {
 		t.Fatal(err)

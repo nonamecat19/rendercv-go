@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/nonamecat19/rendercv-go/internal/cli/sample"
+	"github.com/nonamecat19/rendercv-go/internal/conformance"
 	"github.com/nonamecat19/rendercv-go/internal/renderer/templater"
 	"github.com/nonamecat19/rendercv-go/internal/renderer/typstc/assets"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/design"
@@ -362,16 +363,22 @@ func TestTypstPackageMetadata(t *testing.T) {
 }
 
 // vendoredTypstPackage reads `name` and `version` out of the submodule's
-// `typst.toml`. The submodule is the specification, so the test skips rather
-// than guesses when it is not checked out.
+// `typst.toml`, which is the specification for both.
+//
+// **An absent submodule fails this test rather than skipping it.** The first
+// draft skipped, and a skip here is behavior 55 quietly leaving the suite while
+// the run still prints `ok` — and this test is untagged, so it is in the default
+// `go test ./...` path where nobody is looking for a missing gate.
+// `conformance.RequireInput` is the shared opt-out
+// (`internal/conformance/requireinput.go`), the same convention
+// `internal/clidiff` established for the differential.
 func vendoredTypstPackage(t *testing.T) (name, version string) {
 	t.Helper()
 
 	const path = "../../third_party/rendercv/src/rendercv/renderer/rendercv_typst/typst.toml"
-	content, err := os.ReadFile(path)
-	if err != nil {
-		t.Skipf("the vendored typst.toml is not available: %v", err)
-	}
+	content := conformance.RequireInput(t, path,
+		"spec 013 behavior 55's Typst package assertion",
+		"run `just submodule` to check out third_party/rendercv")
 	for _, line := range strings.Split(string(content), "\n") {
 		key, value, found := strings.Cut(line, "=")
 		if !found {
