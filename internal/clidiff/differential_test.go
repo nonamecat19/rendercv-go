@@ -273,11 +273,18 @@ const osErrorPrefix = "OS Error: "
 
 // absolutePathToken matches one absolute path in an unwrapped panel body.
 //
-// It stops at whitespace and at either quote, which is what lets the same
-// pattern count upstream's quoted `'/abs/path'` and the port's bare one as a
-// single token each. A path split across two wrapped lines is already rejoined
+// It stops at whitespace, at either quote, and at a colon. The quotes let the
+// same pattern read upstream's `'/abs/path'` and the port's bare one as the
+// same token. The colon is what makes the token *equal* the path on the port's
+// side, whose message continues `<path>: permission denied` — and, less
+// obviously, it is what stops a second path glued straight onto the first from
+// hiding inside one token: `<path>:/home/user/.ssh/id_rsa` is two matches here
+// and was one before. A path split across two wrapped lines is already rejoined
 // by unwrapPanel, so it counts once and not twice.
-var absolutePathToken = regexp.MustCompile(`/[^\s'"]+`)
+//
+// The cost is that a path legitimately containing a colon would be split. None
+// of this row's paths can: the test chooses the scratch directory itself.
+var absolutePathToken = regexp.MustCompile(`/[^\s'":]+`)
 
 // osErrorRow is row 6 of behavior 31's table, whose message body P-3 covers.
 //
@@ -309,21 +316,24 @@ func osErrorRow(t *testing.T, upstream, port outcome) {
 		// side's output: scraping would prove only that the port echoes
 		// whatever upstream printed in a shape the scraper recognises.
 		want := filepath.Join(side.out.dir, "out", "John_Doe_CV.typ")
-		if !strings.Contains(body, want) {
-			t.Errorf("%s panel body does not name the file it failed to write.\nwant path: %s\nbody: %s",
-				side.name, want, body)
-		}
-		// Exactly one, not merely at least one. The panel pads each body line
-		// to a fixed width, so the byte count is a function of the line count
-		// and constrains nothing the frame does not already — measured, this
-		// row has roughly ±50 characters of slack at 722 bytes. That slack is
-		// wide enough for the port to append a *second* absolute path, a home
-		// directory or another user's file, and still match on every other
-		// dimension. Counting them is the property the row actually wants, and
-		// unlike a length tolerance it needs no magic number.
-		if found := absolutePathToken.FindAllString(body, -1); len(found) != 1 {
+		// Exactly one path, and it is exactly the expected one.
+		//
+		// Both halves earn their place. *Exactly one*, because the panel pads
+		// every body line to a fixed width, so the byte count follows from the
+		// line count the frame already pins and leaves the row tens of
+		// characters of slack — room for the port to name a second absolute
+		// path, a home directory or another user's file, and still match on
+		// every other dimension. *Exactly equal* rather than contained,
+		// because the expected path is a prefix of `<path>:/home/user/.ssh/…`
+		// and a containment check reads that leak as a match.
+		found := absolutePathToken.FindAllString(body, -1)
+		switch {
+		case len(found) != 1:
 			t.Errorf("%s panel body names %d absolute paths, want exactly 1: %q\nbody: %s",
 				side.name, len(found), found, body)
+		case found[0] != want:
+			t.Errorf("%s panel body names the wrong file.\nwant: %s\ngot:  %s\nbody: %s",
+				side.name, want, found[0], body)
 		}
 		bodies[i] = strings.ReplaceAll(strings.TrimPrefix(body, osErrorPrefix), want, "<path>")
 	}
