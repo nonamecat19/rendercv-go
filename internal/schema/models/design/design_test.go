@@ -361,6 +361,74 @@ func TestNullAlphaInColorTupleIsAccepted(t *testing.T) {
 	}
 }
 
+// **A colour-tuple element that is not a scalar must be rejected.**
+// `yamldoc.Node.Raw` is scalar-only, so a sequence or a mapping element
+// arrives carrying `Raw: ""` — and an empty alpha is `parse_float_alpha`'s
+// "no alpha at all", so `[1, 2, 3, [1]]` validated with three channels and
+// rendered `rgb(1, 2, 3)` at exit 0: a colour the document never asked for.
+// Upstream's `parse_float_alpha` catches only `ValueError`, so the same
+// document is an unhandled `TypeError` there, exit 1; the port declines to
+// reproduce a traceback and reports a `color_error` record instead, which
+// the dictionary rewrites to the same text every other colour failure gets
+// and which exits 1 the same way.
+//
+// The channel positions read the same empty `Raw`, but their answer was
+// already right by accident: `parse_color_value` catches `TypeError` too and
+// raises `color values must be a valid number`, which is exactly what an
+// empty `Raw` produced. They are made explicit here so the two positions
+// stop depending on that coincidence.
+func TestNonScalarColorTupleElementIsRejected(t *testing.T) {
+	tests := []struct {
+		name string
+		yaml string
+	}{
+		{name: "a sequence alpha", yaml: `[1, 2, 3, [1]]`},
+		{name: "a mapping alpha", yaml: `[1, 2, 3, {a: 1}]`},
+		{name: "a sequence red", yaml: `[[1], 2, 3]`},
+		{name: "a mapping red", yaml: `[{a: 1}, 2, 3]`},
+		{name: "a sequence green", yaml: `[1, [2], 3]`},
+		{name: "a sequence blue", yaml: `[1, 2, [3]]`},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			doc, err := yamlreader.ReadString("theme: sb2nov\ncolors:\n  name: " + test.yaml + "\n")
+			if err != nil {
+				t.Fatalf("ReadString: %v", err)
+			}
+			node := &yamldoc.Node{Kind: yamldoc.KindMapping, Items: doc.Items}
+			errs := design.Validate(node, []string{"design"}, schemaerr.SourceMain, nil)
+			if len(errs) == 0 {
+				t.Fatal("errs = none, want a failure at design.colors.name")
+			}
+			if got := strings.Join(errs[0].SchemaLocation, "."); got != "design.colors.name" {
+				t.Errorf("location = %q, want design.colors.name", got)
+			}
+			if !strings.HasPrefix(errs[0].Message, "value is not a valid color") {
+				t.Errorf("message = %q, want a color_error message", errs[0].Message)
+			}
+		})
+	}
+}
+
+// A non-scalar element must not steal the length check: upstream reaches
+// `parse_color_value` only after `parse_tuple` has already decided the tuple
+// has three or four elements, so `[[1], 2]` is a length failure.
+func TestNonScalarElementDoesNotPreemptTupleLength(t *testing.T) {
+	doc, err := yamlreader.ReadString("theme: sb2nov\ncolors:\n  name: [[1], 2]\n")
+	if err != nil {
+		t.Fatalf("ReadString: %v", err)
+	}
+	node := &yamldoc.Node{Kind: yamldoc.KindMapping, Items: doc.Items}
+	errs := design.Validate(node, []string{"design"}, schemaerr.SourceMain, nil)
+	if len(errs) == 0 {
+		t.Fatal("errs = none, want a failure at design.colors.name")
+	}
+	want := "value is not a valid color: tuples must have length 3 or 4"
+	if errs[0].Message != want {
+		t.Errorf("message = %q, want %q", errs[0].Message, want)
+	}
+}
+
 // The nine built-in names, in the order the discriminated union discovers them.
 func TestBuiltInThemes(t *testing.T) {
 	want := []string{

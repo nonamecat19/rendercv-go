@@ -498,8 +498,21 @@ func validColorNode(node *yamldoc.Node) error {
 			// coercion. Found by a fresh-context verifier (iteration 14's
 			// sixteenth re-verification).
 			coerce := elem.Kind == yamldoc.KindBool || elem.Kind == yamldoc.KindInt
+			// **A sequence or a mapping element carries no `Raw` at all.**
+			// `yamldoc.Node.Raw` is scalar-only, so `[1, 2, 3, [1]]`
+			// reached `parseAlpha("")` — which is "no alpha", not "a bad
+			// alpha" — and the tuple validated as three channels and
+			// rendered a *different colour* than the document wrote, at
+			// exit 0. The flag travels with the element rather than
+			// failing here so the tuple's length is still checked first,
+			// the order `parse_tuple` uses. Found by a fresh-context
+			// verifier (iteration 15's colour-tuple sweep).
+			nonScalar := elem.Kind == yamldoc.KindSequence || elem.Kind == yamldoc.KindMapping
 			elements = append(elements, colorElement{
-				Raw: elem.Raw, Coerce: coerce, IsPythonInt: elem.Kind == yamldoc.KindInt,
+				Raw:         elem.Raw,
+				Coerce:      coerce,
+				IsPythonInt: elem.Kind == yamldoc.KindInt,
+				NonScalar:   nonScalar,
 			})
 		}
 		_, err := parseColorElements(elements)
