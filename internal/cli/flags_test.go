@@ -2,6 +2,8 @@ package cli
 
 import (
 	"io"
+	"reflect"
+	"slices"
 	"testing"
 )
 
@@ -354,6 +356,107 @@ func TestRenderFlagInventory(t *testing.T) {
 			}
 			row.check(t, *seen.render)
 		})
+	}
+}
+
+// TestInventedLongNamesAreNotDeclared is the negative half of the inventory
+// above, and the class that hid longest: **the port once registered seven long
+// option names upstream has never had.**
+//
+// `render_command.py:33-188` declares each option with exactly one long
+// spelling and one whole-word single-dash spelling. `--nopdf` is not the second
+// of those — it is `-nopdf` with a dash bolted on, and click's
+// `_match_long_opt` is an exact-table lookup, so upstream has never matched it.
+// Every corpus case writes the short form, so nothing in the suite could see
+// the difference; `TestRenderFlagInventory` asserts only that the *correct*
+// long names work, which a port declaring both would also satisfy.
+//
+// Measured against the vendored CLI: each of these is an ordinary unknown
+// token, appended verbatim to `ctx.args` and reaching
+// `parse_override_arguments`, which reports an extra-arguments error on the odd
+// count (`parse_override_arguments.py:35-42`). The gate here is one step
+// earlier and does not need a document: the token must land in `Extras` and
+// **nothing else about the parse may move**.
+//
+// The table is derived from `renderShortFlags` rather than written out, so a
+// short spelling added later is covered without an edit.
+func TestInventedLongNamesAreNotDeclared(t *testing.T) {
+	baseline, code := parse(t, "render", "cv.yaml")
+	if !baseline.invoked {
+		t.Fatalf("render was never reached for the bare vector; exit code %d", code)
+	}
+
+	shorts := make([]string, 0, len(renderShortFlags))
+	for short := range renderShortFlags {
+		shorts = append(shorts, short)
+	}
+	slices.Sort(shorts)
+
+	for _, short := range shorts {
+		t.Run("--"+short, func(t *testing.T) {
+			token := "--" + short
+			seen, code := parse(t, "render", "cv.yaml", token)
+			if !seen.invoked {
+				t.Fatalf("render was never reached; exit code %d — %s parsed as an option", code, token)
+			}
+			if !slices.Equal(seen.render.Extras, []string{token}) {
+				t.Errorf("Extras = %q, want %q — %s is not an option upstream declares",
+					seen.render.Extras, []string{token}, token)
+			}
+			assertOnlyExtrasDiffer(t, *baseline.render, *seen.render, token)
+		})
+	}
+}
+
+// TestInventedLongNamesWithValuesAreOverrideKeys is the same class in its other
+// measured shape.
+//
+// The five path options have single-dash spellings that read like plausible
+// long ones — `-typ`, `-pdf`, `-png`, `-md`, `-html` — and upstream answers
+// `--typ out.typ` by making it an override **key and value**: two tokens, an
+// even count, so it reaches the model as the key `typ` rather than as a usage
+// error. A port that declared `--typ` would swallow both and set the path
+// instead, silently.
+func TestInventedLongNamesWithValuesAreOverrideKeys(t *testing.T) {
+	baseline, code := parse(t, "render", "cv.yaml")
+	if !baseline.invoked {
+		t.Fatalf("render was never reached for the bare vector; exit code %d", code)
+	}
+
+	for _, row := range []struct{ token, value string }{
+		{"--typ", "out.typ"},
+		{"--pdf", "out.pdf"},
+		{"--png", "out.png"},
+		{"--md", "out.md"},
+		{"--html", "out.html"},
+		{"--o", "out"},
+		{"--lc", "l.yaml"},
+		{"--s", "s.yaml"},
+	} {
+		t.Run(row.token, func(t *testing.T) {
+			seen, code := parse(t, "render", "cv.yaml", row.token, row.value)
+			if !seen.invoked {
+				t.Fatalf("render was never reached; exit code %d — %s parsed as an option", code, row.token)
+			}
+			if want := []string{row.token, row.value}; !slices.Equal(seen.render.Extras, want) {
+				t.Errorf("Extras = %q, want %q — %s is an override key, not an option",
+					seen.render.Extras, want, row.token)
+			}
+			assertOnlyExtrasDiffer(t, *baseline.render, *seen.render, row.token)
+		})
+	}
+}
+
+// assertOnlyExtrasDiffer reports every field of the parse the token moved. An
+// invented long name must leave the options exactly as the bare vector left
+// them — asserting on `Extras` alone would still pass a port that both
+// collected the token *and* set the flag.
+func assertOnlyExtrasDiffer(t *testing.T, baseline, got RenderOptions, token string) {
+	t.Helper()
+
+	baseline.Extras, got.Extras = nil, nil
+	if !reflect.DeepEqual(baseline, got) {
+		t.Errorf("%s changed the parsed options: %+v, want %+v", token, got, baseline)
 	}
 }
 
