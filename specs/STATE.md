@@ -188,6 +188,28 @@ residue on row 6 and is now provably the only thing that row leaves unasserted.
   request. Plain-text output from a subagent does not reach the parent; only an explicit message
   does.
 
+## Two divergence entries are misattributed — HUMAN GATE — 2026-08-11
+
+Found while rebuilding `AssertUnreachable` (`4415d67`), which now collects **every** differing
+dimension for the eight divergence-forbidden cases and reports which one holds each red. Neither
+item below was written into `specs/divergences.md`; that file is human-gated.
+
+1. **`create_theme` is held by D-002 as well as D-008, and its entry names only D-008.** Its stdout
+   and file-set differences are `./mytheme/init.lua` against `./mytheme/__init__.py` — the Lua-themes
+   divergence, not template source. D-008's own evidence is genuinely present too (every `.j2.typ`
+   differs), so the case is not passing for a borrowed reason, but **closing D-008 alone would leave
+   it red and the attribution wrong.** The entry should cite D-002 as well.
+2. **Both D-011 cases are currently held by stdout *and* stderr.** Upstream writes its traceback to
+   stderr and leaves stdout empty (`err_missing_file`) or minimal (`err_bad_override_key` prints
+   `Rendering your CV...`); the port prints its panel to stdout and leaves stderr empty. If any later
+   work moves those panels to stderr — which is the more upstream-faithful stream for the class — the
+   stdout evidence disappears and only stderr holds them. Deliberate is fine; discovered later is
+   not.
+
+One design choice worth keeping: **exit codes are deliberately not evidence.** No recorded divergence
+is about an exit code, so an exit-code-only difference now reports as "now matches upstream" rather
+than quietly holding a case red. It fails in the loud direction.
+
 ## Iteration 14's row was counting other iterations' work — 2026-08-11
 
 Re-investigated read-only against current `main`. **Pass 22's "6 blockers + 9 majors/minors open"
