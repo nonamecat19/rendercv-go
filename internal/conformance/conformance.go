@@ -129,11 +129,17 @@ func LoadGolden(t *testing.T, name string) Golden {
 func (g Golden) Artifact(t *testing.T, rel string) []byte {
 	t.Helper()
 
-	raw, err := os.ReadFile(filepath.Join(g.dir, "files", rel))
+	raw, err := g.artifactBytes(rel)
 	if err != nil {
 		t.Fatalf("case %s: golden artifact %s: %v", g.Name, rel, err)
 	}
 	return raw
+}
+
+// artifactBytes is Artifact without a *testing.T, for the comparisons that must
+// weigh a read failure themselves rather than end the test.
+func (g Golden) artifactBytes(rel string) ([]byte, error) {
+	return os.ReadFile(filepath.Join(g.dir, "files", rel))
 }
 
 // Run executes rendercv-go for a case in an isolated directory and captures everything
@@ -225,11 +231,16 @@ func caseWorkDir(t *testing.T, root, name string) string {
 func (r Result) Artifact(t *testing.T, rel string) []byte {
 	t.Helper()
 
-	raw, err := os.ReadFile(filepath.Join(r.dir, rel))
+	raw, err := r.artifactBytes(rel)
 	if err != nil {
 		t.Fatalf("rendercv-go did not produce %s: %v", rel, err)
 	}
 	return raw
+}
+
+// artifactBytes is Artifact without a *testing.T. See Golden.artifactBytes.
+func (r Result) artifactBytes(rel string) ([]byte, error) {
+	return os.ReadFile(filepath.Join(r.dir, rel))
 }
 
 // durationPattern must stay identical to the one in tools/gengolden.
