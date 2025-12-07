@@ -117,11 +117,16 @@ var ruamelPhrasing = []struct{ goccy, ruamel string }{
 	{"'}' must be specified", "while parsing a flow mapping"},
 	{"flow map", "while parsing a flow mapping"},
 	{"quoted text", "while scanning a quoted scalar"},
-	// goccy has two spellings for a tab and only one says "tab character":
-	// `\ta: 1` at the root is `tab character cannot use as a map key
-	// directly`, but the far commoner `cv:\n\tname: a` is `found character
-	// '\t' that cannot start any token`, which matched no row and leaked.
-	// ruamel says the same thing for both.
+	// goccy has two spellings for a tab and only one says "tab character".
+	// **Neither is reached by a tab in an ordinary position** — `\ta: 1` and
+	// `cv:\n\tname: a` are both caught by yamlreader.TabError before the parser
+	// runs, and that branch phrases them itself. What is left for these two rows
+	// is the tabs TabError deliberately allows: one indenting a block scalar's
+	// content (`a: |\n\tx` — "found a tab character where an indentation space
+	// is expected") and one at the start of a line inside what TabError read as
+	// an open flow collection but goccy read as a plain scalar (`a: b[\n\tc` —
+	// "found character '\t' that cannot start any token"). ruamel says
+	// `while scanning for the next token` for all four, measured.
 	{"tab character", "while scanning for the next token"},
 	{"cannot start any token", "while scanning for the next token"},
 	{"already defined", "while constructing a mapping"},
