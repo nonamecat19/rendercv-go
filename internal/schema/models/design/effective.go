@@ -2,6 +2,7 @@ package design
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/binder"
@@ -817,7 +818,9 @@ func validateScript(tree Tree, model string, script map[string]any, prefix strin
 		// "True" at exit 0. Found by a fresh-context verifier (iteration 14's
 		// twenty-first re-verification).
 		if message := scriptValueMessage(declared, value); message != "" {
-			*errs = append(*errs, &ScriptValueError{Path: path, Message: message})
+			*errs = append(*errs, &ScriptValueError{
+				Path: path, Message: message, Input: scriptValueText(value),
+			})
 		}
 	}
 }
@@ -828,17 +831,43 @@ func validateScript(tree Tree, model string, script map[string]any, prefix strin
 //
 // **The message is upstream's own**, produced by the same rules a document's
 // value goes through (`validateField`), so the two layers cannot drift into
-// disagreeing about what `page.size` accepts. It is not yet printed: like every
-// other `ValidateScript` finding, `bridge.themeScript` drops the script and
-// falls back to the theme's defaults, because surfacing script diagnostics is
-// still the human-gated wording question of spec 014 §2 behavior 9.
+// disagreeing about what `page.size` accepts. `bridge.themeScript` prints it
+// unchanged and unprefixed at location `design`, which is character-for-character
+// what upstream's `theme_data_model_class(**design)` (`design.py:135`) prints for
+// the same mistake in an `__init__.py` — the one script failure whose text is
+// parity rather than D-013's substitute wording.
 type ScriptValueError struct {
 	Path    string
 	Message string
+	// Input is the rejected value as the user wrote it, for the panel's Input
+	// Value column. Upstream fills that column with Python's `str()` of the
+	// declared default — measured as `bogus`, `True`, `10` and `1.5` against the
+	// vendored binary — so leaving it empty was a column of parity given away
+	// for a missing field.
+	Input string
 }
 
 func (e *ScriptValueError) Error() string {
 	return "design." + e.Path + " is invalid in this theme's script: " + e.Message
+}
+
+// scriptValueText renders a declared value for the panel's Input Value column,
+// mirroring the `str()` upstream applies to the same value.
+//
+// **A boolean carries Lua's spelling, not Python's.** Upstream prints `True`
+// because the value was written in Python; this column echoes a token the user
+// typed in `init.lua`, where it is `true`, and printing `True` would show them a
+// word that appears nowhere in their file. D-002's language substitution showing
+// through in one column, recorded in D-013.
+//
+// Numbers need no special case: `luatheme.Options` already keeps a whole Lua
+// number an `int` (`options.go:50-56`), so `10` and `1.5` format exactly as
+// upstream's `str()` does.
+func scriptValueText(value any) string {
+	if text, ok := value.(string); ok {
+		return text
+	}
+	return fmt.Sprintf("%v", value)
 }
 
 // messageStringType is pydantic's `string_type` text. A Lua number or boolean
