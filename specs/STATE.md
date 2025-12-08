@@ -188,6 +188,53 @@ residue on row 6 and is now provably the only thing that row leaves unasserted.
   request. Plain-text output from a subagent does not reach the parent; only an explicit message
   does.
 
+## Upstream's error formatter is broken for scripted themes — 2026-08-11
+
+Measured against the vendored binary with a theme built by upstream's own `create-theme`, two invented
+options added to the class. It explains three separate observations at once and it re-scopes
+iteration 14's T2.
+
+`pydantic_error_handling.py:53-55` drops path element 2 to skip the theme discriminator:
+
+```python
+if plain_error["loc"][0] in ["design", "locale"]:
+    plain_error["loc"] = plain_error["loc"][:1] + plain_error["loc"][2:]
+```
+
+Correct for a built-in theme, whose loc is `('design','classic','page','size')`. **Wrong for a
+scripted theme**, whose error is raised by `theme_data_model_class(**design)` (`design.py:135`) inside
+the wrap validator with no discriminator element — so it strips a real path segment. Measured
+consequences:
+
+| Shape | Result |
+|---|---|
+| `('design', X)` → `('design',)` | **reported at `design`** — an unknown key, a bad script-declared value, and shape errors alike |
+| `('design', X, …rest)` → `('design', …rest)`, path resolves | reported **at the wrong key** — `page: {theme: 1}` prints the bad default at `design.theme` |
+| `('design', X, …rest)`, path does not resolve | **`RenderCVInternalError: Key '…' not found`, traceback, exit 1** — `page.size: bogus`, `colors.name: notacolor`, `page: {unknown: 1}` |
+
+**What this explains.** Every depth-1 error on a scripted theme lands at location `design`, which is
+why the four broken-script failure modes do too — that is not a special case of the script path, it is
+this collapse. The port must reproduce the `design` location, and its tests must say why it looks
+wrong, or someone will "correct" it.
+
+**`extra="forbid"` applies to the union of tree fields and script-declared fields** — a script-declared
+option with a valid value renders at exit 0, an undeclared key is exit 1. Confirmed on a re-run with a
+valid script default, so dedup could not have confounded it.
+
+**Two errors collapse to one record.** A bad script default plus a bad document value on a *different*
+field yields **one** record: both reach the parser, both collapse to `('design',)`, and dedup
+(`:167-176`) keys on `schema_location` alone. Deterministic, not a race. The rule the port must copy is
+**first record wins per schema location**. On the same field, the document's value wins and the default
+is never validated.
+
+**T2 is re-scoped as a result.** Its stated acceptance — "matches upstream on exit code and validation
+record" — is unmeetable for `page: {size: bogus}`, because upstream produces no record, only a
+traceback. T2 now covers the reportable depth-1 subset. For the deeper crashing paths the port matches
+**exit 1 and the refusal to render** and invents no record; today it renders `page-size: "bogus"` at
+**exit 0**, which is the defect that remains. `page: {theme: 1}`'s wrong-key report is left
+unreproduced deliberately: no user value, and imitating it would mean modelling the strip-and-resolve
+dance.
+
 ## The dead `ruamelPhrasing` row was two rows — closed by `8967ad7` — 2026-08-11
 
 **Do not strike the claim; extend it.** Two of the eight rows were vacuous, and the cause sits
