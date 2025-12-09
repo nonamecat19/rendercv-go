@@ -266,9 +266,17 @@ func TestABrokenThemeScriptIsReported(t *testing.T) {
 			if record.Input != test.input {
 				t.Errorf("input = %q, want %q", record.Input, test.input)
 			}
-			// Upstream's location column reads `design` for every one of these
-			// (`design.py:67`'s `loc` override and the model's own position),
-			// measured against the vendored binary.
+			// **`design` looks too shallow and is correct.** Upstream's column
+			// reads `design` for every one of these — measured against the
+			// vendored binary — and the reason is a bug in its own error
+			// formatter, not a property of script errors:
+			// `pydantic_error_handling.py:53-55` strips path element 2 to skip
+			// the theme discriminator, which a **scripted** theme does not have,
+			// because its error is raised by `theme_data_model_class(**design)`
+			// (`design.py:135`) inside the wrap validator. So a real segment is
+			// stripped and a depth-1 error collapses to `('design',)`.
+			//
+			// Anything narrower here would be *less* faithful. Do not "fix" it.
 			if got := strings.Join(record.SchemaLocation, "."); got != "design" {
 				t.Errorf("location = %q, want %q", got, "design")
 			}
