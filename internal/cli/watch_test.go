@@ -249,6 +249,154 @@ func TestWatchFirstRenderMatchesRenderOnce(t *testing.T) {
 	}
 }
 
+// TestWatchDoesNotHangOnAnUnreadableInput is N1: `render --watch` on an input
+// it cannot read printed the panel and then **entered the loop and blocked
+// forever**. Upstream reads the input and the three overlays in
+// `collect_input_file_paths` and `render_command.py:211-215`, both **before**
+// `run_function_if_files_change`, so every one of these exits instead of
+// watching. Measured: exit 1 upstream, a timeout here.
+//
+// Every case is bounded — a test for a hang that itself hangs is worse than no
+// test — and each also asserts the output equals the same options rendered
+// without `--watch`, so the failure is reported exactly once.
+func TestWatchDoesNotHangOnAnUnreadableInput(t *testing.T) {
+	dir := t.TempDir()
+	valid := filepath.Join(dir, "cv.yaml")
+	if err := os.WriteFile(valid, []byte("cv:\n  name: John Doe\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	unreadable := filepath.Join(dir, "unreadable.yaml")
+	if err := os.WriteFile(unreadable, []byte("design:\n  theme: classic\n"), 0o000); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, row := range []struct {
+		name    string
+		options RenderOptions
+		root    bool // needs a permission root ignores
+	}{
+		{
+			name:    "a missing input file",
+			options: RenderOptions{InputPath: filepath.Join(dir, "nothere.yaml")},
+		},
+		{
+			// `pathlib.Path.read_text` on a directory is an IsADirectoryError,
+			// and `os.ReadFile` is EISDIR — neither is watchable.
+			name:    "a directory as the input file",
+			options: RenderOptions{InputPath: dir},
+		},
+		{
+			name:    "a missing overlay",
+			options: RenderOptions{InputPath: valid, DesignPath: filepath.Join(dir, "nothere.yaml")},
+		},
+		{
+			name:    "an unreadable overlay",
+			options: RenderOptions{InputPath: valid, DesignPath: unreadable},
+			root:    true,
+		},
+	} {
+		t.Run(row.name, func(t *testing.T) {
+			if row.root && os.Geteuid() == 0 {
+				t.Skip("root ignores the read permission this case removes")
+			}
+
+			options := row.options
+			options.OutputFolder = filepath.Join(t.TempDir(), "out")
+			options.NoPDF, options.NoPNG = true, true
+
+			var plain bytes.Buffer
+			plainCode := renderOnce(options, &plain, &plain)
+			if plainCode == 0 {
+				t.Fatalf("renderOnce = 0, want a failure to compare against")
+			}
+
+			watched := options
+			watched.Watch = true
+
+			var live syncBuffer
+			done := make(chan int, 1)
+			go func() { done <- Render(watched, &live, &live) }()
+
+			select {
+			case code := <-done:
+				if code != plainCode {
+					t.Errorf("Render --watch = %d, want %d", code, plainCode)
+				}
+			case <-time.After(10 * time.Second):
+				t.Fatal("Render --watch never returned: the pre-loop read is missing")
+			}
+
+			if got := live.String(); got != plain.String() {
+				t.Errorf("--watch output = %q, want the non-watch output %q", got, plain.String())
+			}
+		})
+	}
+}
+
+// TestWatchKeepsWatchingAfterAValidationError is the half that must keep
+// holding. Upstream's watch survives a *validation* failure — the render runs
+// inside the loop and `contextlib.suppress(typer.Exit)` swallows it
+// (`watcher.py:30-31`, `:62-63`) — and `--watch badtheme.yaml` blocks on both
+// sides. The N1 fix is about the pre-loop read alone; it must not become
+// "any failure stops the watcher", which would undo behavior 48.
+func TestWatchKeepsWatchingAfterAValidationError(t *testing.T) {
+	dir := t.TempDir()
+	input := filepath.Join(dir, "cv.yaml")
+	// Readable, parseable, and rejected by the validator.
+	if err := os.WriteFile(input, []byte("cv:\n  name: John Doe\ndesign:\n  theme: nosuchtheme\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	options := RenderOptions{
+		InputPath:    input,
+		OutputFolder: filepath.Join(dir, "out"),
+		NoPDF:        true,
+		NoPNG:        true,
+	}
+
+	var plain bytes.Buffer
+	if code := renderOnce(options, &plain, &plain); code == 0 {
+		t.Fatalf("renderOnce = 0, want the theme to be rejected")
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	restore := watchContext
+	watchContext = func() (context.Context, context.CancelFunc) { return ctx, cancel }
+	t.Cleanup(func() { watchContext = restore })
+
+	watched := options
+	watched.Watch = true
+
+	var live syncBuffer
+	done := make(chan int, 1)
+	go func() { done <- Render(watched, &live, &live) }()
+
+	deadline := time.Now().Add(10 * time.Second)
+	for live.Len() == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("--watch produced no first render")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// The bounded negative: the validation failure must not have ended it.
+	select {
+	case code := <-done:
+		t.Fatalf("Render --watch = %d after a validation error, want it still watching", code)
+	case <-time.After(300 * time.Millisecond):
+	}
+
+	cancel()
+	select {
+	case code := <-done:
+		if code != 0 {
+			t.Errorf("Render --watch = %d on cancellation, want 0", code)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Render --watch did not return on cancellation")
+	}
+}
+
 // TestInterruptCancelsWatchContext pins the handler itself, not the loop:
 // upstream catches `KeyboardInterrupt` (`watcher.py:65-70`) and returns
 // normally, so the port's watch context must end on SIGINT rather than let the
