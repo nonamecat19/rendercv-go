@@ -347,3 +347,70 @@ func resolveWithThemeFolder(t *testing.T, script string) bridge.Document {
 	}
 	return bridge.Resolve(model, now)
 }
+
+// **Validation and render must resolve the theme folder to the same directory.**
+//
+// `design.Validate` resolves the input file's parent with `uncleanedDir`, which
+// is `PurePath.parent` — purely lexical, a `..` segment kept verbatim, because
+// that is what upstream does. `themeScript` used `filepath.Dir`, which calls
+// `Clean` and collapses `..`. On an ordinary tree the two spellings name the
+// same file and nothing is observable; **through a symlink they do not**, and
+// the document is then validated against one script and rendered with another.
+//
+// Measured on this exact layout against the vendored binary: upstream renders
+// the *lexical* directory's theme, `bb/../bb`, and it writes its output there
+// too. `filepath.Dir` is the side that does not match.
+func TestTheThemeScriptResolvesTheWayValidationDoes(t *testing.T) {
+	root := t.TempDir()
+	work := filepath.Join(root, "work")
+	lexical := filepath.Join(root, "other", "bb")
+	cleaned := filepath.Join(root, "other", "real")
+
+	for _, dir := range []string{work, filepath.Join(lexical, "mytheme"), filepath.Join(cleaned, "mytheme")} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// `work/bb` points at `other/real`, so `work/bb/..` is `other` and
+	// `work/bb/../bb` is `other/bb` — a different directory from `work/bb`.
+	if err := os.Symlink(cleaned, filepath.Join(work, "bb")); err != nil {
+		t.Skipf("this filesystem does not do symlinks: %v", err)
+	}
+
+	for dir, size := range map[string]string{lexical: "a4", cleaned: "a5"} {
+		theme := filepath.Join(dir, "mytheme")
+		script := `return { page = { size = "` + size + `" } }`
+		if err := os.WriteFile(filepath.Join(theme, "init.lua"), []byte(script), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(theme, "Preamble.j2.typ"), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	document := "cv:\n  name: John Doe\ndesign:\n  theme: mytheme\n"
+	// **Assembled by hand, because `filepath.Join` would clean it** — the `..`
+	// segment is the whole point of the vector, and `Join` collapses it before
+	// the code under test ever sees it. This is the string the CLI receives from
+	// `rendercv-go render ./bb/../bb/CV.yaml`.
+	input := work + "/bb/../bb/CV.yaml"
+	if err := os.WriteFile(filepath.Join(lexical, "CV.yaml"), []byte(document), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	node, err := yamlreader.ReadString(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	model, errs := models.Validate(node,
+		&valctx.ValidationContext{CurrentDate: now, InputFilePath: input}, schemaerr.SourceMain)
+	if len(errs) > 0 {
+		t.Fatalf("did not validate: %v", errs)
+	}
+
+	doc := bridge.Resolve(model, now)
+	if got := design.EffectiveString(doc.Design, "page", "size"); got != "a4" {
+		t.Errorf("page.size = %q, want a4 — the render read %s's script where validation "+
+			"read %s's", got, cleaned, lexical)
+	}
+}

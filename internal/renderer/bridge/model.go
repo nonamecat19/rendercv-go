@@ -3,7 +3,6 @@ package bridge
 import (
 	"errors"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -104,7 +103,15 @@ func themeScript(model *models.RenderCVModel, theme string) (
 		return nil, false, nil
 	}
 
-	source, err := os.ReadFile(filepath.Join(filepath.Dir(path), theme, "init.lua"))
+	// **`design.ThemeScriptPath`, not `filepath.Dir` + `filepath.Join`.** Both
+	// of those call `Clean`, which collapses a `..` segment; upstream's
+	// `PurePath.parent` is purely lexical and keeps it, and `design.Validate`
+	// resolves the same folder that way. The obvious idiomatic Go spelling is
+	// the wrong one here: through a symlink the two resolutions reach different
+	// directories, so the document was validated against one script and rendered
+	// with another — measured, `render ./bb/../bb/CV.yaml` with `bb` a symlink,
+	// two different themes at exit 0. Do not "simplify" this back.
+	source, err := os.ReadFile(design.ThemeScriptPath(path, theme))
 	if err != nil {
 		// **Not a failure, which is the point of this whole unit**: a theme
 		// folder with no script is upstream's `ThemeOptionsAreNotProvided`

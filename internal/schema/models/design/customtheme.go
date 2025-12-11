@@ -65,6 +65,24 @@ func uncleanedJoin(dir, name string) string {
 	return pathlibJoin(absolute, parts)
 }
 
+// ThemeScriptPath is where `<theme>/init.lua` is read from for an input file at
+// `inputPath`, resolved the way upstream resolves it.
+//
+// **It exists so two callers cannot disagree.** `Validate` resolves the parent
+// lexically (`relativeTo` → `uncleanedDir`, which is `PurePath.parent`), and
+// `bridge.themeScript` used `filepath.Dir`, which calls `Clean` and collapses a
+// `..` segment. On an ordinary tree both spellings name the same file. **Through
+// a symlink they do not**: with `work/bb` pointing at `other/real` and `other/bb`
+// a different directory, `render ./bb/../bb/CV.yaml` validated against
+// `other/bb`'s script and rendered with `other/real`'s — two different themes at
+// exit 0. Measured against the vendored binary, which renders the lexical one.
+//
+// A second implementation of "like `PurePath.parent`" is what let the two sites
+// drift apart, so this is the one place either of them asks.
+func ThemeScriptPath(inputPath, theme string) string {
+	return uncleanedJoin(uncleanedJoin(uncleanedDir(inputPath), theme), scriptFileName)
+}
+
 func absoluteLikePython(path string) string {
 	if filepath.IsAbs(path) {
 		return path
