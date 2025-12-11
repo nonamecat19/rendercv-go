@@ -222,6 +222,37 @@ errors in general.
 `8eb1502` widened its reach. `render -weird.yaml` now parses as `-w` + `-d .yaml` + leftover `eir`, so the
 unreadable `-eir` enters the loop: **exit 2 before, hang now**, against upstream's exit 1.
 
+### N1 is fixed — `7142ce0`, `573b9f3`
+
+`watch` now performs upstream's pre-loop read before entering the loop: the input file, then
+`resolveNamedOverlays`, then each resolved overlay through the existing `overlayFile`, each with an
+early return into `renderOnce`. **The discriminator is upstream's ordering, not the error's class** —
+pre-loop reads stop, in-loop failures do not — which is what keeps b48 intact.
+
+| vector | upstream | port before | port after |
+|---|---|---|---|
+| `--watch nothere.yaml` | exit 1 | **TIMEOUT** | exit 1 |
+| `--watch .` | exit 1 | **TIMEOUT** | exit 1 |
+| `--watch -d nothere.yaml` | exit 1 | **TIMEOUT** | exit 1 |
+| `--watch -d unreadable.yaml` | exit **2** | **TIMEOUT** | exit 1 |
+| `render -weird.yaml` | exit 1 | **TIMEOUT** | exit 1 |
+
+"Before" is a real build of `082a797` via `git archive`, not a recollection. The watcher suite now runs
+in 0.7 s instead of the 40 s the red state spent timing out, and each test asserts more than "it
+returned": the exit code equals the same options' non-watch `renderOnce` code and the captured output
+is byte-identical to the non-watch output, pinning that the failure is reported exactly once and that
+`--watch` adds nothing. `TestWatchKeepsWatchingAfterAValidationError` guards the other half and passed
+before and after, so "any failure stops the watcher" did not creep in.
+
+**New finding, flags layer, not the watcher's** — row 4 above. An **unreadable** overlay is upstream
+**exit 2**: click validates the option itself before any RenderCV code runs
+(`Invalid value for '--design' / '-d': Path 'unreadable.yaml' is not readable.`, a usage error on
+stderr). A **missing** overlay is *not* caught by click and falls through to a traceback at exit 1 — so
+upstream has `readable=True` on those options but not `exists=True`. The port answers both with the
+`errMissingFile` panel at exit 1. Confirmed **not** watch-specific: the same asymmetry holds without
+`--watch`. It belongs to whoever owns the flag surface — click's `Path` validation on `--design`,
+`--locale-catalog` and `--settings` — and is one exit-code row (2, which §6.5 defines) plus one message.
+
 ### Process finding — the tree was not quiet, and I said it was
 
 The merge owner told the verifier every porter was idle. A porter was live throughout: HEAD moved three
