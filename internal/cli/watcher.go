@@ -150,12 +150,40 @@ func watchLoop(ctx context.Context, set []string, render func() int) error {
 //
 // The set is collected from options that have already been through
 // `resolveNamedOverlays`, which is why the input file is read here rather than
-// left to `renderOnce`. A read failure is not reported here — `renderOnce`
-// reports it, once, in the panel, exactly as it does without `--watch`.
+// left to `renderOnce`.
+//
+// **A file the run cannot read stops it instead of being watched** (N1).
+// Upstream reads the input inside `collect_input_file_paths`
+// (`run_rendercv.py:113-115`) and the three overlays at
+// `render_command.py:211-215`, and **both are before**
+// `run_function_if_files_change` (`:232`) — so a missing file is a
+// `FileNotFoundError` and a directory an `IsADirectoryError`, each exiting 1
+// without ever watching. The port entered the loop anyway and blocked forever;
+// measured as a timeout against upstream's exit 1 on four vectors.
+//
+// **The test is the ordering, not the error class.** A *validation* failure is
+// raised inside the loop on both sides and keeps the watcher up (behavior 48),
+// so nothing here may generalise to "a failing render stops the watch".
 func watch(options RenderOptions, stdout, stderr io.Writer) int {
 	resolved := options
-	if raw, err := os.ReadFile(options.InputPath); err == nil {
-		_ = resolveNamedOverlays(&resolved, raw)
+	raw, err := os.ReadFile(options.InputPath)
+	if err != nil {
+		// `renderOnce` reports it, once, in the panel it would have printed
+		// without `--watch`, and returns the same code.
+		return renderOnce(options, stdout, stderr)
+	}
+	_ = resolveNamedOverlays(&resolved, raw)
+
+	// The overlays upstream reads in the same pre-loop phase — the CLI's three
+	// and the two a document can name for itself, which `resolveNamedOverlays`
+	// has just filled in.
+	for _, overlay := range []string{resolved.DesignPath, resolved.LocalePath, resolved.SettingsPath} {
+		if overlay == "" {
+			continue
+		}
+		if _, err := overlayFile(overlay); err != nil {
+			return renderOnce(options, stdout, stderr)
+		}
 	}
 
 	// The handler is installed before the first render, so an interrupt during
