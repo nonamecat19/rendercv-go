@@ -127,6 +127,50 @@ with `No such command 'bogus'.` and the root's own usage line for an unknown com
 with no arguments at all is different again**: the full help on stdout, exit **0**, which is
 behavior 3's help renderer and therefore blocked on §5.
 
+### 2.1 Every path parameter is checked for readability at parse time
+
+Added 2026-08-11, from measurement. The spec was silent on this and the port does not implement it.
+
+11a. **Typer's default conversion for a `pathlib.Path` annotation is
+`click.Path(exists=False, readable=True, dir_okay=True)`.** So every path parameter `render` declares
+is checked for **readability** at parse time and **none** is checked for existence. `render` declares
+ten: the `INPUT_FILE_NAME` argument, `--design`/`-d`, `--locale-catalog`/`-lc`, `--settings`/`-s`,
+`--output-folder`/`-o`, and the five output paths `--typst-path`/`-typ`, `--pdf-path`/`-pdf`,
+`--markdown-path`/`-md`, `--html-path`/`-html`, `--png-path`/`-png`.
+
+An unreadable path — mode 000, file or directory — is a **click usage error**: exit **2**, usage line
+plus `Try 'rendercv render -h' for help.` plus the `Error` panel, all on **stderr**, stdout 0 bytes.
+Measured on all ten. `Invalid value for '--design' / '-d': Path 'unreadable.yaml' is not readable.`
+is 637 B; the longer option names wrap to two panel lines at 722 B.
+
+11b. **Missing is not checked**, because `exists=False`. `render cv.yaml -d nosuch.yaml` is exit **1**
+with a 4255 B `FileNotFoundError` traceback — click does nothing and the unguarded `read_text` fails
+later. **A uniform "validate the path" rule is therefore wrong**, and this is the vector that proves
+it.
+
+11c. **The message names both spellings, long then short, whichever the user typed** — including the
+`=` form and inside a short cluster (`-dunreadable.yaml`). The argument has its own shape with no
+slash: `Invalid value for 'INPUT_FILE_NAME':`.
+
+11d. **Order: options in the order they were typed, then positional arguments**, because
+`_process_args_for_args` runs after the option loop. Measured, and this is the part an implementation
+is most likely to get wrong by validating the input file first because it feels primary:
+
+| invocation | reports |
+|---|---|
+| `render unreadable.yaml -d u2.yaml` | `--design`, though the input was typed first |
+| `render cv.yaml -s u2.yaml -d unreadable.yaml` | `--settings`; reverse the two and it reports `--design` |
+| `render -d unreadable.yaml` (no input file at all) | the readability error, **not** `Missing argument 'INPUT_FILE_NAME'.` |
+| `render --nope -d unreadable.yaml` | the readability error — so this precedes the leftover-token routing |
+
+11e. **Consequence for the input file's failure taxonomy**: unreadable is a usage error on stderr at
+exit 2, while missing stays the panel on stdout at exit 1. That split is upstream's own, so
+reproducing it is parity rather than divergence. It does not disturb `err_missing_file` or
+`err_bad_override_key`, whose files are ordinary readable ones.
+
+*Citation:* measured against `third_party/rendercv/.venv/bin/rendercv` at `COLUMNS=80`, uid 1000,
+mode-000 targets; typer's `Path` conversion; click's `_process_args_for_args`.
+
 ## 3. `new` and `create-theme`
 
 12. `new "John Doe"` writes a starter `John_Doe_CV.yaml` in the working directory.
