@@ -171,29 +171,193 @@ func Validate(
 		// declared shape did not exist at validation time at all and this
 		// function could do nothing but return.
 		script := LoadThemeScript(relativeTo(ctx), theme.Raw)
-		return validateScriptedTheme(node, script, location, source)
+		return validateScriptedTheme(node, script, theme.Raw, location, source)
 	}
 	return validateModel(node, baseTree(), baseTree().Root, theme.Raw, location, source)
 }
 
-// validateScriptedTheme is where a custom theme's `design` block is judged
-// against the shape its script declared — upstream's
-// `theme_data_model_class(**design)` (`design.py:135`).
+// validateScriptedTheme judges a custom theme's `design` block the way
+// upstream's `theme_data_model_class(**design)` (`design.py:135`) does.
 //
-// **It reports nothing yet, deliberately.** Loading the script during
-// validation is one unit and the checks that read the loaded shape are others,
-// so this lands as the seam they plug into rather than bundled with them: a
-// regression in the loading is then separable from a regression in a check.
-// Until they land, a custom theme's options are its own, which is what this
-// function returning nothing means.
+// **A theme folder with no script judges nothing at all.** Upstream's fallback
+// builds `ThemeOptionsAreNotProvided(theme=theme_name)` (`design.py:139-142`)
+// *without* the document's block, so nothing in it is ever seen — measured
+// against the vendored binary as exit 0 for an unknown key that is exit 1 the
+// moment an `__init__.py` appears in the same folder. A script that exists but
+// could not be loaded is the same case: there is no declared shape to judge
+// against, and reporting the broken script is its own unit.
+//
+// Which is why `ThemeScript` reports `Exists` separately from its options:
+// gating on "are there options" would start judging a script-less theme the day
+// someone made the loader return an empty map instead of nil.
 func validateScriptedTheme(
 	node *yamldoc.Node,
 	script ThemeScript,
+	theme string,
 	location []string,
 	source schemaerr.YamlSource,
 ) []schemaerr.ValidationError {
-	_, _, _, _ = node, script, location, source
-	return nil
+	if !script.Exists || script.Options == nil {
+		return nil
+	}
+	tree := baseTree()
+	errs := unknownKeyErrors(node, tree, tree.Root, script.Options, theme, location, source)
+	return scriptedThemeRecords(errs, node, location, source)
+}
+
+// unknownKeyErrors rejects a key that neither the design tree nor the theme's
+// script declares — upstream's `extra="forbid"` (`base.py:5`), which the
+// generated theme class inherits from the same base the built-in tree uses.
+//
+// **The permitted set is the union of the two**, and that is the whole
+// difference between this and the built-in path. A script exists to *add*
+// options: `create-theme` writes the class by copying `classic_theme.py` and
+// renaming it (`create_init_file_for_theme.py:31-41`), and a user then adds
+// fields to it. Measured against the vendored binary — a declared
+// `custom_note` is accepted, an undeclared key beside it is exit 1. Running a
+// custom theme through the tree alone would reject exactly the options a
+// scripted theme exists to declare.
+//
+// It reuses `binder.Bind` rather than comparing key sets by hand so the record
+// — pydantic's code, its message, the key's own coordinates and the rejected
+// value — is built by the one function that already builds it everywhere else.
+// Only the extra-key errors are taken; a *value* on a known key is a different
+// behavior and not this function's.
+func unknownKeyErrors(
+	node *yamldoc.Node,
+	tree Tree,
+	model string,
+	script map[string]any,
+	theme string,
+	location []string,
+	source schemaerr.YamlSource,
+) []schemaerr.ValidationError {
+	if node == nil || node.Kind != yamldoc.KindMapping {
+		return nil
+	}
+
+	fields := make([]binder.Field, 0, len(tree.Models[model].Fields)+len(script))
+	declared := make(map[string]bool, len(tree.Models[model].Fields))
+	for _, field := range tree.Models[model].Fields {
+		fields = append(fields, binder.Field{Name: field.Name, Value: binder.ValueAny})
+		declared[field.Name] = true
+	}
+	for name := range script {
+		if !declared[name] {
+			fields = append(fields, binder.Field{Name: name, Value: binder.ValueAny})
+		}
+	}
+
+	result, _ := binder.Bind(
+		node,
+		binder.Spec{Fields: fields, Policy: binder.ForbidExtra, Model: modelTitle(model, theme)},
+		location,
+		source,
+	)
+
+	// A nested model's own keys are forbidden by the same rule one level down.
+	// Pydantic reaches them while validating the field, which is before the
+	// enclosing model's extra keys are reported — so the recursion comes first
+	// here too.
+	var errs []schemaerr.ValidationError
+	for _, field := range tree.Models[model].Fields {
+		nested := nestedModelOf(field, result)
+		if nested == "" {
+			continue
+		}
+		value, _ := result.Value(field.Name)
+		errs = append(errs, unknownKeyErrors(value, tree, nested, nestedScript(script, field.Name),
+			theme, append(append([]string(nil), location...), field.Name), source)...)
+	}
+	return append(errs, result.ExtraErrors...)
+}
+
+// nestedModelOf names the model a field's mapping value belongs to, or ""
+// when the field holds no model the document can put keys in.
+//
+// **A script-invented key is not descended into.** Whatever a script declares
+// beyond the tree has the type the script's own declaration gives it, so a
+// mapping written under it is that type's business — `luatheme.Validate`'s —
+// and there is no model here whose fields could call a key of it unknown.
+func nestedModelOf(field Field, result *binder.Result) string {
+	value, present := result.Value(field.Name)
+	if !present || value == nil || value.Kind != yamldoc.KindMapping {
+		return ""
+	}
+	switch field.Kind {
+	case KindNested:
+		return field.Nested
+	case KindFontFamily:
+		// The mapping form is the five-element `FontFamily`; the bare-name form
+		// is a scalar and never reaches here (spec 006 §3.1 behavior 12).
+		return "FontFamily"
+	case KindString, KindOptionalString, KindStringList, KindTypstDimension,
+		KindThemeTag, KindBool, KindColor, KindLiteral:
+	}
+	return ""
+}
+
+// nestedScript is the script's declaration for one field, when it declared a
+// group there. A script that declared a scalar — or nothing — at that path adds
+// no permitted keys below it.
+func nestedScript(script map[string]any, name string) map[string]any {
+	nested, _ := script[name].(map[string]any)
+	return nested
+}
+
+// scriptedThemeRecords is upstream's error *reporting* for a scripted theme,
+// which is not the reporting a built-in theme gets.
+//
+// `pydantic_error_handling.py:53-55` drops the second element of every `design`
+// error's location, to skip the discriminated union's tag:
+//
+//	if plain_error["loc"][0] in ["design", "locale"]:
+//	    # Skip the second key because it's the discriminator value.
+//	    plain_error["loc"] = plain_error["loc"][:1] + plain_error["loc"][2:]
+//
+// A built-in theme's error carries that tag — `('design', 'classic',
+// 'undeclared_key')` — and the strip is right. A scripted theme's error is
+// raised inside the wrap validator by the script's own class, carries no tag,
+// and the strip eats a real segment instead. So:
+//
+//   - a failure on a top-level key, `('design', 'undeclared_key')`, becomes
+//     `('design',)` and prints there. Wrong-looking, measured, and reproduced:
+//     it is what a user of upstream sees.
+//   - anything deeper becomes a path that usually does not resolve in the YAML,
+//     and upstream's formatter dies on it — `RenderCVInternalError: Key
+//     'unknown' not found in the YAML file.`, exit 1 with a traceback and no
+//     table. The port cannot print a Python traceback and will not invent a
+//     record upstream never shows, so it keeps the true location and prints its
+//     own clean row: same exit code, same refusal to render.
+//
+// **Deduplication is by location alone** (`:167-176`), so once several depth-1
+// failures collapse onto `design` only the first survives. Reproducing the
+// collapse without the deduplication would print rows upstream does not.
+func scriptedThemeRecords(
+	errs []schemaerr.ValidationError,
+	block *yamldoc.Node,
+	location []string,
+	source schemaerr.YamlSource,
+) []schemaerr.ValidationError {
+	span := block.Span
+	seen := make(map[string]bool, len(errs))
+	out := make([]schemaerr.ValidationError, 0, len(errs))
+	for _, err := range errs {
+		if len(err.SchemaLocation) == len(location)+1 {
+			err.SchemaLocation = append([]string(nil), location...)
+			// The coordinates follow the location: upstream looks up
+			// `('design',)` and highlights the block, not the key that failed.
+			err.YamlLocation = &span
+			err.YamlSource = source
+		}
+		key := strings.Join(err.SchemaLocation, ".")
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, err)
+	}
+	return out
 }
 
 // isBuiltIn answers the question pydantic's discriminated union answers, which
