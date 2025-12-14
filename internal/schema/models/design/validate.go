@@ -173,7 +173,8 @@ func Validate(
 		script := LoadThemeScript(relativeTo(ctx), theme.Raw)
 		return validateScriptedTheme(node, script, theme.Raw, location, source)
 	}
-	return validateModel(node, baseTree(), baseTree().Root, theme.Raw, location, source)
+	return validateModel(node, baseTree(), baseTree().Root, theme.Raw, location, source,
+		binder.ForbidExtra)
 }
 
 // validateScriptedTheme judges a custom theme's `design` block the way
@@ -201,7 +202,19 @@ func validateScriptedTheme(
 		return nil
 	}
 	tree := baseTree()
-	errs := unknownKeyErrors(node, tree, tree.Root, script.Options, theme, location, source)
+	// **The script's class declares the tree's own fields with the tree's own
+	// types.** `create-theme` generates it by copying `classic_theme.py` and
+	// renaming the class (`create_init_file_for_theme.py:31-41`), so a value
+	// the built-in tree rejects is rejected here too — `page.size: bogus`
+	// against a scripted theme is upstream exit 1, and the port used to render
+	// `page-size: "bogus"` into the artifact at exit 0.
+	//
+	// `AllowExtra`, because what a script *adds* has no tree field to be
+	// judged by; `unknownKeyErrors` is what forbids the keys neither declares.
+	// Field errors precede extra-key errors, which is pydantic's own order.
+	errs := validateModel(node, tree, tree.Root, theme, location, source, binder.AllowExtra)
+	errs = append(errs,
+		unknownKeyErrors(node, tree, tree.Root, script.Options, theme, location, source)...)
 	return scriptedThemeRecords(errs, node, location, source)
 }
 
@@ -387,12 +400,16 @@ func isBuiltIn(theme *yamldoc.Node) bool {
 // One recursive function rather than twenty-two hand-written validators, because
 // the tree is data: the alternative is twenty-two chances to forget
 // `ForbidExtra` on a level nobody tests.
+// The policy travels down the tree because it is a property of the *theme*,
+// not of a level: a scripted theme may add an option at any depth, and the
+// built-in tree forbids one at every depth.
 func validateModel(
 	node *yamldoc.Node,
 	tree Tree,
 	model, theme string,
 	location []string,
 	source schemaerr.YamlSource,
+	policy binder.Policy,
 ) []schemaerr.ValidationError {
 	fields := make([]binder.Field, 0, len(tree.Models[model].Fields))
 	for _, field := range tree.Models[model].Fields {
@@ -415,7 +432,7 @@ func validateModel(
 
 	result, errs := binder.Bind(
 		node,
-		binder.Spec{Fields: fields, Policy: binder.ForbidExtra, Model: modelTitle(model, theme)},
+		binder.Spec{Fields: fields, Policy: policy, Model: modelTitle(model, theme)},
 		location,
 		source,
 	)
@@ -434,7 +451,7 @@ func validateModel(
 		// reports their null now. Found by a fresh-context verifier
 		// (iteration 14's eleventh re-verification).
 		errs = append(errs, validateField(field, value, tree, theme,
-			append(append([]string(nil), location...), field.Name), source)...)
+			append(append([]string(nil), location...), field.Name), source, policy)...)
 	}
 
 	return append(errs, result.ExtraErrors...)
@@ -474,13 +491,14 @@ func validateField(
 	theme string,
 	location []string,
 	source schemaerr.YamlSource,
+	policy binder.Policy,
 ) []schemaerr.ValidationError {
 	switch field.Kind {
 	case KindNested:
 		if node.Kind != yamldoc.KindMapping {
 			return one(node, binder.CodeModelType, modelTypeMessage(field.Nested), location, source)
 		}
-		return validateModel(node, tree, field.Nested, theme, location, source)
+		return validateModel(node, tree, field.Nested, theme, location, source, policy)
 
 	case KindTypstDimension:
 		// The binder reported a non-string as `string_type`, which is what
@@ -530,7 +548,7 @@ func validateField(
 		// five-element form. Anything else is the model's shape failure.
 		switch node.Kind {
 		case yamldoc.KindMapping:
-			return validateModel(node, tree, "FontFamily", theme, location, source)
+			return validateModel(node, tree, "FontFamily", theme, location, source, policy)
 		case yamldoc.KindString:
 		default:
 			return one(node, binder.CodeModelType, modelTypeMessage("FontFamily"), location, source)

@@ -3,6 +3,7 @@ package bridge_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/nonamecat19/rendercv-go/internal/renderer/bridge"
@@ -50,6 +51,41 @@ func resolveWithTheme(t *testing.T, theme, script, block string) bridge.Document
 		t.Fatalf("did not validate: %v", errs)
 	}
 	return bridge.Resolve(model, now)
+}
+
+// rejectWithTheme is resolveWithTheme's other half: it asserts the document
+// does **not** validate, and returns the errors so a caller can check where
+// they landed. A document that never validates never reaches `bridge.Resolve`,
+// which is the whole point of the two cases that use it.
+func rejectWithTheme(t *testing.T, theme, script, block string) []schemaerr.ValidationError {
+	t.Helper()
+	dir := t.TempDir()
+	input := filepath.Join(dir, "cv.yaml")
+
+	document := "cv:\n  name: John Doe\ndesign:\n  theme: " + theme + "\n" + block
+	if err := os.WriteFile(input, []byte(document), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, theme), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, theme, "init.lua"), []byte(script), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, theme, "Preamble.j2.typ"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	node, err := yamlreader.ReadString(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, errs := models.Validate(node,
+		&valctx.ValidationContext{CurrentDate: now, InputFilePath: input}, schemaerr.SourceMain)
+	if len(errs) == 0 {
+		t.Fatal("validated, want a rejection")
+	}
+	return errs
 }
 
 // Spec 014 §1 behaviors 1 and 4, at the position they actually run.
@@ -180,17 +216,27 @@ func TestANoScriptCustomThemeDiscardsTheWholeDocument(t *testing.T) {
 	}
 }
 
-// **A document value that conflicts with a *tree*-typed field leaks the same
-// way a script conflict does, on the theme `create-theme` itself writes.**
-// `create-theme` generates `init.lua` as `return {}` — an empty, but present,
-// script — so `luatheme.Validate` (which only walks keys the script declared)
-// sees nothing to flag, and `page.size: {a: 1}` used to merge straight through
-// to the template as a Go type name at exit 0.
-func TestADocumentConflictingWithTheTreeIsDropped(t *testing.T) {
-	doc := resolveWithTheme(t, "mytheme", `return {}`, "  page:\n    size:\n      a: 1\n")
+// **A document value that conflicts with a *tree*-typed field is now rejected,
+// not pruned.** This used to assert the merge layer silently dropped
+// `page.size: {a: 1}` and rendered the tree's default, which was the best that
+// could be done while a scripted theme's document values were never validated.
+// They are now, so the document never reaches `bridge.Resolve` at all and the
+// merge-layer pruning this exercised is unreachable through a tree-typed
+// field — `withoutTreeConflicts` still guards a *script*-declared option,
+// which `TestADocumentConflictingWithTheScriptIsDropped` covers.
+//
+// Upstream refuses the same document, exit 1: `theme_data_model_class(**design)`
+// (`design.py:135`) validates it against the class `create-theme` generated
+// from `classic_theme.py`, whose `page.size` is the same literal set. It
+// refuses it by *crashing* in its own error formatter rather than printing a
+// table (`pydantic_error_handling.py:53-55` strips a location element a
+// scripted theme's error does not have), so the port matches the exit code and
+// the refusal and prints its own clean record at the true location.
+func TestADocumentConflictingWithTheTreeIsRejected(t *testing.T) {
+	errs := rejectWithTheme(t, "mytheme", `return {}`, "  page:\n    size:\n      a: 1\n")
 
-	if got := design.EffectiveString(doc.Design, "page", "size"); got != "us-letter" {
-		t.Errorf("page.size = %q, want the tree's own default, document's conflicting override dropped", got)
+	if got := strings.Join(errs[0].SchemaLocation, "."); got != "design.page.size" {
+		t.Errorf("location = %q, want design.page.size", got)
 	}
 }
 
@@ -237,15 +283,18 @@ func TestFontFamilyMappingOverrideSurvivesScriptConflictPruning(t *testing.T) {
 	}
 }
 
-// **A list where a scalar belongs leaks the same way a mapping does.** The
-// first version of `withoutTreeConflicts` only compared map-vs-non-map, so
-// `page.size: [a4]` on an empty (`create-theme`'s own) script fell through
-// unchanged and printed `<[]string Value>` into the artifact.
-func TestAListWhereAScalarBelongsIsDropped(t *testing.T) {
-	doc := resolveWithTheme(t, "mytheme", `return {}`, "  page:\n    size:\n      - a4\n")
+// **A list where a scalar belongs is rejected for the same reason a mapping
+// is.** This used to assert the merge layer pruned `page.size: [a4]` before it
+// reached a template as `<[]string Value>`; a scripted theme's document values
+// are validated against the tree now, so the document is refused at validation
+// and the pruning it exercised is unreachable through a tree-typed field.
+// Upstream refuses it too, exit 1, by the same crash-in-the-formatter route as
+// the mapping case above.
+func TestAListWhereAScalarBelongsIsRejected(t *testing.T) {
+	errs := rejectWithTheme(t, "mytheme", `return {}`, "  page:\n    size:\n      - a4\n")
 
-	if got := design.EffectiveString(doc.Design, "page", "size"); got != "us-letter" {
-		t.Errorf("page.size = %q, want the tree's own default, document's list dropped", got)
+	if got := strings.Join(errs[0].SchemaLocation, "."); got != "design.page.size" {
+		t.Errorf("location = %q, want design.page.size", got)
 	}
 }
 
