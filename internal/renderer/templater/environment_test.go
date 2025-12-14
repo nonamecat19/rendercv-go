@@ -294,3 +294,52 @@ func TestReplaceFilter(t *testing.T) {
 		})
 	}
 }
+
+// **A template override resolves through the lexical input directory.**
+//
+// The CLI hands the loader `PurePath.parent`'s answer — a `..` segment kept
+// verbatim, because upstream's `templater.py:38` uses `input_file_path.parent`
+// and its loader cleans nothing. `filepath.Join` calls `Clean`, which collapses
+// that `..` and, **through a symlink, names a different directory**: with
+// `work/bb` pointing at `other/real` and `other/bb` a separate real directory,
+// `work/bb/../bb` is `other/bb` while `work/bb` is `other/real`.
+//
+// Two real directories with two different overrides is the only way to tell
+// them apart. A string assertion would pass with the cleaning still in place.
+func TestATemplateOverrideResolvesLexically(t *testing.T) {
+	builtin := fstest.MapFS{"typst/Header.j2.typ": {Data: []byte("built-in")}}
+
+	root := t.TempDir()
+	work := filepath.Join(root, "work")
+	lexical := filepath.Join(root, "other", "bb")
+	cleaned := filepath.Join(root, "other", "real")
+
+	for _, dir := range []string{work, filepath.Join(lexical, "typst"), filepath.Join(cleaned, "typst")} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Symlink(cleaned, filepath.Join(work, "bb")); err != nil {
+		t.Skipf("this filesystem does not do symlinks: %v", err)
+	}
+	for dir, override := range map[string]string{lexical: "lexical", cleaned: "cleaned"} {
+		if err := os.WriteFile(
+			filepath.Join(dir, "typst", "Header.j2.typ"), []byte(override), 0o644,
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// **Assembled by hand: `filepath.Join` would clean the `..` away here too**,
+	// before the loader ever saw it, and the test would pass against the bug.
+	// This is what the CLI passes for `render ./bb/../bb/CV.yaml`.
+	loader := templater.Loader{InputDir: work + "/bb/../bb", Builtin: builtin}
+
+	got, err := loader.Load(templater.FormatTypst, "classic", "Header")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got != "lexical" {
+		t.Errorf("= %q, want the override in %s, not %s", got, lexical, cleaned)
+	}
+}

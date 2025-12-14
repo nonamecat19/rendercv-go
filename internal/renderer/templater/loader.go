@@ -7,6 +7,8 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+
+	"github.com/nonamecat19/rendercv-go/internal/schema/models/design"
 )
 
 // Format is the template directory a fragment is looked up under.
@@ -82,7 +84,15 @@ func (l Loader) Candidates(format Format, theme, name string) []string {
 func (l Loader) Load(format Format, theme, name string) (string, error) {
 	for _, candidate := range l.Candidates(format, theme, name) {
 		if l.InputDir != "" {
-			source, err := os.ReadFile(filepath.Join(l.InputDir, filepath.FromSlash(candidate)))
+			// **`design.Join`, not `filepath.Join`.** `Join` calls `Clean`, which
+			// collapses a `..` segment; `InputDir` is `PurePath.parent`'s answer
+			// and keeps it, because upstream's loader takes
+			// `input_file_path.parent` (`templater.py:38`) and cleans nothing.
+			// Through a symlink the two spellings name different directories, so
+			// cleaning here read a template override from a directory the rest of
+			// the pipeline was not using. The idiomatic Go call is the wrong one
+			// at this call site: do not simplify it back.
+			source, err := os.ReadFile(design.Join(l.InputDir, filepath.FromSlash(candidate)))
 			if err == nil {
 				return string(source), nil
 			}
