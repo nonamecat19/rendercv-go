@@ -17,6 +17,7 @@ import (
 	"github.com/nonamecat19/rendercv-go/internal/renderer/typstc"
 	"github.com/nonamecat19/rendercv-go/internal/schema/modelbuilder"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv"
+	"github.com/nonamecat19/rendercv-go/internal/schema/models/design"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/valctx"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
@@ -184,7 +185,8 @@ func renderOnce(options RenderOptions, stdout, stderr io.Writer) int {
 		return exitValidationError
 	}
 
-	inputDir := filepath.Dir(options.InputPath)
+	// **`design.Parent`, not `filepath.Dir`** — see `inputDirFor`.
+	inputDir := inputDirFor(options)
 
 	// The custom-theme folder checks used to run here, as a user error. They are
 	// upstream's *validation* records (`design.py:72-86`), so they moved into
@@ -388,7 +390,7 @@ func renderPDF(doc bridge.Document, typstPath, template string, input PathInput,
 		InputPath:  typstPath,
 		OutputPath: path,
 		Format:     typstc.FormatPDF,
-		FontDirs:   []string{filepath.Join(inputDir, "fonts")},
+		FontDirs:   []string{design.Join(inputDir, "fonts")},
 		Today:      doc.Settings.CurrentDate,
 	})
 	if err != nil {
@@ -430,7 +432,7 @@ func renderPNGs(doc bridge.Document, typstPath, template string, input PathInput
 		InputPath:  typstPath,
 		OutputPath: filepath.Join(dir, stem),
 		Format:     typstc.FormatPNG,
-		FontDirs:   []string{filepath.Join(inputDir, "fonts")},
+		FontDirs:   []string{design.Join(inputDir, "fonts")},
 		Today:      doc.Settings.CurrentDate,
 	})
 	if err != nil {
@@ -493,11 +495,41 @@ func displayAll(paths []string) []string {
 
 // display is how the panel spells a path: relative to the working directory and
 // prefixed with `./`, which is what every golden shows.
+//
+// **`path.relative_to(pathlib.Path.cwd())`, not `filepath.Rel`**
+// (`cli/render_command/progress_panel.py:96-99`). Two differences, both
+// measured: `relative_to` is a lexical prefix strip that keeps a `..` segment
+// where `Rel` cleans it away, and `relative_to` *fails* rather than walking out
+// of the base — upstream catches the `ValueError` and prints the unmodified
+// path behind the same `./`. `filepath.Rel(".", …)` also fails outright for an
+// absolute path, so an absolute input printed `.//abs/...` where upstream
+// prints the path relative to the working directory.
 func display(path string) string {
-	if relative, err := filepath.Rel(".", path); err == nil {
-		path = relative
+	if cwd, err := os.Getwd(); err == nil {
+		if relative, ok := design.RelativeTo(path, cwd); ok {
+			path = relative
+		}
 	}
 	return "./" + filepath.ToSlash(path)
+}
+
+// resolveLikePython is `Path.resolve()`: the real path, symlinks and all, and
+// the unresolved spelling when it cannot be taken — `resolve()` is non-strict
+// by default and does not fail on a path that is not there yet.
+func resolveLikePython(path string) string {
+	absolute := path
+	if !filepath.IsAbs(absolute) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return path
+		}
+		absolute = design.Join(cwd, path)
+	}
+	resolved, err := filepath.EvalSymlinks(absolute)
+	if err != nil {
+		return path
+	}
+	return resolved
 }
 
 // buildArguments assembles what `modelbuilder` needs from the parsed options.
@@ -572,12 +604,34 @@ func orDefault(value, fallback string) string {
 
 // outputFolderFor resolves the output folder against the input file's
 // directory. An absolute folder is taken as given.
+//
+// **Lexically, both halves.** `output_folder` is a
+// `PlannedPathRelativeToInput`, and `schema/models/path.py:39-41` resolves one
+// as `input_file_path.parent / path` — `PurePath.parent` and `PurePath`'s `/`,
+// neither of which cleans. This line was `filepath.Join(filepath.Dir(…))`, two
+// `Clean`s, and through a symlinked component it named a different directory:
+// `render ./bb/../bb/CV.yaml` wrote `other/real/rendercv_output` where upstream
+// wrote `other/bb/rendercv_output`, at exit 0 with nothing warning the user.
 func outputFolderFor(options RenderOptions) string {
 	folder := orDefault(options.OutputFolder, DefaultOutputFolder)
 	if filepath.IsAbs(folder) {
 		return folder
 	}
-	return filepath.Join(filepath.Dir(options.InputPath), folder)
+	return design.Join(inputDirFor(options), folder)
+}
+
+// inputDirFor is the input file's directory as every upstream site that needs
+// it spells it: `input_file_path.parent`, which is lexical
+// (`schema/models/path.py:39`, `renderer/templater/templater.py:38`,
+// `renderer/pdf_png.py:179`).
+//
+// **`filepath.Dir` is the idiomatic call and the wrong one**: it calls `Clean`,
+// which resolves a `..` segment against its neighbour, and through a symlink
+// that is a different directory. `design.Parent` is the port's one
+// implementation of `PurePath.parent`; a second would be how these sites drift
+// apart again.
+func inputDirFor(options RenderOptions) string {
+	return design.Parent(options.InputPath)
 }
 
 // resolveNamedOverlays fills in the two overlay paths a document can name for
@@ -605,7 +659,7 @@ func resolveNamedOverlays(options *RenderOptions, raw []byte) error {
 	}
 
 	block := mappingChild(mappingChild(document, "settings"), "render_command")
-	inputDir := filepath.Dir(options.InputPath)
+	inputDir := design.Parent(options.InputPath)
 
 	for _, named := range []struct {
 		key    string
@@ -623,7 +677,13 @@ func resolveNamedOverlays(options *RenderOptions, raw []byte) error {
 		if value == nil || value.Kind != yamldoc.KindString || value.Raw == "" {
 			continue
 		}
-		*named.target = filepath.Join(inputDir, value.Raw)
+		// **The lexical join, and then a full resolve.** Upstream is
+		// `(input_file_path.parent / rc["design"]).resolve()`
+		// (`run_rendercv.py:120,122`) — this is the one input-relative path it
+		// resolves, so the answer is the real file, not the lexical spelling.
+		// The *file* is the same either way, because the kernel resolves the
+		// spelling at open time; the string is what the watch set holds.
+		*named.target = resolveLikePython(design.Join(inputDir, value.Raw))
 	}
 
 	return nil
