@@ -31,14 +31,22 @@ type runners struct {
 }
 
 func execute(args []string, stdout, stderr io.Writer, run runners) int {
-	rest, extras := Normalize(args)
+	vector := scan(args)
+	rest := vector.rest
 
-	options := RenderOptions{Extras: extras}
+	options := RenderOptions{Extras: vector.extras}
 	code := exitInternalError
 
 	render := &cobra.Command{
-		Use:  "render [input]",
-		Args: exactlyOne("[OPTIONS] INPUT_FILE_NAME", "INPUT_FILE_NAME"),
+		Use: "render [input]",
+		// **The readability check comes before the missing-argument check**
+		// (spec 012 §2.1 behavior 11d): click processes options before
+		// positional arguments, so `render -d unreadable.yaml` with no input
+		// file at all reports the unreadable option rather than the argument it
+		// never got. Cobra runs `Args` after flag parsing and after `--help`,
+		// which is the other half of click's order — a missing option value and
+		// an eager `--help` both win, as measured.
+		Args: unreadablePathFirst(vector.paths, exactlyOne("[OPTIONS] INPUT_FILE_NAME", "INPUT_FILE_NAME")),
 		RunE: func(_ *cobra.Command, positional []string) error {
 			options.InputPath = positional[0]
 			code = run.render(options, stdout, stderr)
@@ -304,6 +312,26 @@ func atLeastOne(usage, placeholder string) cobra.PositionalArgs {
 			return missingArgument(cmd, usage, placeholder)
 		}
 		return nil
+	}
+}
+
+// unreadablePathFirst runs click's `Path(readable=True)` conversion ahead of
+// another argument validator (spec 012 §2.1 behaviors 11a and 11c).
+//
+// The message names the parameter the way click does — `'--design' / '-d'` for
+// an option, whichever spelling was typed, and `'INPUT_FILE_NAME'` with no
+// slash for the argument — and prints in all three parts, usage line included,
+// because it is an `Invalid value` and not the value-less option of G-3.
+func unreadablePathFirst(paths []pathParam, next cobra.PositionalArgs) cobra.PositionalArgs {
+	return func(cmd *cobra.Command, positional []string) error {
+		if param, found := firstUnreadable(paths); found {
+			return &usageError{
+				usage:   cmd.CommandPath() + " " + usageSuffix(cmd),
+				command: cmd.CommandPath(),
+				message: fmt.Sprintf("Invalid value for %s: Path '%s' is not readable.", param.display, param.value),
+			}
+		}
+		return next(cmd, positional)
 	}
 }
 

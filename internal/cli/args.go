@@ -1,6 +1,10 @@
 package cli
 
 import (
+	"errors"
+	"fmt"
+	"io/fs"
+	"os"
 	"slices"
 	"strings"
 )
@@ -77,6 +81,52 @@ var renderBoolFlags = map[string]bool{
 	"help":                   true,
 }
 
+// renderPathOptions are `render`'s options typed `pathlib.Path`, mapped to
+// their short spelling (spec 012 §2.1 behavior 11a).
+//
+// **Typer converts a `pathlib.Path` annotation to
+// `click.Path(exists=False, readable=True, dir_okay=True)`**, so every one of
+// them — the three overlays, the output folder and all five output paths — is
+// checked for readability at parse time, and none is checked for existence.
+// `--YAMLLOCATION` is absent because it is a TEXT parameter, not a path.
+var renderPathOptions = map[string]string{
+	"output-folder":  "o",
+	"design":         "d",
+	"locale-catalog": "lc",
+	"settings":       "s",
+	"typst-path":     "typ",
+	"pdf-path":       "pdf",
+	"markdown-path":  "md",
+	"html-path":      "html",
+	"png-path":       "png",
+}
+
+// pathParam is one path-typed parameter as click will convert it: the name it
+// reports itself by, and the value as the user spelled it.
+type pathParam struct {
+	// display is click's parameter name in an `Invalid value for …` message.
+	// **An option names both spellings, long then short** — `'--design' / '-d'`
+	// — whichever the user typed, and the argument has no slash at all
+	// (behavior 11c).
+	display string
+	value   string
+}
+
+// inputFileDisplay is the argument's name in click's messages. Upstream's
+// parameter is `input_file_name`, and click upper-cases it for the metavar.
+const inputFileDisplay = "'INPUT_FILE_NAME'"
+
+// scanned is one walk of the argument vector: what a flag parser can read, what
+// it cannot, and every path parameter the walk assigned.
+type scanned struct {
+	rest   []string
+	extras []string
+	// paths is in click's processing order — **options in the order they were
+	// typed, then the positional argument** (behavior 11d), because
+	// `_process_args_for_args` runs after the option loop.
+	paths []pathParam
+}
+
 // renderShortChars are the one-character members of renderShortFlags, which
 // are the only options click's `_match_short_opt` can match inside a cluster.
 // The whole-word forms (`-typ`, `-nopdf`, `-lc`) are matched exactly, before
@@ -98,7 +148,11 @@ var renderShortChars = map[byte]string{
 // and `-o OUT` are the same invocation, and parsing of the token stops there.
 // Characters that match nothing are collected and returned together, to be
 // re-emitted as one `-xyz` extra exactly as click does.
-func splitShortCluster(arg string, rest *[]string, args []string, i *int) (consumed bool, unknown string) {
+//
+// assign is told about every value the walk hands to an option, so a path
+// parameter spelled inside a cluster — `-ddesign.yaml` — is checked like any
+// other.
+func splitShortCluster(arg string, rest *[]string, args []string, i *int, assign func(long, value string)) (consumed bool, unknown string) {
 	var unmatched []byte
 
 	for pos := 1; pos < len(arg); pos++ {
@@ -116,8 +170,10 @@ func splitShortCluster(arg string, rest *[]string, args []string, i *int) (consu
 		}
 		if remainder := arg[pos+1:]; remainder != "" {
 			*rest = append(*rest, remainder)
+			assign(long, remainder)
 		} else if *i+1 < len(args) {
 			*rest = append(*rest, args[*i+1])
+			assign(long, args[*i+1])
 			*i++
 		}
 		break // a value option swallows the remainder of the token
@@ -139,14 +195,42 @@ func splitShortCluster(arg string, rest *[]string, args []string, i *int) (consu
 // declares the options. `new -d x` is an unknown option to upstream and stays
 // one here rather than turning into a flag `new` does not have.
 func Normalize(args []string) (rest, extras []string) {
+	vector := scan(args)
+	return vector.rest, vector.extras
+}
+
+// scan is Normalize's whole body, plus the path parameters the walk assigns.
+// Both readings come from one pass because they have to agree: the option that
+// reports an unreadable path is the option whose value the walk consumed, down
+// to the cluster and `=` spellings.
+func scan(args []string) scanned {
 	// Only `render` collects extras — it is the one command declared with
 	// `allow_extra_args`. Everything else goes through untouched, so a token
-	// `new` does not declare stays the unknown option it is upstream.
+	// `new` does not declare stays the unknown option it is upstream. It
+	// declares no path parameters either, so nothing is checked there.
 	if subcommand(args) != "render" {
-		return args, nil
+		return scanned{rest: args}
 	}
 
-	rest = make([]string, 0, len(args))
+	var (
+		extras []string
+		paths  []pathParam
+	)
+	rest := make([]string, 0, len(args))
+
+	// assign records a value handed to a path option, in the order the walk
+	// meets it — which is the order it was typed, and therefore click's
+	// processing order for options.
+	assign := func(long, value string) {
+		short, isPath := renderPathOptions[long]
+		if !isPath {
+			return
+		}
+		paths = append(paths, pathParam{
+			display: fmt.Sprintf("'--%s' / '-%s'", long, short),
+			value:   value,
+		})
+	}
 
 	// leftover is click's `state.largs`: every token the parser could not
 	// consume, in the order it was typed. `INPUT_FILE_NAME` comes off the front
@@ -189,8 +273,11 @@ func Normalize(args []string) (rest, extras []string) {
 		case long && renderValueFlags[name]:
 			rest = append(rest, arg)
 			// `--output-folder=out` carries its value in the same token.
-			if !strings.Contains(arg, "=") && i+1 < len(args) {
+			if value, hasValue := strings.CutPrefix(arg, "--"+name+"="); hasValue {
+				assign(name, value)
+			} else if i+1 < len(args) {
 				rest = append(rest, args[i+1])
+				assign(name, args[i+1])
 				i++
 			}
 
@@ -216,6 +303,7 @@ func Normalize(args []string) (rest, extras []string) {
 				rest = append(rest, "--"+replacement)
 				if renderValueFlags[replacement] && i+1 < len(args) {
 					rest = append(rest, args[i+1])
+					assign(replacement, args[i+1])
 					i++
 				}
 				continue
@@ -234,7 +322,7 @@ func Normalize(args []string) (rest, extras []string) {
 			// and `p` are unknown and come back as the single extra `-typ`,
 			// while `o` matches and swallows the rest of the token as its
 			// value.
-			consumed, unknown := splitShortCluster(arg, &rest, args, &i)
+			consumed, unknown := splitShortCluster(arg, &rest, args, &i, assign)
 			if unknown != "" {
 				collect("-" + unknown)
 			}
@@ -262,8 +350,51 @@ func Normalize(args []string) (rest, extras []string) {
 		if len(leftover) > 1 {
 			extras = leftover[1:]
 		}
+		// **The argument is checked after every option** (behavior 11d), which
+		// is why `render unreadable.yaml -d u2.yaml` reports `--design` though
+		// the input file was typed first.
+		paths = append(paths, pathParam{display: inputFileDisplay, value: leftover[0]})
 	}
-	return rest, extras
+	return scanned{rest: rest, extras: extras, paths: paths}
+}
+
+// firstUnreadable is click's `Path(readable=True)` conversion over the walk's
+// parameters, in its processing order (spec 012 §2.1 behavior 11a).
+//
+// Click converts each parameter in turn and fails on the first that cannot be
+// read, so only the first is ever reported however many are unreadable.
+func firstUnreadable(paths []pathParam) (pathParam, bool) {
+	for _, param := range paths {
+		if !readablePath(param.value) {
+			return param, true
+		}
+	}
+	return pathParam{}, false
+}
+
+// readablePath is `click.Path.convert`'s readability test.
+//
+// **A path that does not exist is not checked at all** (behavior 11b): click
+// stats it first and, because these parameters are `exists=False`, returns the
+// value untouched when the stat fails. So `-d nosuch.yaml` is not a usage error
+// — it falls through to the unguarded read later, which is upstream's
+// `FileNotFoundError` at exit 1, and a rule that validated every path uniformly
+// would report it here instead.
+//
+// Readability itself is `os.access(rv, os.R_OK)` upstream. Opening the file is
+// the portable equivalent: a mode-000 file and a mode-000 directory both fail
+// with a permission error, and any other failure is left alone because click
+// reports only this one.
+func readablePath(path string) bool {
+	if _, err := os.Stat(path); err != nil {
+		return true
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return !errors.Is(err, fs.ErrPermission)
+	}
+	_ = file.Close()
+	return true
 }
 
 // withInput puts the input file name back into the vector a flag parser reads.

@@ -1,9 +1,13 @@
 package cli
 
 import (
+	"bytes"
 	"io"
+	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -333,4 +337,435 @@ func TestNormalizeSplitsShortClusters(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestScanCollectsPathParametersInClicksOrder is spec 012 §2.1 behaviors 11a,
+// 11c and 11d: which parameters carry the readability check, how each names
+// itself, and — the part an implementation is most likely to get wrong — the
+// order they are checked in.
+//
+// **Options are processed in the order they were typed, then the positional
+// argument**, because click's `_process_args_for_args` runs after the option
+// loop. Validating the input file first because it feels primary reports the
+// wrong parameter for half the vectors below.
+func TestScanCollectsPathParametersInClicksOrder(t *testing.T) {
+	cases := []struct {
+		name  string
+		args  []string
+		paths []pathParam
+	}{
+		{
+			// The argument's shape has no short spelling and no slash.
+			name:  "the input file alone",
+			args:  []string{"render", "cv.yaml"},
+			paths: []pathParam{{display: "'INPUT_FILE_NAME'", value: "cv.yaml"}},
+		},
+		{
+			// **Both spellings, long then short, whichever was typed** (11c).
+			name: "a short option names its long form too",
+			args: []string{"render", "cv.yaml", "-d", "design.yaml"},
+			paths: []pathParam{
+				{display: "'--design' / '-d'", value: "design.yaml"},
+				{display: "'INPUT_FILE_NAME'", value: "cv.yaml"},
+			},
+		},
+		{
+			name: "the long spelling names the same pair",
+			args: []string{"render", "cv.yaml", "--design", "design.yaml"},
+			paths: []pathParam{
+				{display: "'--design' / '-d'", value: "design.yaml"},
+				{display: "'INPUT_FILE_NAME'", value: "cv.yaml"},
+			},
+		},
+		{
+			name: "the equals form carries its value",
+			args: []string{"render", "cv.yaml", "--design=design.yaml"},
+			paths: []pathParam{
+				{display: "'--design' / '-d'", value: "design.yaml"},
+				{display: "'INPUT_FILE_NAME'", value: "cv.yaml"},
+			},
+		},
+		{
+			// `-dX` — click's `_match_short_opt` takes the remainder as the
+			// value, and the parameter is still checked.
+			name: "a value attached inside a short cluster",
+			args: []string{"render", "cv.yaml", "-ddesign.yaml"},
+			paths: []pathParam{
+				{display: "'--design' / '-d'", value: "design.yaml"},
+				{display: "'INPUT_FILE_NAME'", value: "cv.yaml"},
+			},
+		},
+		{
+			// **The option wins over the argument even when typed second**
+			// (11d): measured, `render unreadable.yaml -d u2.yaml` reports
+			// `--design`.
+			name: "an option typed after the input file is still first",
+			args: []string{"render", "cv.yaml", "-d", "design.yaml"},
+			paths: []pathParam{
+				{display: "'--design' / '-d'", value: "design.yaml"},
+				{display: "'INPUT_FILE_NAME'", value: "cv.yaml"},
+			},
+		},
+		{
+			// Two options keep the order they were typed in.
+			name: "settings before design",
+			args: []string{"render", "cv.yaml", "-s", "s.yaml", "-d", "d.yaml"},
+			paths: []pathParam{
+				{display: "'--settings' / '-s'", value: "s.yaml"},
+				{display: "'--design' / '-d'", value: "d.yaml"},
+				{display: "'INPUT_FILE_NAME'", value: "cv.yaml"},
+			},
+		},
+		{
+			name: "design before settings",
+			args: []string{"render", "cv.yaml", "-d", "d.yaml", "-s", "s.yaml"},
+			paths: []pathParam{
+				{display: "'--design' / '-d'", value: "d.yaml"},
+				{display: "'--settings' / '-s'", value: "s.yaml"},
+				{display: "'INPUT_FILE_NAME'", value: "cv.yaml"},
+			},
+		},
+		{
+			// No input file at all: the option is still checked, which is why
+			// upstream reports the readability error rather than the missing
+			// argument.
+			name: "an option with no input file",
+			args: []string{"render", "-d", "d.yaml"},
+			paths: []pathParam{
+				{display: "'--design' / '-d'", value: "d.yaml"},
+			},
+		},
+		{
+			// **All ten, not three.** The five output paths and the output
+			// folder carry the same check as the three overlays.
+			name: "every path option of the ten",
+			args: []string{
+				"render", "cv.yaml",
+				"-o", "out", "-lc", "l.yaml",
+				"-typ", "a.typ", "-pdf", "a.pdf", "-md", "a.md", "-html", "a.html", "-png", "a.png",
+			},
+			paths: []pathParam{
+				{display: "'--output-folder' / '-o'", value: "out"},
+				{display: "'--locale-catalog' / '-lc'", value: "l.yaml"},
+				{display: "'--typst-path' / '-typ'", value: "a.typ"},
+				{display: "'--pdf-path' / '-pdf'", value: "a.pdf"},
+				{display: "'--markdown-path' / '-md'", value: "a.md"},
+				{display: "'--html-path' / '-html'", value: "a.html"},
+				{display: "'--png-path' / '-png'", value: "a.png"},
+				{display: "'INPUT_FILE_NAME'", value: "cv.yaml"},
+			},
+		},
+		{
+			// `--YAMLLOCATION` is a TEXT parameter, not a path, so it is not
+			// checked however it is spelled.
+			name:  "the override placeholder is not a path",
+			args:  []string{"render", "cv.yaml", "--YAMLLOCATION", "zzz"},
+			paths: []pathParam{{display: "'INPUT_FILE_NAME'", value: "cv.yaml"}},
+		},
+		{
+			// A dangling value option assigns nothing: pflag reports
+			// `Option '-d' requires an argument.` and that error precedes the
+			// readability check — measured, 553 B at exit 2.
+			name:  "a dangling value option contributes nothing",
+			args:  []string{"render", "cv.yaml", "-d"},
+			paths: []pathParam{{display: "'INPUT_FILE_NAME'", value: "cv.yaml"}},
+		},
+		{
+			// Outside `render` nothing is collected: `new` declares no path
+			// parameters at all.
+			name:  "new has no path parameters",
+			args:  []string{"new", "John Doe", "--theme", "classic"},
+			paths: nil,
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			got := scan(test.args).paths
+			if !reflect.DeepEqual(got, test.paths) {
+				t.Errorf("paths = %+v, want %+v", got, test.paths)
+			}
+		})
+	}
+}
+
+// TestUnreadablePathIsAUsageError is spec 012 §2.1 behaviors 11a, 11b and 11e
+// at the CLI boundary.
+//
+// Upstream measurements, `COLUMNS=80`, uid 1000, mode-000 targets: every one of
+// the ten is exit **2** with the usage line, the `Try …` line and the `Error`
+// panel on **stderr** and nothing on stdout — 637 B where the message fits one
+// panel line, 722 B where it wraps. A **missing** path is not checked at all
+// and falls through to the later read, which is the vector that disproves a
+// uniform "validate the path" rule.
+func TestUnreadablePathIsAUsageError(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root reads a mode-000 file, so the check cannot be observed")
+	}
+
+	// The vectors run from inside the fixture directory, as the measurements
+	// did, so the names in the messages are the short ones upstream printed
+	// rather than a temporary absolute path.
+	t.Chdir(t.TempDir())
+
+	const (
+		readable      = "cv.yaml"
+		unreadable    = "unreadable.yaml"
+		second        = "u2.yaml"
+		unreadableDir = "noread_dir"
+		missing       = "nosuch.yaml"
+	)
+	if err := os.WriteFile(readable, []byte("cv:\n  name: John Doe\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{unreadable, second} {
+		if err := os.WriteFile(name, []byte("theme: classic\n"), 0o000); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// A directory counts too — click's default is `dir_okay=True`. It is made
+	// traversable again on the way out so `t.TempDir`'s own cleanup can remove
+	// it.
+	if err := os.Mkdir(unreadableDir, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(unreadableDir, 0o700) })
+
+	cases := []struct {
+		name string
+		args []string
+		// want is the `Invalid value for …` message, or "" when the vector must
+		// not produce one.
+		want string
+	}{
+		{
+			name: "the input file",
+			args: []string{"render", unreadable},
+			want: "Invalid value for 'INPUT_FILE_NAME': Path '" + unreadable + "' is not readable.",
+		},
+		{
+			name: "design",
+			args: []string{"render", readable, "-d", unreadable},
+			want: "Invalid value for '--design' / '-d': Path '" + unreadable + "' is not readable.",
+		},
+		{
+			name: "locale catalog",
+			args: []string{"render", readable, "-lc", unreadable},
+			want: "Invalid value for '--locale-catalog' / '-lc': Path '" + unreadable + "' is not readable.",
+		},
+		{
+			name: "settings",
+			args: []string{"render", readable, "-s", unreadable},
+			want: "Invalid value for '--settings' / '-s': Path '" + unreadable + "' is not readable.",
+		},
+		{
+			name: "output folder, a directory",
+			args: []string{"render", readable, "-o", unreadableDir},
+			want: "Invalid value for '--output-folder' / '-o': Path '" + unreadableDir + "' is not readable.",
+		},
+		{
+			// **An unreadable output target is rejected before anything is
+			// written.** The port used to render the Typst file and fail
+			// afterwards.
+			name: "typst path",
+			args: []string{"render", readable, "-typ", unreadable},
+			want: "Invalid value for '--typst-path' / '-typ': Path '" + unreadable + "' is not readable.",
+		},
+		{
+			name: "pdf path",
+			args: []string{"render", readable, "-pdf", unreadable},
+			want: "Invalid value for '--pdf-path' / '-pdf': Path '" + unreadable + "' is not readable.",
+		},
+		{
+			name: "markdown path",
+			args: []string{"render", readable, "-md", unreadable},
+			want: "Invalid value for '--markdown-path' / '-md': Path '" + unreadable + "' is not readable.",
+		},
+		{
+			name: "html path",
+			args: []string{"render", readable, "-html", unreadable},
+			want: "Invalid value for '--html-path' / '-html': Path '" + unreadable + "' is not readable.",
+		},
+		{
+			name: "png path",
+			args: []string{"render", readable, "-png", unreadable},
+			want: "Invalid value for '--png-path' / '-png': Path '" + unreadable + "' is not readable.",
+		},
+		{
+			// 11d, the four ordering vectors.
+			name: "an option outranks the input file typed before it",
+			args: []string{"render", unreadable, "-d", second},
+			want: "Invalid value for '--design' / '-d': Path '" + second + "' is not readable.",
+		},
+		{
+			name: "settings typed first",
+			args: []string{"render", readable, "-s", second, "-d", unreadable},
+			want: "Invalid value for '--settings' / '-s': Path '" + second + "' is not readable.",
+		},
+		{
+			name: "design typed first",
+			args: []string{"render", readable, "-d", unreadable, "-s", second},
+			want: "Invalid value for '--design' / '-d': Path '" + unreadable + "' is not readable.",
+		},
+		{
+			// **Not `Missing argument 'INPUT_FILE_NAME'.`** — the option is
+			// processed before the argument, so there is no argument left to
+			// miss by the time click gives up.
+			name: "no input file at all",
+			args: []string{"render", "-d", unreadable},
+			want: "Invalid value for '--design' / '-d': Path '" + unreadable + "' is not readable.",
+		},
+		{
+			// The check precedes the leftover-token routing of `8eb1502`, so
+			// the unknown token never becomes an input file here.
+			name: "an unknown token beside an unreadable option",
+			args: []string{"render", "--nope", "-d", unreadable},
+			want: "Invalid value for '--design' / '-d': Path '" + unreadable + "' is not readable.",
+		},
+		{
+			// 11b: `exists=False`. Nothing is reported here — the render runs
+			// and the read fails later, on its own terms.
+			name: "a missing path is not checked",
+			args: []string{"render", readable, "-d", missing},
+			want: "",
+		},
+		{
+			name: "a readable path is not reported",
+			args: []string{"render", readable, "-d", readable},
+			want: "",
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			invoked := false
+			code := execute(test.args, &stdout, &stderr, runners{
+				render: func(RenderOptions, io.Writer, io.Writer) int {
+					invoked = true
+					return 0
+				},
+			})
+
+			if test.want == "" {
+				if !invoked {
+					t.Fatalf("render was not reached; exit %d, stderr %q", code, stderr.String())
+				}
+				return
+			}
+
+			if invoked {
+				t.Errorf("render ran; the path should have been rejected at parse time")
+			}
+			if code != exitUsageError {
+				t.Errorf("exit = %d, want %d", code, exitUsageError)
+			}
+			if stdout.Len() != 0 {
+				t.Errorf("stdout = %q, want nothing — click writes usage errors to stderr", stdout.String())
+			}
+			text := stderr.String()
+			// The panel wraps a long message across lines, exactly as
+			// upstream's does — `--locale-catalog` and the five output paths
+			// measure 722 B against `--design`'s 637 B for that reason — so the
+			// comparison is against the unwrapped text.
+			if got := panelBody(text); got != test.want {
+				t.Errorf("panel message = %q, want %q", got, test.want)
+			}
+			// All three parts, as every other usage error prints them.
+			for _, line := range []string{
+				"Usage: rendercv-go render [OPTIONS] INPUT_FILE_NAME\n",
+				"Try 'rendercv-go render -h' for help.\n",
+			} {
+				if !strings.Contains(text, line) {
+					t.Errorf("stderr = %q, want it to contain %q", text, line)
+				}
+			}
+		})
+	}
+}
+
+// TestHelpOutranksTheReadabilityCheck is click's eager parameter processing:
+// `--help` is `is_eager`, so it is handled before any other parameter is
+// converted. Measured both orders — `render -h -d unreadable.yaml` and
+// `render -d unreadable.yaml -h` are each the help page on stdout at exit 0,
+// 5661 B, with nothing on stderr.
+func TestHelpOutranksTheReadabilityCheck(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root reads a mode-000 file, so the check cannot be observed")
+	}
+
+	dir := t.TempDir()
+	unreadable := filepath.Join(dir, "unreadable.yaml")
+	if err := os.WriteFile(unreadable, []byte("theme: classic\n"), 0o000); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, args := range [][]string{
+		{"render", "-h", "-d", unreadable},
+		{"render", "-d", unreadable, "-h"},
+	} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			code := execute(args, &stdout, &stderr, runners{})
+
+			if code != 0 {
+				t.Errorf("exit = %d, want 0", code)
+			}
+			if stderr.Len() != 0 {
+				t.Errorf("stderr = %q, want nothing", stderr.String())
+			}
+			if !strings.HasPrefix(stdout.String(), "\nUsage:") && stdout.Len() == 0 {
+				t.Errorf("stdout = %q, want the help page", stdout.String())
+			}
+		})
+	}
+}
+
+// TestAMissingOptionValueOutranksTheReadabilityCheck is the other precedence
+// click's parser imposes: a value option with nothing after it fails during
+// *parsing*, before any parameter is converted. Measured:
+// `render cv.yaml -d unreadable.yaml -s` is `Option '-s' requires an
+// argument.` at exit 2, 553 B — the panel alone, with no usage line, which is
+// G-3's asymmetry.
+func TestAMissingOptionValueOutranksTheReadabilityCheck(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root reads a mode-000 file, so the check cannot be observed")
+	}
+
+	dir := t.TempDir()
+	readable := filepath.Join(dir, "cv.yaml")
+	if err := os.WriteFile(readable, []byte("cv:\n  name: John Doe\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	unreadable := filepath.Join(dir, "unreadable.yaml")
+	if err := os.WriteFile(unreadable, []byte("theme: classic\n"), 0o000); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := execute([]string{"render", readable, "-d", unreadable, "-s"}, &stdout, &stderr, runners{})
+
+	if code != exitUsageError {
+		t.Errorf("exit = %d, want %d", code, exitUsageError)
+	}
+	if want := "Option '-s' requires an argument."; !strings.Contains(stderr.String(), want) {
+		t.Errorf("stderr = %q, want it to contain %q", stderr.String(), want)
+	}
+	if strings.Contains(stderr.String(), "is not readable") {
+		t.Error("the readability check ran; click fails on the missing value first")
+	}
+}
+
+// panelBody is a Rich panel's text with its box drawing and its wrapping
+// removed, so a message can be compared as one line however wide the terminal
+// was when it was rendered.
+func panelBody(text string) string {
+	var words []string
+	for _, line := range strings.Split(text, "\n") {
+		if !strings.HasPrefix(line, "│") {
+			continue
+		}
+		words = append(words, strings.Fields(strings.Trim(line, "│"))...)
+	}
+	return strings.Join(words, " ")
 }
