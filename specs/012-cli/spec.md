@@ -168,8 +168,28 @@ exit 2, while missing stays the panel on stdout at exit 1. That split is upstrea
 reproducing it is parity rather than divergence. It does not disturb `err_missing_file` or
 `err_bad_override_key`, whose files are ordinary readable ones.
 
+11f. **`--help` is eager and outranks the check.** `render -h -d unreadable.yaml` and
+`render -d unreadable.yaml -h` are both the help page at exit 0, 5661 B, identical on both sides.
+
+11g. **A missing option value outranks it.** `render cv.yaml -d unreadable.yaml -s` is
+`Option '-s' requires an argument.` at exit 2, 553 B — the panel alone with no usage line, which is
+G-3's asymmetry — identical on both sides, because click fails during parsing before the conversion
+runs.
+
+Together 11d, 11f and 11g fix the check's position exactly: it happens **after** flag parsing and
+after help, and **before** the positional is bound. In the port that is `render`'s `Args` validator,
+because cobra's order — `ParseFlags` → help → `ValidateArgs` → `RunE` — is click's order for these
+three.
+
 *Citation:* measured against `third_party/rendercv/.venv/bin/rendercv` at `COLUMNS=80`, uid 1000,
 mode-000 targets; typer's `Path` conversion; click's `_process_args_for_args`.
+
+**Landed** in `8f5f2d9`. Nineteen usage-error vectors are byte-identical to upstream once
+`rendercv-go` is substituted for `rendercv` — the four `--design` spellings (`-d`, `--design`,
+`--design=…`, `-ddesign.yaml`), a mode-000 directory, and all five output paths included. The port's
+figures run 6 B longer because the name appears on both the usage and `Try …` lines. Before this, the
+five output-path options were the worst case: 807 B at exit 1, because the port **rendered the Typst
+file and only then failed**.
 
 ## 3. `new` and `create-theme`
 
