@@ -84,6 +84,49 @@ remains silent and unchanged — that is not a failure.
 Acceptance: each of the four failure modes exits 1 with a panel naming the path and a reason; a theme
 folder with no script is untouched; and a test pins that "absent" and "broken" take different paths.
 
+## T5 — report the broken script from validation [after T1–T4]
+
+**Owns:** `internal/schema/models/design/script.go`, `validate.go`, `internal/renderer/bridge/model.go`
+and its test, `internal/cli/render.go`.
+
+T4 landed the reporting where the record could be reached at the time: synthesised in
+`bridge.themeScript`, turned into exit 1 by a guard in `render.go`, with a hand-appended period
+standing in for `errorpipeline.Parse`'s step 8. T1 then moved script *loading* into `design.Validate`
+but not reporting. **The two removals T4's commit body promises are consequences of moving reporting,
+not a cleanup that can be done on its own** — removing the guard today returns a broken `init.lua` to
+rendering at exit 0, and removing the period today simply loses it.
+
+The unit:
+
+1. `design.LoadThemeScript` grows a typed failure that keeps the four modes distinguishable; the
+   `*lua.ApiError` classification and D-013's wording move into the design package.
+2. `validateScriptedTheme` emits the records and skips document validation — upstream's order is the
+   folder checks, then the script failure raising out of `validate_design`, then
+   `theme_data_model_class(**design)`.
+3. `Document.ScriptError` and bridge's `scriptFailure`/`scriptValidationFailure`/`scriptRecord`/
+   `scriptRecordOf`/`scriptInputElided` come out; `themeScript` becomes the delegation to
+   `LoadThemeScript` that T1 deferred.
+4. `render.go`'s guard comes out.
+5. T4's four mode tests move from `bridge/model_test.go` to the design package — they assert
+   `doc.ScriptError`, which stops existing.
+
+**A measured parity gain comes with it.** A synthesised record bypasses `errorpipeline.Parse` and so
+never meets the error dictionary, whose row 13 rewrites exactly this message:
+
+```
+upstream: This is not a valid color. Here are some examples of valid colors: "red",
+          "#ff0000", "rgb(255, 0, 0)", "hsl(0, 100%, 50%)".
+port:     value is not a valid color: string not recognised as a valid color.
+```
+
+Routing script records through `Parse` fixes that at the same time as removing the by-hand period —
+both are symptoms of one bypass. State it in the commit body as a consequence, not a silent extra.
+
+**Acceptance:** all four modes still exit 1, refuse to render, and stay distinguishable; the absent
+script stays silent; **mode 4's byte-identical differential against upstream survives**, re-diffed
+before the commit rather than after, since it is the only differential parity this iteration has; and
+the colour message matches upstream's dictionary text.
+
 ---
 
 ## Not in this iteration
