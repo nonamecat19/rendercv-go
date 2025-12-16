@@ -249,6 +249,102 @@ func TestWatchFirstRenderMatchesRenderOnce(t *testing.T) {
 	}
 }
 
+// TestWatchSetIsLexical is site 7 of the lexical-path unit: upstream's watched
+// set is `{str(fp.absolute()) for fp in file_paths}` (`watcher.py:49`), and
+// `Path.absolute()` only prepends the working directory — it does **not**
+// clean, so a `..` segment survives into the set. `WatchSet` used
+// `filepath.Abs`, which calls `Clean`.
+//
+// See lexicalpath_test.go's header for why the idiomatic call is the wrong one.
+func TestWatchSetIsLexical(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Assembled by hand: `filepath.Join` would clean the `..` away before
+	// `WatchSet` ever saw it.
+	set := WatchSet(RenderOptions{InputPath: "bb/../bb/CV.yaml"})
+	if len(set) != 1 {
+		t.Fatalf("WatchSet = %v, want one member", set)
+	}
+	if want := cwd + "/bb/../bb/CV.yaml"; set[0] != want {
+		t.Errorf("WatchSet[0] = %q, want %q", set[0], want)
+	}
+}
+
+// TestWatchLoopWatchesTheLexicalDirectory is the behavior behind site 7, and
+// the reason it is not a one-line change. Upstream schedules
+// `fp.absolute().parent` (`watcher.py:52`) — the lexical parent — so with
+// `work/bb` a symlink to `other/real`, `--watch work/bb/../bb/CV.yaml` watches
+// `other/bb`. **fsnotify cleans the path it is given**
+// (`backend_inotify.go:228` → `recursivePath` → `filepath.Clean`), so handing
+// it the lexical spelling would watch `other/real` — the wrong directory — and
+// the events it reported would never match the set either.
+//
+// So the loop resolves the directory before it registers, and matches events
+// on the same basis. The observable is the one that matters: an edit to the
+// file the user is actually editing re-renders, and an edit to the same-named
+// file in the cleaned directory does not.
+func TestWatchLoopWatchesTheLexicalDirectory(t *testing.T) {
+	_, lexical, cleaned, input := symlinkTree(t)
+
+	for _, dir := range []string{lexical, cleaned} {
+		if err := os.WriteFile(filepath.Join(dir, "CV.yaml"), []byte("cv:\n  name: John Doe\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	renders := make(chan struct{}, 8)
+	done := make(chan error, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() {
+		done <- watchLoop(ctx, WatchSet(RenderOptions{InputPath: input}), func() int {
+			renders <- struct{}{}
+			return 0
+		})
+	}()
+
+	select {
+	case <-renders:
+	case err := <-done:
+		t.Fatalf("watchLoop returned before the first render: %v", err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("the first render never happened")
+	}
+
+	// The cleaned directory is not the one upstream watches: an edit there is
+	// not the user's file and must not re-render.
+	if err := os.WriteFile(filepath.Join(cleaned, "CV.yaml"), []byte("cv:\n  name: Wrong\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-renders:
+		t.Fatalf("an edit under the cleaned path %s re-rendered", cleaned)
+	case <-time.After(300 * time.Millisecond):
+	}
+
+	// The lexical one is.
+	if err := os.WriteFile(filepath.Join(lexical, "CV.yaml"), []byte("cv:\n  name: Jane Doe\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-renders:
+	case err := <-done:
+		t.Fatalf("watchLoop returned instead of re-rendering: %v", err)
+	case <-time.After(5 * time.Second):
+		t.Fatalf("an edit under the lexical path %s did not re-render", lexical)
+	}
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("watchLoop did not return on cancellation")
+	}
+}
+
 // TestWatchDoesNotHangOnAnUnreadableInput is N1: `render --watch` on an input
 // it cannot read printed the panel and then **entered the loop and blocked
 // forever**. Upstream reads the input and the three overlays in
