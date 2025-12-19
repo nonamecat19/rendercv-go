@@ -188,6 +188,43 @@ residue on row 6 and is now provably the only thing that row leaves unasserted.
   request. Plain-text output from a subagent does not reach the parent; only an explicit message
   does.
 
+## All seven lexical-path sites are fixed — 2026-08-11
+
+Landed across `b3b5413`, `ee796cb`, `22a4000` (sites 1–6), `4fde610` (site 3's templater half) and
+`4092db5`/`7a369f2`/`ada2eff` (site 7), by three porters. `internal/schema/models/design/purepath.go`
+is the single implementation — `Parent`, `Join`, `RelativeTo`, three thin wrappers over the one
+`pathlibParts`/`pathlibJoin` parser — with four consumers: the theme script, the templater loader, the
+CLI and the watcher.
+
+**The canonical demonstration of why this class matters** — not "paths were cleaned" but "the wrong
+document rendered". Symlink tree, CV naming `design.yaml`, with `other/bb/design.yaml` naming moderncv
+and `other/real/design.yaml` naming sb2nov:
+
+| | before | after |
+|---|---|---|
+| overlay read | `other/real` → **sb2nov** | `other/bb` → **moderncv** |
+| `.typ` | **60 differing lines** vs upstream | **byte-identical** |
+| stdout | differing | **961 B both**, empty diff |
+| exit | 0, no warning | 0 |
+
+**Site 7 was not the one-line change it looked like, and the naive fix would have been worse than the
+bug.** fsnotify cleans the path it is handed (`backend_inotify.go:228` → `recursivePath` →
+`filepath.Clean`), so registering the lexical spelling would have watched the symlink *target* and
+emitted events under a cleaned prefix matching no member of a lexical set — a watcher that watches the
+wrong directory **and never fires**. Upstream escapes this because watchdog reports events under the
+string it was scheduled with. So the set keeps upstream's spelling and `watchLoop` resolves before
+registering, matching on the same basis. Its test pins both halves: an edit in the cleaned directory
+must **not** re-render, an edit in the lexical one must.
+
+**Site 6's second defect** was found only by checking where paths are *displayed*: `filepath.Rel(".", …)`
+does not merely clean, it fails outright on an absolute path, so `render /abs/cv.yaml` printed
+`.//abs/...`. Upstream's `except ValueError` fallback is reproduced.
+
+`TestWatchSetMixesLexicalAndResolvedPaths` pins the asymmetry **within one set** — member 0 the input
+with its `..` intact, member 1 the document-named overlay fully resolved — so a later reader cannot
+tidy the set uniform. It was green when written and is recorded as a pinning test, not a red-first
+gate.
+
 ## Lexical paths: one bug, seven sites — 2026-08-11
 
 Surveyed read-only after the theme-script half was fixed in `0848dce`. `Path.absolute()` and
