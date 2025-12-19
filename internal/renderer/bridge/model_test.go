@@ -1,10 +1,8 @@
 package bridge_test
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -194,159 +192,12 @@ func TestAllCapsBooleanReachesTheDesignTree(t *testing.T) {
 	}
 }
 
-// A broken theme script must be **reported**, not discarded (spec 014 §2
-// behavior 9, tasks 014 T4). Every one of these used to return the same `nil`
-// `themeScript` returns for a theme folder with no script at all, so the
-// document rendered with the theme's base defaults at exit 0 with no signal —
-// a silently wrong CV from a script the user got wrong.
-//
-// **The four modes stay distinguishable**: a user needs to know whether their
-// script failed to parse, returned the wrong type, declared a shape the design
-// tree cannot hold, or declared a value the field rejects.
-func TestABrokenThemeScriptIsReported(t *testing.T) {
-	for _, test := range []struct {
-		name   string
-		script string
-		want   string
-		input  string
-	}{{
-		name:   "a parse error",
-		script: "return {",
-		want: "The custom theme mytheme's init.lua file could not be run: " +
-			"<string> at EOF:   syntax error.",
-		input: "...",
-	}, {
-		name:   "a runtime failure",
-		script: "error('boom')",
-		want: "The custom theme mytheme's init.lua file could not be run: " +
-			"<string>:1: boom.",
-		input: "...",
-	}, {
-		name:   "a non-table return",
-		script: "return 42",
-		want:   "The custom theme mytheme's init.lua file did not return a table of theme options.",
-		input:  "...",
-	}, {
-		name:   "a shape the design tree cannot hold",
-		script: `return { page = { size = { a = 1 } } }`,
-		want: "The custom theme mytheme's init.lua file declares an option the design tree " +
-			"cannot hold: design.page.size is a group of options in this theme's script, " +
-			"but should be a value.",
-		input: "...",
-	}, {
-		// **Upstream's own sentence, unprefixed.** `theme_data_model_class(**design)`
-		// validates the declared defaults (`design.py:135`), so this text and this
-		// input value are parity, not this port's wording.
-		name:   "a value the field rejects",
-		script: `return { page = { size = "bogus" } }`,
-		want:   "Input should be 'a4', 'a5', 'us-letter' or 'us-executive'.",
-		input:  "bogus",
-	}, {
-		// A Lua boolean is echoed as Lua spells it (D-013): upstream prints
-		// Python's `True` for the same mistake in `__init__.py`.
-		name:   "a boolean where a value belongs",
-		script: `return { page = { size = true } }`,
-		want:   "Input should be 'a4', 'a5', 'us-letter' or 'us-executive'.",
-		input:  "true",
-	}} {
-		t.Run(test.name, func(t *testing.T) {
-			doc := resolveWithTheme(t, "mytheme", test.script, "")
-
-			var reported *schemaerr.UserValidationError
-			if !errors.As(doc.ScriptError, &reported) {
-				t.Fatalf("ScriptError = %v, want a validation error", doc.ScriptError)
-			}
-			if len(reported.Errors) != 1 {
-				t.Fatalf("got %d records, want 1: %v", len(reported.Errors), reported.Errors)
-			}
-			record := reported.Errors[0]
-			if record.Message != test.want {
-				t.Errorf("message = %q, want %q", record.Message, test.want)
-			}
-			if record.Input != test.input {
-				t.Errorf("input = %q, want %q", record.Input, test.input)
-			}
-			// **`design` looks too shallow and is correct.** Upstream's column
-			// reads `design` for every one of these — measured against the
-			// vendored binary — and the reason is a bug in its own error
-			// formatter, not a property of script errors:
-			// `pydantic_error_handling.py:53-55` strips path element 2 to skip
-			// the theme discriminator, which a **scripted** theme does not have,
-			// because its error is raised by `theme_data_model_class(**design)`
-			// (`design.py:135`) inside the wrap validator. So a real segment is
-			// stripped and a depth-1 error collapses to `('design',)`.
-			//
-			// Anything narrower here would be *less* faithful. Do not "fix" it.
-			if got := strings.Join(record.SchemaLocation, "."); got != "design" {
-				t.Errorf("location = %q, want %q", got, "design")
-			}
-		})
-	}
-}
-
-// **"Absent" and "broken" must take different paths**, which is the whole of
-// T4's finding: a theme folder with no `init.lua` is not a failure. Measured on
-// both sides — upstream renders it at exit 0 and so does this port.
-func TestAnAbsentThemeScriptIsSilent(t *testing.T) {
-	doc := resolveWithThemeFolder(t, "")
-	if doc.ScriptError != nil {
-		t.Fatalf("ScriptError = %v, want nil for a theme folder with no script", doc.ScriptError)
-	}
-	// The fallback it already had: the theme's base defaults, still rendering.
-	if got := design.EffectiveString(doc.Design, "page", "size"); got != "us-letter" {
-		t.Errorf("page.size = %q, want the base default", got)
-	}
-}
-
-// A **working** script is not a failure either — the guard must not fire on the
-// path every scripted theme takes.
-func TestAWorkingThemeScriptReportsNothing(t *testing.T) {
-	doc := resolveWithTheme(t, "mytheme", `return { page = { size = "a5" } }`, "")
-	if doc.ScriptError != nil {
-		t.Fatalf("ScriptError = %v, want nil", doc.ScriptError)
-	}
-	if got := design.EffectiveString(doc.Design, "page", "size"); got != "a5" {
-		t.Errorf("page.size = %q, want a5", got)
-	}
-}
-
-// resolveWithThemeFolder is `resolveWithTheme` for the one case it cannot
-// express: a custom theme folder that **exists** — it has to, or validation
-// rejects the theme before the script is ever looked for (`design.py:82-86`) —
-// but contains no `init.lua`. That is the absent-script vector, and telling it
-// apart from a broken script is T4's whole finding.
-func resolveWithThemeFolder(t *testing.T, script string) bridge.Document {
-	t.Helper()
-	dir := t.TempDir()
-	input := filepath.Join(dir, "cv.yaml")
-	document := "cv:\n  name: John Doe\ndesign:\n  theme: mytheme\n"
-
-	if err := os.WriteFile(input, []byte(document), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(filepath.Join(dir, "mytheme"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "mytheme", "Preamble.j2.typ"), nil, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if script != "" {
-		if err := os.WriteFile(filepath.Join(dir, "mytheme", "init.lua"), []byte(script), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	node, err := yamlreader.ReadString(document)
-	if err != nil {
-		t.Fatal(err)
-	}
-	model, errs := models.Validate(node,
-		&valctx.ValidationContext{CurrentDate: now, InputFilePath: input}, schemaerr.SourceMain)
-	if len(errs) > 0 {
-		t.Fatalf("did not validate: %v", errs)
-	}
-	return bridge.Resolve(model, now)
-}
+// The four broken-script modes, the absent script and the working script are
+// pinned where the record is now produced: `design.Validate`, whose raw records
+// `internal/schema/models/design/scriptfailure_test.go` asserts, and the panel
+// a user reads, which `internal/cli/themescript_test.go` asserts after
+// `errorpipeline.Parse`. They lived here while `bridge.themeScript` synthesized
+// the record; it does not any more, and `Document.ScriptError` is gone with it.
 
 // **Validation and render must resolve the theme folder to the same directory.**
 //

@@ -120,16 +120,10 @@ func TestValidateWithoutAScriptJudgesNothing(t *testing.T) {
 	}
 }
 
-// A script that failed to load declares no shape, so there is nothing to judge
-// the document against and the document must not be judged against the tree
-// either — the theme still has a script, but the port could not read it.
-func TestValidateWithABrokenScriptJudgesNothing(t *testing.T) {
-	errs := validateTheme(t, "mytheme", "return {", "theme: mytheme\npage:\n  size: bogus\n")
-
-	if len(errs) != 0 {
-		t.Errorf("errs = %+v, want none — a broken script is another unit's report", errs)
-	}
-}
+// A script that failed to load declares no shape, so the document is not
+// judged against the tree — the failure itself is reported instead, and
+// `TestABrokenScriptSuppressesDocumentValidation` pins that it is the only
+// record on a document carrying both kinds of mistake.
 
 // **Two failures at depth 1 produce one record.** Upstream's location strip
 // collapses both to `('design',)` and its deduplication keys on the schema

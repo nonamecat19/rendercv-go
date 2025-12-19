@@ -152,22 +152,12 @@ func TestEveryBuiltinIgnoresAScript(t *testing.T) {
 	}
 }
 
-// A script whose shapes conflict with the design tree is dropped, rather than
-// reaching a template and printing a Go type name into the artifact — the
-// verifier's blocker 2, which produced `page-size: "<map[string]interface {}
-// Value>"` at exit 0 under "Your CV is ready".
-func TestAConflictingScriptIsDropped(t *testing.T) {
-	doc := resolveWithTheme(t, "mytheme",
-		`return { page = { size = { a = 1 } }, colors = { name = { r = 1 } } }`, "")
-
-	if got := design.EffectiveString(doc.Design, "page", "size"); got != "us-letter" {
-		t.Errorf("page.size = %q, want the theme's own default", got)
-	}
-	if got := design.EffectiveString(doc.Design, "colors", "name"); got == "" ||
-		got[0] == '<' {
-		t.Errorf("colors.name = %q, want a real colour", got)
-	}
-}
+// A script whose shapes conflict with the design tree is **reported** now, so
+// it never reaches this layer: `design.Validate` refuses the document and
+// `Resolve` is not called. It used to be dropped silently here, which is what
+// kept `page-size: "<map[string]interface {} Value>"` out of the artifact while
+// the failure had nowhere to be reported. The mode is pinned in the design
+// package's `scriptfailure_test.go`, on this exact script shape.
 
 // A script that is *correct* still applies — the drop is targeted, not a
 // blanket refusal of scripts that touch declared options.
@@ -298,18 +288,27 @@ func TestAListWhereAScalarBelongsIsRejected(t *testing.T) {
 	}
 }
 
-// **A script that fails to parse must not discard the document.** Both a
-// missing `init.lua` and a broken one hand `EffectiveWithScript` a nil
-// `script`, but only the missing case is upstream's
-// `ThemeOptionsAreNotProvided` fallback. Conflating them used to discard a
-// user's whole `design` block on a theme whose script merely had a typo — a
-// worse outcome than before the no-script fix shipped.
-func TestABrokenScriptStillAppliesTheDocument(t *testing.T) {
-	doc := resolveWithTheme(t, "mytheme", `this is not lua ((`,
-		"  colors:\n    name: rgb(9, 9, 9)\n")
+// **A broken script must not be conflated with an absent one in the merge.**
+// Both hand `EffectiveWithScript` a nil `script`, but only the absent case is
+// upstream's `ThemeOptionsAreNotProvided` fallback, which discards the
+// document's whole `design` block.
+//
+// It is asserted against `EffectiveWithScript` directly rather than through
+// `Resolve`, because a broken script is exit 1 at validation now and never
+// reaches the merge from the CLI. The distinction still has to hold: it is the
+// difference between two `hasScript` values on a function the renderer calls,
+// and conflating them is a defect a verifier has already found once.
+func TestABrokenScriptDoesNotDiscardTheDocument(t *testing.T) {
+	document := map[string]any{"colors": map[string]any{"name": "rgb(9, 9, 9)"}}
 
-	if got := design.EffectiveString(doc.Design, "colors", "name"); got != "rgb(9, 9, 9)" {
-		t.Errorf("colors.name = %q, want the document's value even though the script is broken", got)
+	broken := design.EffectiveWithScript("mytheme", nil, document, true)
+	if got := design.EffectiveString(broken, "colors", "name"); got != "rgb(9, 9, 9)" {
+		t.Errorf("colors.name = %q, want the document's value for a broken script", got)
+	}
+
+	absent := design.EffectiveWithScript("mytheme", nil, document, false)
+	if got := design.EffectiveString(absent, "colors", "name"); got == "rgb(9, 9, 9)" {
+		t.Error("colors.name kept the document's value for an absent script, want it discarded")
 	}
 }
 

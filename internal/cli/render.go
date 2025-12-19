@@ -169,22 +169,6 @@ func renderOnce(options RenderOptions, stdout, stderr io.Writer) int {
 
 	doc := bridge.Resolve(model, context.Today())
 
-	// **A custom theme whose `init.lua` is broken refuses to render** (D-013).
-	// Upstream raises inside `validate_design`, so a script that fails to parse,
-	// returns a non-table, declares a shape the design tree cannot hold or
-	// declares a value the field rejects is exit 1 with no artifact — measured.
-	// The port used to fall back to the theme's base defaults and render at exit
-	// 0, which is a silently wrong CV.
-	//
-	// **Temporary here.** The record is synthesized by `bridge.themeScript`
-	// because the script is only loaded at render time; when T1 moves that into
-	// `design.Validate` it arrives through `BuildModel` above with every other
-	// record and this block goes away.
-	if doc.ScriptError != nil {
-		failPanel(liveOut, doc.ScriptError)
-		return exitValidationError
-	}
-
 	// **`design.Parent`, not `filepath.Dir`** — see `inputDirFor`.
 	inputDir := inputDirFor(options)
 
