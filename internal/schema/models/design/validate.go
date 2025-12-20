@@ -302,10 +302,16 @@ func unknownKeyErrors(
 // nestedModelOf names the model a field's mapping value belongs to, or ""
 // when the field holds no model the document can put keys in.
 //
-// **A script-invented key is not descended into.** Whatever a script declares
-// beyond the tree has the type the script's own declaration gives it, so a
-// mapping written under it is that type's business — `luatheme.Validate`'s —
-// and there is no model here whose fields could call a key of it unknown.
+// **A script-invented key is not descended into *here*.** Whatever a script
+// declares beyond the tree has the type the script's own declaration gives it,
+// so a mapping written under it is that type's business — and the tree has no
+// model whose fields could call a key of it unknown.
+//
+// That reasoning held for *values* and did not hold for *unknown keys*:
+// upstream's `extra="forbid"` reaches inside a script-declared group too, and a
+// key the group does not declare is exit 1 there at any depth. `scriptOptions.go`
+// answers that case against the script's own table, which is the only thing that
+// knows what the group permits.
 func nestedModelOf(field Field, result *binder.Result) string {
 	value, present := result.Value(field.Name)
 	if !present || value == nil || value.Kind != yamldoc.KindMapping {
