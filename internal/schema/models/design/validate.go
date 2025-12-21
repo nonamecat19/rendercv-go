@@ -450,26 +450,39 @@ func validateModel(
 		})
 	}
 
-	result, errs := binder.Bind(
+	result, shapeErrs := binder.Bind(
 		node,
 		binder.Spec{Fields: fields, Policy: policy, Model: modelTitle(model, theme)},
 		location,
 		source,
 	)
 
+	// Group shape errors by field name so they can be interleaved with value
+	// errors in declaration order. Errors not tied to a specific field (e.g.
+	// a non-mapping input, an invalid key) are emitted first.
+	var preErrs []schemaerr.ValidationError
+	shapeErrsByField := make(map[string][]schemaerr.ValidationError)
+	for _, err := range shapeErrs {
+		loc := err.SchemaLocation
+		if len(loc) <= len(location) {
+			preErrs = append(preErrs, err)
+			continue
+		}
+		fieldName := loc[len(location)]
+		shapeErrsByField[fieldName] = append(shapeErrsByField[fieldName], err)
+	}
+
+	var errs []schemaerr.ValidationError
+	errs = append(errs, preErrs...)
 	for _, field := range tree.Models[model].Fields {
+		if fieldErrs, hasShapeErr := shapeErrsByField[field.Name]; hasShapeErr {
+			errs = append(errs, fieldErrs...)
+			continue
+		}
 		value, present := result.Value(field.Name)
 		if !present || value == nil {
 			continue
 		}
-		// **A null still reaches `validateField` here**, unlike an absent key
-		// — every kind's own arm already handles `KindNull` correctly
-		// (`validColorNode`, `validBoolNode`, the literal and nested-model
-		// arms), it was only this blanket skip that kept them from ever
-		// seeing one. The `ValueString`-family kinds are no-ops in
-		// `validateField` either way, since `TypeRejectsNull` above is what
-		// reports their null now. Found by a fresh-context verifier
-		// (iteration 14's eleventh re-verification).
 		errs = append(errs, validateField(field, value, tree, theme,
 			append(append([]string(nil), location...), field.Name), source, policy)...)
 	}
