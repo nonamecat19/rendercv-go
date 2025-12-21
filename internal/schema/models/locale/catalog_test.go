@@ -264,3 +264,66 @@ func TestPhrasesAcceptsAMapping(t *testing.T) {
 		t.Fatalf("errs = %+v, want none", errs)
 	}
 }
+
+// Gap (a): wrong-typed `degree_with_area` is silent corruption at exit 0.
+// Upstream pydantic rejects with `Input should be a valid string.` at exit 1.
+func TestPhrasesDegreeWithAreaMustBeString(t *testing.T) {
+	const want = "Input should be a valid string"
+
+	for _, src := range []string{"5", "[a]", "true", "1.5", "null"} {
+		t.Run(src, func(t *testing.T) {
+			node, err := yamlreader.ReadString(
+				"language: english\nphrases:\n  degree_with_area: " + src + "\n")
+			if err != nil {
+				t.Fatalf("ReadString: %v", err)
+			}
+
+			errs := locale.ValidateCatalog(node, "english", []string{"locale"}, schemaerr.SourceMain)
+			if len(errs) != 1 {
+				t.Fatalf("errs = %+v, want exactly one", errs)
+			}
+			if errs[0].Message != want {
+				t.Errorf("message = %q, want %q", errs[0].Message, want)
+			}
+			if got := strings.Join(errs[0].SchemaLocation, "."); got != "locale.phrases.degree_with_area" {
+				t.Errorf("location = %q, want locale.phrases.degree_with_area", got)
+			}
+		})
+	}
+}
+
+// Gap (b): unknown key inside `phrases` is dropped. Upstream's Phrases model
+// has `extra="forbid"`, so `phrases: {bogus: x}` produces
+// `Extra inputs are not permitted` at exit 1.
+func TestPhrasesRejectsUnknownKeys(t *testing.T) {
+	node, err := yamlreader.ReadString(
+		"language: english\nphrases:\n  bogus: x\n")
+	if err != nil {
+		t.Fatalf("ReadString: %v", err)
+	}
+
+	errs := locale.ValidateCatalog(node, "english", []string{"locale"}, schemaerr.SourceMain)
+	if len(errs) != 1 {
+		t.Fatalf("errs = %+v, want exactly one", errs)
+	}
+	if errs[0].Message != "Extra inputs are not permitted" {
+		t.Errorf("message = %q", errs[0].Message)
+	}
+	if got := strings.Join(errs[0].SchemaLocation, "."); got != "locale.phrases.bogus" {
+		t.Errorf("location = %q, want locale.phrases.bogus", got)
+	}
+}
+
+// Valid phrases still passes — the nested check did not break the happy path.
+func TestPhrasesValidStillPasses(t *testing.T) {
+	node, err := yamlreader.ReadString(
+		"language: english\nphrases:\n  degree_with_area: \"M.Sc. in CS\"\n")
+	if err != nil {
+		t.Fatalf("ReadString: %v", err)
+	}
+	if errs := locale.ValidateCatalog(
+		node, "english", []string{"locale"}, schemaerr.SourceMain,
+	); len(errs) != 0 {
+		t.Fatalf("errs = %+v, want none", errs)
+	}
+}

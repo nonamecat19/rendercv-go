@@ -123,6 +123,14 @@ func ValidateCatalog(
 		source,
 	)
 
+	// ValidatePhrases recurses into the nested model, which the binder's
+	// ValueModel check only guards as a mapping. It must run before the
+	// month-list bound so its failures appear in declaration order.
+	phrasesNode, phrasesPresent := result.Value("phrases")
+	if phrasesPresent && phrasesNode != nil && phrasesNode.Kind == yamldoc.KindMapping {
+		errs = append(errs, ValidatePhrases(phrasesNode, location, source)...)
+	}
+
 	// **The bound is EnglishLocale's alone**, in validation as well as in the
 	// schema, and for the same reason: it lives in the `Annotated` metadata of
 	// `english_locale.py:60` and `:79`, while `create_simple_field_spec` rebuilds
@@ -145,6 +153,31 @@ func ValidateCatalog(
 		errs = append(errs, validateMonthList(value, locationOf(location, field), source)...)
 	}
 
+	return append(errs, result.ExtraErrors...)
+}
+
+// phrasesFields is the Phrases model's field set. `degree_with_area` is the only
+// field (english_locale.py:21-...), and it has a default so it is not Required.
+// It is typed `str`, not `str | None`, so an explicit null is a type failure.
+var phrasesFields = []binder.Field{
+	{Name: "degree_with_area", Value: binder.ValueString, TypeRejectsNull: true},
+}
+
+// ValidatePhrases binds a `phrases` mapping against the Phrases model. It
+// rejects a wrong-typed `degree_with_area` and unknown keys, both of which the
+// binder's ValueModel check silently accepts.
+func ValidatePhrases(
+	node *yamldoc.Node,
+	location []string,
+	source schemaerr.YamlSource,
+) []schemaerr.ValidationError {
+	phrasesLocation := locationOf(location, "phrases")
+	result, errs := binder.Bind(
+		node,
+		binder.Spec{Fields: phrasesFields, Policy: binder.ForbidExtra},
+		phrasesLocation,
+		source,
+	)
 	return append(errs, result.ExtraErrors...)
 }
 
