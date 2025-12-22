@@ -20,11 +20,6 @@ type inlineParser struct{}
 // references, images, autolinks and inline HTML are either unused by RenderCV's
 // content or produce tags `to_typst_string` drops.
 var (
-	// BACKTICK_RE, reduced to the form RenderCV's content reaches: a run of
-	// backticks, a body, the same run. **The body is not escaped** —
-	// `to_typst_string`'s `code` branch uses the child's raw text (`:38-41`).
-	backtickPattern = regexp.MustCompile("(?s)^(`+)(.+?)" + "`")
-
 	// ESCAPE_RE `\\(.)`.
 	escapePattern = regexp.MustCompile(`(?s)^\\(.)`)
 
@@ -144,10 +139,8 @@ func (p *inlineParser) parseFrom(data string, from int, fromDelim byte) string {
 func (p *inlineParser) matchPrefix(data string, pos int) (int, string, bool) {
 	rest := data[pos:]
 
-	if match := backtickPattern.FindStringSubmatchIndex(rest); match != nil {
-		// `to_typst_string`'s `code` branch emits the raw text in backticks and
-		// escapes nothing (`:38-41`).
-		return pos + match[1], "`" + rest[match[4]:match[5]] + "`", true
+	if end, typst, ok := matchCodeSpan(rest); ok {
+		return pos + end, typst, true
 	}
 	if match := escapePattern.FindStringSubmatch(rest); match != nil {
 		return pos + len(match[0]), EscapeTypstCharacters(match[1]), true
@@ -166,6 +159,35 @@ func (p *inlineParser) matchPrefix(data string, pos int) (int, string, bool) {
 		return pos + match[1], `#link("` + href + `")[` + p.parseFrom(text, -1, 0) + `]`, true
 	}
 	return 0, "", false
+}
+
+// matchCodeSpan is `BACKTICK_RE` (`markdown/inlinepatterns.py:104`) at the head
+// of `rest`, returning the index just past the span and its Typst form.
+//
+// **The closing run has to be exactly as wide as the opening one**, which the
+// regex says with a `\2` backreference. RE2 has none, so the pattern that stood
+// here closed on a *single* backtick however wide the opener was: the input
+// "backtick `a ` b` here" kept the space and the second backtick inside the
+// span, where upstream gives "backtick `a` b` here", and a double-backtick span
+// containing a backtick was cut in half.
+//
+// The body is stripped (`BacktickInlineProcessor.handleMatch`'s
+// `m.group(3).strip()`, `:444-456`) and then **not escaped**:
+// `to_typst_string`'s `code` branch emits the child's raw text
+// (`markdown_parser.py:42-45`).
+func matchCodeSpan(rest string) (int, string, bool) {
+	if len(rest) == 0 || rest[0] != '`' {
+		return 0, "", false
+	}
+	width := 0
+	for width < len(rest) && rest[width] == '`' {
+		width++
+	}
+	content, after := matchBackticks(rest, width, width)
+	if after < 0 {
+		return 0, "", false
+	}
+	return after, "`" + stripSpace(content) + "`", true
 }
 
 // isolatedDelimiter is NOT_STRONG_RE's condition, checked against the character

@@ -105,6 +105,29 @@ func TestMarkdownToTypstFindings(t *testing.T) {
 			want: `#summary[a \ b]`,
 		},
 		{
+			// BACKTICK_RE's `\2` backreference: the closing run is as wide as
+			// the opening one, so the second backtick here does not close the
+			// span and the third is left as literal text.
+			name: "a code span closes on a run of its own width",
+			in:   "backtick `a ` b` here",
+			want: "backtick `a` b` here",
+		},
+		{
+			// The same rule the other way round: a wider opener swallows the
+			// lone backtick inside it.
+			name: "a double-backtick span may contain a backtick",
+			in:   "``a ` b`` here",
+			want: "`a ` b` here",
+		},
+		{
+			// `BacktickInlineProcessor` strips the body.
+			name: "a code span's body is stripped", in: "` a ` x", want: "`a` x",
+		},
+		{
+			// An opener with no closing run of its width stays literal.
+			name: "an unclosed code span is text", in: "`a`` x", want: "`a`` x",
+		},
+		{
 			// Line-by-line conversion: the asterisks do not pair across the
 			// newline.
 			name: "emphasis does not cross a line boundary",

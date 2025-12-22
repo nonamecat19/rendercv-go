@@ -49,8 +49,11 @@ func (r codeSpanRenderer) renderCodeSpan(
 	return ast.WalkSkipChildren, nil
 }
 
-// stripSpace is Python's `str.strip()` over the ASCII whitespace set.
-func stripSpace(b []byte) []byte {
+// stripSpace is Python's `str.strip()` over the ASCII whitespace set. It is
+// generic for the same reason `matchBackticks` is: both the HTML path's `[]byte`
+// and the Typst inline pass's `string` need `BacktickInlineProcessor`'s
+// `m.group(3).strip()` (`inlinepatterns.py:444-456`).
+func stripSpace[T ~[]byte | ~string](b T) T {
 	start, end := 0, len(b)
 	for start < end && isSpaceByte(b[start]) {
 		start++

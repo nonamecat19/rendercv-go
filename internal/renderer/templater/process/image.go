@@ -135,7 +135,13 @@ func resolveCodeSpans(label []byte) []byte {
 
 // matchBackticks finds the run of exactly `width` backticks that closes the one
 // just read, returning the content between and the index just past it.
-func matchBackticks(label []byte, start, width int) ([]byte, int) {
+//
+// This is `BACKTICK_RE`'s `(`+)(.+?)(?<!`)\2(?!`)` (`inlinepatterns.py:104`)
+// written out, because the `\2` backreference is the one thing RE2 cannot
+// express. It is generic over bytes and strings because both paths need it: the
+// HTML path reads goldmark's `[]byte` line, and the Typst inline pass
+// (`inline.go`) reads a `string`.
+func matchBackticks[T ~[]byte | ~string](label T, start, width int) (T, int) {
 	for i := start; i < len(label); i++ {
 		if label[i] != '`' {
 			continue
@@ -148,7 +154,8 @@ func matchBackticks(label []byte, start, width int) ([]byte, int) {
 			return label[start:run], i
 		}
 	}
-	return nil, -1
+	var none T
+	return none, -1
 }
 
 // matchBracketed returns the content from `start` up to the delimiter closing

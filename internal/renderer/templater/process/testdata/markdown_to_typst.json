@@ -402,5 +402,41 @@
  {
   "in": "    ---",
   "want": "`---\n`"
+ },
+ {
+  "in": "backtick `a ` b` here",
+  "want": "backtick `a` b` here"
+ },
+ {
+  "in": "``a ` b`` here",
+  "want": "`a ` b` here"
+ },
+ {
+  "in": "` a ` x",
+  "want": "`a` x"
+ },
+ {
+  "in": "`` `` x",
+  "want": "`` x"
+ },
+ {
+  "in": "``` x",
+  "want": "``` x"
+ },
+ {
+  "in": "`a`` x",
+  "want": "`a`` x"
+ },
+ {
+  "in": "`` a`` x",
+  "want": "`a` x"
+ },
+ {
+  "in": "a ` b",
+  "want": "a ` b"
+ },
+ {
+  "in": "**`a ` b`**",
+  "want": "#strong[`a` b`]"
  }
 ]
