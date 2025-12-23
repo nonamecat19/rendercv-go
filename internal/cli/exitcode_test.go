@@ -219,25 +219,7 @@ func exitCodeSites(t *testing.T) map[int][]string {
 	t.Helper()
 
 	fset := token.NewFileSet()
-	entries, err := os.ReadDir(".")
-	if err != nil {
-		t.Fatalf("reading the package directory: %v", err)
-	}
-	var files []*ast.File
-	for _, entry := range entries {
-		name := entry.Name()
-		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-			continue
-		}
-		file, err := parser.ParseFile(fset, name, nil, 0)
-		if err != nil {
-			t.Fatalf("parsing %s: %v", name, err)
-		}
-		files = append(files, file)
-	}
-	if len(files) == 0 {
-		t.Fatal("no non-test source found in the working directory")
-	}
+	files := parsePackageSource(t, fset)
 
 	functions := map[string]*ast.FuncDecl{}
 	constants := map[string]int{}
@@ -434,6 +416,33 @@ func calleeName(call *ast.CallExpr, injected map[string]string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// parsePackageSource parses every non-test `.go` file in the working directory,
+// which under `go test` is the package's own directory.
+func parsePackageSource(t *testing.T, fset *token.FileSet) []*ast.File {
+	t.Helper()
+
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatalf("reading the package directory: %v", err)
+	}
+	var files []*ast.File
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(fset, name, nil, 0)
+		if err != nil {
+			t.Fatalf("parsing %s: %v", name, err)
+		}
+		files = append(files, file)
+	}
+	if len(files) == 0 {
+		t.Fatal("no non-test source found in the working directory")
+	}
+	return files
 }
 
 func intLiteral(expression ast.Expr) (int, bool) {
