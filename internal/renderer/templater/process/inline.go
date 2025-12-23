@@ -83,7 +83,7 @@ func (p *inlineParser) parseFrom(data string, from int, fromDelim byte) string {
 		// it visits the root — which is why `**[a](u)**` is a link inside a
 		// strong and not an escaped bracket. The `from` cutoff applies to the
 		// emphasis patterns alone.
-		if end, typst, ok := p.matchPrefix(data, pos); ok {
+		if end, typst, ok := p.matchPrefix(data, pos, pending); ok {
 			flush(pos)
 			out.WriteString(typst)
 			pos, pending = end, end
@@ -134,9 +134,11 @@ func (p *inlineParser) parseFrom(data string, from int, fromDelim byte) string {
 	return out.String()
 }
 
-// matchPrefix runs the backtick, escape and link patterns, which precede
-// emphasis in the registry.
-func (p *inlineParser) matchPrefix(data string, pos int) (int, string, bool) {
+// matchPrefix runs the patterns that precede emphasis in the registry.
+//
+// `pending` is where the parent's unflushed run of literal text starts, and it
+// is `LINK_RE`'s `NOIMG` lookbehind: see `precededByBang`.
+func (p *inlineParser) matchPrefix(data string, pos, pending int) (int, string, bool) {
 	rest := data[pos:]
 
 	if end, typst, ok := matchCodeSpan(rest); ok {
@@ -145,7 +147,14 @@ func (p *inlineParser) matchPrefix(data string, pos int) (int, string, bool) {
 	if match := escapePattern.FindStringSubmatch(rest); match != nil {
 		return pos + len(match[0]), EscapeTypstCharacters(match[1]), true
 	}
-	if match := linkPattern.FindStringSubmatchIndex(rest); match != nil {
+	if end, ok := matchImage(rest); ok {
+		// `IMAGE_LINK_RE` builds an `img`, and `to_typst_string` has no branch
+		// for one (`markdown_parser.py:60-63`): the default branch recurses into
+		// an element with no text and no children, so **an image contributes the
+		// empty string**. Its tail — the text after it — is emitted as usual.
+		return pos + end, "", true
+	}
+	if match := linkPattern.FindStringSubmatchIndex(rest); match != nil && !precededByBang(data, pos, pending) {
 		text := rest[match[2]:match[3]]
 		href := rest[match[4]:match[5]]
 		if href == "" {
@@ -188,6 +197,46 @@ func matchCodeSpan(rest string) (int, string, bool) {
 		return 0, "", false
 	}
 	return after, "`" + stripSpace(content) + "`", true
+}
+
+// matchImage is `IMAGE_LINK_RE` (`markdown/inlinepatterns.py:143`) plus the
+// `getText`/`getLink` scan `ImageInlineProcessor` inherits (`:852-873`),
+// returning the index just past the whole construct.
+//
+// **It has to run before the link pattern**, and until it did, `![alt](src)`
+// left the `!` as text and let `[alt](src)` match on its own — a visible
+// `!#link("src")[alt]` in the PDF where upstream renders nothing at all.
+//
+// Only the inline form is claimed. A reference image, an unbalanced label and a
+// missing `(` are all declined, exactly as `imageParser.Parse` declines them on
+// the HTML side.
+func matchImage(rest string) (int, bool) {
+	if len(rest) < 2 || rest[0] != '!' || rest[1] != '[' {
+		return 0, false
+	}
+	_, after := matchBracketed(rest, 2, '[', ']')
+	if after < 0 || after >= len(rest) || rest[after] != '(' {
+		return 0, false
+	}
+	if _, end := matchBracketed(rest, after+1, '(', ')'); end >= 0 {
+		return end, true
+	}
+	return 0, false
+}
+
+// precededByBang is `LINK_RE`'s `NOIMG` lookbehind, `(?<!\!)`
+// (`markdown/inlinepatterns.py:100`): a `[` right after a `!` is never a link,
+// which is what keeps the link pattern off the tail of a `![alt](src)` whose
+// parenthesis never closed.
+//
+// The `!` has to be **literal source**. Upstream runs `escape` at priority 180,
+// ahead of `link` at 160, so by the time the lookbehind is evaluated a `\!` the
+// author wrote is already a placeholder and no longer a `!` — which is why
+// `\![a](u)` is a link with a bang in front of it. Here the equivalent test is
+// whether the bang is still part of the unflushed literal run: an escape sets
+// `pending` past it.
+func precededByBang(data string, pos, pending int) bool {
+	return pos > pending && data[pos-1] == '!'
 }
 
 // isolatedDelimiter is NOT_STRONG_RE's condition, checked against the character
