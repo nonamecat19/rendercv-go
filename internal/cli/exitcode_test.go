@@ -207,6 +207,39 @@ func TestUnclassifiedFailureExitsOne(t *testing.T) {
 	}
 }
 
+// TestNoPanicInPackageCLI is `cmd/rendercv-go`'s panic ban applied one package
+// down, where the code that would do the panicking actually lives.
+//
+// `cmd/rendercv-go/exitcode_test.go`'s `TestNoExitOutsideMain` bans `panic(` in
+// package `main` — three statements' worth of source. Package `cli` is
+// everything `main` calls, and a panic here escapes through `main`'s single
+// `os.Exit` line just as surely: the process dies at 2 with a goroutine dump on
+// stderr. §6.5 rule 5 allows 0, 1 and 2, but 2 is click's *usage* error, printed
+// as a usage message; upstream's own unhandled exceptions are a Rich traceback
+// at exit 1 (D-011). Go stack frames at exit 2 are neither.
+//
+// A failure here is not "add an allowlist entry". It is a value the function
+// cannot represent, and the package's answer to that is an error return or a
+// documented zero — never a crash in a user's terminal.
+func TestNoPanicInPackageCLI(t *testing.T) {
+	fset := token.NewFileSet()
+
+	for _, file := range parsePackageSource(t, fset) {
+		ast.Inspect(file, func(node ast.Node) bool {
+			call, ok := node.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			if name, ok := call.Fun.(*ast.Ident); ok && name.Name == "panic" {
+				t.Errorf("%s: panic in package cli; a panic that escapes exits 2 "+
+					"and prints a stack trace upstream never prints",
+					fset.Position(call.Pos()))
+			}
+			return true
+		})
+	}
+}
+
 // exitCodeSites walks the package's non-test source and returns every integer
 // an exit-code path can yield, mapped to the positions that yield it.
 //
