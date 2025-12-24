@@ -150,6 +150,27 @@ func TestMarkdownToTypstFindings(t *testing.T) {
 			want: `not img !#link("s.png")[a] x`,
 		},
 		{
+			// AUTOLINK_RE: the href is raw and the link text is escaped.
+			name: "a URL autolink becomes a link",
+			in:   "autolink <https://go.dev> here",
+			want: `autolink #link("https://go.dev")[https:\/\/go.dev] here`,
+		},
+		{
+			// AUTOMAIL_RE, and every character of the address is obfuscated —
+			// decimal in the href, `codepoint2name` first in the text, which is
+			// then escaped.
+			name: "a mail autolink is obfuscated",
+			in:   "mail <a@b> x",
+			want: `mail #link("&#109;&#97;&#105;&#108;&#116;&#111;&#58;&#97;&#64;&#98;")` +
+				`[&\#97;&\#64;&\#98;] x`,
+		},
+		{
+			// autolink outranks automail, so a userinfo `@` stays a plain URL.
+			name: "a userinfo at-sign is not a mail autolink",
+			in:   "auto <http://a@b.com/x> y",
+			want: `auto #link("http://a@b.com/x")[http:\/\/a\@b.com\/x] y`,
+		},
+		{
 			// Line-by-line conversion: the asterisks do not pair across the
 			// newline.
 			name: "emphasis does not cross a line boundary",
