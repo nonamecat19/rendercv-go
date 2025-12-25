@@ -328,6 +328,50 @@ func TestOutOfRangeColorTupleIsRejected(t *testing.T) {
 	}
 }
 
+// **A colour-tuple element written in non-ASCII decimal digits is valid
+// upstream.** Python's `float(str)` transliterates every Unicode `Nd`
+// character to the ASCII digit of the same value before parsing, so
+// `colors.name: [١٢٣, 2, 3]` is `rgb(123, 2, 3)` — measured against the
+// vendored Python, which renders it at exit 0 with the same `.typ` bytes as
+// `[123, 2, 3]`. `strconv.ParseFloat` is ASCII-only, so this exited 1 here:
+// the port rejecting what upstream accepts. Note the element is a
+// `KindString` to ruamel and to this port alike (both int resolvers are ASCII
+// regexes), so this is the *non*-coercing path, the one
+// `TestParseColorTupleAcceptsNonASCIIDigits` cannot reach. Found by a
+// fresh-context verifier (iteration 14's colour-slice sweep, deferred there).
+func TestNonASCIIDigitColorTupleIsAccepted(t *testing.T) {
+	tests := []struct {
+		name string
+		yaml string
+		want bool // true = must fail
+	}{
+		{name: "an Arabic-Indic channel", yaml: `[١٢٣, 2, 3]`, want: false},
+		{name: "a Devanagari channel", yaml: `[१२३, 2, 3]`, want: false},
+		{name: "a fullwidth channel", yaml: `[１２３, 2, 3]`, want: false},
+		{name: "an Arabic-Indic alpha", yaml: `[1, 2, 3, ٠.٥]`, want: false},
+		// Transliterated, then range-checked like any other number.
+		{name: "an out-of-range Arabic-Indic channel", yaml: `[٣٠٠, 2, 3]`, want: true},
+		// Not `Nd`, so `float()` raises on it too.
+		{name: "a Han-numeral channel", yaml: `[一二三, 2, 3]`, want: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			doc, err := yamlreader.ReadString("theme: sb2nov\ncolors:\n  name: " + test.yaml + "\n")
+			if err != nil {
+				t.Fatalf("ReadString: %v", err)
+			}
+			node := &yamldoc.Node{Kind: yamldoc.KindMapping, Items: doc.Items}
+			errs := design.Validate(node, []string{"design"}, schemaerr.SourceMain, nil)
+			if test.want && len(errs) == 0 {
+				t.Error("errs = none, want a failure")
+			}
+			if !test.want && len(errs) != 0 {
+				t.Errorf("errs = %+v, want none", errs)
+			}
+		})
+	}
+}
+
 // **A quoted colour-tuple element must not get the bool-word/hex/octal/
 // binary coercion an unquoted one gets.** `colors.name: ["0x10", 0, 0]`
 // hands upstream's `float()` a `str`, which raises on that spelling exactly
