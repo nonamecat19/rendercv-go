@@ -518,5 +518,81 @@
  {
   "in": "**<https://go.dev>** x",
   "want": "#strong[#link(\"https://go.dev\")[https:\\/\\/go.dev]] x"
+ },
+ {
+  "in": "raw html <strong>Go</strong> here",
+  "want": "raw html <strong>Go</strong> here"
+ },
+ {
+  "in": "a <em>x</em> b",
+  "want": "a <em>x</em> b"
+ },
+ {
+  "in": "html <br/> x",
+  "want": "html <br/> x"
+ },
+ {
+  "in": "<div>block</div>",
+  "want": "<div>block</div>"
+ },
+ {
+  "in": "html <a href=\"x\">y</a> z",
+  "want": "html <a href=\"x\">y</a> z"
+ },
+ {
+  "in": "html <span class='a b'>y</span> z",
+  "want": "html <span class='a b'>y</span> z"
+ },
+ {
+  "in": "comment <!-- c --> z",
+  "want": "comment <!-- c --> z"
+ },
+ {
+  "in": "lt 3 < 4 x",
+  "want": "lt 3 \\< 4 x"
+ },
+ {
+  "in": "notag <3 x> y",
+  "want": "notag \\<3 x\\> y"
+ },
+ {
+  "in": "bad <notaurl> x",
+  "want": "bad <notaurl> x"
+ },
+ {
+  "in": "entity &#38; and &amp; x",
+  "want": "entity &#38; and &amp; x"
+ },
+ {
+  "in": "hash # and &#35; x",
+  "want": "hash \\# and &#35; x"
+ },
+ {
+  "in": "hex &#x2F; x",
+  "want": "hex &#x2F; x"
+ },
+ {
+  "in": "not entity &foo bar; x",
+  "want": "not entity &foo bar; x"
+ },
+ {
+  "in": "pi <?php echo 1; ?> x",
+  "want": "pi <?php echo 1; ?> x"
+ },
+ {
+  "in": "cdata <![CDATA[a<b]]> x",
+  "want": "cdata <![CDATA[a<b]]> x"
+ },
+ {
+  "in": "unclosed <!-- c x",
+  "want": "unclosed \\<!-- c x"
+ },
+ {
+  "in": "html <b>*a*</b> x",
+  "want": "html <b>#emph[a]</b> x"
+ },
+ {
+  "in": "mail-ish <a@b> and <b>x</b>",
+  "want": "mail-ish #link(\"&#109;&#97;&#105;&#108;&#116;&#111;&#58;&#97;&#64;&#98;\")[&\\#97;&\\#64;&\\#98;] and <b>x</b>"
  }
 ]

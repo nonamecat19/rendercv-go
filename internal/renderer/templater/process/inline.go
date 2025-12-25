@@ -48,6 +48,16 @@ var (
 	// `>` or `!`, an `@`, then a run without those or a second `@`.
 	automailInlinePattern = regexp.MustCompile(`^<([^<> !]+@[^@<> ]+)>`)
 
+	// HTML_RE's **tag** alternative (`inlinepatterns.py:161-168`). The other
+	// three — comment, processing instruction and CDATA — are lookahead-bounded
+	// and are scanned in `matchHTMLDelimited` instead.
+	inlineTagPattern = regexp.MustCompile(`^<(/?[a-zA-Z][^<>@ ]*( [^<>]*)?)>`)
+
+	// ENTITY_RE (`:170`), the same processor at priority 80. It matters because
+	// a numeric reference contains a `#`: without it, `&#35;` was escaped to
+	// `&\#35;`.
+	entityPattern = regexp.MustCompile(`^&(?:#[0-9]+|#x[0-9a-fA-F]+|[a-zA-Z0-9]+);`)
+
 	// NOT_STRONG_RE — a lone `*` or `_` surrounded by whitespace is literal
 	// text, which is why `a * b` survives unchanged.
 	notStrongPattern = regexp.MustCompile(`^((^|\s)(\*|_)(\s|$))`)
@@ -182,7 +192,60 @@ func (p *inlineParser) matchPrefix(data string, pos, pending int) (int, string, 
 	if end, typst, ok := matchAutolink(rest); ok {
 		return pos + end, typst, true
 	}
+	if end, ok := matchRawHTML(rest); ok {
+		return pos + end, rest[:end], true
+	}
 	return 0, "", false
+}
+
+// matchRawHTML is `HtmlInlineProcessor` (`markdown/inlinepatterns.py:503-509`),
+// registered twice: once for `HTML_RE` at priority 90 and once for `ENTITY_RE`
+// at 80.
+//
+// **It is the stash, and the stash is the whole behavior.** The processor does
+// not build an element; it puts the matched source in `md.htmlStash` and leaves
+// a placeholder, and `RawHtmlPostprocessor` (`postprocessors.py:66-92`)
+// substitutes the source back **after** serialization — so escaping never sees
+// it and it survives byte-identical. `<strong>Go</strong>` came out of this port
+// as `\<strong\>Go\<\/strong\>` because there was no such mechanism; emitting
+// the match verbatim has the same effect without carrying a stash.
+func matchRawHTML(rest string) (int, bool) {
+	if match := inlineTagPattern.FindString(rest); match != "" {
+		return len(match), true
+	}
+	// The remaining three HTML_RE alternatives, each bounded by a negative
+	// lookahead that forbids its own opener before the close. RE2 has no
+	// lookahead, so they are scanned by `matchHTMLDelimited`.
+	for _, delimited := range []struct{ open, close string }{
+		{"<!--", "-->"},
+		{"<?", "?>"},
+		{"<![CDATA[", "]]>"},
+	} {
+		if end, ok := matchHTMLDelimited(rest, delimited.open, delimited.close); ok {
+			return end, true
+		}
+	}
+	if match := entityPattern.FindString(rest); match != "" {
+		return len(match), true
+	}
+	return 0, false
+}
+
+// matchHTMLDelimited claims `open … close` at the head of `rest`, declining when
+// another `open` stands before the first `close` — `(?:(?!<!--|-->).)*`.
+func matchHTMLDelimited(rest, open, close string) (int, bool) {
+	if !strings.HasPrefix(rest, open) {
+		return 0, false
+	}
+	body := rest[len(open):]
+	end := strings.Index(body, close)
+	if end < 0 {
+		return 0, false
+	}
+	if nested := strings.Index(body, open); nested >= 0 && nested < end {
+		return 0, false
+	}
+	return len(open) + end + len(close), true
 }
 
 // matchAutolink is `AutolinkInlineProcessor` and `AutomailInlineProcessor`

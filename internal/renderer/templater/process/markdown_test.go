@@ -171,6 +171,30 @@ func TestMarkdownToTypstFindings(t *testing.T) {
 			want: `auto #link("http://a@b.com/x")[http:\/\/a\@b.com\/x] y`,
 		},
 		{
+			// The stash: raw inline HTML is put back after serialization, so
+			// escaping never sees it.
+			name: "raw inline HTML passes through",
+			in:   "raw html <strong>Go</strong> here",
+			want: "raw html <strong>Go</strong> here",
+		},
+		{
+			// HTML_RE's tag alternative is loose enough that this is a tag.
+			name: "an unknown tag still passes through",
+			in:   "bad <notaurl> x",
+			want: "bad <notaurl> x",
+		},
+		{
+			// And what is not a tag is escaped as before.
+			name: "a bare less-than is escaped", in: "lt 3 < 4 x", want: `lt 3 \< 4 x`,
+		},
+		{
+			// ENTITY_RE is the same stashing processor, which is what keeps the
+			// `#` of a numeric reference unescaped.
+			name: "a numeric entity passes through",
+			in:   "hash # and &#35; x",
+			want: `hash \# and &#35; x`,
+		},
+		{
 			// Line-by-line conversion: the asterisks do not pair across the
 			// newline.
 			name: "emphasis does not cross a line boundary",
