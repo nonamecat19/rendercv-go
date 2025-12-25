@@ -195,6 +195,28 @@ func TestMarkdownToTypstFindings(t *testing.T) {
 			want: `hash \# and &#35; x`,
 		},
 		{
+			// The block is one `md.convert` call, so emphasis **does** pair
+			// across a line boundary inside an admonition — the one place it
+			// does.
+			name: "a strong spans two admonition lines",
+			in:   "!!! summary\n    a **bold\n    spanning** lines",
+			want: `#summary[a #strong[bold \ spanning] lines]`,
+		},
+		{
+			// A whitespace-only line is emptied by NormalizeWhitespace and
+			// splits the block into two paragraphs, which the prettifier joins
+			// with a single newline.
+			name: "a blank line inside an admonition is one separator",
+			in:   "!!! note\n    a\n      \n    b",
+			want: `#summary[a \ b]`,
+		},
+		{
+			// LINE_BREAK_RE eats the two spaces and leaves the newline.
+			name: "a trailing double space is a line break",
+			in:   "!!! note\n    trailing  \n    two",
+			want: `#summary[trailing \ two]`,
+		},
+		{
 			// Line-by-line conversion: the asterisks do not pair across the
 			// newline.
 			name: "emphasis does not cross a line boundary",
