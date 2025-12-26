@@ -47,15 +47,32 @@ var ErrBadColor = errors.New(MessageBadColor)
 //
 // The whole input is **lowercased first** (`parse_str:283`), so every one of
 // these is written lowercase and `#FFF`, `RED` and `RGB(1,2,3)` all parse.
+//
+// **`\p{Nd}`, not `\d`, in every numeric group.** Upstream's patterns are
+// `str` patterns compiled without `re.ASCII`, where Python's `\d` matches
+// every Unicode decimal digit — so `rgb(١٢٣, 2, 3)` is a colour upstream
+// parses (and `float("١٢٣")` then makes 123.0, see `asciiDecimalDigits`).
+// Go's `\d` is ASCII-only, so all four of these forms exited 1 here against
+// upstream's exit 0. Measured on the vendored Python: `"rgb(١٢٣, 2, 3)"`,
+// `"rgb(१२३, 2, 3)"`, `"rgb(１２３, 2, 3)"` and `"rgb(1 2 ٣)"` render
+// `rgb(123, 2, 3)`/`rgb(1, 2, 3)`, `"hsl(١٢٠, 50%, 50%)"` and
+// `"hsl(١٢٠deg, ٥٠%, 50%)"` render `rgb(64, 191, 64)`, and
+// `"rgba(1, 2, 3, ٥٠%)"`/`"rgba(1,2,3,٠.٥)"` render `rgba(1, 2, 3, 0.5)`.
+// The same class of divergence `parseNumericText` fixed for a colour
+// *tuple*'s elements, one path over.
+//
+// **The two hex patterns stay ASCII.** `[0-9a-f]` is a literal character
+// class upstream too, not a `\d`, so `#١٢٣` is rejected by both — measured,
+// same message.
 var (
 	rHexShort = regexp.MustCompile(`^\s*(?:#|0x)?([0-9a-f])([0-9a-f])([0-9a-f])([0-9a-f])?\s*$`)
 	rHexLong  = regexp.MustCompile(`^\s*(?:#|0x)?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})?\s*$`)
 
-	r255   = `(\d{1,3}(?:\.\d+)?)`
+	r255   = `(\p{Nd}{1,3}(?:\.\p{Nd}+)?)`
 	rComma = `\s*,\s*`
-	rAlpha = `(\d(?:\.\d+)?|\.\d+|\d{1,2}%)`
-	rHue   = `(-?\d+(?:\.\d+)?|-?\.\d+)(deg|rad|turn)?`
-	rSL    = `(\d{1,3}(?:\.\d+)?)%`
+	rAlpha = `(\p{Nd}(?:\.\p{Nd}+)?|\.\p{Nd}+|\p{Nd}{1,2}%)`
+	rHue   = `(-?\p{Nd}+(?:\.\p{Nd}+)?|-?\.\p{Nd}+)(deg|rad|turn)?`
+	rSL    = `(\p{Nd}{1,3}(?:\.\p{Nd}+)?)%`
 
 	rRGB       = regexp.MustCompile(`^\s*rgba?\(\s*` + r255 + rComma + r255 + rComma + r255 + `(?:` + rComma + rAlpha + `)?\s*\)\s*$`)
 	rRGBSpaced = regexp.MustCompile(`^\s*rgba?\(\s*` + r255 + `\s+` + r255 + `\s+` + r255 + `(?:\s*/\s*` + rAlpha + `)?\s*\)\s*$`)
@@ -327,7 +344,11 @@ func hslColor(match []string) (Color, error) {
 		return Color{}, err
 	}
 
-	hue, convErr := strconv.ParseFloat(match[1], 64)
+	// `float(h)` on the raw capture, which — `rHue` matching `\p{Nd}` the way
+	// Python's `\d` does — can be `١٢٠`. `strconv.ParseFloat` is ASCII-only,
+	// so the capture takes the same transliteration every other numeric
+	// capture gets through `parseNumericText`.
+	hue, convErr := strconv.ParseFloat(asciiDecimalDigits(match[1]), 64)
 	if convErr != nil {
 		return Color{}, errors.New(messageChannelNotNumber)
 	}

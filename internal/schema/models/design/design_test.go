@@ -372,6 +372,48 @@ func TestNonASCIIDigitColorTupleIsAccepted(t *testing.T) {
 	}
 }
 
+// The same digits in the *string* colour forms, which reach the parser
+// through a different door: upstream's `r_rgb`/`r_hsl` are `str` patterns
+// compiled without `re.ASCII`, so their `\d` matches every Unicode decimal
+// digit and `colors.name: "rgb(١٢٣, 2, 3)"` is a colour the vendored Python
+// renders at exit 0 as `rgb(123, 2, 3)`. Go's `\d` is ASCII-only, so the
+// whole document exited 1 here. Measured end to end against
+// `just upstream render` for each accepted row.
+func TestNonASCIIDigitColorStringIsAccepted(t *testing.T) {
+	tests := []struct {
+		name string
+		yaml string
+		want bool // true = must fail
+	}{
+		{name: "an Arabic-Indic channel", yaml: `"rgb(١٢٣, 2, 3)"`, want: false},
+		{name: "a Devanagari channel", yaml: `"rgb(१२३, 2, 3)"`, want: false},
+		{name: "a fullwidth channel", yaml: `"rgb(１２３, 2, 3)"`, want: false},
+		{name: "a spaced-form channel", yaml: `"rgb(1 2 ٣)"`, want: false},
+		{name: "a hue", yaml: `"hsl(١٢٠, 50%, 50%)"`, want: false},
+		{name: "a percent alpha", yaml: `"rgba(1, 2, 3, ٥٠%)"`, want: false},
+		// Widened only where upstream's `\d` is: hex is a literal
+		// `[0-9a-f]` class in both, and the range check still runs.
+		{name: "an Arabic-Indic hex", yaml: `"#١٢٣"`, want: true},
+		{name: "an out-of-range channel", yaml: `"rgb(٣٠٠, 0, 0)"`, want: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			doc, err := yamlreader.ReadString("theme: sb2nov\ncolors:\n  name: " + test.yaml + "\n")
+			if err != nil {
+				t.Fatalf("ReadString: %v", err)
+			}
+			node := &yamldoc.Node{Kind: yamldoc.KindMapping, Items: doc.Items}
+			errs := design.Validate(node, []string{"design"}, schemaerr.SourceMain, nil)
+			if test.want && len(errs) == 0 {
+				t.Error("errs = none, want a failure")
+			}
+			if !test.want && len(errs) != 0 {
+				t.Errorf("errs = %+v, want none", errs)
+			}
+		})
+	}
+}
+
 // **A quoted colour-tuple element must not get the bool-word/hex/octal/
 // binary coercion an unquoted one gets.** `colors.name: ["0x10", 0, 0]`
 // hands upstream's `float()` a `str`, which raises on that spelling exactly
