@@ -128,6 +128,27 @@ func TestMarkdownToTypstFindings(t *testing.T) {
 			name: "an unclosed code span is text", in: "`a`` x", want: "`a`` x",
 		},
 		{
+			// `code_escape` runs on the body, and only on the body: the `<`
+			// and `>` outside the span take the ordinary Typst escape instead.
+			name: "a code span's body is HTML-escaped",
+			in:   "a < b `c & d` e > f",
+			want: "a \\< b `c &amp; d` e \\> f",
+		},
+		{
+			// An entity in a code span is literal text, so its `&` is escaped
+			// like any other — the span is not the stashing path.
+			name: "a code span's entity is escaped",
+			in:   "entity in `code &copy;`",
+			want: "entity in `code &amp;copy;`",
+		},
+		{
+			// `&` first: the ampersands of the `&lt;`/`&gt;` just produced are
+			// not escaped again.
+			name: "a code span's angle brackets escape once",
+			in:   "`a<b>c`",
+			want: "`a&lt;b&gt;c`",
+		},
+		{
 			// `to_typst_string` has no `img` branch, so an image renders as
 			// nothing — and the link pattern must not see the `[alt](src)` half
 			// of it.

@@ -662,5 +662,45 @@
  {
   "in": "!!! note\n    a\n    b\nafter",
   "want": "#summary[a \\ b]\nafter"
+ },
+ {
+  "in": "entity in `code &copy;`",
+  "want": "entity in `code &amp;copy;`"
+ },
+ {
+  "in": "`a<b>c`",
+  "want": "`a&lt;b&gt;c`"
+ },
+ {
+  "in": "`x&y&z`",
+  "want": "`x&amp;y&amp;z`"
+ },
+ {
+  "in": "`&amp;`",
+  "want": "`&amp;amp;`"
+ },
+ {
+  "in": "`&<>`",
+  "want": "`&amp;&lt;&gt;`"
+ },
+ {
+  "in": "`&#35;`",
+  "want": "`&amp;#35;`"
+ },
+ {
+  "in": "code `x < y` and `p & q` end",
+  "want": "code `x &lt; y` and `p &amp; q` end"
+ },
+ {
+  "in": "**bold `a&b`** tail",
+  "want": "#strong[bold `a&amp;b`] tail"
+ },
+ {
+  "in": "`<script>x</script>`",
+  "want": "`&lt;script&gt;x&lt;/script&gt;`"
+ },
+ {
+  "in": "a < b `c & d` e > f",
+  "want": "a \\< b `c &amp; d` e \\> f"
  }
 ]
