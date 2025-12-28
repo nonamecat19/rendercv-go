@@ -1,6 +1,7 @@
 package design_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/design"
@@ -479,6 +480,93 @@ func TestParseColorRejectsNonASCIINonDigits(t *testing.T) {
 			}
 			if err.Error() != test.want {
 				t.Errorf("= %q, want %q", err.Error(), test.want)
+			}
+		})
+	}
+}
+
+// pythonSpaceRunes is the whole set Python's `\s` matches on a `str` pattern,
+// which is what the library's colour patterns are compiled from
+// (pydantic_extra_types/color.py:45-58). Enumerated as
+// `[chr(c) for c in range(0x110000) if re.fullmatch(r'\s', chr(c))]` on the
+// vendored Python 3.12 — 29 characters, equal there to the `str.isspace()`
+// set. Go's own `\s` is `[\t\n\f\r ]`, the first five minus the vertical tab.
+var pythonSpaceRunes = []rune{
+	'\t', '\n', '\v', '\f', '\r',
+	'\x1c', '\x1d', '\x1e', '\x1f', ' ',
+	'', ' ', ' ',
+	' ', ' ', ' ', ' ', ' ', ' ',
+	' ', ' ', ' ', ' ', ' ',
+	' ', ' ', ' ', ' ', '　',
+}
+
+// Every `\s` in the library's patterns is Unicode-aware, so each of those 29
+// characters is a separator anywhere one of them appears. Measured on the
+// vendored Python by substituting each character into each form below: every
+// one of the 29 gives the single result named here, with no failures.
+//
+// Reachable from an ordinary CV file, not only from a library call: a
+// double-quoted YAML scalar carries U+000B as the `\v` escape and U+00A0 as a
+// literal byte, and `design.colors.body: "rgb(1,\v2,3)"` rendered
+// `rgb(1, 2, 3)` at exit 0 upstream while exiting 1 here.
+func TestParseColorAcceptsUnicodeWhitespace(t *testing.T) {
+	tests := []struct {
+		name string
+		// form has one `%s` per whitespace position.
+		form string
+		want string
+	}{
+		{name: "after a comma", form: "rgb(1,%[1]s2,3)", want: "rgb(1, 2, 3)"},
+		{name: "leading", form: "%[1]srgb(1,2,3)", want: "rgb(1, 2, 3)"},
+		{name: "trailing", form: "rgb(1,2,3)%[1]s", want: "rgb(1, 2, 3)"},
+		{name: "after the paren", form: "rgb(%[1]s1,2,3)", want: "rgb(1, 2, 3)"},
+		{name: "before a comma", form: "rgb(1%[1]s,2,3)", want: "rgb(1, 2, 3)"},
+		{name: "the spaced form's separator", form: "rgb(1%[1]s2%[1]s3)", want: "rgb(1, 2, 3)"},
+		{name: "around the spaced form's slash", form: "rgb(1 2 3%[1]s/%[1]s0.5)", want: "rgba(1, 2, 3, 0.5)"},
+		{name: "around a hex short", form: "%[1]s#fff%[1]s", want: "rgb(255, 255, 255)"},
+		{name: "around a hex long", form: "%[1]s#ffffff%[1]s", want: "rgb(255, 255, 255)"},
+		{name: "in hsl", form: "hsl(120,%[1]s50%%,%[1]s50%%)", want: "rgb(64, 191, 64)"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			for _, space := range pythonSpaceRunes {
+				input := fmt.Sprintf(test.form, string(space))
+				color, err := design.ParseColor(input)
+				if err != nil {
+					t.Errorf("ParseColor(%q) = %v, want success", input, err)
+					continue
+				}
+				if got := color.String(); got != test.want {
+					t.Errorf("ParseColor(%q) = %q, want %q", input, got, test.want)
+				}
+			}
+		})
+	}
+}
+
+// Widening the whitespace groups must not widen them past Python's set. Each
+// row is a character Go's `unicode.IsSpace`, Unicode's `White_Space` property
+// or a reader's intuition might include and Python's `\s` does not; every one
+// is a rejection measured on the vendored Python.
+func TestParseColorRejectsNonPythonWhitespace(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{name: "a zero-width space", input: "rgb(1,\u200b2,3)"},
+		{name: "a Mongolian vowel separator", input: "rgb(1,\u180e2,3)"},
+		{name: "a word joiner", input: "rgb(1,\u20602,3)"},
+		{name: "a zero-width no-break space", input: "rgb(1,\ufeff2,3)"},
+		{name: "a NUL", input: "rgb(1,\x002,3)"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := design.ParseColor(test.input)
+			if err == nil {
+				t.Fatalf("ParseColor(%q) succeeded, want %q", test.input, design.MessageBadColor)
+			}
+			if err.Error() != design.MessageBadColor {
+				t.Errorf("= %q, want %q", err.Error(), design.MessageBadColor)
 			}
 		})
 	}

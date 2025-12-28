@@ -42,6 +42,33 @@ const (
 // ordinary design file reaches.
 var ErrBadColor = errors.New(MessageBadColor)
 
+// pySpace is the character class Python's `\s` means on a `str` pattern, which
+// is what every `\s` in the library's colour patterns
+// (pydantic_extra_types/color.py:45-58) is: those patterns are `str` patterns
+// compiled without `re.ASCII`, so `\s` there is CPython's
+// `SRE_UNI_IS_SPACE`, i.e. exactly the 29 characters `str.isspace()` accepts.
+// Go's `\s` is `[\t\n\f\r ]` — five of them — so a colour separated by a
+// vertical tab, a non-breaking space or any other Unicode space was rejected
+// here while upstream rendered it. Measured end to end on `colors.body`:
+// `"rgb(1,\v2,3)"`, `"rgb(1,\xa02,3)"`, `"\vrgb(1,2,3)"` and
+// `"\xa0rgb(1,2,3)"` all render `rgb(1, 2, 3)` at exit 0 upstream (a
+// double-quoted YAML scalar carries `\v` as an escape and U+00A0 as a literal
+// byte, so all four are reachable from an ordinary CV file) and all four
+// exited 1 here.
+//
+// **Written out rather than `\p{White_Space}`.** Go's `regexp` rejects that
+// property name outright — `regexp/syntax` resolves `\p{…}` against
+// `unicode.Categories` and `unicode.Scripts` only, not `unicode.Properties` —
+// and the property would be wrong anyway: `unicode.White_Space` has 25
+// characters and omits U+001C-U+001F, the four separators Python's `\s` does
+// match. The list below is the enumerated `re.fullmatch(r'\s', chr(c))` set
+// over the whole code space, verified equal to the `str.isspace()` set.
+const (
+	pySpace  = `[\t\n\x0b\f\r\x1c-\x1f \x{85}\x{a0}\x{1680}\x{2000}-\x{200a}\x{2028}\x{2029}\x{202f}\x{205f}\x{3000}]`
+	spaceAny = pySpace + `*`
+	spaceOne = pySpace + `+`
+)
+
 // The library's patterns (color.py:45-59), transcribed with Go's syntax for
 // non-capturing groups and anchored because upstream uses `re.fullmatch`.
 //
@@ -64,20 +91,22 @@ var ErrBadColor = errors.New(MessageBadColor)
 // **The two hex patterns stay ASCII.** `[0-9a-f]` is a literal character
 // class upstream too, not a `\d`, so `#١٢٣` is rejected by both — measured,
 // same message.
+//
+// **`pySpace`, not `\s`, in every whitespace group** — see its own comment.
 var (
-	rHexShort = regexp.MustCompile(`^\s*(?:#|0x)?([0-9a-f])([0-9a-f])([0-9a-f])([0-9a-f])?\s*$`)
-	rHexLong  = regexp.MustCompile(`^\s*(?:#|0x)?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})?\s*$`)
+	rHexShort = regexp.MustCompile(`^` + spaceAny + `(?:#|0x)?([0-9a-f])([0-9a-f])([0-9a-f])([0-9a-f])?` + spaceAny + `$`)
+	rHexLong  = regexp.MustCompile(`^` + spaceAny + `(?:#|0x)?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})?` + spaceAny + `$`)
 
 	r255   = `(\p{Nd}{1,3}(?:\.\p{Nd}+)?)`
-	rComma = `\s*,\s*`
+	rComma = spaceAny + `,` + spaceAny
 	rAlpha = `(\p{Nd}(?:\.\p{Nd}+)?|\.\p{Nd}+|\p{Nd}{1,2}%)`
 	rHue   = `(-?\p{Nd}+(?:\.\p{Nd}+)?|-?\.\p{Nd}+)(deg|rad|turn)?`
 	rSL    = `(\p{Nd}{1,3}(?:\.\p{Nd}+)?)%`
 
-	rRGB       = regexp.MustCompile(`^\s*rgba?\(\s*` + r255 + rComma + r255 + rComma + r255 + `(?:` + rComma + rAlpha + `)?\s*\)\s*$`)
-	rRGBSpaced = regexp.MustCompile(`^\s*rgba?\(\s*` + r255 + `\s+` + r255 + `\s+` + r255 + `(?:\s*/\s*` + rAlpha + `)?\s*\)\s*$`)
-	rHSL       = regexp.MustCompile(`^\s*hsla?\(\s*` + rHue + rComma + rSL + rComma + rSL + `(?:` + rComma + rAlpha + `)?\s*\)\s*$`)
-	rHSLSpaced = regexp.MustCompile(`^\s*hsla?\(\s*` + rHue + `\s+` + rSL + `\s+` + rSL + `(?:\s*/\s*` + rAlpha + `)?\s*\)\s*$`)
+	rRGB       = regexp.MustCompile(`^` + spaceAny + `rgba?\(` + spaceAny + r255 + rComma + r255 + rComma + r255 + `(?:` + rComma + rAlpha + `)?` + spaceAny + `\)` + spaceAny + `$`)
+	rRGBSpaced = regexp.MustCompile(`^` + spaceAny + `rgba?\(` + spaceAny + r255 + spaceOne + r255 + spaceOne + r255 + `(?:` + spaceAny + `/` + spaceAny + rAlpha + `)?` + spaceAny + `\)` + spaceAny + `$`)
+	rHSL       = regexp.MustCompile(`^` + spaceAny + `hsla?\(` + spaceAny + rHue + rComma + rSL + rComma + rSL + `(?:` + rComma + rAlpha + `)?` + spaceAny + `\)` + spaceAny + `$`)
+	rHSLSpaced = regexp.MustCompile(`^` + spaceAny + `hsla?\(` + spaceAny + rHue + spaceOne + rSL + spaceOne + rSL + `(?:` + spaceAny + `/` + spaceAny + rAlpha + `)?` + spaceAny + `\)` + spaceAny + `$`)
 )
 
 // Color is a parsed colour. Channels are the library's 0-1 floats rather than
