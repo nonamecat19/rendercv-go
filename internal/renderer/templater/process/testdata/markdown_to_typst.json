@@ -702,5 +702,49 @@
  {
   "in": "a < b `c & d` e > f",
   "want": "a \\< b `c &amp; d` e \\> f"
+ },
+ {
+  "in": "    a & b",
+  "want": "`a &amp; b\n`"
+ },
+ {
+  "in": "    x <y> &copy;",
+  "want": "`x &lt;y&gt; &amp;copy;\n`"
+ },
+ {
+  "in": "\tp & q",
+  "want": "`p &amp; q\n`"
+ },
+ {
+  "in": "    <script>x</script>",
+  "want": "`&lt;script&gt;x&lt;/script&gt;\n`"
+ },
+ {
+  "in": "    &amp;",
+  "want": "`&amp;amp;\n`"
+ },
+ {
+  "in": "    &<>",
+  "want": "`&amp;&lt;&gt;\n`"
+ },
+ {
+  "in": "    a & b\nplain",
+  "want": "`a &amp; b\n`\nplain"
+ },
+ {
+  "in": "    a & b\n    c < d",
+  "want": "`a &amp; b\n`\n`c &lt; d\n`"
+ },
+ {
+  "in": "plain\n    a & b",
+  "want": "plain\n`a &amp; b\n`"
+ },
+ {
+  "in": "!!! note\n    a & b",
+  "want": "#summary[a & b]"
+ },
+ {
+  "in": "    &#35;",
+  "want": "`&amp;#35;\n`"
  }
 ]
