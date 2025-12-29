@@ -95,4 +95,25 @@ var knownRemainder = map[string]string{
 	"_a __b__ c_":        "python does not read `__` between word characters as strong",
 	"[t](a b)":           "python accepts an unbracketed space in a destination",
 	"- <div>block</div>": "python stashes the raw block before the list item is parsed",
+
+	// Wave C, T7: pinned red ahead of the T8-T12 fix, spec 011 §7/§8. Each is
+	// dropped from this map in the same commit that fixes its class.
+	"***a***":                   "spec 011 behavior 20: outer tag order, strong,em not em,strong",
+	"___a___":                   "spec 011 behavior 20: outer tag order, strong,em not em,strong",
+	"*a **b** c*":               "spec 011 behavior 19: EMPHASIS_RE cannot cross an asterisk",
+	"*a **b***":                 "spec 011 behavior 19: EMPHASIS_RE cannot cross an asterisk",
+	"___a_b__":                  "spec 011 behavior 22: the index guard changes what nests",
+	"___a__b_":                  "spec 011 behavior 22: the index guard changes what nests",
+	"__a_b___":                  "spec 011 behavior 22: the index guard changes what nests",
+	"***a***b":                  "spec 011 behavior 20: outer tag order, strong,em not em,strong",
+	"*Lead **dev** now*":        "spec 011 behavior 19: EMPHASIS_RE cannot cross an asterisk",
+	"- *a **b** c*\n- [t](u v)": "spec 011 behavior 25: block context does not change the inline tree",
+	"[t](a  b)":                 "spec 011 behavior 27: no space rule in getLink's scanner",
+	"[t](a b c)":                "spec 011 behavior 27: no space rule in getLink's scanner",
+	"[t](url (p) and s)":        "spec 011 behavior 28: getLink balances parens in the destination",
+	"[t](a b \"ti\")":           "spec 011 behavior 30: a quoted title after a spaced destination",
+	"[t](a b 'ti')":             "spec 011 behavior 30: a quoted title after a spaced destination",
+	"[t](a b \"x y  z\")":       "spec 011 behavior 30: title whitespace is normalized, not collapsed",
+	"[t](a\tb)":                 "spec 011 behavior 27: no space rule in getLink's scanner",
+	"[t](a\nb)":                 "spec 011 §9.3: a destination spanning a line break is out of scope, declined permanently",
 }
