@@ -34,9 +34,10 @@ const pythonMarkdownTabLength = 4
 var converter = goldmark.New(
 	goldmark.WithParser(parser.NewParser(
 		parser.WithBlockParsers(pythonBlockParsers()...),
-		parser.WithInlineParsers(append(parser.DefaultInlineParsers(),
+		parser.WithInlineParsers(append(pythonInlineParsers(),
 			util.Prioritized(automailParser{}, 250),
-			util.Prioritized(imageParser{}, 150))...),
+			util.Prioritized(imageParser{}, 150),
+			util.Prioritized(emphasisParser{}, 450))...),
 		parser.WithParagraphTransformers(parser.DefaultParagraphTransformers()...),
 		parser.WithASTTransformers(util.Prioritized(linkTitleSplitter{}, 100)),
 	)),
@@ -133,6 +134,29 @@ func pythonBlockParsers() []util.PrioritizedValue {
 		default:
 			kept = append(kept, p)
 		}
+	}
+	return kept
+}
+
+// pythonInlineParsers is goldmark's default inline parser set minus its own
+// emphasis parser — `emphasisParser` (spec 011 §7, `emphasis_html.go`) replaces
+// it rather than merely outranking it, since python-markdown's ordered-pattern
+// algorithm and CommonMark's delimiter stack can each accept a position the
+// other declines, and letting both run would let goldmark's own algorithm
+// answer for cases this port's own patterns turn down.
+//
+// The default emphasis parser is a goldmark singleton (`NewEmphasisParser`
+// returns a package-level value), so identity is the test — the same pattern
+// `pythonBlockParsers` uses for the fenced-code and raw-HTML-block parsers.
+func pythonInlineParsers() []util.PrioritizedValue {
+	emphasis := parser.NewEmphasisParser()
+
+	kept := make([]util.PrioritizedValue, 0, len(parser.DefaultInlineParsers()))
+	for _, p := range parser.DefaultInlineParsers() {
+		if p.Value == emphasis {
+			continue
+		}
+		kept = append(kept, p)
 	}
 	return kept
 }
