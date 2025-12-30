@@ -127,6 +127,27 @@ design:
     education_entry:
       degree_column:
 `,
+
+	// wave_c_emphasis is spec 011 §11: the four shapes Wave C's emphasis and
+	// link-destination fix changed the `.html` for. `***bold italic***` is the
+	// highest-reach one — it is how a CV bullet actually writes bold-italic, and
+	// was wrong end-to-end before T9. The `.md` must be byte-identical to what
+	// it was before Wave C; only the `.html` moves, and only on these four
+	// lines.
+	"wave_c_emphasis": `cv:
+  name: John Doe
+  email: john@example.com
+  sections:
+    experience:
+      - company: Acme
+        position: Engineer
+        start_date: 2020-01
+        end_date: present
+        summary: A ***bold italic*** lead who wrote _a __b__ c_ in reviews.
+        highlights:
+          - Shipped *a **b** c* across every service
+          - Won the [Best Paper Award](https://example.com/my paper.pdf)
+`,
 }
 
 func main() {

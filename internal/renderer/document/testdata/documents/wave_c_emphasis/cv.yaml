@@ -1,0 +1,13 @@
+cv:
+  name: John Doe
+  email: john@example.com
+  sections:
+    experience:
+      - company: Acme
+        position: Engineer
+        start_date: 2020-01
+        end_date: present
+        summary: A ***bold italic*** lead who wrote _a __b__ c_ in reviews.
+        highlights:
+          - Shipped *a **b** c* across every service
+          - Won the [Best Paper Award](https://example.com/my paper.pdf)
