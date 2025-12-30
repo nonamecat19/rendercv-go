@@ -132,24 +132,19 @@ func (p *inlineParser) parseFrom(data string, from int, fromDelim byte) string {
 			cutoff = from
 		}
 
-		matched := false
-		for index, pattern := range patterns {
-			if index <= cutoff {
-				continue
-			}
-			end, first, second, ok := pattern.match(data, pos)
-			if !ok {
-				continue
-			}
-			flush(pos)
-			out.WriteString(pattern.build(p, first, second, index, data[pos]))
-			pos, pending = end, end
-			matched = true
-			break
-		}
-		if !matched {
+		index, end, firstStart, firstEnd, secondStart, secondEnd, ok := matchEmphasis(patterns, data, pos, cutoff)
+		if !ok {
 			pos++
+			continue
 		}
+		first := data[firstStart:firstEnd]
+		second := ""
+		if secondStart >= 0 {
+			second = data[secondStart:secondEnd]
+		}
+		flush(pos)
+		out.WriteString(patterns[index].build(p, first, second, index, data[pos]))
+		pos, pending = end, end
 	}
 
 	flush(len(data))
