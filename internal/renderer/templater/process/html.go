@@ -37,6 +37,7 @@ var converter = goldmark.New(
 		parser.WithInlineParsers(append(pythonInlineParsers(),
 			util.Prioritized(automailParser{}, 250),
 			util.Prioritized(imageParser{}, 150),
+			util.Prioritized(linkParser{}, 190),
 			util.Prioritized(emphasisParser{}, 450))...),
 		parser.WithParagraphTransformers(parser.DefaultParagraphTransformers()...),
 		parser.WithASTTransformers(util.Prioritized(linkTitleSplitter{}, 100)),

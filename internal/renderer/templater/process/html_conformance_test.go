@@ -63,35 +63,24 @@ func TestMarkdownToHTMLMatchesPython(t *testing.T) {
 	}
 }
 
-// knownRemainder is what still differs after Wave C's emphasis fix (spec 011
-// §7, T8-T10): the link-destination class, and the block-tag-in-a-list-item
+// knownRemainder is what still differs after Wave C (spec 011 §7-8, T8-T12):
+// one shape spec §9.3 declines on purpose, and the block-tag-in-a-list-item
 // class §9.5 leaves open. Each is pinned by an **inverted** assertion above —
 // the case still runs, still has to produce output, and still has to differ —
 // for the same reason `conformance.AssertUnreachable` is: a list of tolerated
 // mismatches that cannot notice being fixed is a mute button.
 //
-// Neither remaining class is recorded in `specs/divergences.md`; that file is
-// human-gated (`AGENTS.md` §5) and spec 011 §9.4 argues neither is
-// parity-impossible, only unbuilt.
+// Neither is recorded in `specs/divergences.md`; that file is human-gated
+// (`AGENTS.md` §5) and spec 011 §9.4 argues neither is parity-impossible.
 //
-//  1. **A destination with a space.** `getLink` balances parentheses and takes
-//     whatever is between them (`inlinepatterns.py:716-830`); CommonMark requires
-//     `<…>` around a space. Spec 011 §8's T11-T12 own this.
+//  1. **A destination spanning a line break.** `getLink` scans the block's
+//     whole text, so `[t](a\nb)` upstream is one link with a literal newline
+//     in its `href`; matching that needs a block-level scanner. Spec 011 §9.3.
 //  2. **A block-level tag inside a list item.** python-markdown stashes raw HTML
 //     in a preprocessor before any block parsing, so the `<div>` is part of the
 //     item's text; goldmark opens a real HTML block inside the item and the two
-//     differ by a newline. Spec 011 §9.5, not in this wave.
+//     differ by a newline. Spec 011 §9.5, nobody's taken it yet.
 var knownRemainder = map[string]string{
 	"- <div>block</div>": "python stashes the raw block before the list item is parsed",
-
-	"- *a **b** c*\n- [t](u v)": "the second list item's link is spec 011 §8, not built yet",
-	"[t](a  b)":                 "spec 011 behavior 27: no space rule in getLink's scanner",
-	"[t](a b c)":                "spec 011 behavior 27: no space rule in getLink's scanner",
-	"[t](url (p) and s)":        "spec 011 behavior 28: getLink balances parens in the destination",
-	"[t](a b \"ti\")":           "spec 011 behavior 30: a quoted title after a spaced destination",
-	"[t](a b 'ti')":             "spec 011 behavior 30: a quoted title after a spaced destination",
-	"[t](a b \"x y  z\")":       "spec 011 behavior 30: title whitespace is normalized, not collapsed",
-	"[t](a\tb)":                 "spec 011 behavior 27: no space rule in getLink's scanner",
-	"[t](a\nb)":                 "spec 011 §9.3: a destination spanning a line break is out of scope, declined permanently",
-	"[t](a b)":                  "python accepts an unbracketed space in a destination",
+	"[t](a\nb)":          "spec 011 §9.3: a destination spanning a line break is out of scope, declined permanently",
 }

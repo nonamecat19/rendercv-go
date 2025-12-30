@@ -227,13 +227,16 @@ func buildBodyLink(block text.Reader, endAbs int) (ast.Node, bool) {
 	if after < 0 || after >= len(line) || line[after] != '(' {
 		return nil, false
 	}
-	inner, end := matchBracketed(line, after+1, '(', ')')
-	if end < 0 || segment.Start+end > endAbs {
+	href, title, hasTitle, end, ok := getLink(line, after)
+	if !ok || segment.Start+end > endAbs {
 		return nil, false
 	}
 
 	link := ast.NewLink()
-	link.Destination, link.Title = parseDestination(inner)
+	link.Destination = href
+	if hasTitle {
+		link.Title = title
+	}
 	labelSegment := segment.WithStop(segment.Start + after - 1)
 	labelSegment = labelSegment.WithStart(segment.Start + 1)
 	link.AppendChild(link, ast.NewTextSegment(labelSegment))
