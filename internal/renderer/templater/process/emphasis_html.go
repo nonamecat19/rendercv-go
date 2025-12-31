@@ -282,7 +282,7 @@ func buildBodyLink(block text.Reader, pc parser.Context, endAbs int) (ast.Node, 
 	if after < 0 || after >= len(line) || line[after] != '(' {
 		return nil, false
 	}
-	href, title, hasTitle, parenEnd, ok := getLink(line, after)
+	href, title, hasTitle, parenEnd, ok := getLink(line, line, after)
 	if !ok || segment.Start+parenEnd > endAbs {
 		return nil, false
 	}

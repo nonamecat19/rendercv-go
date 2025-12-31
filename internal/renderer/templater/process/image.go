@@ -41,7 +41,7 @@ func (imageParser) Parse(_ ast.Node, block text.Reader, _ parser.Context) ast.No
 	if after < 0 || after >= len(line) || line[after] != '(' {
 		return nil
 	}
-	href, title, hasTitle, end, ok := getLink(line, after)
+	href, title, hasTitle, end, ok := getLink(line, line, after)
 	if !ok {
 		return nil
 	}
