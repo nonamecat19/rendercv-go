@@ -10,9 +10,9 @@ import (
 	"github.com/nonamecat19/rendercv-go/internal/renderer/templater/process"
 )
 
-// Differential against python-markdown over 113 shapes. The fixture is CPython's
-// own output, generated through the vendored submodule's `markdown.markdown` —
-// never hand-written (`AGENTS.md` §10.1).
+// Differential against python-markdown, now 176 shapes and growing. The
+// fixture is CPython's own output, generated through the vendored submodule's
+// `markdown.markdown` — never hand-written (`AGENTS.md` §10.1).
 //
 // **The 75-row version of this fixture was the reason the port believed it was
 // nearly done.** A fresh-context verifier found eight further divergence classes
@@ -21,22 +21,26 @@ import (
 // followed one class per commit. Six of the eight closed, together with five more
 // classes the reproduction turned up on the way — tab expansion, code-span
 // newlines, URL escaping, line-break rules, and whitespace at the end of a block.
+// Iteration 11's Wave C (spec §7-8) added the emphasis and link-destination
+// classes, then 17 more rows pinning a regression a fresh-context verifier
+// found in Wave C's own first pass — see `maskEmphasisBarriers`'s doc comment
+// in `emphasis.go`.
 //
-// Measured after that work: **5 of these 113 rows differ**, all of them in
-// `knownRemainder`, checked by running `MarkdownToHTML` over every `In` and
-// diffing against the fixture's `Out` — not read off a commit message.
+// Measured after that work: 2 of these rows differ, both in `knownRemainder`,
+// checked by running `MarkdownToHTML` over every `In` and diffing against the
+// fixture's `Out` — not read off a commit message.
 //
 // It lives behind the conformance tag because it needs no upstream process but
 // does encode upstream's exact output.
 // **An absent fixture fails this test rather than skipping it.** It used to
-// skip, which meant the whole 113-row differential could leave `just
-// test-parity` without changing a single character of its output —
+// skip, which meant the whole differential could leave `just test-parity`
+// without changing a single character of its output —
 // `conformance.RequireInput` makes the fixture's absence loud, with the shared
 // opt-out for someone who deliberately has not generated it
 // (`internal/conformance/requireinput.go`).
 func TestMarkdownToHTMLMatchesPython(t *testing.T) {
 	raw := conformance.RequireInput(t, "testdata/html.json",
-		"the 113-row python-markdown differential",
+		"the python-markdown differential",
 		"regenerate it through the vendored submodule's `markdown.markdown` (AGENTS.md §10.1)")
 	var rows []struct{ In, Out string }
 	if err := json.Unmarshal(raw, &rows); err != nil {
