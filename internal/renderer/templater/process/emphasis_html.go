@@ -211,9 +211,11 @@ func parseEmphasisBody(container ast.Node, block text.Reader, pc parser.Context,
 				continue
 			}
 		case '\\':
-			// ESCAPE_RE `\(.)`: the backslash is dropped and the next byte is
-			// literal, whatever it is.
-			if len(line) > 1 {
+			// ESCAPE_RE `\(.)`, but `EscapeInlineProcessor.handleMatch` declines
+			// unless the escaped byte is in `ESCAPED_CHARS`
+			// (`inlinepatterns.py:350-360`) — so `**\alpha**` keeps its
+			// backslash and only a real escape loses one.
+			if len(line) > 1 && isEscapedChar(line[1]) {
 				escaped := segment.WithStart(segment.Start + 1)
 				ast.MergeOrAppendTextSegment(container, escaped.WithStop(segment.Start+2))
 				block.Advance(2)
