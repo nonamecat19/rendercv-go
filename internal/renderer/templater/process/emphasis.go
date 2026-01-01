@@ -180,11 +180,12 @@ func init() {
 // the piece both the Typst path (`inline.go`'s `parseFrom`) and the HTML path
 // (`emphasis_html.go`) share.
 //
-// It matches against `maskEmphasisBarriers(data)`, not `data` itself, and
+// It matches against `maskAbove(data, prioEmStrong)`, not `data` itself, and
 // returned offsets are still valid on the original because masking never
-// changes length. See that function's comment for why.
+// changes length. See `stash.go` for why every pattern registered above
+// `em_strong` has to be resolved first.
 func matchEmphasis(patterns []emphasisPattern, data string, pos, cutoff int) (index, end, firstStart, firstEnd, secondStart, secondEnd int, ok bool) {
-	masked := maskEmphasisBarriers(data)
+	masked := maskAbove(data, prioEmStrong)
 	for i, p := range patterns {
 		if i <= cutoff {
 			continue
@@ -194,64 +195,6 @@ func matchEmphasis(patterns []emphasisPattern, data string, pos, cutoff int) (in
 		}
 	}
 	return 0, 0, 0, 0, 0, 0, false
-}
-
-// maskEmphasisBarriers returns a copy of data with the `*`/`_` bytes inside
-// an escape or a `[text](dest)`/`![alt](dest)` construct replaced by a
-// sentinel that can never be an emphasis delimiter.
-//
-// python-markdown gets this for free: `escape` (priority 180) and
-// `link`/`image_link` (160/150) all run **before** `em_strong`/`em_strong2`
-// (60/50) (`inlinepatterns.py:72-97`), so by the time the emphasis regexes see
-// the text, an escaped character and an already-resolved link are opaque
-// stash tokens, not raw `*`/`_` bytes a lookahead scan can trip over. This
-// port has no stash — the matchers here scan the raw string directly — so
-// without this, `*a\*b*` closed on the escaped asterisk instead of the real
-// one, and `**a [b **c** d](u)**` closed the outer strong on the link's own
-// nested `**c**` instead of treating `[b **c** d](u)` as one opaque unit,
-// both real regressions a fresh-context verifier found against the port's own
-// prior behavior (goldmark's own parsers, which this file's `emphasisParser`
-// replaced, got both right via CommonMark's escape and link handling).
-//
-// Length is preserved — only bytes are overwritten, nothing is removed — so
-// every offset `matchEmphasis`'s callers slice out of the *original* data
-// stays valid; a masked span's own `*`/`_` are recovered when the body is
-// recursively parsed for real (`parseEmphasisBody`'s own `\`/`[` cases, or
-// `inline.go`'s `matchPrefix`), not lost.
-func maskEmphasisBarriers(data string) string {
-	if !strings.ContainsAny(data, "\\[!") {
-		return data
-	}
-	b := []byte(data)
-	for i := 0; i < len(b); i++ {
-		switch {
-		case b[i] == '\\' && i+1 < len(b):
-			if b[i+1] == '*' || b[i+1] == '_' {
-				b[i+1] = 0
-			}
-			i++
-		case b[i] == '[' || (b[i] == '!' && i+1 < len(b) && b[i+1] == '['):
-			start := i
-			if b[i] == '!' {
-				i++
-			}
-			_, after := matchBracketed(data, i+1, '[', ']')
-			if after < 0 || after >= len(b) || b[after] != '(' {
-				continue
-			}
-			_, end := matchBracketed(data, after+1, '(', ')')
-			if end < 0 {
-				continue
-			}
-			for j := start; j < end; j++ {
-				if b[j] == '*' || b[j] == '_' {
-					b[j] = 0
-				}
-			}
-			i = end - 1
-		}
-	}
-	return string(b)
 }
 
 // matchSmart is the underscore singles, whose four guards are the whole point:
