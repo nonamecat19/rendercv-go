@@ -96,20 +96,23 @@ func (linkParser) Parse(_ ast.Node, block text.Reader, pc parser.Context) ast.No
 		return nil
 	}
 
-	// getText's own bracket-balance scan (`inlinepatterns.py:832-850`).
-	_, after := matchBracketed(line, 1, '[', ']')
-	if after < 0 || after >= len(line) || line[after] != '(' {
+	// getText's own bracket-balance scan (`inlinepatterns.py:832-850`), run
+	// over the escape-masked line so a `\]` in the label is not a closing
+	// bracket: `[a\](b)` is not a link at all upstream.
+	scan := []byte(maskAbove(string(line), prioLink))
+	_, after := matchBracketed(scan, 1, '[', ']')
+	if after < 0 || after >= len(scan) || scan[after] != '(' {
 		return nil
 	}
-	href, title, hasTitle, parenEnd, ok := getLink(line, line, after)
+	href, title, hasTitle, parenEnd, ok := getLink(scan, line, after)
 	if !ok {
 		return nil
 	}
 
 	link := ast.NewLink()
-	link.Destination = href
+	link.Destination = unescapeBackslashes(href)
 	if hasTitle {
-		link.Title = title
+		link.Title = unescapeBackslashes(title)
 	}
 
 	block.Advance(1) // the opening `[`
@@ -129,16 +132,15 @@ func (linkParser) Parse(_ ast.Node, block text.Reader, pc parser.Context) ast.No
 // `linkRenderer` and `imageRenderer` only write a `title=""` attribute when
 // `Title != nil`.
 //
-// It scans `scan` but slices `src`. The two are the same length and are the
-// same bytes until a caller has something to hide from the scanner — an
-// escape-masked copy, which the next commit's callers pass. Everything here
-// passes the same slice twice, so this split is a no-op by construction.
+// It scans `scan` but slices `src`, which are the same length and differ only
+// in that `scan` has had its higher-priority constructs blanked by `maskAbove`
+// — upstream's `escape` (180) runs ahead of `link` (160), so by the time this
+// scanner sees the text a `\)` the author wrote is a stash placeholder and not
+// a closing parenthesis. `[t](a\)b)` is one link to `a)b` upstream and was two
+// pieces of wreckage here. Callers that have no mask pass the same slice twice.
 //
-// unescape and Python's own `dequote` (backslash-escape resolution and
-// redundant-quote-stripping on an already-extracted title) are not
-// reproduced: nothing in spec 011's corpus reaches either, and this file's own
-// `linkRenderer` comment already documents that the destination is not
-// further transformed once matched.
+// Python's `dequote` (redundant-quote-stripping on an already-extracted title)
+// is not reproduced: nothing in spec 011's corpus reaches it.
 func getLink(scan, src []byte, index int) (href, title []byte, hasTitle bool, end int, ok bool) {
 	data := scan
 	if dest, ttl, hasTtl, angleEnd, matched := matchAngleLink(scan, src, index); matched {

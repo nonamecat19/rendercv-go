@@ -298,19 +298,20 @@ func buildBodyLink(block text.Reader, pc parser.Context, endAbs int) (ast.Node, 
 	if len(line) < 2 || line[0] != '[' {
 		return nil, false
 	}
-	_, after := matchBracketed(line, 1, '[', ']')
-	if after < 0 || after >= len(line) || line[after] != '(' {
+	scan := []byte(maskAbove(string(line), prioLink))
+	_, after := matchBracketed(scan, 1, '[', ']')
+	if after < 0 || after >= len(scan) || scan[after] != '(' {
 		return nil, false
 	}
-	href, title, hasTitle, parenEnd, ok := getLink(line, line, after)
+	href, title, hasTitle, parenEnd, ok := getLink(scan, line, after)
 	if !ok || segment.Start+parenEnd > endAbs {
 		return nil, false
 	}
 
 	link := ast.NewLink()
-	link.Destination = href
+	link.Destination = unescapeBackslashes(href)
 	if hasTitle {
-		link.Title = title
+		link.Title = unescapeBackslashes(title)
 	}
 
 	block.Advance(1) // the opening `[`
