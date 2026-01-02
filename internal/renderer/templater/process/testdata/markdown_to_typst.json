@@ -746,5 +746,77 @@
  {
   "in": "    &#35;",
   "want": "`&amp;#35;\n`"
+ },
+ {
+  "in": "__a_b___",
+  "want": "\\_\\_a\\_b\\_\\_\\_"
+ },
+ {
+  "in": "___a_b__",
+  "want": "#strong[#emph[a]b]"
+ },
+ {
+  "in": "___a__b_",
+  "want": "#emph[#strong[a]b]"
+ },
+ {
+  "in": "__foo__bar__baz__",
+  "want": "#strong[foo\\_\\_bar\\_\\_baz]"
+ },
+ {
+  "in": "*a\\*b*",
+  "want": "#emph[a#sym.ast.basic#h(0pt, weak: true) b]"
+ },
+ {
+  "in": "**a [b **c** d](u)**",
+  "want": "#strong[a #link(\"u\")[b #strong[c] d]]"
+ },
+ {
+  "in": "[![i](p.png)](u)",
+  "want": "#link(\"u\")[]"
+ },
+ {
+  "in": "[t](<a b> \"t\")",
+  "want": "#link(\"a b\")[t]"
+ },
+ {
+  "in": "**bold ** text",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) bold #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic text"
+ },
+ {
+  "in": "a ** b ** c",
+  "want": "a #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic b #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic c"
+ },
+ {
+  "in": "_a _",
+  "want": "\\_a \\_"
+ },
+ {
+  "in": "Led *the team * of 5",
+  "want": "Led #sym.ast.basic#h(0pt, weak: true) the team #sym.ast.basic of 5"
+ },
+ {
+  "in": "snake_case_",
+  "want": "snake\\_case\\_"
+ },
+ {
+  "in": "foo_bar_",
+  "want": "foo\\_bar\\_"
+ },
+ {
+  "in": "**\\alpha**",
+  "want": "#strong[\\\\alpha]"
+ },
+ {
+  "in": "*C:\\temp*",
+  "want": "#emph[C:\\\\temp]"
+ },
+ {
+  "in": "Used *the `*` operator*",
+  "want": "Used #emph[the `*` operator]"
+ },
+ {
+  "in": "*a<!-- * -->b*",
+  "want": "#emph[a<!-- * -->b]"
  }
 ]
