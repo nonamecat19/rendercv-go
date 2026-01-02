@@ -14,26 +14,20 @@ import (
 // no lookahead and no reordering — every node's output depends on itself and its
 // children — so composing it into the parse loses nothing. The HTML path, which
 // iteration 11 owns, does need a tree and keeps goldmark.
-type inlineParser struct{}
+type inlineParser struct {
+	// linkDepth is non-zero while a link's own label is being parsed.
+	// Upstream reprocesses a built element's text from `patternIndex + 1`
+	// (`treeprocessors.py:315`), one below the pattern that built it, so
+	// `link` (160) cannot be reached from inside a link and
+	// `[a [b](c) d](u)` keeps its inner brackets literal.
+	linkDepth int
+}
 
 // The patterns that run **before** emphasis, in upstream's registry order
 // (markdown/inlinepatterns.py:73-95). References are the one entry still
 // missing: they need the link-definition map the block pass builds, which the
 // line-at-a-time Typst path never has.
 var (
-	// LINK_RE, reduced to `[text](url)` plus python-markdown's optional title.
-	//
-	// **The title is stripped, and an earlier comment here said it never
-	// appeared.** It does: `[t](u "ti")` is ordinary Markdown a user writes in a
-	// summary, upstream renders `#link("u")[t]`, and passing the title through
-	// emitted `#link("u "ti"")[t]` — an unbalanced Typst string literal, so the
-	// document **did not compile at all**. An audit measured that; the corpus has
-	// no link title, which is why it shipped.
-	linkPattern = regexp.MustCompile(`(?s)^\[([^\]]*)\]\(([^)]*)\)`)
-
-	// linkTitlePattern is the trailing `"title"` python-markdown splits off.
-	linkTitlePattern = regexp.MustCompile(`(?s)^(.*?)\s+["'][^"']*["']\s*$`)
-
 	// AUTOLINK_RE (`inlinepatterns.py:155`), registered at 120. Only `http`,
 	// `https`, `ftp` and `ftps` are spelled out there, and the scheme match is
 	// case-insensitive while the rest of the URL is not.
@@ -159,18 +153,31 @@ func (p *inlineParser) matchPrefix(data string, pos, pending int) (int, string, 
 		// empty string**. Its tail — the text after it — is emitted as usual.
 		return pos + end, "", true
 	}
-	if match := linkPattern.FindStringSubmatchIndex(rest); match != nil && !precededByBang(data, pos, pending) {
-		text := rest[match[2]:match[3]]
-		href := rest[match[4]:match[5]]
-		if href == "" {
-			// `child.get("href") if child.get("href") else "https://example.com"`
-			// (`:46-47`) — an empty URL becomes the example, not an empty link.
-			href = "https://example.com"
+	// `LinkInlineProcessor`, sharing the HTML path's scanner (`link.go`).
+	//
+	// **It used to be a regexp**, `^\[([^\]]*)\]\(([^)]*)\)`, which is not the
+	// grammar: `getLink` balances nested parens, honours an angle-bracketed
+	// destination and splits a quoted title itself, so `[t](a(b)c)`,
+	// `[t](<a b> "t")` and `[![i](p.png)](u)` were all mis-scanned here long
+	// after the HTML path had been fixed. That asymmetry is what let a Typst
+	// divergence sit undeclared while the HTML differential was green.
+	if len(rest) > 0 && rest[0] == '[' && p.linkDepth == 0 && !precededByBang(data, pos, pending) {
+		scan := []byte(maskAbove(rest, prioLink))
+		if _, after := matchBracketed(scan, 1, '[', ']'); after > 0 && after < len(scan) && scan[after] == '(' {
+			if href, _, _, end, ok := getLink(scan, []byte(rest), after); ok {
+				dest := string(unescapeBackslashes(href))
+				if dest == "" {
+					// `child.get("href") if child.get("href") else
+					// "https://example.com"` (`:46-47`) — an empty URL becomes
+					// the example, not an empty link.
+					dest = "https://example.com"
+				}
+				p.linkDepth++
+				label := p.parseFrom(rest[1:after-1], -1, 0)
+				p.linkDepth--
+				return pos + end, `#link("` + dest + `")[` + label + `]`, true
+			}
 		}
-		if title := linkTitlePattern.FindStringSubmatch(href); title != nil {
-			href = title[1]
-		}
-		return pos + match[1], `#link("` + href + `")[` + p.parseFrom(text, -1, 0) + `]`, true
 	}
 	if end, typst, ok := matchAutolink(rest); ok {
 		return pos + end, typst, true
