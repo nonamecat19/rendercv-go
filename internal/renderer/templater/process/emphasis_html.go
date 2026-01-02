@@ -93,37 +93,37 @@ func buildEmphasis(block text.Reader, pc parser.Context, dataStart, pos, index i
 		strong := ast.NewEmphasis(2)
 		em := ast.NewEmphasis(1)
 		strong.AppendChild(strong, em)
-		parseEmphasisBody(em, block, pc, dataStart+firstEnd, index, delim)
+		parseEmphasisBody(em, block, pc, dataStart+firstEnd, index, delim, true)
 		block.Advance(secondStart - firstEnd)
-		parseEmphasisBody(strong, block, pc, dataStart+secondEnd, index, delim)
+		parseEmphasisBody(strong, block, pc, dataStart+secondEnd, index, delim, true)
 		block.Advance(end - secondEnd)
 		return strong
 	case 1: // STRONG_EM_RE / STRONG_EM2_RE: em[ strong[first] second ]
 		em := ast.NewEmphasis(1)
 		strong := ast.NewEmphasis(2)
 		em.AppendChild(em, strong)
-		parseEmphasisBody(strong, block, pc, dataStart+firstEnd, index, delim)
+		parseEmphasisBody(strong, block, pc, dataStart+firstEnd, index, delim, true)
 		block.Advance(secondStart - firstEnd)
-		parseEmphasisBody(em, block, pc, dataStart+secondEnd, index, delim)
+		parseEmphasisBody(em, block, pc, dataStart+secondEnd, index, delim, true)
 		block.Advance(end - secondEnd)
 		return em
 	case 2: // STRONG_EM3_RE / SMART_STRONG_EM_RE: strong[ first em[second] ]
 		strong := ast.NewEmphasis(2)
-		parseEmphasisBody(strong, block, pc, dataStart+firstEnd, index, delim)
+		parseEmphasisBody(strong, block, pc, dataStart+firstEnd, index, delim, true)
 		block.Advance(secondStart - firstEnd)
 		em := ast.NewEmphasis(1)
-		parseEmphasisBody(em, block, pc, dataStart+secondEnd, index, delim)
+		parseEmphasisBody(em, block, pc, dataStart+secondEnd, index, delim, true)
 		strong.AppendChild(strong, em)
 		block.Advance(end - secondEnd)
 		return strong
 	case 3: // STRONG_RE / SMART_STRONG_RE: strong[first]
 		strong := ast.NewEmphasis(2)
-		parseEmphasisBody(strong, block, pc, dataStart+firstEnd, index, delim)
+		parseEmphasisBody(strong, block, pc, dataStart+firstEnd, index, delim, true)
 		block.Advance(end - firstEnd)
 		return strong
 	default: // 4, EMPHASIS_RE / SMART_EMPHASIS_RE: em[first]
 		em := ast.NewEmphasis(1)
-		parseEmphasisBody(em, block, pc, dataStart+firstEnd, index, delim)
+		parseEmphasisBody(em, block, pc, dataStart+firstEnd, index, delim, true)
 		block.Advance(end - firstEnd)
 		return em
 	}
@@ -148,7 +148,11 @@ const noCutoffDelim = 0
 // not need. Escapes are handled here because goldmark's own escape handling
 // lives in its core dispatch loop (`parser.go`'s `escaped` flag), which this
 // dispatcher bypasses entirely.
-func parseEmphasisBody(container ast.Node, block text.Reader, pc parser.Context, endAbs, cutoff int, delim byte) {
+//
+// `allowLink` is false only inside a link's own label, where upstream's
+// reprocessing starts one pattern below `link` and so cannot reach it again
+// (`treeprocessors.py:315`, and `linkParser.Parse`'s comment).
+func parseEmphasisBody(container ast.Node, block text.Reader, pc parser.Context, endAbs, cutoff int, delim byte, allowLink bool) {
 	for {
 		line, segment := block.PeekLine()
 		if segment.Start >= endAbs || len(line) == 0 {
@@ -185,6 +189,9 @@ func parseEmphasisBody(container ast.Node, block text.Reader, pc parser.Context,
 				continue
 			}
 		case '[':
+			if !allowLink {
+				break
+			}
 			if node, ok := buildBodyLink(block, pc, endAbs); ok {
 				container.AppendChild(container, node)
 				continue
@@ -307,7 +314,7 @@ func buildBodyLink(block text.Reader, pc parser.Context, endAbs int) (ast.Node, 
 	}
 
 	block.Advance(1) // the opening `[`
-	parseEmphasisBody(link, block, pc, segment.Start+after-1, -1, noCutoffDelim)
+	parseEmphasisBody(link, block, pc, segment.Start+after-1, -1, noCutoffDelim, false)
 	block.Advance(parenEnd - (after - 1)) // the closing `]` through the `)`
 
 	return link, true

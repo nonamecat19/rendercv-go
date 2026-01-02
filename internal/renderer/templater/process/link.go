@@ -79,6 +79,14 @@ func (linkParser) Trigger() []byte { return []byte{'['} }
 // this one replaced it for the direct-paren form. `buildBodyLink`
 // (`emphasis_html.go`) is the same construction reused for a link inside an
 // emphasis body.
+//
+// **A label never contains another link.** The reprocessing upstream does on a
+// built element's text starts at `patternIndex + 1`
+// (`treeprocessors.py:315`), one below the pattern that built it, so `link`
+// (160) is out of reach from inside a link and `[a [b](c) d](u)` keeps its
+// inner brackets literal. Everything below it — `image_link` at 150 and down —
+// is still available, which is why `[![i](p.png)](u)` is an image inside a
+// link. That is the `false` passed for `allowLink` here.
 func (linkParser) Parse(_ ast.Node, block text.Reader, pc parser.Context) ast.Node {
 	line, segment := block.PeekLine()
 	if len(line) == 0 || line[0] != '[' {
@@ -105,7 +113,7 @@ func (linkParser) Parse(_ ast.Node, block text.Reader, pc parser.Context) ast.No
 	}
 
 	block.Advance(1) // the opening `[`
-	parseEmphasisBody(link, block, pc, segment.Start+after-1, -1, noCutoffDelim)
+	parseEmphasisBody(link, block, pc, segment.Start+after-1, -1, noCutoffDelim, false)
 	block.Advance(parenEnd - (after - 1)) // the closing `]` through the `)`
 
 	return link
