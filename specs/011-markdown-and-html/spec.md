@@ -379,3 +379,101 @@ rows are generated through the submodule's own `markdown.markdown`.
 - [ ] A `summary` containing `_a __b__ c_`.
 - [ ] `tools/docprobe` regenerates all three artifacts for the above through the vendored Python
       (`AGENTS.md` §10.1); the `.md` must be unchanged by this work, only the `.html`.
+
+## 12. Emphasis never sees the source — the pattern registry runs in priority order
+
+§7 and §8 both describe a single pattern in isolation, and that framing is what let Wave C ship
+six divergence classes past a green differential. The missing behavior is not in any one
+pattern: it is in how python-markdown sequences all of them.
+
+### 12.1 Where the behavior comes from
+
+`build_inlinepatterns` registers seventeen processors with explicit priorities
+(`third_party/rendercv/.venv/…/markdown/inlinepatterns.py:73-95`):
+
+| priority | name | priority | name |
+|---|---|---|---|
+| 190 | `backtick` | 110 | `automail` |
+| 180 | `escape` | 100 | `linebreak` |
+| 170 | `reference` | 90 | `html` |
+| 160 | `link` | 80 | `entity` |
+| 150 | `image_link` | 70 | `not_strong` |
+| 140 | `image_reference` | 60 | `em_strong` |
+| 120 | `autolink` | 50 | `em_strong2` |
+
+`treeprocessors.InlineProcessor.__handleInline` walks that registry **in order**, giving each
+pattern a complete left-to-right pass over the whole block before the next pattern begins
+(`markdown/treeprocessors.py:120-140`). What a pattern matches is replaced by an opaque stash
+placeholder. The module's own docstring states the intent (`inlinepatterns.py:60-70`):
+
+> backticks and escaped characters have to be handled before everything else so that we can
+> preempt any markdown patterns by escaping them
+
+**Behavior 34.** By the time `em_strong` (60) runs, a code span, an escape, a link, an image, an
+autolink, an inline tag, an entity and a whitespace-flanked delimiter run are no longer the
+characters the author wrote. Any port that scans the raw string must reconstruct every one of
+those pre-emptions or the emphasis matchers will act on bytes upstream never showed them.
+
+**Behavior 35.** `NOT_STRONG_RE` — `((^|(?<=\s))(\*{1,3}|_{1,3})(?=\s|$))` (`:150`) — is a
+pattern at priority 70, not a guard inside emphasis. It claims a whitespace-flanked run of one
+to three delimiters as literal text block-wide, so such a run can neither open nor close an
+emphasis. A run of four or more matches nothing: `\*{1,3}` cannot reach the closing lookahead
+past a fourth delimiter, and no shorter alternative begins at a whitespace boundary.
+
+**Behavior 36.** A built element's text is reprocessed from `patternIndex + 1` — one pattern
+*below* the one that built it — while its tail is reprocessed from `patternIndex`
+(`treeprocessors.py:315-320`). This is the same cutoff rule `parse_sub_patterns` applies within
+one processor (§7.1), extended across the whole registry. It is why a link label cannot contain
+a link but can contain an image, and it is the general form of §7's index cutoff.
+
+**Behavior 37.** `EscapeInlineProcessor.handleMatch` returns `None` when the escaped character
+is outside `Markdown.ESCAPED_CHARS` (`inlinepatterns.py:350-360`, set at `markdown/core.py:111`
+to `` \`*_{}[]()>#+-.! ``). The pattern then declines and the backslash stays literal text.
+`ESCAPE_RE` is `\\(.)`, so the regex alone is not the rule.
+
+**Behavior 38.** Every lookbehind is evaluated against the whole block, because `handleMatch`
+matches with `pattern.match(data, m.start(0))` (`:663-668`). The three smart underscore patterns
+each open with `(?<!\w)`; feeding a matcher a string that begins at the delimiter makes all of
+them vacuous.
+
+### 12.2 Measured shapes
+
+Each row is `markdown.markdown` on the vendored 3.10.2. All were byte-identical to upstream
+before Wave C and wrong after it, which is why they are stated here rather than in §9.
+
+| input | upstream | class |
+|---|---|---|
+| `**bold ** text` | `<p>**bold ** text</p>` | 35 |
+| `**Skills: ** Go` | `<p>**Skills: ** Go</p>` | 35 |
+| `a ** b ** c` | `<p>a ** b ** c</p>` | 35 |
+| `_a _` | `<p>_a _</p>` | 35 |
+| `snake_case_` | `<p>snake_case_</p>` | 38 |
+| `foo_bar_` | `<p>foo_bar_</p>` | 38 |
+| ``Used *the `*` operator*`` | `<p>Used <em>the <code>*</code> operator</em></p>` | 34 |
+| ``**a `**` b**`` | `<p><strong>a <code>**</code> b</strong></p>` | 34 |
+| `*a<!-- * -->b*` | `<p><em>a<!-- * -->b</em></p>` | 34 |
+| `**\alpha**` | `<p><strong>\alpha</strong></p>` | 37 |
+| `*C:\temp*` | `<p><em>C:\temp</em></p>` | 37 |
+| `[a [b](c) d](u)` | `<p><a href="u">a [b](c) d</a></p>` | 36 |
+| `[[b](c)](u)` | `<p><a href="u">[b](c)</a></p>` | 36 |
+| `[![i](p.png)](u)` | `<p><a href="u"><img alt="i" src="p.png" /></a></p>` | 36 |
+| `[t](a\)b)` | `<p><a href="a)b">t</a></p>` | 34 |
+| `[a\](b)` | `<p>[a](b)</p>` | 34 |
+
+### 12.3 Acceptance criteria
+
+- [x] Every row of §12.2 is a row of `testdata/html.json`, generated through the vendored
+      library, and passes.
+- [x] The Typst path resolves the same pre-emptions from the same mechanism, so a shape cannot be
+      fixed on one path and left open on the other — the asymmetry that hid MAJOR #5.
+- [x] `[![i](p.png)](u)` and `[t](<a b> "t")` are pinned in `testdata/markdown_to_typst.json`,
+      closing the gap where a Typst behavior change had no fixture.
+
+### 12.4 Still open
+
+- **A link inside an image label.** `![[b](c)](u)` is `alt="b"` upstream — `link` (160) resolves
+  before `image_link` (150) and `unescape` flattens the stashed element with
+  `''.join(value.itertext())` (`inlinepatterns.py:264-281`). This port keeps `alt="[b](c)"`.
+  Pre-existing, unaffected by iteration 11, not reachable from any corpus document.
+- **A destination or an escape spanning a line break**, e.g. `*x\`+`\n`+`y*`. Both paths are
+  line-bounded; this is the same class §9.3 already declines.
