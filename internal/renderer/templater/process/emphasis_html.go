@@ -309,9 +309,9 @@ func buildBodyLink(block text.Reader, pc parser.Context, endAbs int) (ast.Node, 
 	}
 
 	link := ast.NewLink()
-	link.Destination = unescapeBackslashes(href)
+	link.Destination = href
 	if hasTitle {
-		link.Title = unescapeBackslashes(title)
+		link.Title = title
 	}
 
 	block.Advance(1) // the opening `[`
