@@ -100,8 +100,18 @@ func maskAbove(data string, floor int) string {
 	b := []byte(data)
 
 	if floor < prioBacktick {
-		maskPass(b, func(rest []byte, _ int) int {
+		maskPass(b, func(rest []byte, at int) int {
 			if rest[0] != '`' {
+				return 0
+			}
+			// BACKTICK_RE's opener is `(?<!\\)(`+)` (`inlinepatterns.py:103`):
+			// a backslash before the run stops it opening a span, even though
+			// `escape` (180) has not run yet. Without the guard, `*a \`b* c\``
+			// opened a code span on the escaped backtick, which swallowed the
+			// emphasis' own closing delimiter on **both** axes. The closing run
+			// carries no such guard — `` `a\`b` `` really does close on its
+			// escaped backtick — so this is the opener only.
+			if at > 0 && b[at-1] == '\\' {
 				return 0
 			}
 			width := 0
