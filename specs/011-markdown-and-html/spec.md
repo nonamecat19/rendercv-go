@@ -469,7 +469,27 @@ before Wave C and wrong after it, which is why they are stated here rather than 
 - [x] `[![i](p.png)](u)` and `[t](<a b> "t")` are pinned in `testdata/markdown_to_typst.json`,
       closing the gap where a Typst behavior change had no fixture.
 
-### 12.4 Still open
+### 12.4 Two more classes the same model explains
+
+A second fresh-context verifier swept 34,959 cases and found two more, both
+new to the fix above rather than to Wave C:
+
+**Behavior 39.** `BACKTICK_RE`'s opener is `(?<!\\)(`+)` (`inlinepatterns.py:103`) — a
+backslash before the run stops it opening a span, even though `escape` (180) has not run yet.
+The closing run carries no such guard, so `` `a\`b` `` is `<code>a\</code>b` ``. Ignoring the
+opener guard let an escaped backtick open a span that ran to the next one and swallowed whatever
+delimiter stood between: `*a \`b* c\`` is `<p><em>a `b</em> c`</p>` upstream.
+
+**Behavior 40.** The escape round trip happens **once**. `EscapeInlineProcessor` stashes the pair
+and `UnescapeTreeprocessor` restores the bare character, so `[a](b\\\\c)` — four source
+backslashes, two escaped pairs — is `href="b\\c"`, two real backslashes. A port that unescapes at
+parse time *and* at serialization time yields one.
+
+**Behavior 41.** Every emphasis pattern is compiled `re.DOTALL` (`:546-552`) and matched against
+the whole block, so a body may cross a soft line break: `*a\nb*` is one `<em>` spanning the
+newline, in a paragraph, a list item and a blockquote alike.
+
+### 12.5 Still open
 
 - **A link inside an image label.** `![[b](c)](u)` is `alt="b"` upstream — `link` (160) resolves
   before `image_link` (150) and `unescape` flattens the stashed element with
