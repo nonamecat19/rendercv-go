@@ -66,7 +66,21 @@ func (emphasisParser) Parse(_ ast.Node, block text.Reader, pc parser.Context) as
 	for lineStart > 0 && source[lineStart-1] != '\n' {
 		lineStart--
 	}
-	data := string(source[lineStart:segment.Stop])
+	// **A pattern's body may cross a soft line break.** Every emphasis regex is
+	// compiled with `re.DOTALL` (`inlinepatterns.py:546-552`) and matched
+	// against the whole block, so `*a\nb*` in a wrapped paragraph is one
+	// emphasis upstream. goldmark's own parser handled that before this one
+	// replaced it, which made line-bounded matching a regression rather than a
+	// standing limitation.
+	//
+	// The window extends only across lines that are **contiguous in the
+	// source**. That is exactly the case where absolute offsets stay linear —
+	// a paragraph. A block whose lines are not contiguous has had a marker
+	// stripped from each (a list item, a blockquote), so joining them would
+	// need an offset map this parser does not carry; those stop at the line, as
+	// before.
+	dataStop := blockWindow(block, segment)
+	data := string(source[lineStart:dataStop])
 	pos := segment.Start - lineStart
 
 	index, end, firstStart, firstEnd, secondStart, secondEnd, ok := matchEmphasis(patterns, data, pos, -1)
@@ -126,6 +140,27 @@ func buildEmphasis(block text.Reader, pc parser.Context, dataStart, pos, index i
 		parseEmphasisBody(em, block, pc, dataStart+firstEnd, index, delim, true)
 		block.Advance(end - firstEnd)
 		return em
+	}
+}
+
+// blockWindow is the source offset one past the last line of this block that
+// is contiguous with `segment` — the span the emphasis matchers may look at.
+//
+// It walks the reader forward and puts it back, which is the only way to ask a
+// `text.Reader` how far its block reaches; `Position`/`SetPosition` are exact,
+// so the walk has no effect on the caller.
+func blockWindow(block text.Reader, segment text.Segment) int {
+	line, seg := block.Position()
+	defer block.SetPosition(line, seg)
+
+	stop := segment.Stop
+	for {
+		block.AdvanceLine()
+		next, nextSeg := block.PeekLine()
+		if len(next) == 0 || nextSeg.Start != stop {
+			return stop
+		}
+		stop = nextSeg.Stop
 	}
 }
 
