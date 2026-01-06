@@ -56,11 +56,9 @@ func (emphasisParser) Parse(_ ast.Node, block text.Reader, pc parser.Context) as
 	// `snake<em>case</em>`: the trailing `_` opened an emphasis whose `(?<!\w)`
 	// had no `e` to look at.
 	//
-	// The line, rather than the whole block, is this path's existing bound —
-	// the same one `knownRemainder`'s `[t](a\nb)` records. A block prefix a
-	// block parser already stripped (a list marker, a blockquote `>`) ends in
-	// whitespace, so it is indistinguishable from the start of a block to
-	// every guard here.
+	// A block prefix a block parser already stripped (a list marker, a
+	// blockquote `>`) ends in whitespace, so it is indistinguishable from the
+	// start of a block to every guard here.
 	source := block.Source()
 	lineStart := segment.Start
 	for lineStart > 0 && source[lineStart-1] != '\n' {
@@ -73,12 +71,11 @@ func (emphasisParser) Parse(_ ast.Node, block text.Reader, pc parser.Context) as
 	// replaced it, which made line-bounded matching a regression rather than a
 	// standing limitation.
 	//
-	// The window extends only across lines that are **contiguous in the
-	// source**. That is exactly the case where absolute offsets stay linear —
-	// a paragraph. A block whose lines are not contiguous has had a marker
-	// stripped from each (a list item, a blockquote), so joining them would
-	// need an offset map this parser does not carry; those stop at the line, as
-	// before.
+	// The window extends across following lines whose only gap from the
+	// previous one is whitespace goldmark stripped, which is exactly where
+	// absolute source offsets stay linear. A gap containing anything else is a
+	// stripped block marker; joining across one would need an offset map this
+	// parser does not carry, so the window stops there.
 	dataStop := blockWindow(block, segment)
 	data := string(source[lineStart:dataStop])
 	pos := segment.Start - lineStart
@@ -153,15 +150,35 @@ func blockWindow(block text.Reader, segment text.Segment) int {
 	line, seg := block.Position()
 	defer block.SetPosition(line, seg)
 
+	source := block.Source()
 	stop := segment.Stop
 	for {
 		block.AdvanceLine()
 		next, nextSeg := block.PeekLine()
-		if len(next) == 0 || nextSeg.Start != stop {
+		if len(next) == 0 || nextSeg.Start < stop {
+			return stop
+		}
+		// A continuation line goldmark has stripped leading whitespace from
+		// starts *after* the previous line's stop. Upstream keeps that
+		// whitespace — `*a\n b*` is `<em>a\n b</em>`, space and all — and the
+		// gap is still contiguous source, so the window may span it as long as
+		// the skipped bytes really are only whitespace. Anything else is a
+		// stripped block marker, where offsets stop being linear.
+		if !isAllSpace(source[stop:nextSeg.Start]) {
 			return stop
 		}
 		stop = nextSeg.Stop
 	}
+}
+
+// isAllSpace reports whether every byte is one python-markdown's `\s` matches.
+func isAllSpace(b []byte) bool {
+	for _, c := range b {
+		if !isSpaceByte(c) {
+			return false
+		}
+	}
+	return true
 }
 
 // noCutoffDelim is what a fresh inline context — a link's label, which is not
@@ -188,16 +205,20 @@ const noCutoffDelim = 0
 // reprocessing starts one pattern below `link` and so cannot reach it again
 // (`treeprocessors.py:315`, and `linkParser.Parse`'s comment).
 func parseEmphasisBody(container ast.Node, block text.Reader, pc parser.Context, endAbs, cutoff int, delim byte, allowLink bool) {
+	source := block.Source()
 	for {
-		line, segment := block.PeekLine()
-		if segment.Start >= endAbs || len(line) == 0 {
+		peek, segment := block.PeekLine()
+		if len(peek) == 0 || segment.Start >= endAbs {
 			return
 		}
-		limit := endAbs - segment.Start
-		if limit > len(line) {
-			limit = len(line)
-		}
-		line = line[:limit]
+		// **The body runs to endAbs, not to the end of the line.** `blockWindow`
+		// let the *match* cross a soft line break; a code span or a link inside
+		// the matched body has to be allowed to cross it too, or `*a `b\nc` d*`
+		// finds no code span and falls back to literal text. The window is
+		// contiguous in the source by construction, so this slice is exactly the
+		// body text upstream matches against.
+		line := source[segment.Start:endAbs]
+		limit := len(line)
 
 		trigger := -1
 		for i, c := range line {
@@ -219,7 +240,7 @@ func parseEmphasisBody(container ast.Node, block text.Reader, pc parser.Context,
 
 		switch line[0] {
 		case '`':
-			if node, ok := buildBodyCodeSpan(block); ok {
+			if node, ok := buildBodyCodeSpan(block, line, segment.Start); ok {
 				container.AppendChild(container, node)
 				continue
 			}
@@ -227,12 +248,12 @@ func parseEmphasisBody(container ast.Node, block text.Reader, pc parser.Context,
 			if !allowLink {
 				break
 			}
-			if node, ok := buildBodyLink(block, pc, endAbs); ok {
+			if node, ok := buildBodyLink(block, pc, line, segment.Start, endAbs); ok {
 				container.AppendChild(container, node)
 				continue
 			}
 		case '!':
-			if node := (imageParser{}).Parse(container, block, pc); node != nil {
+			if node, ok := buildImage(block, line, segment.Start); ok {
 				container.AppendChild(container, node)
 				continue
 			}
@@ -303,8 +324,8 @@ var (
 // content between a run of N backticks and the next run of exactly N, stripped
 // at both ends by the renderer (`codespan.go`'s `codeSpanRenderer`), which is
 // why this hands back the raw, unstripped segment.
-func buildBodyCodeSpan(block text.Reader) (ast.Node, bool) {
-	line, segment := block.PeekLine()
+func buildBodyCodeSpan(block text.Reader, line []byte, start int) (ast.Node, bool) {
+	segment := text.NewSegment(start, start+len(line))
 	width := 0
 	for width < len(line) && line[width] == '`' {
 		width++
@@ -328,8 +349,8 @@ func buildBodyCodeSpan(block text.Reader) (ast.Node, bool) {
 // own recursive `self.parser.parseChunk` does. It declines anything
 // reference-style, unbalanced, or reaching past endAbs, the same narrowness
 // `imageParser` already documents.
-func buildBodyLink(block text.Reader, pc parser.Context, endAbs int) (ast.Node, bool) {
-	line, segment := block.PeekLine()
+func buildBodyLink(block text.Reader, pc parser.Context, line []byte, start, endAbs int) (ast.Node, bool) {
+	segment := text.NewSegment(start, start+len(line))
 	if len(line) < 2 || line[0] != '[' {
 		return nil, false
 	}

@@ -950,5 +950,45 @@
   {
     "In": "[](\"",
     "Out": "<p>[](\"</p>"
+  },
+  {
+    "In": "*a `b\nc` d*",
+    "Out": "<p><em>a <code>b\nc</code> d</em></p>"
+  },
+  {
+    "In": "*[a\nb](u)*",
+    "Out": "<p><em><a href=\"u\">a\nb</a></em></p>"
+  },
+  {
+    "In": "*a\n b*",
+    "Out": "<p><em>a\n b</em></p>"
+  },
+  {
+    "In": "*a\n   b*",
+    "Out": "<p><em>a\n   b</em></p>"
+  },
+  {
+    "In": "_a\n b_",
+    "Out": "<p><em>a\n b</em></p>"
+  },
+  {
+    "In": "- *a\n  b*",
+    "Out": "<ul>\n<li><em>a\n  b</em></li>\n</ul>"
+  },
+  {
+    "In": "> *a\n b*",
+    "Out": "<blockquote>\n<p><em>a\n b</em></p>\n</blockquote>"
+  },
+  {
+    "In": "**a\n b**",
+    "Out": "<p><strong>a\n b</strong></p>"
+  },
+  {
+    "In": "*![a\nb](u)*",
+    "Out": "<p><em><img alt=\"a\nb\" src=\"u\" /></em></p>"
+  },
+  {
+    "In": "*a <b>\nc</b> d*",
+    "Out": "<p><em>a <b>\nc</b> d</em></p>"
   }
 ]
