@@ -222,11 +222,41 @@ func getLink(scan, src []byte, index int) (href, title []byte, hasTitle bool, en
 	}
 
 	if bracketCount != 0 && backtrackCount == 0 {
-		href = src[startIndex : lastBracket-1]
-		return trimSpaceBytes(href), nil, false, lastBracket, true
+		// `href = data[start_index:last_bracket - 1]` / `index = last_bracket`
+		// (`inlinepatterns.py:817-819`) — and `last_bracket` is still its
+		// initial `-1` whenever no backtracked `)` was ever found. **Python
+		// slices that from the end**, so upstream quietly takes `data[:-2]` and
+		// keeps the block's final byte; a straight index panics.
+		// `[]("(` is a five-byte input that reaches it, renders
+		// `<p><a href=""></a>(</p>` upstream, and crashed the renderer here —
+		// `rendercv-go render` dumped a goroutine stack on a CV highlight
+		// containing it.
+		hrefEnd := pyIndex(lastBracket-1, len(src))
+		if hrefEnd < startIndex {
+			hrefEnd = startIndex
+		}
+		href = src[startIndex:hrefEnd]
+		return trimSpaceBytes(href), nil, false, pyIndex(lastBracket, len(src)), true
 	}
 
 	return nil, nil, false, 0, false
+}
+
+// pyIndex resolves one Python sequence index against a length: a negative
+// index counts from the end, and the result is clamped to [0, length] the way
+// a Python *slice* bound is (an out-of-range slice bound is not an error there,
+// unlike an out-of-range element index).
+func pyIndex(i, length int) int {
+	if i < 0 {
+		i += length
+	}
+	if i < 0 {
+		return 0
+	}
+	if i > length {
+		return length
+	}
+	return i
 }
 
 // matchAngleLink is `RE_LINK`'s angle-bracket alternative,
