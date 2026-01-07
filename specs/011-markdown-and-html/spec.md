@@ -346,38 +346,38 @@ expected string in §7.2 and §8.1 was measured by running the vendored library,
 Mechanically checkable against `internal/renderer/templater/process/testdata/html.json`, whose
 rows are generated through the submodule's own `markdown.markdown`.
 
-- [ ] Every row of §7.2 marked **=** still matches after the emphasis work — added as ordinary
+- [x] Every row of §7.2 marked **=** still matches after the emphasis work — added as ordinary
       (non-inverted) fixture rows *before* the fix, green from the start.
-- [ ] `***a***` and `___a___` produce `<strong><em>a</em></strong>`.
-- [ ] `*a **b** c*` produces three sibling `<em>` elements, exactly as in §7.2.
-- [ ] `*a **b***` produces `<p><em>a </em><em>b</em>**</p>` — the trailing `**` survives literally.
-- [ ] `_a __b__ c_` leaves the inner `__` literal.
-- [ ] `___a_b__`, `___a__b_` and `__a_b___` match §7.2, including the third being wholly literal.
-- [ ] The two realistic shapes `*Lead **dev** now*` and `**Lead *dev* now**` match.
-- [ ] Behavior 25's list-item case matches, proving block context does not change the inline tree.
-- [ ] `foo_bar_baz`, `_foo_bar_baz_`, `__foo__bar__baz__` are fixture rows and stay matching
+- [x] `***a***` and `___a___` produce `<strong><em>a</em></strong>`.
+- [x] `*a **b** c*` produces three sibling `<em>` elements, exactly as in §7.2.
+- [x] `*a **b***` produces `<p><em>a </em><em>b</em>**</p>` — the trailing `**` survives literally.
+- [x] `_a __b__ c_` leaves the inner `__` literal.
+- [x] `___a_b__`, `___a__b_` and `__a_b___` match §7.2, including the third being wholly literal.
+- [x] The two realistic shapes `*Lead **dev** now*` and `**Lead *dev* now**` match.
+- [x] Behavior 25's list-item case matches, proving block context does not change the inline tree.
+- [x] `foo_bar_baz`, `_foo_bar_baz_`, `__foo__bar__baz__` are fixture rows and stay matching
       (behavior 24 / §9.2) — they are regression pins, not fixes.
-- [ ] Every non-`=` row of §8.1 produces the `want` column.
-- [ ] Every `=` row of §8.1 still matches, including `![a](b c)`, which proves the shared scanner
+- [x] Every non-`=` row of §8.1 produces the `want` column.
+- [x] Every `=` row of §8.1 still matches, including `![a](b c)`, which proves the shared scanner
       did not regress the image path.
-- [ ] `knownRemainder` loses `___strong em___`, `*a **bold** thing*`, `_a __b__ c_` and
+- [x] `knownRemainder` loses `___strong em___`, `*a **bold** thing*`, `_a __b__ c_` and
       `[t](a b)`; the inverted assertion for each is removed in the same commit that fixes it,
       because an inverted assertion that starts passing is itself a test failure.
-- [ ] `- <div>block</div>` stays in `knownRemainder` and still differs (§9.5).
-- [ ] `[t](a\nb)` is added to `knownRemainder` with an inverted assertion (§9.3) — the decline is
+- [x] `- <div>block</div>` stays in `knownRemainder` and still differs (§9.5).
+- [x] `[t](a\nb)` is added to `knownRemainder` with an inverted assertion (§9.3) — the decline is
       recorded, not silent.
-- [ ] All 24 corpus `.html` documents stay byte-identical (spec §5), and `just test-parity` is
+- [x] All corpus `.html` documents stay byte-identical (spec §5), and `just test-parity` is
       green with no new skips.
 
 ## 11. Corpus additions
 
-- [ ] A CV whose `summary` contains `***bold italic***` — the highest-reach shape, and one the
+- [x] A CV whose `summary` contains `***bold italic***` — the highest-reach shape, and one the
       port currently gets wrong end-to-end in a real `.html`.
-- [ ] A highlight containing `*a **b** c*`.
-- [ ] A highlight containing a link with a spaced destination, e.g.
+- [x] A highlight containing `*a **b** c*`.
+- [x] A highlight containing a link with a spaced destination, e.g.
       `[Best Paper Award](https://example.com/my paper.pdf)`.
-- [ ] A `summary` containing `_a __b__ c_`.
-- [ ] `tools/docprobe` regenerates all three artifacts for the above through the vendored Python
+- [x] A `summary` containing `_a __b__ c_`.
+- [x] `tools/docprobe` regenerates all three artifacts for the above through the vendored Python
       (`AGENTS.md` §10.1); the `.md` must be unchanged by this work, only the `.html`.
 
 ## 12. Emphasis never sees the source — the pattern registry runs in priority order
