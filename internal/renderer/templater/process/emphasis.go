@@ -180,12 +180,16 @@ func init() {
 // the piece both the Typst path (`inline.go`'s `parseFrom`) and the HTML path
 // (`emphasis_html.go`) share.
 //
-// It matches against `maskAbove(data, prioEmStrong)`, not `data` itself, and
+// `floor` is the calling processor's own registry priority — `prioEmStrong`
+// for the asterisk set, `prioEmStrong2` for the underscore set, which is what
+// makes the underscore patterns see asterisk spans already claimed.
+//
+// It matches against `maskAbove(data, floor)`, not `data` itself, and
 // returned offsets are still valid on the original because masking never
 // changes length. See `stash.go` for why every pattern registered above
 // `em_strong` has to be resolved first.
-func matchEmphasis(patterns []emphasisPattern, data string, pos, cutoff int) (index, end, firstStart, firstEnd, secondStart, secondEnd int, ok bool) {
-	masked := maskAbove(data, prioEmStrong)
+func matchEmphasis(patterns []emphasisPattern, data string, pos, cutoff, floor int) (index, end, firstStart, firstEnd, secondStart, secondEnd int, ok bool) {
+	masked := maskAbove(data, floor)
 	for i, p := range patterns {
 		if i <= cutoff {
 			continue

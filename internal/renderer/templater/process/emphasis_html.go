@@ -41,9 +41,9 @@ func (emphasisParser) Parse(_ ast.Node, block text.Reader, pc parser.Context) as
 	}
 	delim := line[0]
 
-	patterns := asteriskPatterns
+	patterns, floor := asteriskPatterns, prioEmStrong
 	if delim == '_' {
-		patterns = underscorePatterns
+		patterns, floor = underscorePatterns, prioEmStrong2
 	}
 
 	// **The data has to begin at the line, not at the trigger.** Upstream
@@ -80,7 +80,7 @@ func (emphasisParser) Parse(_ ast.Node, block text.Reader, pc parser.Context) as
 	data := string(source[lineStart:dataStop])
 	pos := segment.Start - lineStart
 
-	index, end, firstStart, firstEnd, secondStart, secondEnd, ok := matchEmphasis(patterns, data, pos, -1)
+	index, end, firstStart, firstEnd, secondStart, secondEnd, ok := matchEmphasis(patterns, data, pos, -1, floor)
 	if !ok {
 		return nil
 	}
@@ -285,9 +285,9 @@ func parseEmphasisBody(container ast.Node, block text.Reader, pc parser.Context,
 				continue
 			}
 		case '*', '_':
-			nestedPatterns := asteriskPatterns
+			nestedPatterns, nestedFloor := asteriskPatterns, prioEmStrong
 			if line[0] == '_' {
-				nestedPatterns = underscorePatterns
+				nestedPatterns, nestedFloor = underscorePatterns, prioEmStrong2
 			}
 			nestedCutoff := -1
 			// Only the processor that produced the parent is cut off — the
@@ -296,7 +296,7 @@ func parseEmphasisBody(container ast.Node, block text.Reader, pc parser.Context,
 				nestedCutoff = cutoff
 			}
 			data := string(line)
-			if index, end, fs, fe, ss, se, ok := matchEmphasis(nestedPatterns, data, 0, nestedCutoff); ok {
+			if index, end, fs, fe, ss, se, ok := matchEmphasis(nestedPatterns, data, 0, nestedCutoff, nestedFloor); ok {
 				node := buildEmphasis(block, pc, segment.Start, 0, index, line[0], end, fs, fe, ss, se)
 				container.AppendChild(container, node)
 				continue
