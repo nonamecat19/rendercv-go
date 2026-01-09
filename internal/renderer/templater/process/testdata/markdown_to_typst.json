@@ -982,5 +982,25 @@
  {
   "in": "x _a *b\nc_ d*",
   "want": "x \\_a #sym.ast.basic#h(0pt, weak: true) b\nc\\_ d#sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "_\\\\!_",
+  "want": "#emph[\\\\!]"
+ },
+ {
+  "in": "*\\\\!*",
+  "want": "#emph[\\\\!]"
+ },
+ {
+  "in": "_a\\\\!_",
+  "want": "#emph[a\\\\!]"
+ },
+ {
+  "in": "_\\\\a_",
+  "want": "#emph[\\\\a]"
+ },
+ {
+  "in": "_` :>\\\\!_ [",
+  "want": "#emph[` :\\>\\\\!] \\["
  }
 ]
