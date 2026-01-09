@@ -73,7 +73,7 @@ func buildImage(block text.Reader, line []byte, start int) (ast.Node, bool) {
 	// python's backslash unescaping — its `self.unescape(text)`.
 	image.AppendChild(image, ast.NewString(resolveCodeSpans(label)))
 
-	block.Advance(end)
+	advanceTo(block, start+end)
 
 	return image, true
 }
