@@ -266,7 +266,19 @@ func parseEmphasisBody(container ast.Node, block text.Reader, pc parser.Context,
 
 		trigger := -1
 		for i, c := range line {
-			if c == '`' || c == '[' || c == '*' || c == '_' || c == '\\' || c == '!' || c == '<' {
+			// A newline is a trigger only when it is `LINE_BREAK_RE`'s `'  \n'`.
+			// A soft break is ordinary text and must stay inside the run below,
+			// because the run is what carries a continuation line's stripped
+			// indent — splitting at every newline dropped it. The two spaces are
+			// read from the source rather than from `line`, since an earlier
+			// trigger may already have split the run right before them.
+			if c == '\n' {
+				abs := segment.Start + i
+				if abs < 2 || source[abs-1] != ' ' || source[abs-2] != ' ' {
+					continue
+				}
+			}
+			if c == '`' || c == '[' || c == '*' || c == '_' || c == '\\' || c == '!' || c == '<' || c == '\n' {
 				trigger = i
 				break
 			}
@@ -283,6 +295,21 @@ func parseEmphasisBody(container ast.Node, block text.Reader, pc parser.Context,
 		}
 
 		switch line[0] {
+		case '\n':
+			// `LINE_BREAK_RE` is `'  \n'` at priority 100
+			// (`inlinepatterns.py:97`), above `em_strong` at 60, so a hard break
+			// resolves *inside* an emphasis body. This dispatcher emitted the
+			// body as raw text and seeked past the newline, so goldmark's own
+			// linebreak parser never ran and `*a  \nb*` kept two literal spaces
+			// where upstream has a `<br />`.
+			//
+			// A single space is not a hard break: `*a \nb*` keeps its space and
+			// its newline, which the literal path below already gets right.
+			if trailing := trailingSpaces(container, source); trailing >= 2 {
+				hardBreak(container, trailing)
+				advanceTo(block, segment.Start+1)
+				continue
+			}
 		case '`':
 			if node, ok := buildBodyCodeSpan(block, line, segment.Start); ok {
 				container.AppendChild(container, node)
@@ -366,6 +393,30 @@ func parseEmphasisBody(container ast.Node, block text.Reader, pc parser.Context,
 		ast.MergeOrAppendTextSegment(container, segment.WithStop(segment.Start+1))
 		advanceTo(block, segment.Start+1)
 	}
+}
+
+// trailingSpaces counts the spaces at the end of the text already appended to
+// container, which is what decides whether the newline about to be consumed is
+// `LINE_BREAK_RE`'s hard break or an ordinary soft one.
+func trailingSpaces(container ast.Node, source []byte) int {
+	last, ok := container.LastChild().(*ast.Text)
+	if !ok {
+		return 0
+	}
+	n := 0
+	for last.Segment.Stop-1-n >= last.Segment.Start && source[last.Segment.Stop-1-n] == ' ' {
+		n++
+	}
+	return n
+}
+
+// hardBreak drops the spaces `LINE_BREAK_RE` consumed and marks the text node,
+// which is how goldmark spells `<br />` — the newline itself is written by the
+// renderer, so the caller seeks past it rather than emitting it.
+func hardBreak(container ast.Node, trailing int) {
+	last := container.LastChild().(*ast.Text)
+	last.Segment = last.Segment.WithStop(last.Segment.Stop - trailing)
+	last.SetHardLineBreak(true)
 }
 
 // bodyAutoLinkParser and bodyRawHTMLParser are goldmark's own stock parsers,
