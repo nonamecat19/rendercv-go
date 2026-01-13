@@ -143,7 +143,17 @@ func (p *inlineParser) matchPrefix(data string, pos, pending int) (int, string, 
 	if end, typst, ok := matchCodeSpan(rest); ok {
 		return pos + end, typst, true
 	}
+	// ESCAPE_RE. **The escaped character is escaped in context, not alone.**
+	// Upstream stashes it and runs `escape_typst_characters` over the whole
+	// text at the end, so its two-step asterisk rule sees the neighbours: `* `
+	// takes the first branch and becomes `#sym.ast.basic `, a bare `*` takes
+	// the second and carries `#h(0pt, weak: true)`. Escaping the single
+	// character on its own always took the bare branch, so `a & \* b` came out
+	// with a spurious spacer and a doubled space.
 	if len(rest) > 1 && rest[0] == '\\' && isEscapedChar(rest[1]) {
+		if rest[1] == '*' && len(rest) > 2 && rest[2] == ' ' {
+			return pos + 3, "#sym.ast.basic ", true
+		}
 		return pos + 2, EscapeTypstCharacters(rest[1:2]), true
 	}
 	if end, ok := matchImage(rest); ok {
@@ -356,11 +366,15 @@ func matchImage(rest string) (int, bool) {
 	if len(rest) < 2 || rest[0] != '!' || rest[1] != '[' {
 		return 0, false
 	}
-	_, after := matchBracketed(rest, 2, '[', ']')
-	if after < 0 || after >= len(rest) || rest[after] != '(' {
+	// Scanned over the escape-masked text, the same as the HTML path's
+	// `imageParser`: `escape` (180) outranks `image_link` (150), so a `\]` in
+	// the label is not a closing bracket and `![alt\]x](p.png)` is one image.
+	scan := maskAbove(rest, prioImage)
+	_, after := matchBracketed(scan, 2, '[', ']')
+	if after < 0 || after >= len(scan) || scan[after] != '(' {
 		return 0, false
 	}
-	if _, end := matchBracketed(rest, after+1, '(', ')'); end >= 0 {
+	if _, _, _, end, ok := getLink([]byte(scan), []byte(rest), after); ok {
 		return end, true
 	}
 	return 0, false
