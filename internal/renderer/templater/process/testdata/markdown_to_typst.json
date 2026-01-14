@@ -1002,5 +1002,65 @@
  {
   "in": "_` :>\\\\!_ [",
   "want": "#emph[` :\\>\\\\!] \\["
+ },
+ {
+  "in": "*a  \nb*",
+  "want": "#sym.ast.basic#h(0pt, weak: true) a\nb#sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "**a  \nb**",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) a\nb#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "a  \nb",
+  "want": "a\nb"
+ },
+ {
+  "in": "*a \nb*",
+  "want": "#sym.ast.basic#h(0pt, weak: true) a\nb#sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "_a  \nb_",
+  "want": "\\_a\nb\\_"
+ },
+ {
+  "in": "- *a  \nb*",
+  "want": "- #sym.ast.basic#h(0pt, weak: true) a\nb#sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "a\rb",
+  "want": "a\nb"
+ },
+ {
+  "in": "a\tb",
+  "want": "a   b"
+ },
+ {
+  "in": "- x\r- y",
+  "want": "- x\n- y"
+ },
+ {
+  "in": "- a\tb",
+  "want": "- a b"
+ },
+ {
+  "in": "[t](a\tb)",
+  "want": "#link(\"a   b\")[t]"
+ },
+ {
+  "in": "*a & \\* b*",
+  "want": "#emph[a & #sym.ast.basic b]"
+ },
+ {
+  "in": "![alt\\]x](p.png)",
+  "want": ""
+ },
+ {
+  "in": "a\r\nb",
+  "want": "a\nb"
+ },
+ {
+  "in": "*a\r\nb*",
+  "want": "#sym.ast.basic#h(0pt, weak: true) a\nb#sym.ast.basic#h(0pt, weak: true)"
  }
 ]

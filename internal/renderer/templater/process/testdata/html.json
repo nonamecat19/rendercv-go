@@ -1054,5 +1054,29 @@
   {
     "In": "\n>_\n: '*_#_b#>'\t]]]e>",
     "Out": "<blockquote>\n<p>_\n: '*_#_b#&gt;' ]]]e&gt;</p>\n</blockquote>"
+  },
+  {
+    "In": "*a  \nb*",
+    "Out": "<p><em>a<br />\nb</em></p>"
+  },
+  {
+    "In": "**a  \nb**",
+    "Out": "<p><strong>a<br />\nb</strong></p>"
+  },
+  {
+    "In": "*a \nb*",
+    "Out": "<p><em>a \nb</em></p>"
+  },
+  {
+    "In": "_a  \nb_",
+    "Out": "<p><em>a<br />\nb</em></p>"
+  },
+  {
+    "In": "- *a  \nb*",
+    "Out": "<ul>\n<li><em>a<br />\nb</em></li>\n</ul>"
+  },
+  {
+    "In": "*a\r\nb*",
+    "Out": "<p><em>a\nb</em></p>"
   }
 ]
