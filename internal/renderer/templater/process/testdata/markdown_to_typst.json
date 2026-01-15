@@ -1062,5 +1062,21 @@
  {
   "in": "*a\r\nb*",
   "want": "#sym.ast.basic#h(0pt, weak: true) a\nb#sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "> *a\n> b*",
+  "want": "\\> #sym.ast.basic#h(0pt, weak: true) a\n\\> b#sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "> **a\n> b**",
+  "want": "\\> #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) a\n\\> b#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "> *a\n> b* c",
+  "want": "\\> #sym.ast.basic#h(0pt, weak: true) a\n\\> b#sym.ast.basic c"
+ },
+ {
+  "in": "> _a\n> b_",
+  "want": "\\> \\_a\n\\> b\\_"
  }
 ]
