@@ -1078,5 +1078,25 @@
  {
   "in": "> _a\n> b_",
   "want": "\\> \\_a\n\\> b\\_"
+ },
+ {
+  "in": "> *a `x\n> y` b*",
+  "want": "\\> #sym.ast.basic#h(0pt, weak: true) a `x\n\\> y` b#sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "> **a [x\n> y](u) b**",
+  "want": "\\> #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) a \\[x\n\\> y\\](u) b#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "> *a\n> b\n> c*",
+  "want": "\\> #sym.ast.basic#h(0pt, weak: true) a\n\\> b\n\\> c#sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "> *a  \n> b*",
+  "want": "\\> #sym.ast.basic#h(0pt, weak: true) a\n\\> b#sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "> **a `x\n> y` b**",
+  "want": "\\> #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) a `x\n\\> y` b#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)"
  }
 ]
