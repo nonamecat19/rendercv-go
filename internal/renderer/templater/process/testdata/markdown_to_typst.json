@@ -1146,5 +1146,77 @@
  {
   "in": "    x",
   "want": "`x\n`"
+ },
+ {
+  "in": "    a &  ",
+  "want": "`a &amp;\n`"
+ },
+ {
+  "in": "    a b   ",
+  "want": "`a b\n`"
+ },
+ {
+  "in": "    code\t",
+  "want": "`code\n`"
+ },
+ {
+  "in": "    a\t\tb  ",
+  "want": "`a       b\n`"
+ },
+ {
+  "in": "    a  b  ",
+  "want": "`a  b\n`"
+ },
+ {
+  "in": "     a  ",
+  "want": "` a\n`"
+ },
+ {
+  "in": "    a ",
+  "want": "`a\n`"
+ },
+ {
+  "in": "    x  \n    y  ",
+  "want": "`x\n`\n`y\n`"
+ },
+ {
+  "in": "    a  \n",
+  "want": "`a\n`\n"
+ },
+ {
+  "in": "  \ta  ",
+  "want": "`a\n`"
+ },
+ {
+  "in": "    a&b <c>  ",
+  "want": "`a&amp;b &lt;c&gt;\n`"
+ },
+ {
+  "in": "    a\u000b",
+  "want": "`a\n`"
+ },
+ {
+  "in": "    a ",
+  "want": "`a\n`"
+ },
+ {
+  "in": "    a　",
+  "want": "`a\n`"
+ },
+ {
+  "in": "    a\u001c",
+  "want": "`a\n`"
+ },
+ {
+  "in": "    \u001c",
+  "want": ""
+ },
+ {
+  "in": "  \u001c",
+  "want": ""
+ },
+ {
+  "in": "    a\u001cb",
+  "want": "`a\u001cb\n`"
  }
 ]
