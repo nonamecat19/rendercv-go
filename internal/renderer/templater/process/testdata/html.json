@@ -1114,5 +1114,53 @@
   {
     "In": "> **a `x\n> y` b**",
     "Out": "<blockquote>\n<p><strong>a <code>x\ny</code> b</strong></p>\n</blockquote>"
+  },
+  {
+    "In": "> *a\n>   b*",
+    "Out": "<blockquote>\n<p><em>a\n  b</em></p>\n</blockquote>"
+  },
+  {
+    "In": "> *a\n>  b*",
+    "Out": "<blockquote>\n<p><em>a\n b</em></p>\n</blockquote>"
+  },
+  {
+    "In": "> **a\n>    b**",
+    "Out": "<blockquote>\n<p><strong>a\n   b</strong></p>\n</blockquote>"
+  },
+  {
+    "In": "> > *a\n> >   b*",
+    "Out": "<blockquote>\n<blockquote>\n<p><em>a\n  b</em></p>\n</blockquote>\n</blockquote>"
+  },
+  {
+    "In": "- *a\n   b*",
+    "Out": "<ul>\n<li><em>a\n   b</em></li>\n</ul>"
+  },
+  {
+    "In": " \t",
+    "Out": ""
+  },
+  {
+    "In": "  \t",
+    "Out": ""
+  },
+  {
+    "In": " \t ",
+    "Out": ""
+  },
+  {
+    "In": "a\n \t",
+    "Out": "<p>a</p>"
+  },
+  {
+    "In": "    ",
+    "Out": ""
+  },
+  {
+    "In": "\t",
+    "Out": ""
+  },
+  {
+    "In": "    x",
+    "Out": "<pre><code>x\n</code></pre>"
   }
 ]
