@@ -843,6 +843,52 @@ func TestFlowInterruptedByABlockLine(t *testing.T) {
 			startLine: 1, endLine: 4,
 			want: "This is not a valid YAML file. while parsing a flow sequence.",
 		},
+		// The breaking line ending in a **comma** is the shape STATE.md's pass
+		// 22 recorded as a fourth, unmapped goccy phrasing leaking raw text at
+		// the wrong location. goccy in fact says `',' or ']' must be specified`
+		// here, the same as without the comma, so the row above already covers
+		// it — these pin that, because the trailing comma is otherwise the
+		// discriminator `flowNodeExpectedAtEOF` keys on and misrouting it would
+		// silently give the flow-*node* answer at a single line.
+		{
+			name: "the breaking line ends in a comma", src: "cv: [a\nb: c,\n",
+			startLine: 1, endLine: 2,
+			want: "This is not a valid YAML file. while parsing a flow sequence.",
+		},
+		{
+			name: "a comma-ended break is not the end of the file", src: "cv: [a\nb: c,\nd: e\n",
+			startLine: 1, endLine: 2,
+			want: "This is not a valid YAML file. while parsing a flow sequence.",
+		},
+		{
+			name: "a comma-ended break in a flow mapping", src: "cv: {a: 1\nb: c,\n",
+			startLine: 1, endLine: 2,
+			want: "This is not a valid YAML file. while parsing a flow mapping.",
+		},
+		{
+			// Indented, which goccy routes through `sequence end token` instead.
+			name: "an indented comma-ended break", src: "cv: [a\n  b: c,\n",
+			startLine: 1, endLine: 2,
+			want: "This is not a valid YAML file. while parsing a flow sequence.",
+		},
+		{
+			name: "nested, with a comma-ended break", src: "cv: [[a\nb: c,\n",
+			startLine: 1, endLine: 2,
+			want: "This is not a valid YAML file. while parsing a flow sequence.",
+		},
+		{
+			name: "a comma-ended break below another key", src: "x: 1\ncv: [a\nb: c,\n",
+			startLine: 2, endLine: 3,
+			want: "This is not a valid YAML file. while parsing a flow sequence.",
+		},
+		{
+			// The control: the flow was already expecting an element, so `b: c`
+			// is a legal single-pair flow mapping and the *trailing* comma is
+			// what ends the stream — the flow-node form, at EOF alone.
+			name: "a comma-ended break the flow swallows", src: "cv: [a,\nb: c,\n",
+			startLine: 3, endLine: 3,
+			want: "This is not a valid YAML file. while parsing a flow node.",
+		},
 	}
 
 	for _, test := range tests {
