@@ -5,9 +5,11 @@ import (
 	"strings"
 	"testing"
 
+	goyaml "github.com/goccy/go-yaml"
 	"github.com/goccy/go-yaml/token"
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
+	"github.com/nonamecat19/rendercv-go/internal/schema/yamlreader"
 )
 
 func TestReadYamlWithValidationErrorsSyntaxError(t *testing.T) {
@@ -289,6 +291,104 @@ func TestParserMessageUsesRuamelPhrasing(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestEveryPhrasingRowIsReachable is the anti-vacuity guard for the mapping
+// table: a row whose goccy substring no longer occurs for any input is dead
+// weight that reads like coverage, the same class of defect as a test whose
+// assertion never runs.
+//
+// The table is order-sensitive — `parserMessage` takes the *first* row whose
+// substring matches — so reachability is asserted at the level of the row
+// **index**, not of the phrasing it produces. Four rows share a `ruamel` value
+// in pairs, so comparing the message alone would let a row be shadowed by its
+// twin and still look alive.
+//
+// Two failures never reach the table at all and so are not rows: an ordinary
+// tab (`\ta: 1`), which `yamlreader.TabError` intercepts before the parser
+// runs, and a flow collection left waiting for a node (`cv: [`), which
+// `flowNodeExpectedAtEOF` answers first. The inputs below are chosen to avoid
+// both interceptors.
+//
+// Each `ruamel` value was read off the exception the vendored ruamel raises for
+// that same input (`e.context`).
+func TestEveryPhrasingRowIsReachable(t *testing.T) {
+	// One input per row, in the table's own order.
+	reaching := []struct{ goccy, src string }{
+		{"sequence end token", "this: [is, not, a, cv\n"},
+		{"']' must be specified", "cv: [a\nb: c\n"},
+		{"'}' must be specified", "cv: {a: 1\nb: c\n"},
+		{"flow map", "a: {b\n"},
+		{"quoted text", "a: 'unterminated\n"},
+		{"tab character", "a: |\n\tx\n"},
+		{"cannot start any token", "a: b[\n\tc\n"},
+		{"already defined", "a: 1\na: 2\n"},
+	}
+
+	if len(reaching) != len(ruamelPhrasing) {
+		t.Fatalf("the table has %d rows and %d have a reaching input; every new"+
+			" row needs one, measured", len(ruamelPhrasing), len(reaching))
+	}
+
+	for i, want := range reaching {
+		row := ruamelPhrasing[i]
+		if row.goccy != want.goccy {
+			t.Fatalf("row %d is %q, but the reaching input was measured for %q",
+				i, row.goccy, want.goccy)
+		}
+
+		t.Run(row.goccy, func(t *testing.T) {
+			_, err := ReadYamlWithValidationErrors(want.src, schemaerr.SourceMain)
+
+			var userErr *schemaerr.UserValidationError
+			if !errors.As(err, &userErr) {
+				t.Fatalf("err = %v (%T), want *schemaerr.UserValidationError", err, err)
+			}
+			if got, expect := userErr.Errors[0].Message,
+				"This is not a valid YAML file. "+row.ruamel+"."; got != expect {
+				t.Fatalf("message =\n  %q\nwant\n  %q", got, expect)
+			}
+
+			// And it was *this* row that produced it, not an earlier one that
+			// happens to carry the same phrasing. The reader is asked again for
+			// the raw parser failure, because the record above has already
+			// consumed it.
+			_, raw := yamlreader.ReadString(want.src)
+			var parserErr goyaml.Error
+			if !errors.As(raw, &parserErr) {
+				// The message came from a branch ahead of the table, so the row
+				// itself is still unreached.
+				t.Fatalf("%q never reaches the phrasing table: %v", want.src, raw)
+			}
+			if got := firstMatchingRow(parserErr.Error()); got != i {
+				t.Errorf("%q selects row %d (%q), want row %d (%q) — the row is"+
+					" shadowed and can be deleted with the suite still green",
+					want.src, got, rowName(got), i, row.goccy)
+			}
+		})
+	}
+}
+
+// firstMatchingRow is parserMessage's own row selection, exposed so a test can
+// assert *which* row answered rather than only what it said.
+func firstMatchingRow(text string) int {
+	if i := strings.IndexByte(text, '\n'); i >= 0 {
+		text = text[:i]
+	}
+	text = strings.TrimSpace(text)
+	for i, row := range ruamelPhrasing {
+		if strings.Contains(text, row.goccy) {
+			return i
+		}
+	}
+	return -1
+}
+
+func rowName(i int) string {
+	if i < 0 || i >= len(ruamelPhrasing) {
+		return "<none>"
+	}
+	return ruamelPhrasing[i].goccy
 }
 
 // An unmapped failure falls through to goccy's own first line. That is option A
