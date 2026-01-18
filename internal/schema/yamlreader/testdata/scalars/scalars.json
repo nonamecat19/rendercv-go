@@ -570,6 +570,111 @@
     "kind": "string"
   },
   {
+    "raw": "1e400",
+    "style": "plain",
+    "kind": "float"
+  },
+  {
+    "raw": "1e400",
+    "style": "single",
+    "kind": "string"
+  },
+  {
+    "raw": "1e400",
+    "style": "double",
+    "kind": "string"
+  },
+  {
+    "raw": "-1e400",
+    "style": "plain",
+    "kind": "float"
+  },
+  {
+    "raw": "-1e400",
+    "style": "single",
+    "kind": "string"
+  },
+  {
+    "raw": "-1e400",
+    "style": "double",
+    "kind": "string"
+  },
+  {
+    "raw": "+1e400",
+    "style": "plain",
+    "kind": "float"
+  },
+  {
+    "raw": "+1e400",
+    "style": "single",
+    "kind": "string"
+  },
+  {
+    "raw": "+1e400",
+    "style": "double",
+    "kind": "string"
+  },
+  {
+    "raw": "1e+400",
+    "style": "plain",
+    "kind": "float"
+  },
+  {
+    "raw": "1e+400",
+    "style": "single",
+    "kind": "string"
+  },
+  {
+    "raw": "1e+400",
+    "style": "double",
+    "kind": "string"
+  },
+  {
+    "raw": "1.0e400",
+    "style": "plain",
+    "kind": "float"
+  },
+  {
+    "raw": "1.0e400",
+    "style": "single",
+    "kind": "string"
+  },
+  {
+    "raw": "1.0e400",
+    "style": "double",
+    "kind": "string"
+  },
+  {
+    "raw": "1e309",
+    "style": "plain",
+    "kind": "float"
+  },
+  {
+    "raw": "1e309",
+    "style": "single",
+    "kind": "string"
+  },
+  {
+    "raw": "1e309",
+    "style": "double",
+    "kind": "string"
+  },
+  {
+    "raw": "1e-400",
+    "style": "plain",
+    "kind": "float"
+  },
+  {
+    "raw": "1e-400",
+    "style": "single",
+    "kind": "string"
+  },
+  {
+    "raw": "1e-400",
+    "style": "double",
+    "kind": "string"
+  },
+  {
     "raw": "2020",
     "style": "plain",
     "kind": "int"
