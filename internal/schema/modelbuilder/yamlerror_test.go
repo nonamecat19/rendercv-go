@@ -741,6 +741,14 @@ func TestDuplicateKeySpansItsMapping(t *testing.T) {
 		{name: "after a document marker", src: "---\na: 1\na: 2\n", startLine: 2, endLine: 3},
 	}
 
+	// `mappingStartLine`'s doc comment names this count and enumerates these
+	// shapes. Prose drifts silently — it already said "ten" while eleven rows
+	// stood here — so the number is asserted rather than described.
+	if len(tests) != 11 {
+		t.Fatalf("%d shapes, but mappingStartLine's comment claims eleven;"+
+			" update both together", len(tests))
+	}
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			_, err := ReadYamlWithValidationErrors(test.src, schemaerr.SourceMain)
