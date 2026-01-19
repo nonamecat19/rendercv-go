@@ -261,6 +261,18 @@ func openFlowLine(content string) int {
 	return outermostFlowOpenLine(content, strings.Count(content, "\n")+2)
 }
 
+// isUnterminatedFlow reports whether a goccy message names a flow collection
+// the scanner never found the end of, as opposed to the quoted scalar that
+// shares its span shape but not its marks.
+func isUnterminatedFlow(message string) bool {
+	for _, candidate := range unterminatedConstructMessages {
+		if strings.Contains(message, candidate) {
+			return true
+		}
+	}
+	return false
+}
+
 // breakingLine is the first line after `open` that carries a YAML key
 // indicator — a colon followed by whitespace or the end of the line, outside
 // quotes — or 0 when no line does.
@@ -624,6 +636,27 @@ func yamlErrorLocation(parserErr goyaml.Error, content string) *yamldoc.Span {
 
 	for _, unterminated := range spanToEOFMessages {
 		if strings.Contains(message, unterminated) {
+			// **goccy's token is the delimiter it gave up on, which is not
+			// always the one ruamel names.** ruamel's context mark is the
+			// *outermost* flow collection still open, so `cv: [a\n  b: [c,`
+			// is `line 1 to line 2` — goccy points at the inner `[` on line 2
+			// and the port reported `line 2 to line 3`, a construct the user
+			// did not open at a line the failure is not about. Where both
+			// delimiters sit on one line the two agree, which is why every
+			// earlier measured shape was unaffected.
+			//
+			// **Only for the flow collections.** An unterminated quoted scalar
+			// shares this branch but not this rule: ruamel names the *quote*,
+			// even when a flow opened on an earlier line, so `cv: [a\n  b: "c`
+			// is `line 2 to line 3` and not line 1.
+			if open := openFlowLine(content); isUnterminatedFlow(message) &&
+				open > 0 && open < start.Line {
+				start = yamldoc.Position{Line: open, Column: 1}
+				if end.Line < start.Line {
+					end = start
+				}
+			}
+
 			// **A block line can stop this scan short of the end**, and goccy
 			// routes an *indented* one here rather than to the branch above:
 			// `cv: [a\n  b: c` is `line 1 to line 2`, not to EOF.

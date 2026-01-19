@@ -936,6 +936,12 @@ func TestFlowNodeDiscriminatorAcrossABreak(t *testing.T) {
 		// actually decides. Unindented breaks reach it as `']' must be
 		// specified`, which is not an unterminated-construct message at all.
 		{
+			// The inner `[` opens on line 2, so goccy's token and ruamel's
+			// context mark are different lines here and nowhere else.
+			name: "an indented break whose line opens a flow", src: "cv: [a\n  b: [c,\n",
+			startLine: 1, endLine: 2, want: "while parsing a flow sequence",
+		},
+		{
 			name: "nested, with an indented comma-ended break", src: "cv: [[a\n  b: c,\n",
 			startLine: 1, endLine: 2, want: "while parsing a flow sequence",
 		},
@@ -988,6 +994,99 @@ func TestFlowNodeDiscriminatorAcrossABreak(t *testing.T) {
 		{
 			name: "an indented pair after a comma", src: "cv: [a,\n  b: c,\n",
 			startLine: 3, endLine: 3, want: "while parsing a flow node",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := ReadYamlWithValidationErrors(test.src, schemaerr.SourceMain)
+
+			var userErr *schemaerr.UserValidationError
+			if !errors.As(err, &userErr) {
+				t.Fatalf("expected *schemaerr.UserValidationError, got %T: %v", err, err)
+			}
+
+			want := "This is not a valid YAML file. " + test.want + "."
+			if got := userErr.Errors[0].Message; got != want {
+				t.Errorf("message =\n  %q\nwant\n  %q", got, want)
+			}
+			span := userErr.Errors[0].YamlLocation
+			if span == nil {
+				t.Fatal("yaml location = nil, want a location")
+			}
+			if span.Start.Line != test.startLine || span.End.Line != test.endLine {
+				t.Errorf("location = line %d to line %d, want line %d to line %d",
+					span.Start.Line, span.End.Line, test.startLine, test.endLine)
+			}
+		})
+	}
+}
+
+// TestOutermostDelimiterIsTheContextMark pins whose delimiter ruamel names when
+// an unterminated flow collection is nested across lines.
+//
+// goccy's token is the delimiter *it* gave up on, which is the inner one:
+// `cv: [a\n  b: [c,` came out as `line 2 to line 3`, naming a collection the
+// user did not open and a line the failure is not about. ruamel's context mark
+// is the outermost collection still open, `line 1 to line 2`. Where both
+// delimiters sit on the same line the two agree, which is why every shape
+// measured before this one was unaffected.
+//
+// The quoted rows are the control: an unterminated quoted scalar shares the
+// span shape but keeps its *own* line even with a flow open above it.
+func TestOutermostDelimiterIsTheContextMark(t *testing.T) {
+	tests := []struct {
+		name               string
+		src                string
+		startLine, endLine int
+		want               string
+	}{
+		{
+			name: "an inner sequence opening on the break", src: "cv: [a\n  b: [c,\n",
+			startLine: 1, endLine: 2, want: "while parsing a flow sequence",
+		},
+		// `cv: [a\n  b: {c,` belongs here too — ruamel says `while parsing a
+		// flow sequence`, line 1 to line 2 — but goccy answers it with a
+		// *fourth* phrasing, `unexpected map key`, which no `ruamelPhrasing`
+		// row covers, so its raw text and `[2:6]` prefix still reach the user.
+		// Found while measuring this table and left for its own unit rather
+		// than folded in here.
+		{
+			name: "an inner sequence with no trailing comma", src: "cv: [a\n  b: [c\n",
+			startLine: 1, endLine: 2, want: "while parsing a flow sequence",
+		},
+		{
+			// The outer flow itself opens on line 2, so that is the answer —
+			// the rule is "outermost still open", not "line 1".
+			name: "the outer flow opens below the root", src: "cv:\n  x: [a\n    y: [b,\n",
+			startLine: 2, endLine: 3, want: "while parsing a flow sequence",
+		},
+		{
+			// A closed flow above must not be mistaken for the open one.
+			name: "a closed flow on an earlier line", src: "a: [1]\ncv: [x\n  y: [z,\n",
+			startLine: 2, endLine: 3, want: "while parsing a flow sequence",
+		},
+		{
+			// Both delimiters on one line: goccy and ruamel already agree.
+			name: "both delimiters on one line", src: "cv: [a, [b\n  c: d,\n",
+			startLine: 1, endLine: 2, want: "while parsing a flow sequence",
+		},
+		{
+			name: "an empty outer flow swallows the pair", src: "cv: [\n  a: [b,\n",
+			startLine: 3, endLine: 3, want: "while parsing a flow node",
+		},
+		// Controls: a quoted scalar keeps its own line.
+		{
+			name: "a single-quoted scalar under an open flow", src: "cv: [a,\n  b: 'c\n",
+			startLine: 2, endLine: 3, want: "while scanning a quoted scalar",
+		},
+		{
+			name: "a double-quoted scalar under an open flow", src: "cv: [a\n  b: \"c\n",
+			startLine: 2, endLine: 3, want: "while scanning a quoted scalar",
+		},
+		{
+			name: "a quoted scalar on the flow's own line", src: "cv: ['a\n",
+			startLine: 1, endLine: 2, want: "while scanning a quoted scalar",
 		},
 	}
 
