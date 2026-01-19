@@ -915,6 +915,107 @@ func TestFlowInterruptedByABlockLine(t *testing.T) {
 	}
 }
 
+// TestFlowNodeDiscriminatorAcrossABreak pins the interaction the trailing-comma
+// fix turned on: `flowNodeExpectedAtEOF` reads the last significant character
+// of the file, and that character only answers its question when ruamel's scan
+// actually reached the end.
+//
+// Every row is a shape where the two halves disagree — the file ends in `[`,
+// `{` or `,` (the node-form discriminator) while a block line did or did not
+// break the flow first. Read off ruamel's own `context`, `context_mark` and
+// `problem_mark` for the same input.
+func TestFlowNodeDiscriminatorAcrossABreak(t *testing.T) {
+	tests := []struct {
+		name               string
+		src                string
+		startLine, endLine int
+		want               string
+	}{
+		// Broken first by an **indented** line, which is the half goccy routes
+		// through `sequence end token` and so the half the discriminator
+		// actually decides. Unindented breaks reach it as `']' must be
+		// specified`, which is not an unterminated-construct message at all.
+		{
+			name: "nested, with an indented comma-ended break", src: "cv: [[a\n  b: c,\n",
+			startLine: 1, endLine: 2, want: "while parsing a flow sequence",
+		},
+		{
+			name: "an indented comma-ended break below another key", src: "x: 1\ncv: [a\n  b: c,\n",
+			startLine: 2, endLine: 3, want: "while parsing a flow sequence",
+		},
+		{
+			name: "an indented break, then a bare opening bracket", src: "cv: [a\n  b: c\n  d: [\n",
+			startLine: 1, endLine: 2, want: "while parsing a flow sequence",
+		},
+		{
+			name: "an indented comma-ended break, then an end marker", src: "cv: [a\n  b: c,\n...\n",
+			startLine: 1, endLine: 2, want: "while parsing a flow sequence",
+		},
+		{
+			name: "an indented comma-ended break in a flow mapping", src: "cv: {a: 1\n  b: c,\n",
+			startLine: 1, endLine: 2, want: "while parsing a flow mapping",
+		},
+		// Broken first, so the delimiter or comma at EOF is never reached.
+		{
+			name: "a break, then a bare opening bracket", src: "cv: [a\nb: c\nd: [\n",
+			startLine: 1, endLine: 2, want: "while parsing a flow sequence",
+		},
+		{
+			name: "a break, then a bare opening brace", src: "cv: [a\nb: c\nd: {\n",
+			startLine: 1, endLine: 2, want: "while parsing a flow sequence",
+		},
+		{
+			name: "a break whose own line opens a flow", src: "cv: [a\nb: [c,\n",
+			startLine: 1, endLine: 2, want: "while parsing a flow sequence",
+		},
+		{
+			name: "a comma-ended break past a start marker", src: "cv: [a\n---\nb: c,\n",
+			startLine: 1, endLine: 2, want: "while parsing a flow sequence",
+		},
+		{
+			name: "a break, then an end marker", src: "cv: [a\nb: c\n...\n",
+			startLine: 1, endLine: 2, want: "while parsing a flow sequence",
+		},
+		// Never broken, so the trailing comma really is where the stream ended.
+		{
+			name: "an empty sequence swallows the pair", src: "cv: [\nb: c,\n",
+			startLine: 3, endLine: 3, want: "while parsing a flow node",
+		},
+		{
+			name: "an empty mapping swallows the pair", src: "cv: {\nb: c,\n",
+			startLine: 3, endLine: 3, want: "while parsing a flow node",
+		},
+		{
+			name: "an indented pair after a comma", src: "cv: [a,\n  b: c,\n",
+			startLine: 3, endLine: 3, want: "while parsing a flow node",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := ReadYamlWithValidationErrors(test.src, schemaerr.SourceMain)
+
+			var userErr *schemaerr.UserValidationError
+			if !errors.As(err, &userErr) {
+				t.Fatalf("expected *schemaerr.UserValidationError, got %T: %v", err, err)
+			}
+
+			want := "This is not a valid YAML file. " + test.want + "."
+			if got := userErr.Errors[0].Message; got != want {
+				t.Errorf("message =\n  %q\nwant\n  %q", got, want)
+			}
+			span := userErr.Errors[0].YamlLocation
+			if span == nil {
+				t.Fatal("yaml location = nil, want a location")
+			}
+			if span.Start.Line != test.startLine || span.End.Line != test.endLine {
+				t.Errorf("location = line %d to line %d, want line %d to line %d",
+					span.Start.Line, span.End.Line, test.startLine, test.endLine)
+			}
+		})
+	}
+}
+
 // TestScanStopsAtADocumentMarker pins that a `---` or `...` ends the stream
 // ruamel's scanner was reading, so an unterminated construct spans to the
 // marker rather than to the physical end of the file.
