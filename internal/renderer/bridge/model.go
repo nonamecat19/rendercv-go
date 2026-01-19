@@ -258,7 +258,16 @@ func mappingOf(node *yamldoc.Node) map[string]any {
 			// those once the design tree is fully merged. Found by a
 			// fresh-context verifier (iteration 14's seventh re-verification).
 			out[item.Key] = yamldoc.BoolIsTrue(item.Value.Raw)
-		default:
+		case yamldoc.KindNull, yamldoc.KindInt, yamldoc.KindFloat,
+			yamldoc.KindString, yamldoc.KindTagged:
+			// The remaining kinds carry their text through unchanged — a
+			// number, a string, or a tagged scalar whose `str()` is its text.
+			// Spelled out rather than left to a `default` so a new kind stops
+			// here instead of being absorbed (kindguard).
+			//
+			// `KindNull` cannot reach this arm: the loop above handles it. It
+			// is named because the guard asks for every kind, and a kind that
+			// is unreachable here is still a kind whose handling was decided.
 			out[item.Key] = item.Value.Raw
 		}
 	}
