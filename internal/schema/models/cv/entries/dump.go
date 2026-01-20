@@ -171,9 +171,14 @@ func dumpValue(node *yamldoc.Node) any {
 			nested[item.Key] = dumpValue(item.Value)
 		}
 		return nested
-	default:
+	case yamldoc.KindNull, yamldoc.KindString, yamldoc.KindTagged:
+		// A null, a string and a tagged scalar all dump as their text: a
+		// `TaggedScalar`'s `str()` is its value, which is what `process.RunFields`
+		// stringifies. Named one by one rather than left to a `default` so a new
+		// kind stops here instead of quietly joining this set (kindguard).
 		return node.Raw
 	}
+	return node.Raw
 }
 
 // dumpSequence returns `[]string` when every element is a scalar, which is every
@@ -183,7 +188,7 @@ func dumpValue(node *yamldoc.Node) any {
 func dumpSequence(node *yamldoc.Node) any {
 	strings := make([]string, 0, len(node.Elems))
 	for _, elem := range node.Elems {
-		if elem == nil || elem.Kind == yamldoc.KindMapping || elem.Kind == yamldoc.KindSequence {
+		if elem == nil || isContainerKind(elem.Kind) {
 			values := make([]any, 0, len(node.Elems))
 			for _, each := range node.Elems {
 				if each == nil {
@@ -197,4 +202,21 @@ func dumpSequence(node *yamldoc.Node) any {
 		strings = append(strings, elem.Raw)
 	}
 	return strings
+}
+
+// isContainerKind reports whether a kind holds other nodes rather than text.
+//
+// **Written as an exhaustive switch on purpose**, the shape `fitsNoScalarArm`
+// documents (`binder.go:520-544`). A tagged scalar answers *no*: its `str()` is
+// its text, so it dumps through `elem.Raw` alongside the other scalars rather
+// than forcing the sequence into its general shape.
+func isContainerKind(kind yamldoc.Kind) bool {
+	switch kind {
+	case yamldoc.KindMapping, yamldoc.KindSequence:
+		return true
+	case yamldoc.KindNull, yamldoc.KindBool, yamldoc.KindInt,
+		yamldoc.KindFloat, yamldoc.KindString, yamldoc.KindTagged:
+		return false
+	}
+	return false
 }
