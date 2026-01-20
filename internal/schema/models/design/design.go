@@ -143,9 +143,16 @@ func themeNameRepr(node *yamldoc.Node) string {
 			parts = append(parts, "'"+item.Key+"': "+pythonElemRepr(item.Value))
 		}
 		return "{" + strings.Join(parts, ", ") + "}"
-	default:
+	case yamldoc.KindNull, yamldoc.KindInt, yamldoc.KindFloat,
+		yamldoc.KindString, yamldoc.KindTagged:
+		// The remaining kinds are their own text: an unquoted scalar at the top
+		// level, and a `TaggedScalar` whose `str()` is its value. Spelled out
+		// rather than left to a `default` so a new kind stops here (kindguard).
+		// `KindNull` is unreachable — the guard above returns "None" — and is
+		// named only to make the set complete.
 		return node.Raw
 	}
+	return node.Raw
 }
 
 // pythonElemRepr is the same repr, one level down — where a string is
@@ -162,9 +169,21 @@ func pythonElemRepr(node *yamldoc.Node) string {
 		return pythonBoolRepr(node)
 	case yamldoc.KindSequence, yamldoc.KindMapping:
 		return themeNameRepr(node)
-	default:
+	case yamldoc.KindNull, yamldoc.KindInt, yamldoc.KindFloat, yamldoc.KindTagged:
+		// Numbers repr as their own text. Spelled out rather than left to a
+		// `default` (kindguard); `KindNull` is unreachable, the guard above
+		// returns "None".
+		//
+		// **`KindTagged` is knowingly wrong here and left alone.** A
+		// `TaggedScalar`'s `repr()` is not its text — measured against the
+		// vendored ruamel, `[!!str x]` reprs its element as
+		// `TaggedScalar(value='x', style=None, tag=Tag('tag:yaml.org,2002:str'))`,
+		// not `x`. Matching it needs the tag itself, which `yamldoc.Node` does
+		// not keep; that is a spec change, not a rename. Reachable only from
+		// `design.theme` written as a container with a tagged element.
 		return node.Raw
 	}
+	return node.Raw
 }
 
 func pythonBoolRepr(node *yamldoc.Node) string {
