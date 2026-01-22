@@ -745,7 +745,7 @@ func validColorNode(node *yamldoc.Node) error {
 			// *unquoted* `0x10` YAML itself resolves to an `int` gets the
 			// coercion. Found by a fresh-context verifier (iteration 14's
 			// sixteenth re-verification).
-			coerce := elem.Kind == yamldoc.KindBool || elem.Kind == yamldoc.KindInt
+			coerce := coercibleColorKind(elem.Kind)
 			// **A sequence or a mapping element carries no `Raw` at all.**
 			// `yamldoc.Node.Raw` is scalar-only, so `[1, 2, 3, [1]]`
 			// reached `parseAlpha("")` — which is "no alpha", not "a bad
@@ -755,7 +755,15 @@ func validColorNode(node *yamldoc.Node) error {
 			// failing here so the tuple's length is still checked first,
 			// the order `parse_tuple` uses. Found by a fresh-context
 			// verifier (iteration 15's colour-tuple sweep).
-			nonScalar := elem.Kind == yamldoc.KindSequence || elem.Kind == yamldoc.KindMapping
+			//
+			// **A tagged scalar belongs in the same set**, measured against the
+			// vendored ruamel: `float(TaggedScalar)` raises the identical
+			// `TypeError: float() argument must be a string or a real number`,
+			// so `colors.name: [!!str 3, 2, 3]` is upstream's
+			// `color values must be a valid number` while the port read the
+			// tag's *text* as the channel and rendered at exit 0 — blocker B1's
+			// shape, in the predicate right below its own fix.
+			nonScalar := floatRaisesTypeError(elem.Kind)
 			elements = append(elements, colorElement{
 				Raw:         elem.Raw,
 				Coerce:      coerce,
@@ -774,6 +782,45 @@ func validColorNode(node *yamldoc.Node) error {
 	// An int, a float, a bool or a mapping. Not `string_type`: the colour type
 	// owns the message, and dictionary row 13 rewrites it like any other.
 	return errColorNotAValue
+}
+
+// coercibleColorKind reports whether a colour-tuple element is eligible for
+// the bool-word/hex/octal/binary coercion — that is, whether YAML itself
+// resolved it to a Python `bool` or `int`.
+//
+// **Written as an exhaustive switch on purpose**, the shape `fitsNoScalarArm`
+// documents (`binder.go:520-544`).
+func coercibleColorKind(kind yamldoc.Kind) bool {
+	switch kind {
+	case yamldoc.KindBool, yamldoc.KindInt:
+		return true
+	case yamldoc.KindNull, yamldoc.KindFloat, yamldoc.KindString,
+		yamldoc.KindMapping, yamldoc.KindSequence, yamldoc.KindTagged:
+		return false
+	}
+	return false
+}
+
+// floatRaisesTypeError reports whether upstream's `float(element)` raises
+// `TypeError` instead of parsing the element — the condition `colorElement`'s
+// `NonScalar` flag actually carries.
+//
+// **Written as an exhaustive switch on purpose**, the shape `fitsNoScalarArm`
+// documents (`binder.go:520-544`).
+//
+// `KindNull` answers *no*: `float(None)` does raise, but a null element never
+// reaches here as a null — the alpha position is exempted above and a null
+// channel arrives with an empty `Raw`, which `parse_color_value` already
+// rejects with the same message.
+func floatRaisesTypeError(kind yamldoc.Kind) bool {
+	switch kind {
+	case yamldoc.KindSequence, yamldoc.KindMapping, yamldoc.KindTagged:
+		return true
+	case yamldoc.KindNull, yamldoc.KindBool, yamldoc.KindInt,
+		yamldoc.KindFloat, yamldoc.KindString:
+		return false
+	}
+	return false
 }
 
 // SnakeCaseSectionTitles is `convert_section_titles_to_snake_case`

@@ -499,6 +499,15 @@ func TestNonScalarColorTupleElementIsRejected(t *testing.T) {
 		{name: "a mapping red", yaml: `[{a: 1}, 2, 3]`},
 		{name: "a sequence green", yaml: `[1, [2], 3]`},
 		{name: "a sequence blue", yaml: `[1, 2, [3]]`},
+		// A tagged scalar is the same case, measured: `float(TaggedScalar)`
+		// raises the identical `TypeError`. The port read the tag's text as a
+		// channel and rendered at exit 0 — every row below is a *valid* number
+		// once the tag is stripped, so nothing else would reject it.
+		{name: "a tagged red", yaml: `[!!str 3, 2, 3]`},
+		{name: "a tagged green", yaml: `[1, !!str 2, 3]`},
+		{name: "a tagged blue", yaml: `[1, 2, !!str 3]`},
+		{name: "an unknown-tag blue", yaml: `[1, 2, !unknown 3]`},
+		{name: "a tagged alpha", yaml: `[1, 2, 3, !!str 0.5]`},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
