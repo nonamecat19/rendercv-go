@@ -583,7 +583,13 @@ func validateField(
 		case yamldoc.KindMapping:
 			return validateModel(node, tree, "FontFamily", theme, location, source, policy)
 		case yamldoc.KindString:
-		default:
+		case yamldoc.KindNull, yamldoc.KindBool, yamldoc.KindInt,
+			yamldoc.KindFloat, yamldoc.KindSequence, yamldoc.KindTagged:
+			// Everything that is neither the five-element mapping nor a name is
+			// the model's shape failure, `KindTagged` included — a
+			// `TaggedScalar` is no more a `str` than a list is. Named one by
+			// one rather than left to a `default` so a new kind stops here
+			// (kindguard).
 			return one(node, binder.CodeModelType, modelTypeMessage("FontFamily"), location, source)
 		}
 
