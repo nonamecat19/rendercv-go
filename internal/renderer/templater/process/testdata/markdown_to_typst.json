@@ -1218,5 +1218,329 @@
  {
   "in": "    a\u001cb",
   "want": "`a\u001cb\n`"
+ },
+ {
+  "in": "a `\tx` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `x\t` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `\tx\t` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `\u000bx` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `x\u000b` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `\u000bx\u000b` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `\fx` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `x\f` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `\fx\f` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `\u001cx` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `x\u001c` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `\u001cx\u001c` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `\u001dx` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `x\u001d` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `\u001dx\u001d` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `\u001ex` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `x\u001e` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `\u001ex\u001e` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `\u001fx` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `x\u001f` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `\u001fx\u001f` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a ` x` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `x ` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a ` x ` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `x` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `x` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `x` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a ` x` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `x ` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a ` x ` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a ` x` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `x ` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a ` x ` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a ` x` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `x ` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a ` x ` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a ` x` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `x ` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a ` x ` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a ` x` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `x ` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a ` x ` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a ` x` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `x ` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a ` x ` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a ` x` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `x ` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a ` x ` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a ` x` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `x ` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a ` x ` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a ` x` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `x ` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a ` x ` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a ` x` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `x ` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a ` x ` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a ` x` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `x ` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a ` x ` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a ` x` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `x ` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a ` x ` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a ` x` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `x ` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a ` x ` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a ` x` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `x ` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a ` x ` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a ` x` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `x ` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a ` x ` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a ` x` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `x ` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a ` x ` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a ` x` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `x ` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a ` x ` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `　x` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `x　` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `　x　` span",
+  "want": "a `x` span"
  }
 ]
