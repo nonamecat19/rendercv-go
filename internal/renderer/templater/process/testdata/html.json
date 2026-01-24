@@ -1658,5 +1658,129 @@
   {
     "In": "![alt `x　` t](p.png)",
     "Out": "<p><img alt=\"alt x t\" src=\"p.png\" /></p>"
+  },
+  {
+    "In": "    code &  ",
+    "Out": "<pre><code>code &amp;\n</code></pre>"
+  },
+  {
+    "In": "    a  ",
+    "Out": "<pre><code>a\n</code></pre>"
+  },
+  {
+    "In": "    a  \n    b  ",
+    "Out": "<pre><code>a  \nb\n</code></pre>"
+  },
+  {
+    "In": "    a  \n\n    b  ",
+    "Out": "<pre><code>a\n\nb\n</code></pre>"
+  },
+  {
+    "In": "    a  \n   \n    b  ",
+    "Out": "<pre><code>a\n\nb\n</code></pre>"
+  },
+  {
+    "In": "    a  \n\n\n    b  ",
+    "Out": "<pre><code>a\n\n\nb\n</code></pre>"
+  },
+  {
+    "In": "    a  \n\n",
+    "Out": "<pre><code>a\n</code></pre>"
+  },
+  {
+    "In": "    a  \n   ",
+    "Out": "<pre><code>a\n</code></pre>"
+  },
+  {
+    "In": "    a  \n\n    b  \n\n    c  ",
+    "Out": "<pre><code>a\n\nb\n\nc\n</code></pre>"
+  },
+  {
+    "In": "    a  \nb",
+    "Out": "<pre><code>a\n</code></pre>\n<p>b</p>"
+  },
+  {
+    "In": "    a\t",
+    "Out": "<pre><code>a\n</code></pre>"
+  },
+  {
+    "In": "    a  ",
+    "Out": "<pre><code>a\n</code></pre>"
+  },
+  {
+    "In": "    a\u001c",
+    "Out": "<pre><code>a\n</code></pre>"
+  },
+  {
+    "In": "     a  ",
+    "Out": "<pre><code> a\n</code></pre>"
+  },
+  {
+    "In": "\ta  ",
+    "Out": "<pre><code>a\n</code></pre>"
+  },
+  {
+    "In": "p\n\n    a  ",
+    "Out": "<p>p</p>\n<pre><code>a\n</code></pre>"
+  },
+  {
+    "In": "    a  \n\n    b",
+    "Out": "<pre><code>a\n\nb\n</code></pre>"
+  },
+  {
+    "In": "    a\n\n    b  ",
+    "Out": "<pre><code>a\n\nb\n</code></pre>"
+  },
+  {
+    "In": "    a  \n\n> q",
+    "Out": "<pre><code>a\n</code></pre>\n<blockquote>\n<p>q</p>\n</blockquote>"
+  },
+  {
+    "In": "    a  \n       \n    b  ",
+    "Out": "<pre><code>a\n\nb\n</code></pre>"
+  },
+  {
+    "In": "    a  \n    \n    b  ",
+    "Out": "<pre><code>a\n\nb\n</code></pre>"
+  },
+  {
+    "In": "> a\n>\n>     x  ",
+    "Out": "<blockquote>\n<p>a</p>\n<pre><code>x\n</code></pre>\n</blockquote>"
+  },
+  {
+    "In": "    a  \n\n    b  \nc",
+    "Out": "<pre><code>a\n\nb\n</code></pre>\n<p>c</p>"
+  },
+  {
+    "In": "    <b> &amp; x  ",
+    "Out": "<pre><code>&lt;b&gt; &amp;amp; x\n</code></pre>"
+  },
+  {
+    "In": "    a  \n\n    \n\n    b  ",
+    "Out": "<pre><code>a\n\n\n\nb\n</code></pre>"
+  },
+  {
+    "In": "    a\\  ",
+    "Out": "<pre><code>a\\\n</code></pre>"
+  },
+  {
+    "In": "\n    a  ",
+    "Out": "<pre><code>a\n</code></pre>"
+  },
+  {
+    "In": "    a  \n\n\n\n    b  ",
+    "Out": "<pre><code>a\n\n\n\nb\n</code></pre>"
+  },
+  {
+    "In": "    a  \nb\n\n    c  ",
+    "Out": "<pre><code>a\n</code></pre>\n<p>b</p>\n<pre><code>c\n</code></pre>"
+  },
+  {
+    "In": "    a  \n\n\n",
+    "Out": "<pre><code>a\n</code></pre>"
+  },
+  {
+    "In": "    a\f",
+    "Out": "<pre><code>a\n</code></pre>"
   }
 ]
