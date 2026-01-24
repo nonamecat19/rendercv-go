@@ -49,17 +49,18 @@ func (r codeSpanRenderer) renderCodeSpan(
 	return ast.WalkSkipChildren, nil
 }
 
-// stripSpace is Python's `str.strip()` over the ASCII whitespace set. It is
-// generic for the same reason `matchBackticks` is: both the HTML path's `[]byte`
-// and the Typst inline pass's `string` need `BacktickInlineProcessor`'s
-// `m.group(3).strip()` (`inlinepatterns.py:444-456`).
+// stripSpace is Python's `str.strip()` with no argument. It is generic for the
+// same reason `matchBackticks` is: the HTML path's `[]byte`, the image label's
+// `[]byte` and the Typst inline pass's `string` all need
+// `BacktickInlineProcessor`'s `m.group(3).strip()`
+// (`inlinepatterns.py:444-456`).
+//
+// **The predicate is Python's whole 29-character set, not the ASCII six.** It
+// used to be the latter, so a code span padded with a non-breaking space — which
+// a double-quoted YAML scalar carries into a highlight verbatim — kept its
+// padding in the .typ and in the .html alike, where upstream drops it. The set
+// is `isPythonSpace` (`markdown.go:199`), the same one the code-block `rstrip`
+// next door reads; the only difference here is that `strip()` trims both ends.
 func stripSpace[T ~[]byte | ~string](b T) T {
-	start, end := 0, len(b)
-	for start < end && isSpaceByte(b[start]) {
-		start++
-	}
-	for end > start && isSpaceByte(b[end-1]) {
-		end--
-	}
-	return b[start:end]
+	return T(trimPythonSpace(string(b)))
 }
