@@ -142,7 +142,25 @@ three outcomes explicitly, and `example_test.go` shows the check.
 
 ### 3.3 Q3 — aliases or a conversion boundary
 
-**Decision: aliases**, for the error types (§1.2) and for `Model` and `Document`.
+**Decision: aliases for the error types and `Document`; `Model` is an opaque struct.**
+
+> **Amended during T-5, and the amendment is the point of building it.** This section originally
+> said `Model` would alias `*models.RenderCVModel`. It cannot. The generators do not take that type
+> — they take `bridge.Document`, the *resolved* model (`bridge.Resolve(model, now)`,
+> `bridge/model.go:29`), which is where the theme is selected and a custom theme's Lua script is
+> executed. Beyond it they need three more things the CLI assembles by hand: the input directory,
+> the output folder, and a `PathInput` carrying the plain `cv.name` and the locale's date
+> placeholders.
+>
+> Upstream needs no equivalent because it keeps all of it *inside* `RenderCVModel` —
+> `settings.render_command` holds the path templates and `_input_file_path` holds the directory
+> (`rendercv_model.py:44-62`). The port keeps them beside the model instead, which is a real
+> structural difference and not one an alias can paper over.
+>
+> So `Model` is an opaque struct with no exported fields, returned by `Build` and accepted by the
+> five generators. This makes §1.3's conclusion stronger rather than weaker: a caller cannot
+> hand-build one, so the `_input_file_path` hazard is unreachable by construction rather than merely
+> undocumented.
 
 The honest tension: spec §5 criterion 1 says `pkg/rendercv` must not import `internal/`, and an alias
 *is* an import. The criterion's intent is that no `internal/` type appears in the **exported
