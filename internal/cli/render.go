@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -11,12 +10,9 @@ import (
 	"time"
 
 	"github.com/nonamecat19/rendercv-go/internal/renderer/bridge"
-	"github.com/nonamecat19/rendercv-go/internal/renderer/document"
-	"github.com/nonamecat19/rendercv-go/internal/renderer/templater"
+	"github.com/nonamecat19/rendercv-go/internal/renderer/generate"
 	"github.com/nonamecat19/rendercv-go/internal/renderer/templater/process"
-	"github.com/nonamecat19/rendercv-go/internal/renderer/typstc"
 	"github.com/nonamecat19/rendercv-go/internal/schema/modelbuilder"
-	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/design"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/valctx"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
@@ -195,7 +191,7 @@ func renderOnce(options RenderOptions, stdout, stderr io.Writer) int {
 	// **The order is upstream's**: Typst, then PDF, then PNG, then Markdown,
 	// then HTML — and it is the order the result panel lists them in.
 	var rows []PanelRow
-	markdown := ""
+	markdownPath := ""
 	typstPath := ""
 
 	// **Gated on the merged model, not the CLI flag** (G-6). The flags were
@@ -203,16 +199,25 @@ func renderOnce(options RenderOptions, stdout, stderr io.Writer) int {
 	// upstream gates inside each generator on the merged value — so a document
 	// or a `--settings` overlay switching a format off works exactly as the
 	// flag does.
-	generate := doc.Settings.RenderCommand
+	//
+	// The generators gate on the same value themselves, since upstream's do
+	// (`typst.py:24`). The CLI still checks it here because a skipped format
+	// must contribute no progress row, which is the CLI's own concern.
+	generateFlags := doc.Settings.RenderCommand
 
-	if !generate.DontGenerateTypst {
+	genOptions := generate.Options{
+		InputDir:     inputDir,
+		PathInput:    pathInput,
+		TypstPath:    options.TypstPath,
+		PDFPath:      options.PDFPath,
+		PNGPath:      options.PNGPath,
+		MarkdownPath: options.MarkdownPath,
+		HTMLPath:     options.HTMLPath,
+	}
+
+	if !generateFlags.DontGenerateTypst {
 		stepStart := time.Now()
-		out, err := document.Render(doc, templater.FormatTypst, document.Options{InputDir: inputDir})
-		if err != nil {
-			failPanel(liveOut, err)
-			return exitValidationError
-		}
-		path, err := writeArtifact(orDefault(options.TypstPath, DefaultTypstPath), pathInput, out)
+		path, err := generate.Typst(doc, genOptions)
 		if err != nil {
 			failPanel(liveOut, err)
 			return exitValidationError
@@ -225,9 +230,9 @@ func renderOnce(options RenderOptions, stdout, stderr io.Writer) int {
 	// why upstream returns early from both when `typst_path is None`
 	// (`pdf_png.py:33,63`): `--notyp` disables them by omission, not by a flag
 	// of their own.
-	if !generate.DontGeneratePDF && typstPath != "" {
+	if !generateFlags.DontGeneratePDF && typstPath != "" {
 		stepStart := time.Now()
-		path, err := renderPDF(doc, typstPath, orDefault(options.PDFPath, DefaultPDFPath), pathInput, inputDir)
+		path, err := generate.PDF(doc, typstPath, genOptions)
 		if err != nil {
 			failPanel(liveOut, err)
 			return exitValidationError
@@ -235,9 +240,9 @@ func renderOnce(options RenderOptions, stdout, stderr io.Writer) int {
 		rows = append(rows, PanelRow{Mark: "✓", Timing: timing(stepStart), Label: "Generated PDF:", Value: display(path)})
 	}
 
-	if !generate.DontGeneratePNG && typstPath != "" {
+	if !generateFlags.DontGeneratePNG && typstPath != "" {
 		stepStart := time.Now()
-		paths, err := renderPNGs(doc, typstPath, orDefault(options.PNGPath, DefaultPNGPath), pathInput, inputDir)
+		paths, err := generate.PNG(doc, typstPath, genOptions)
 		if err != nil {
 			failPanel(liveOut, err)
 			return exitValidationError
@@ -262,36 +267,28 @@ func renderOnce(options RenderOptions, stdout, stderr io.Writer) int {
 		}
 	}
 
-	if !generate.DontGenerateMarkdown {
+	if !generateFlags.DontGenerateMarkdown {
 		stepStart := time.Now()
-		out, err := document.Render(doc, templater.FormatMarkdown, document.Options{InputDir: inputDir})
+		path, err := generate.Markdown(doc, genOptions)
 		if err != nil {
 			failPanel(liveOut, err)
 			return exitValidationError
 		}
-		markdown = out
-		path, err := writeArtifact(orDefault(options.MarkdownPath, DefaultMarkdownPath), pathInput, out)
-		if err != nil {
-			failPanel(liveOut, err)
-			return exitValidationError
-		}
+		markdownPath = path
 		rows = append(rows, PanelRow{Mark: "✓", Timing: timing(stepStart), Label: "Generated Markdown:", Value: display(path)})
 	}
 
-	if !generate.DontGenerateHTML {
+	if !generateFlags.DontGenerateHTML {
 		// **The HTML needs the Markdown's text**, and upstream disables it
 		// outright when the Markdown was not generated (`html.py:28-30`) rather
-		// than rendering one just for this.
-		if markdown == "" {
+		// than rendering one just for this. `generate.HTML` gates on that
+		// itself; the CLI checks here only because a skipped format must
+		// contribute no progress row.
+		if markdownPath == "" {
 			return finish(options, rows, liveOut)
 		}
 		stepStart := time.Now()
-		out, err := document.RenderHTML(doc, markdown, document.Options{InputDir: inputDir})
-		if err != nil {
-			failPanel(liveOut, err)
-			return exitValidationError
-		}
-		path, err := writeArtifact(orDefault(options.HTMLPath, DefaultHTMLPath), pathInput, out)
+		path, err := generate.HTML(doc, markdownPath, genOptions)
 		if err != nil {
 			failPanel(liveOut, err)
 			return exitValidationError
@@ -350,122 +347,6 @@ func writeLivePanel(stdout io.Writer, panel string) {
 // last byte `0a`) against the vendored Python at `COLUMNS=80`.
 func writePrintedPanel(stdout io.Writer, panel string) {
 	_, _ = fmt.Fprint(stdout, panel)
-}
-
-func writeArtifact(template string, input PathInput, content string) (string, error) {
-	path, err := ResolvePath(template, input)
-	if err != nil {
-		return "", err
-	}
-	return path, os.WriteFile(path, []byte(content), 0o644)
-}
-
-// renderPDF is `generate_pdf` (`pdf_png.py:16-44`): resolve the path, copy the
-// photo next to the `.typ`, compile.
-func renderPDF(doc bridge.Document, typstPath, template string, input PathInput, inputDir string) (string, error) {
-	path, err := ResolvePath(template, input)
-	if err != nil {
-		return "", err
-	}
-	if err := copyPhotoNextToTypst(doc, typstPath); err != nil {
-		return "", err
-	}
-	_, err = typstc.Compile(context.Background(), typstc.Request{
-		InputPath:  typstPath,
-		OutputPath: path,
-		Format:     typstc.FormatPDF,
-		FontDirs:   []string{design.Join(inputDir, "fonts")},
-		Today:      doc.Settings.CurrentDate,
-	})
-	if err != nil {
-		return "", err
-	}
-	return path, nil
-}
-
-// renderPNGs is `generate_png` (`pdf_png.py:47-91`). The stale-file sweep is
-// upstream's and it matters: a CV that shrinks from three pages to two would
-// otherwise leave `_3.png` behind, and the golden file sets would not match.
-func renderPNGs(doc bridge.Document, typstPath, template string, input PathInput, inputDir string) ([]string, error) {
-	path, err := ResolvePath(template, input)
-	if err != nil {
-		return nil, err
-	}
-
-	stem := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
-	dir := filepath.Dir(path)
-	stale, err := filepath.Glob(filepath.Join(dir, stem+"_*.png"))
-	if err != nil {
-		return nil, err
-	}
-	for _, existing := range stale {
-		if info, err := os.Stat(existing); err == nil && info.Mode().IsRegular() {
-			if err := os.Remove(existing); err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	if err := copyPhotoNextToTypst(doc, typstPath); err != nil {
-		return nil, err
-	}
-
-	// The compiler writes `<prefix>_<n>.png` itself, so it is handed the stem
-	// rather than a file name.
-	result, err := typstc.Compile(context.Background(), typstc.Request{
-		InputPath:  typstPath,
-		OutputPath: filepath.Join(dir, stem),
-		Format:     typstc.FormatPNG,
-		FontDirs:   []string{design.Join(inputDir, "fonts")},
-		Today:      doc.Settings.CurrentDate,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	paths := make([]string, 0, result.Pages)
-	for page := 1; page <= result.Pages; page++ {
-		paths = append(paths, filepath.Join(dir, fmt.Sprintf("%s_%d.png", stem, page)))
-	}
-	return paths, nil
-}
-
-// copyPhotoNextToTypst is `copy_photo_next_to_typst_file` (`pdf_png.py:94-111`).
-// The Typst source refers to the photo by base name, because the compiler
-// resolves image paths relative to the source file — so the file has to be
-// beside it.
-func copyPhotoNextToTypst(doc bridge.Document, typstPath string) error {
-	model := doc.Model
-	if model == nil || model.CvModel == nil || model.CvModel.PhotoValue == nil {
-		return nil
-	}
-	photo := model.CvModel.PhotoValue
-	if photo.Kind != cv.PhotoKindPath {
-		return nil
-	}
-
-	source := photo.Path.Value
-	destination := filepath.Join(filepath.Dir(typstPath), filepath.Base(source))
-	if sameFile(source, destination) {
-		return nil
-	}
-
-	raw, err := os.ReadFile(source)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(destination, raw, 0o644)
-}
-
-// sameFile is upstream's `photo_path != copy_to` guard, by identity rather than
-// by string: the two spellings can differ and still name one file.
-func sameFile(a, b string) bool {
-	infoA, errA := os.Stat(a)
-	infoB, errB := os.Stat(b)
-	if errA != nil || errB != nil {
-		return false
-	}
-	return os.SameFile(infoA, infoB)
 }
 
 // displayAll is display over a list, preserving order.
