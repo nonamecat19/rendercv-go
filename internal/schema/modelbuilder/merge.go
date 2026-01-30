@@ -19,17 +19,27 @@ type BuildArguments struct {
 	DesignYaml   string
 	LocaleYaml   string
 
-	OutputFolder         string
-	TypstPath            string
-	PdfPath              string
-	MarkdownPath         string
-	HtmlPath             string
-	PngPath              string
-	DontGenerateTypst    bool
-	DontGenerateHtml     bool
-	DontGenerateMarkdown bool
-	DontGeneratePdf      bool
-	DontGeneratePng      bool
+	OutputFolder string
+	TypstPath    string
+	PdfPath      string
+	MarkdownPath string
+	HtmlPath     string
+	PngPath      string
+	// The five dont_generate_* flags are **tri-state**, mirroring upstream's
+	// `bool | None` in a `TypedDict(total=False)`
+	// (`schema/rendercv_model_builder.py:24-39`). nil is an absent key, which
+	// defers to whatever `settings.yaml` says; a non-nil false is an explicit
+	// override that forces the format back on.
+	//
+	// A plain bool could not hold that difference — `boolOverride(false)`
+	// emitted no override at all — so "force it on over a settings file that
+	// switched it off" was unreachable. The CLI cannot reach it either, its
+	// flags being switches that only set true, which is why nothing noticed.
+	DontGenerateTypst    *bool
+	DontGenerateHtml     *bool
+	DontGenerateMarkdown *bool
+	DontGeneratePdf      *bool
+	DontGeneratePng      *bool
 
 	Overrides map[string]string
 }
@@ -249,11 +259,18 @@ func stringOverride(value string) *yamldoc.Node {
 	return &yamldoc.Node{Kind: yamldoc.KindString, Raw: value}
 }
 
-func boolOverride(value bool) *yamldoc.Node {
-	if !value {
+// boolOverride is the tri-state of BuildArguments' dont_generate_* fields: nil
+// contributes no override, and a non-nil value contributes its own spelling —
+// including false, which forces a format back on over a settings file that
+// switched it off.
+func boolOverride(value *bool) *yamldoc.Node {
+	if value == nil {
 		return nil
 	}
-	return &yamldoc.Node{Kind: yamldoc.KindBool, Raw: "true"}
+	if *value {
+		return &yamldoc.Node{Kind: yamldoc.KindBool, Raw: "true"}
+	}
+	return &yamldoc.Node{Kind: yamldoc.KindBool, Raw: "false"}
 }
 
 // setDefaultMapping mirrors dict.setdefault(key, {}) on a mapping node: it
