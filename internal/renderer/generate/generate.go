@@ -32,15 +32,14 @@ type Options struct {
 
 	// PathInput carries what the path templates substitute into.
 	PathInput PathInput
-
-	// TypstPath and the rest are the path templates. An empty string means the
-	// default for that format, exactly as an absent CLI flag does.
-	TypstPath    string
-	PDFPath      string
-	PNGPath      string
-	MarkdownPath string
-	HTMLPath     string
 }
+
+// The path templates are NOT options: they come off the resolved document, as
+// upstream's do (`renderer/typst.py:26` passes
+// `rendercv_model.settings.render_command.typst_path`). A CLI flag reaches them
+// by being merged into `settings.render_command` before the document is
+// resolved, so a flag already beats a document value by the time these are
+// read.
 
 // OutputFolderFor is where artifacts go, given the input file and whatever
 // output folder was asked for.
@@ -110,7 +109,7 @@ func Typst(doc bridge.Document, options Options) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return writeArtifact(orDefault(options.TypstPath, DefaultTypstPath), options.PathInput, out)
+	return writeArtifact(orDefault(doc.Settings.RenderCommand.TypstPath, DefaultTypstPath), options.PathInput, out)
 }
 
 // Markdown is `generate_markdown` (`renderer/markdown.py:9-29`).
@@ -125,7 +124,7 @@ func Markdown(doc bridge.Document, options Options) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return writeArtifact(orDefault(options.MarkdownPath, DefaultMarkdownPath), options.PathInput, out)
+	return writeArtifact(orDefault(doc.Settings.RenderCommand.MarkdownPath, DefaultMarkdownPath), options.PathInput, out)
 }
 
 // HTML is `generate_html` (`renderer/html.py:9-33`).
@@ -150,7 +149,7 @@ func HTML(doc bridge.Document, markdownPath string, options Options) (string, er
 	if err != nil {
 		return "", err
 	}
-	return writeArtifact(orDefault(options.HTMLPath, DefaultHTMLPath), options.PathInput, out)
+	return writeArtifact(orDefault(doc.Settings.RenderCommand.HTMLPath, DefaultHTMLPath), options.PathInput, out)
 }
 
 // PDF is `generate_pdf` (`renderer/pdf_png.py:16-44`): resolve the path, copy
@@ -165,7 +164,7 @@ func PDF(doc bridge.Document, typstPath string, options Options) (string, error)
 	if doc.Settings.RenderCommand.DontGeneratePDF || typstPath == "" {
 		return "", nil
 	}
-	path, err := ResolvePath(orDefault(options.PDFPath, DefaultPDFPath), options.PathInput)
+	path, err := ResolvePath(orDefault(doc.Settings.RenderCommand.PDFPath, DefaultPDFPath), options.PathInput)
 	if err != nil {
 		return "", err
 	}
@@ -196,7 +195,7 @@ func PNG(doc bridge.Document, typstPath string, options Options) ([]string, erro
 	if doc.Settings.RenderCommand.DontGeneratePNG || typstPath == "" {
 		return nil, nil
 	}
-	path, err := ResolvePath(orDefault(options.PNGPath, DefaultPNGPath), options.PathInput)
+	path, err := ResolvePath(orDefault(doc.Settings.RenderCommand.PNGPath, DefaultPNGPath), options.PathInput)
 	if err != nil {
 		return nil, err
 	}

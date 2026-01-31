@@ -172,7 +172,7 @@ func renderOnce(options RenderOptions, stdout, stderr io.Writer) int {
 	// `design.Validate` and arrive through `BuildModel` above with every other
 	// record — which is what `err_unknown_theme` compares.
 
-	pathInput := generate.PathInputFor(doc, outputFolderFor(options))
+	pathInput := generate.PathInputFor(doc, generate.OutputFolderFor(options.InputPath, doc.Settings.RenderCommand.OutputFolder))
 
 	// **The order is upstream's**: Typst, then PDF, then PNG, then Markdown,
 	// then HTML — and it is the order the result panel lists them in.
@@ -192,13 +192,8 @@ func renderOnce(options RenderOptions, stdout, stderr io.Writer) int {
 	generateFlags := doc.Settings.RenderCommand
 
 	genOptions := generate.Options{
-		InputDir:     inputDir,
-		PathInput:    pathInput,
-		TypstPath:    options.TypstPath,
-		PDFPath:      options.PDFPath,
-		PNGPath:      options.PNGPath,
-		MarkdownPath: options.MarkdownPath,
-		HTMLPath:     options.HTMLPath,
+		InputDir:  inputDir,
+		PathInput: pathInput,
 	}
 
 	if !generateFlags.DontGenerateTypst {
@@ -443,20 +438,6 @@ func orDefault(value, fallback string) string {
 		return fallback
 	}
 	return value
-}
-
-// outputFolderFor resolves the output folder against the input file's
-// directory. An absolute folder is taken as given.
-//
-// **Lexically, both halves.** `output_folder` is a
-// `PlannedPathRelativeToInput`, and `schema/models/path.py:39-41` resolves one
-// as `input_file_path.parent / path` — `PurePath.parent` and `PurePath`'s `/`,
-// neither of which cleans. This line was `filepath.Join(filepath.Dir(…))`, two
-// `Clean`s, and through a symlinked component it named a different directory:
-// `render ./bb/../bb/CV.yaml` wrote `other/real/rendercv_output` where upstream
-// wrote `other/bb/rendercv_output`, at exit 0 with nothing warning the user.
-func outputFolderFor(options RenderOptions) string {
-	return generate.OutputFolderFor(options.InputPath, options.OutputFolder)
 }
 
 // inputDirFor is the input file's directory as every upstream site that needs
