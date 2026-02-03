@@ -79,7 +79,7 @@ func Build(mainYAML string, options BuildOptions) (*Document, *Model, error) {
 		doc: doc,
 		options: generateOptions{
 			InputDir:  inputDir,
-			PathInput: generate.PathInputFor(doc, outputFolder),
+			PathInput: generate.PathInputFor(doc, inputDir, outputFolder),
 		},
 	}, nil
 }

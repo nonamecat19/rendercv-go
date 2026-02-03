@@ -172,7 +172,7 @@ func renderOnce(options RenderOptions, stdout, stderr io.Writer) int {
 	// `design.Validate` and arrive through `BuildModel` above with every other
 	// record — which is what `err_unknown_theme` compares.
 
-	pathInput := generate.PathInputFor(doc, generate.OutputFolderFor(options.InputPath, doc.Settings.RenderCommand.OutputFolder))
+	pathInput := generate.PathInputFor(doc, inputDir, generate.OutputFolderFor(options.InputPath, doc.Settings.RenderCommand.OutputFolder))
 
 	// **The order is upstream's**: Typst, then PDF, then PNG, then Markdown,
 	// then HTML — and it is the order the result panel lists them in.

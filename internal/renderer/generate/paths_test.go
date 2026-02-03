@@ -94,7 +94,13 @@ func TestOutputFolderIsAComponent(t *testing.T) {
 	if got := resolveOutputFolder("a/MY_OUTPUT_FOLDER.typ", "out"); got != "a/MY_OUTPUT_FOLDER.typ" {
 		t.Errorf("= %q, want it untouched", got)
 	}
-	if got := resolveOutputFolder("a/OUTPUT_FOLDER/b.typ", "out"); got != "a/out/b.typ" {
-		t.Errorf("= %q, want the component replaced", got)
+	// **Everything before the placeholder is discarded** — upstream returns
+	// `output_folder / suffix_parts` (`path_resolver.py:34-37`), not the
+	// original path with one component swapped. This test asserted the swap
+	// until iteration 16's verifier found that the two differ as soon as a
+	// template carries a prefix, which it does once templates are resolved
+	// against the input directory.
+	if got := resolveOutputFolder("a/OUTPUT_FOLDER/b.typ", "out"); got != "out/b.typ" {
+		t.Errorf("= %q, want the prefix discarded", got)
 	}
 }
