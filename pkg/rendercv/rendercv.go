@@ -91,8 +91,8 @@ func Build(mainYAML string, options BuildOptions) (*Document, *Model, error) {
 // settings.render_command.dont_generate_typst is set, which is a successful
 // outcome and not a failure.
 func GenerateTypst(m *Model) (string, error) {
-	if m == nil {
-		return "", &InternalError{Message: "GenerateTypst called with a nil model"}
+	if !m.built() {
+		return "", &InternalError{Message: "GenerateTypst called with a model that did not come from Build"}
 	}
 	return generate.Typst(m.doc, m.options)
 }
@@ -103,8 +103,8 @@ func GenerateTypst(m *Model) (string, error) {
 // It returns the written path; or "" and a nil error when
 // dont_generate_markdown is set.
 func GenerateMarkdown(m *Model) (string, error) {
-	if m == nil {
-		return "", &InternalError{Message: "GenerateMarkdown called with a nil model"}
+	if !m.built() {
+		return "", &InternalError{Message: "GenerateMarkdown called with a model that did not come from Build"}
 	}
 	return generate.Markdown(m.doc, m.options)
 }
@@ -119,8 +119,8 @@ func GenerateMarkdown(m *Model) (string, error) {
 // GenerateMarkdown's result straight through does the right thing in both
 // cases.
 func GenerateHTML(m *Model, markdownPath string) (string, error) {
-	if m == nil {
-		return "", &InternalError{Message: "GenerateHTML called with a nil model"}
+	if !m.built() {
+		return "", &InternalError{Message: "GenerateHTML called with a model that did not come from Build"}
 	}
 	return generate.HTML(m.doc, markdownPath, m.options)
 }
@@ -133,8 +133,8 @@ func GenerateHTML(m *Model, markdownPath string) (string, error) {
 // disk, so upstream returns early when there is none (pdf_png.py:33). Passing
 // GenerateTypst's result straight through does the right thing in both cases.
 func GeneratePDF(m *Model, typstPath string) (string, error) {
-	if m == nil {
-		return "", &InternalError{Message: "GeneratePDF called with a nil model"}
+	if !m.built() {
+		return "", &InternalError{Message: "GeneratePDF called with a model that did not come from Build"}
 	}
 	return generate.PDF(m.doc, typstPath, m.options)
 }
@@ -148,8 +148,8 @@ func GeneratePDF(m *Model, typstPath string) (string, error) {
 // error when dont_generate_png is set or typstPath is empty. A nil slice and an
 // empty non-nil slice are different values, and the nil one is "not generated".
 func GeneratePNG(m *Model, typstPath string) ([]string, error) {
-	if m == nil {
-		return nil, &InternalError{Message: "GeneratePNG called with a nil model"}
+	if !m.built() {
+		return nil, &InternalError{Message: "GeneratePNG called with a model that did not come from Build"}
 	}
 	return generate.PNG(m.doc, typstPath, m.options)
 }

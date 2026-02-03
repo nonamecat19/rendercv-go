@@ -180,10 +180,33 @@ func TestReadYAMLDoesNotValidate(t *testing.T) {
 	}
 }
 
-// A nil model is the caller's bug, not the user's, so it is an InternalError —
-// upstream's RenderCVInternalError descends from RuntimeError for the same
-// reason.
-func TestANilModelIsAnInternalError(t *testing.T) {
+// A model that did not come from Build is the caller's bug, not the user's, so
+// it is an InternalError — upstream's RenderCVInternalError descends from
+// RuntimeError for the same reason.
+//
+// **The zero value is one of those**, and it is reachable: `var m Model`
+// compiles outside this package despite every field being unexported. It used
+// to panic.
+func TestAModelThatDidNotComeFromBuildIsAnInternalError(t *testing.T) {
+	var zero rendercv.Model
+	for _, m := range []*rendercv.Model{nil, &zero} {
+		if _, err := rendercv.GenerateTypst(m); err == nil {
+			t.Error("GenerateTypst accepted a model that did not come from Build")
+		}
+		if _, err := rendercv.GenerateMarkdown(m); err == nil {
+			t.Error("GenerateMarkdown accepted one")
+		}
+		if _, err := rendercv.GenerateHTML(m, "x.md"); err == nil {
+			t.Error("GenerateHTML accepted one")
+		}
+		if _, err := rendercv.GeneratePDF(m, "x.typ"); err == nil {
+			t.Error("GeneratePDF accepted one")
+		}
+		if _, err := rendercv.GeneratePNG(m, "x.typ"); err == nil {
+			t.Error("GeneratePNG accepted one")
+		}
+	}
+
 	_, err := rendercv.GenerateTypst(nil)
 	var internal *rendercv.InternalError
 	if !errors.As(err, &internal) {
@@ -207,5 +230,36 @@ func TestModelNameIsTheDocumentsName(t *testing.T) {
 	var absent *rendercv.Model
 	if got := absent.Name(); got != "" {
 		t.Errorf("a nil model's Name() = %q, want \"\"", got)
+	}
+}
+
+// Spec §5.5 wants all four error types reachable and distinguishable, and
+// UserError was the one appearing only in a negative assertion.
+//
+// An override naming a list index that does not exist is upstream's
+// `Index {i} is out of range` (merge.go:195, mirroring
+// override_dictionary.py) — a user error with no document location, which is
+// exactly what RenderCVUserError is (exception.py:22-24).
+func TestAnOutOfRangeOverrideIsAUserError(t *testing.T) {
+	_, _, err := rendercv.Build(minimalCV, rendercv.BuildOptions{
+		Overrides: map[string]string{"cv.sections.experience.9.company": "x"},
+	})
+	if err == nil {
+		t.Fatal("Build accepted an out-of-range override index")
+	}
+
+	var user *rendercv.UserError
+	if !errors.As(err, &user) {
+		t.Fatalf("err is %T, want a *UserError", err)
+	}
+	if user.Message == "" {
+		t.Error("a UserError with no message")
+	}
+
+	// It is specifically not a validation error: there is no document location
+	// to report, which is the distinction between the two upstream types.
+	var validation *rendercv.UserValidationError
+	if errors.As(err, &validation) {
+		t.Error("an out-of-range override reported as a validation error")
 	}
 }
