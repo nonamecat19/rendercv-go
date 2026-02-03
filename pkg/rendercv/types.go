@@ -65,7 +65,7 @@ type Model struct {
 }
 
 // Name is the CV's name as the document spelled it, or "" when the document
-// has none. It is exposed because a caller that renders several documents needs
+// has none — `cv.name` (schema/models/cv/cv.py:31). It is exposed because a caller that renders several documents needs
 // something to tell them apart, and every other field is machinery.
 func (m *Model) Name() string {
 	if m == nil || m.doc.Model == nil || m.doc.Model.CvModel == nil {

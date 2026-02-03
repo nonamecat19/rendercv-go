@@ -48,34 +48,85 @@ func TestEveryExportedSymbolCitesItsUpstreamConstruct(t *testing.T) {
 // types.go are how the model and error types cross the boundary, and they are
 // the only mention allowed.
 func TestNoInternalTypeInAnExportedSignature(t *testing.T) {
-	for path, file := range parseSources(t, ".") {
-		func() {
-			if filepath.Base(path) == "types.go" {
-				return
-			}
-			// The qualifier in `yamldoc.Node` says nothing about where
-			// yamldoc lives, so it has to be resolved through the file's
-			// imports. Checking the qualifier itself is how the first version
-			// of this test passed a planted violation.
-			imports := importPaths(file)
+	// **types.go is not exempt.** Only an *alias declaration* is allowed to
+	// name an internal package, and an alias is a TypeSpec — never a function
+	// signature. Exempting the whole file, as this test first did, let an
+	// exported function declared there leak an internal type unnoticed.
+	for _, file := range parseSources(t, ".") {
+		// The qualifier in `yamldoc.Node` says nothing about where yamldoc
+		// lives, so it has to be resolved through the file's imports. Checking
+		// the qualifier itself is how the first version of this test passed a
+		// planted violation.
+		imports := importPaths(file)
 
-			for _, decl := range file.Decls {
-				fn, ok := decl.(*ast.FuncDecl)
-				if !ok || !fn.Name.IsExported() || fn.Recv != nil {
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			// **Methods count**, for the same reason they do in the citation
+			// check: a receiver does not make a signature less public.
+			if !ok || !fn.Name.IsExported() {
+				continue
+			}
+			for _, qualifier := range signatureQualifiers(fn) {
+				path, ok := imports[qualifier]
+				if !ok {
 					continue
 				}
-				for _, qualifier := range signatureQualifiers(fn) {
-					path, ok := imports[qualifier]
-					if !ok {
-						continue
-					}
-					if strings.Contains(path, "/internal/") {
-						t.Errorf("%s's signature names %s.…, which is %s; an internal type must cross the boundary as an alias in types.go",
-							fn.Name.Name, qualifier, path)
+				if strings.Contains(path, "/internal/") {
+					t.Errorf("%s's signature names %s.…, which is %s; an internal type must cross the boundary as an alias in types.go",
+						qualifiedName(fn), qualifier, path)
+				}
+			}
+		}
+	}
+}
+
+// TestEveryExportedFieldIsDocumented covers what the citation check cannot
+// sensibly demand of a field.
+//
+// A field of an exported struct is reachable from a caller, so it is part of
+// the surface — but requiring a `.py` citation on each of BuildOptions' fifteen
+// would be noise, since the type itself cites the construct it mirrors
+// field-for-field. What it must not be is *undocumented*, which is how a field
+// gets added to a public API by accident.
+func TestEveryExportedFieldIsDocumented(t *testing.T) {
+	for _, file := range parseSources(t, ".") {
+		for _, decl := range file.Decls {
+			node, ok := decl.(*ast.GenDecl)
+			if !ok {
+				continue
+			}
+			for _, spec := range node.Specs {
+				typeSpec, ok := spec.(*ast.TypeSpec)
+				if !ok || !typeSpec.Name.IsExported() {
+					continue
+				}
+				structType, ok := typeSpec.Type.(*ast.StructType)
+				if !ok {
+					continue
+				}
+				// Fields are commonly documented in groups — one comment
+				// naming several fields, which the AST hangs on the first of
+				// them. So a field counts as documented if it carries its own
+				// comment or if some comment in the struct names it. A field
+				// added without either is what this catches.
+				described := typeSpec.Doc.Text()
+				for _, field := range structType.Fields.List {
+					described += field.Doc.Text() + field.Comment.Text()
+				}
+				for _, field := range structType.Fields.List {
+					for _, name := range field.Names {
+						if !name.IsExported() {
+							continue
+						}
+						own := field.Doc.Text() != "" || field.Comment.Text() != ""
+						if !own && !strings.Contains(described, name.Name) {
+							t.Errorf("%s.%s is named in no comment; an exported field is part of the surface",
+								typeSpec.Name.Name, name.Name)
+						}
 					}
 				}
 			}
-		}()
+		}
 	}
 }
 
@@ -154,8 +205,11 @@ func exportedDocs(t *testing.T, dir string) map[string]string {
 		for _, decl := range file.Decls {
 			switch node := decl.(type) {
 			case *ast.FuncDecl:
-				if node.Name.IsExported() && node.Recv == nil {
-					docs[node.Name.Name] = node.Doc.Text()
+				// **Methods count too.** Skipping them left (*Model).Name
+				// undocumented against AGENTS.md §9 for a whole iteration; a
+				// receiver does not make a symbol less exported.
+				if node.Name.IsExported() {
+					docs[qualifiedName(node)] = node.Doc.Text()
 				}
 			case *ast.GenDecl:
 				for _, spec := range node.Specs {
@@ -184,4 +238,20 @@ func exportedDocs(t *testing.T, dir string) map[string]string {
 		}
 	}
 	return docs
+}
+
+// qualifiedName spells a method as Receiver.Method so a failure says which type
+// it is on.
+func qualifiedName(fn *ast.FuncDecl) string {
+	if fn.Recv == nil || len(fn.Recv.List) == 0 {
+		return fn.Name.Name
+	}
+	receiver := ""
+	ast.Inspect(fn.Recv.List[0].Type, func(node ast.Node) bool {
+		if ident, ok := node.(*ast.Ident); ok && receiver == "" {
+			receiver = ident.Name
+		}
+		return true
+	})
+	return receiver + "." + fn.Name.Name
 }

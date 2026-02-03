@@ -22,8 +22,11 @@ type BuildOptions struct {
 	LocaleYAML   string
 	SettingsYAML string
 
-	// The output folder and the five path templates. An empty string means the
-	// key is absent, so the document's own settings decide. Placeholders such
+	// OutputFolder, TypstPath, PDFPath, PNGPath, MarkdownPath and HTMLPath are
+	// the output folder and the five path templates. An empty string means the
+	// key is absent, so the document's own settings decide. All six resolve
+	// against the input file's directory, not the working directory
+	// (path.py:37-41). Placeholders such
 	// as OUTPUT_FOLDER and NAME_IN_SNAKE_CASE are substituted at render time
 	// (path_resolver.py:40-109).
 	OutputFolder string
@@ -33,8 +36,10 @@ type BuildOptions struct {
 	MarkdownPath string
 	HTMLPath     string
 
-	// The five dont_generate_* flags. true suppresses a format; false is the
-	// same as leaving it out, so the document's own settings decide.
+	// DontGenerateTypst, DontGeneratePDF, DontGeneratePNG,
+	// DontGenerateMarkdown and DontGenerateHTML are the five dont_generate_*
+	// flags. true suppresses a format; false is the same as leaving it out, so
+	// the document's own settings decide.
 	//
 	// Upstream types these `bool | None`, which looks like three states, but
 	// its override loop is `if value:` (rendercv_model_builder.py:149) — so an
