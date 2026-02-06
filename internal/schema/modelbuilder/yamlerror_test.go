@@ -1115,6 +1115,103 @@ func TestOutermostDelimiterIsTheContextMark(t *testing.T) {
 	}
 }
 
+// TestFlowMapUnderAnOpenFlowSequence pins goccy's *fourth* phrasing for a block
+// line that breaks an open flow collection.
+//
+// When the breaking line's value opens a flow mapping, goccy abandons its three
+// earlier spellings and says `unexpected map key` — a message no
+// `ruamelPhrasing` row covered, so its raw text reached the user with goccy's
+// own `[2:6]` position prefix still on it, at a location goccy's token supplied
+// rather than ruamel's marks. ruamel calls every one of these
+// `while parsing a flow sequence`, from the line the sequence opened on to the
+// line the block key broke it.
+//
+// The 35 inputs goccy answers this way (found by enumerating every combination
+// of an opening delimiter, a first element, an indent of 0-6 and nine inner
+// values) are **all** open flow *sequences*: no flow mapping reaches this
+// phrasing, so the row is unconditional. Every row below was read off ruamel's
+// own `context`, `context_mark` and `problem_mark` for that exact input.
+func TestFlowMapUnderAnOpenFlowSequence(t *testing.T) {
+	tests := []struct {
+		name               string
+		src                string
+		startLine, endLine int
+	}{
+		{
+			name: "a flow map opening on the breaking line", src: "cv: [a\n  b: {c,\n",
+			startLine: 1, endLine: 2,
+		},
+		{
+			name: "the inner map has no trailing comma", src: "cv: [a\n  b: {c\n",
+			startLine: 1, endLine: 2,
+		},
+		{
+			// The inner map is complete; it is the *outer* sequence that is
+			// still open, which is why ruamel names the sequence either way.
+			name: "the inner map is closed", src: "cv: [a\n  b: {c}\n",
+			startLine: 1, endLine: 2,
+		},
+		{
+			name: "the inner map holds a pair", src: "cv: [a\n  b: {c: d,\n",
+			startLine: 1, endLine: 2,
+		},
+		{
+			name: "the inner map is empty", src: "cv: [a\n  b: {\n",
+			startLine: 1, endLine: 2,
+		},
+		{
+			// goccy's phrasing here is indentation-sensitive; a one-space
+			// indent with a two-character key reaches it too.
+			name: "a one-space indent", src: "cv: [a\n bb: {c,\n",
+			startLine: 1, endLine: 2,
+		},
+		{
+			name: "a key containing a space", src: "cv: [a, b\n   b c: {c,\n",
+			startLine: 1, endLine: 2,
+		},
+		{
+			// A closed flow above must not be mistaken for the open one.
+			name: "a closed flow on an earlier line", src: "a: [1]\ncv: [x\n  y: {z,\n",
+			startLine: 2, endLine: 3,
+		},
+		{
+			name: "a second block line after the break", src: "cv: [a\n  b: {c,\n  d: e\n",
+			startLine: 1, endLine: 2,
+		},
+		{
+			// The scan stopped on line 2, so the marker below it changes
+			// nothing — the span still ends where the block key broke the flow.
+			name: "a document marker after the break", src: "cv: [a\n  b: {c,\n...\n",
+			startLine: 1, endLine: 2,
+		},
+	}
+
+	const want = "This is not a valid YAML file. while parsing a flow sequence."
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := ReadYamlWithValidationErrors(test.src, schemaerr.SourceMain)
+
+			var userErr *schemaerr.UserValidationError
+			if !errors.As(err, &userErr) {
+				t.Fatalf("expected *schemaerr.UserValidationError, got %T: %v", err, err)
+			}
+
+			if got := userErr.Errors[0].Message; got != want {
+				t.Errorf("message =\n  %q\nwant\n  %q", got, want)
+			}
+			span := userErr.Errors[0].YamlLocation
+			if span == nil {
+				t.Fatal("yaml location = nil, want a location")
+			}
+			if span.Start.Line != test.startLine || span.End.Line != test.endLine {
+				t.Errorf("location = line %d to line %d, want line %d to line %d",
+					span.Start.Line, span.End.Line, test.startLine, test.endLine)
+			}
+		})
+	}
+}
+
 // TestScanStopsAtADocumentMarker pins that a `---` or `...` ends the stream
 // ruamel's scanner was reading, so an unterminated construct spans to the
 // marker rather than to the physical end of the file.
