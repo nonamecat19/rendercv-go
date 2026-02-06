@@ -143,11 +143,11 @@ func TestCheckSource(t *testing.T) {
 			yamldoc.KindNull:    true,
 		}
 		return set[n.Kind]`,
-		want: []kindguard.Rule{kindguard.Rule("kind-set-literal")},
+		want: []kindguard.Rule{kindguard.RuleKindSetLiteral},
 	}, {
 		name: "a slice of two kind constants is caught",
 		body: `return slices.Contains([]yamldoc.Kind{yamldoc.KindMapping, yamldoc.KindNull}, n.Kind)`,
-		want: []kindguard.Rule{kindguard.Rule("kind-set-literal")},
+		want: []kindguard.Rule{kindguard.RuleKindSetLiteral},
 	}, {
 		name: "a literal naming one kind stays legal",
 		body: `return (&yamldoc.Node{Kind: yamldoc.KindMapping}).Kind == n.Kind`,

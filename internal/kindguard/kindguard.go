@@ -21,7 +21,10 @@
 //     `if k == A { } else if k == B { }`. A subset enumerated by hand is
 //     exactly the shape that silently gained a wrong answer, and an
 //     `if`/`else if` chain is a `switch` written in the one spelling the
-//     `exhaustive` check cannot see.
+//     `exhaustive` check cannot see. A composite literal naming two or more
+//     Kinds — `map[yamldoc.Kind]bool{A: true, B: true}`, `[]yamldoc.Kind{A, B}`
+//     — is the same subset with the decision moved to a lookup, where a new
+//     Kind answers `false` rather than failing to compile.
 //
 // A *single* comparison (`k != yamldoc.KindMapping`) stays legal: it is total
 // by construction — it splits every Kind, present and future, into the named
@@ -53,6 +56,9 @@ const (
 	// RuleMultiConstantPredicate is one decision comparing a Kind against
 	// more than one constant outside a Kind switch.
 	RuleMultiConstantPredicate Rule = "multi-constant-predicate"
+	// RuleKindSetLiteral is a composite literal naming more than one Kind,
+	// which enumerates the same subset by hand as a lookup table.
+	RuleKindSetLiteral Rule = "kind-set-literal"
 )
 
 // Violation is one place that breaks a rule.
@@ -231,6 +237,8 @@ func (c *checker) check(file *ast.File) {
 			c.checkSwitch(typed)
 		case *ast.IfStmt:
 			c.checkIfChain(typed)
+		case *ast.CompositeLit:
+			c.checkCompositeLit(typed)
 		case *ast.BinaryExpr:
 			if typed.Op == token.LAND || typed.Op == token.LOR {
 				c.checkPredicateGroup(typed, c.kindComparisons(typed), "boolean expression")
@@ -290,6 +298,38 @@ func (c *checker) checkSwitchArms(stmt *ast.SwitchStmt, named map[string]bool, h
 		c.report(stmt.Pos(), RuleSwitchNotExhaustive,
 			"a switch over yamldoc.Kind must name every kind; missing "+strings.Join(missing, ", "))
 	}
+}
+
+// checkCompositeLit applies rule 2 to a literal that names Kinds directly —
+// `map[yamldoc.Kind]bool{A: true, B: true}`, `[]yamldoc.Kind{A, B}` — where
+// the decision has moved from a comparison into a lookup, and a ninth Kind
+// reads back the zero value instead of breaking the build.
+//
+// Only the literal's own keys and values count, never a nested literal's: a
+// test table of nodes that each carry one Kind is a corpus, not a decision.
+func (c *checker) checkCompositeLit(lit *ast.CompositeLit) {
+	var named []string
+	for _, element := range lit.Elts {
+		if pair, isPair := element.(*ast.KeyValueExpr); isPair {
+			if kind, isKind := c.kindConstant(pair.Key); isKind {
+				named = append(named, kind)
+				continue
+			}
+			if kind, isKind := c.kindConstant(pair.Value); isKind {
+				named = append(named, kind)
+			}
+			continue
+		}
+		if kind, isKind := c.kindConstant(element); isKind {
+			named = append(named, kind)
+		}
+	}
+	if len(named) < 2 {
+		return
+	}
+	c.report(lit.Pos(), RuleKindSetLiteral,
+		"this literal enumerates yamldoc.Kind by hand ("+strings.Join(named, ", ")+"); "+
+			"use an exhaustive switch so a new kind cannot read back the zero value")
 }
 
 // checkIfChain applies rule 2 to an `if`/`else if` chain, which is one
