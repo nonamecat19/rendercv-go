@@ -115,6 +115,14 @@ var ruamelPhrasing = []struct{ goccy, ruamel string }{
 	// own location rule too (see flowInterruptedLocation).
 	{"']' must be specified", "while parsing a flow sequence"},
 	{"'}' must be specified", "while parsing a flow mapping"},
+	// **The same break phrased a fourth way.** When the breaking line's value
+	// opens a flow mapping — `cv: [a\n  b: {c,` — goccy names neither closer
+	// and says `unexpected map key` instead. Enumerating the shape space (every
+	// opening delimiter, first element, indent 0-6 and nine inner values) found
+	// 35 inputs it answers this way and all 35 have an open flow *sequence*, so
+	// this row needs no condition. Measured on all of them: ruamel says
+	// `while parsing a flow sequence` and locates it like the rows above.
+	{"unexpected map key", "while parsing a flow sequence"},
 	{"flow map", "while parsing a flow mapping"},
 	{"quoted text", "while scanning a quoted scalar"},
 	// goccy has two spellings for a tab and only one says "tab character".
@@ -259,6 +267,21 @@ func flowNodeExpectedAtEOF(message, content string) bool {
 // end of `content`, or 0 when every one of them was closed.
 func openFlowLine(content string) int {
 	return outermostFlowOpenLine(content, strings.Count(content, "\n")+2)
+}
+
+// flowInterruptedByBlockLine reports whether a goccy message describes an open
+// flow collection that a block-mapping line disturbed, rather than one the
+// scanner carried to the end of the stream.
+//
+// goccy spells the same break by whichever token it wanted next: the closer
+// (`',' or ']' must be specified`) when the breaking line's value is a plain
+// scalar or a flow sequence, and `unexpected map key` when that value opens a
+// flow mapping. ruamel makes no such distinction — both are its context mark at
+// the opening delimiter and its problem mark at the breaking line — so both
+// take the same location rule.
+func flowInterruptedByBlockLine(message string) bool {
+	return strings.Contains(message, "must be specified") ||
+		strings.Contains(message, "unexpected map key")
 }
 
 // isUnterminatedFlow reports whether a goccy message names a flow collection
@@ -605,7 +628,7 @@ func yamlErrorLocation(parserErr goyaml.Error, content string) *yamldoc.Span {
 	// space, so not a key) are all swallowed by the flow, and the scan runs on
 	// to a document marker or the end of the file instead. Measured on all of
 	// them.
-	if strings.Contains(message, "must be specified") {
+	if flowInterruptedByBlockLine(message) {
 		if open := outermostFlowOpenLine(content, start.Line+1); open > 0 {
 			end := breakingLine(content, open)
 			if end == 0 {
