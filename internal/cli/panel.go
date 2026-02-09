@@ -141,6 +141,11 @@ func wrapKeepingWords(text string, width int) []string {
 }
 
 func fold(text string, width int, splitLongWords bool) []string {
+	// `Text.wrap` expands the line's tabs before it measures anything
+	// (`rich/text.py:1231-1233`), so this is where the expansion belongs: a row
+	// whose tab pushes it past the width wraps because of it.
+	text = expandTabs(text)
+
 	if width <= 0 || cellLen(text) <= width {
 		return []string{text}
 	}
@@ -214,6 +219,48 @@ func words(text string) func(func(string, string) bool) {
 				return
 			}
 		}
+	}
+}
+
+// tabSize is Rich's default `Console.tab_size` (`rich/console.py:643`), and
+// nothing in RenderCV overrides it.
+const tabSize = 8
+
+// expandTabs is Rich's `Text.expand_tabs` (`rich/text.py:817-857`): a tab is
+// replaced by **one space plus however many more it takes to reach the next
+// eight-column stop**, and the stops are counted in display cells from the
+// start of the line — so a tab after a wide character moves less far than a tab
+// after a narrow one.
+//
+// The port wrote the tab byte through, which left the terminal to decide how
+// wide the row was and the panel's border wherever that landed.
+func expandTabs(line string) string {
+	if !strings.Contains(line, "\t") {
+		return line
+	}
+
+	var out strings.Builder
+	position := 0
+	rest := line
+	for {
+		index := strings.IndexByte(rest, '\t')
+		if index < 0 {
+			out.WriteString(rest)
+			return out.String()
+		}
+
+		// Rich rewrites the tab itself as a space and only then asks how far
+		// the next stop is, which is why a tab that lands exactly on a stop
+		// still advances a full eight columns.
+		part := rest[:index] + " "
+		out.WriteString(part)
+		position += cellLen(part)
+		if remainder := position % tabSize; remainder != 0 {
+			spaces := tabSize - remainder
+			out.WriteString(strings.Repeat(" ", spaces))
+			position += spaces
+		}
+		rest = rest[index+1:]
 	}
 }
 

@@ -299,7 +299,11 @@ func renderCell(text string, width int, noWrap bool) []string {
 		return []string{""}
 	}
 	if noWrap {
-		return []string{truncate(text, width)}
+		// **`no_wrap` skips the wrapping, not the tab expansion**: `Text.wrap`
+		// expands each line before it looks at the flag (`rich/text.py:1231`),
+		// so a tab in a `Location` or `Input Value` cell becomes spaces here
+		// too. `fold` does it for the wrappable branch below.
+		return []string{truncate(expandTabs(text), width)}
 	}
 
 	var lines []string
