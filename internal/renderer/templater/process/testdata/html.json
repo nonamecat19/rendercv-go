@@ -1782,5 +1782,113 @@
   {
     "In": "    a\f",
     "Out": "<pre><code>a\n</code></pre>"
+  },
+  {
+    "In": "3. a",
+    "Out": "<ol>\n<li>a</li>\n</ol>"
+  },
+  {
+    "In": "3. a\n4. b",
+    "Out": "<ol>\n<li>a</li>\n<li>b</li>\n</ol>"
+  },
+  {
+    "In": "0. a",
+    "Out": "<ol>\n<li>a</li>\n</ol>"
+  },
+  {
+    "In": "10. a",
+    "Out": "<ol>\n<li>a</li>\n</ol>"
+  },
+  {
+    "In": "2. a\n1. b",
+    "Out": "<ol>\n<li>a</li>\n<li>b</li>\n</ol>"
+  },
+  {
+    "In": "7. a\n\n8. b",
+    "Out": "<ol>\n<li>\n<p>a</p>\n</li>\n<li>\n<p>b</p>\n</li>\n</ol>"
+  },
+  {
+    "In": "1. a",
+    "Out": "<ol>\n<li>a</li>\n</ol>"
+  },
+  {
+    "In": "1. a\n2. b",
+    "Out": "<ol>\n<li>a</li>\n<li>b</li>\n</ol>"
+  },
+  {
+    "In": "- x\n\n    1. y",
+    "Out": "<ul>\n<li>\n<p>x</p>\n<ol>\n<li>y</li>\n</ol>\n</li>\n</ul>"
+  },
+  {
+    "In": "- x\n\n    a",
+    "Out": "<ul>\n<li>\n<p>x</p>\n<p>a</p>\n</li>\n</ul>"
+  },
+  {
+    "In": "- x\n\n     a",
+    "Out": "<ul>\n<li>\n<p>x</p>\n<p>a</p>\n</li>\n</ul>"
+  },
+  {
+    "In": "- x\n\n      a",
+    "Out": "<ul>\n<li>\n<p>x</p>\n<p>a</p>\n</li>\n</ul>"
+  },
+  {
+    "In": "- x\n\n       a",
+    "Out": "<ul>\n<li>\n<p>x</p>\n<p>a</p>\n</li>\n</ul>"
+  },
+  {
+    "In": "1. x\n\n    a",
+    "Out": "<ol>\n<li>\n<p>x</p>\n<p>a</p>\n</li>\n</ol>"
+  },
+  {
+    "In": "1. x\n\n      a",
+    "Out": "<ol>\n<li>\n<p>x</p>\n<p>a</p>\n</li>\n</ol>"
+  },
+  {
+    "In": "10. x\n\n      a",
+    "Out": "<ol>\n<li>\n<p>x</p>\n<p>a</p>\n</li>\n</ol>"
+  },
+  {
+    "In": "* x\n\n      a",
+    "Out": "<ul>\n<li>\n<p>x</p>\n<p>a</p>\n</li>\n</ul>"
+  },
+  {
+    "In": "+ x\n\n       a",
+    "Out": "<ul>\n<li>\n<p>x</p>\n<p>a</p>\n</li>\n</ul>"
+  },
+  {
+    "In": "-     x\n\n      a",
+    "Out": "<ul>\n<li>\n<p>x</p>\n<p>a</p>\n</li>\n</ul>"
+  },
+  {
+    "In": "- x\n\n      a\n\n      b",
+    "Out": "<ul>\n<li>\n<p>x</p>\n<p>a</p>\n<p>b</p>\n</li>\n</ul>"
+  },
+  {
+    "In": "- x\n\n    a\n\n        b",
+    "Out": "<ul>\n<li>\n<p>x</p>\n<p>a</p>\n<pre><code>b\n</code></pre>\n</li>\n</ul>"
+  },
+  {
+    "In": "- x\n\n        a\n\n    b",
+    "Out": "<ul>\n<li>\n<p>x</p>\n<pre><code>a\n</code></pre>\n<p>b</p>\n</li>\n</ul>"
+  },
+  {
+    "In": "- x\n\n    - y\n\n        z",
+    "Out": "<ul>\n<li>\n<p>x</p>\n<ul>\n<li>\n<p>y</p>\n<p>z</p>\n</li>\n</ul>\n</li>\n</ul>"
+  },
+  {
+    "In": "1. x\n\n    1. y\n\n        z",
+    "Out": "<ol>\n<li>\n<p>x</p>\n<ol>\n<li>\n<p>y</p>\n<p>z</p>\n</li>\n</ol>\n</li>\n</ol>"
+  },
+  {
+    "In": "- x\n\n\ta",
+    "Out": "<ul>\n<li>\n<p>x</p>\n<p>a</p>\n</li>\n</ul>"
+  },
+  {
+    "In": "- x\n\n      *em*",
+    "Out": "<ul>\n<li>\n<p>x</p>\n<p><em>em</em></p>\n</li>\n</ul>"
+  },
+  {
+    "In": "- x\n\n      - y",
+    "Out": "<ul>\n<li>\n<p>x</p>\n<ul>\n<li>y</li>\n</ul>\n</li>\n</ul>"
   }
 ]
