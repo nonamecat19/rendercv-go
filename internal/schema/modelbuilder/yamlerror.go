@@ -386,7 +386,30 @@ func streamEndLine(content string, after int) int {
 // line reports line 1 for the outer `[`, and both open on the same line
 // anyway. Quotes are honoured so a bracket inside a scalar does not count.
 func outermostFlowOpenLine(content string, before int) int {
-	depth, openedAt := 0, 0
+	if stack := openFlowStack(content, before); len(stack) > 0 {
+		return stack[0].line
+	}
+	return 0
+}
+
+// openFlow is one flow collection the scan found still open: the delimiter that
+// opened it and the line it opened on.
+type openFlow struct {
+	delim byte
+	line  int
+}
+
+// openFlowStack is every flow collection still open when line `before` is
+// reached, outermost first.
+//
+// The whole stack is kept, not just a depth counter, because the two ends
+// answer different questions about the same failure: the outermost entry is
+// where ruamel's context mark points, and the innermost is which *kind* of
+// collection it names. Quotes and comments are honoured so a bracket inside a
+// scalar does not count, and a closer with nothing open is ignored rather than
+// underflowing.
+func openFlowStack(content string, before int) []openFlow {
+	var stack []openFlow
 	line := 1
 	inSingle, inDouble, inComment := false, false, false
 	var prev byte
@@ -421,25 +444,16 @@ func outermostFlowOpenLine(content string, before int) int {
 		case c == '"':
 			inDouble = true
 		case c == '[' || c == '{':
-			if depth == 0 {
-				openedAt = line
-			}
-			depth++
+			stack = append(stack, openFlow{delim: c, line: line})
 		case c == ']' || c == '}':
-			if depth > 0 {
-				depth--
-			}
-			if depth == 0 {
-				openedAt = 0
+			if len(stack) > 0 {
+				stack = stack[:len(stack)-1]
 			}
 		}
 		prev = c
 	}
 
-	if depth == 0 {
-		return 0
-	}
-	return openedAt
+	return stack
 }
 
 // mappingStartLine finds the line where the block mapping containing a key at
