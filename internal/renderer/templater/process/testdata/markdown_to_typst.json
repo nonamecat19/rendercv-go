@@ -1542,5 +1542,77 @@
  {
   "in": "a `　x　` span",
   "want": "a `x` span"
+ },
+ {
+  "in": "\r",
+  "want": ""
+ },
+ {
+  "in": "  \r",
+  "want": ""
+ },
+ {
+  "in": "a\r",
+  "want": "a"
+ },
+ {
+  "in": "a  \r",
+  "want": "a"
+ },
+ {
+  "in": "\ra",
+  "want": "a"
+ },
+ {
+  "in": "**a**\r",
+  "want": "#strong[a]"
+ },
+ {
+  "in": "`c`\r",
+  "want": "`c`"
+ },
+ {
+  "in": "    a\r",
+  "want": "`a\n`"
+ },
+ {
+  "in": "    a  \r",
+  "want": "`a\n`"
+ },
+ {
+  "in": "    a\r  ",
+  "want": "`a\n`"
+ },
+ {
+  "in": "    a\r\r",
+  "want": "`a\n`"
+ },
+ {
+  "in": "\r    a",
+  "want": "`a\n`"
+ },
+ {
+  "in": "    a\r\n",
+  "want": "`a\n`\n"
+ },
+ {
+  "in": "    a\rb",
+  "want": "`a\n`\nb"
+ },
+ {
+  "in": "---\ra",
+  "want": "a"
+ },
+ {
+  "in": "a\r!!! note",
+  "want": "a\n#summary[]"
+ },
+ {
+  "in": "!!! note\r",
+  "want": "#summary[]"
+ },
+ {
+  "in": "!!! note\n    a\rb",
+  "want": "#summary[a]\nb"
  }
 ]

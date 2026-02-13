@@ -3,7 +3,6 @@ package cli
 import (
 	"math"
 	"strings"
-	"unicode/utf8"
 )
 
 // TableColumn is one column of the validation-error table
@@ -90,13 +89,13 @@ func headerCells(columns []TableColumn) []string {
 func columnWidths(columns []TableColumn, rows [][]string, maxWidth, extra int) []int {
 	widths := make([]int, len(columns))
 	for i, column := range columns {
-		widest := utf8.RuneCountInString(column.Header)
+		widest := cellLen(column.Header)
 		for _, row := range rows {
 			if i >= len(row) {
 				continue
 			}
 			for line := range strings.Lines(row[i]) {
-				widest = max(widest, utf8.RuneCountInString(strings.TrimRight(line, "\n")))
+				widest = max(widest, cellLen(strings.TrimRight(line, "\n")))
 			}
 		}
 		// `_range.maximum or 1`: an empty column still occupies a cell.
@@ -300,7 +299,11 @@ func renderCell(text string, width int, noWrap bool) []string {
 		return []string{""}
 	}
 	if noWrap {
-		return []string{truncate(text, width)}
+		// **`no_wrap` skips the wrapping, not the tab expansion**: `Text.wrap`
+		// expands each line before it looks at the flag (`rich/text.py:1231`),
+		// so a tab in a `Location` or `Input Value` cell becomes spaces here
+		// too. `fold` does it for the wrappable branch below.
+		return []string{truncate(expandTabs(text), width)}
 	}
 
 	var lines []string
@@ -317,13 +320,17 @@ func renderCell(text string, width int, noWrap bool) []string {
 
 // truncate cuts text to width, spending the last column on the ellipsis.
 func truncate(text string, width int) string {
-	if utf8.RuneCountInString(text) <= width {
+	if cellLen(text) <= width {
 		return text
 	}
 	if width <= 1 {
 		return strings.Repeat(ellipsis, width)
 	}
-	return string([]rune(text)[:width-1]) + ellipsis
+	// `set_cell_size(plain, max_width - 1) + "…"` (`rich/text.py:875`): the
+	// ellipsis costs one column, and a cut that lands inside a double-width
+	// character leaves a space in its place rather than half a glyph.
+	head, _ := cutCells(text, width-1)
+	return head + ellipsis
 }
 
 // stripControlCodes is Rich's `strip_control_codes`

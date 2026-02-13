@@ -141,6 +141,12 @@ gentemplates:
 designprobe:
     go run ./tools/designprobe
 
+# Regenerate Rich's unicode width table — what every panel and table is
+# measured with. Generated, never hand-edited (AGENTS.md §10.1). Not a golden:
+# no human gate.
+cellprobe:
+    go run ./tools/cellprobe
+
 # Regenerate the help-page model — usage lines, descriptions and every option
 # row — from the vendored typer. Generated, never hand-edited (AGENTS.md §10.1).
 # Not a golden: no human gate. The layout is not in here; see specs/012-cli/help.md.

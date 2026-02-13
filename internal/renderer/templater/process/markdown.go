@@ -56,37 +56,82 @@ func isHorizontalRule(line string) bool {
 // every following line indented by four spaces — which is converted as a unit
 // because it is multi-line by design and is what `process_summary` produces.
 func MarkdownToTypst(text string) string {
-	// `NormalizeWhitespace` is a **preprocessor** (`preprocessors.py:66-73`), so
-	// it runs before any parsing on this path too — the HTML path has called it
-	// since spec 011, and this one never did. A lone `\r` was dropped instead of
-	// becoming a newline, silently merging two lines, and a tab stayed a tab
-	// where upstream expands it:
-	//
-	//	a\rb      ->  "ab"     upstream "a\nb"
-	//	a\tb      ->  "a\tb"   upstream "a   b"
-	//
-	// Both are ordinary things to find in a CV field pasted from elsewhere.
-	text = normalizeWhitespace(text)
-
+	// **The split is over the raw string** (`markdown_parser.py:175`), before any
+	// whitespace normalization — `NormalizeWhitespace` is a preprocessor
+	// (`preprocessors.py:66-73`) and so runs *inside* each `md.convert`, over one
+	// line at a time. Normalizing first and splitting after is not the same
+	// function: it turns a trailing `\r` into a top-level line boundary where
+	// upstream keeps it inside the `convert` whose `output.strip()` then removes
+	// it, so `"    a  \r"` gained a newline it does not have upstream.
 	lines := strings.Split(text, "\n")
 	parts := make([]string, 0, len(lines))
 
-	for i := 0; i < len(lines); i++ {
+	for i := 0; i < len(lines); {
 		if !strings.HasPrefix(lines[i], "!!!") {
-			parts = append(parts, convertLine(lines[i]))
+			parts = append(parts, convertChunk(lines[i]))
+			i++
 			continue
 		}
 
-		block := []string{lines[i]}
-		i++
-		for i < len(lines) && strings.HasPrefix(lines[i], "    ") {
-			block = append(block, lines[i])
-			i++
-		}
-		i--
-		parts = append(parts, strings.TrimSpace(convertAdmonition(block)))
+		block, next := admonitionBlock(lines, i)
+		parts = append(parts, convertChunk(strings.Join(block, "\n")))
+		i = next
 	}
 	return strings.Join(parts, "\n")
+}
+
+// admonitionBlock is the `!!!` line at lines[i] plus every following line
+// indented by a full `tab_length` (`markdown_parser.py:178-185`), and the index
+// the caller resumes at.
+func admonitionBlock(lines []string, i int) ([]string, int) {
+	block := []string{lines[i]}
+	i++
+	for i < len(lines) && strings.HasPrefix(lines[i], indentWidth) {
+		block = append(block, lines[i])
+		i++
+	}
+	return block, i
+}
+
+// convertChunk is one `md.convert` call: the preprocessors, the parse, and the
+// `output.strip()` `Markdown.convert` ends with (`markdown/core.py:329-360`).
+//
+// The chunk is one raw line, or the raw lines of an admonition block. It is
+// **normalized here**, which is the only place a chunk can grow lines: a `\r`
+// inside a raw line makes `md.convert` see a multi-line document. What upstream
+// then runs over it is the block parser; what runs here is still the line-wise
+// conversion, so the newline a `\r` introduces is only reproduced where the two
+// agree — a line boundary, a code block of its own, a paragraph of its own. A
+// `\r` in the *middle* of a line is still open, and is a different defect: there
+// upstream's block parser joins the halves into one block, so `"    a\r    b"`
+// is one two-line code block carrying "a\nb\n", and `"*a\rb*"` is one `#emph`
+// spanning the break. Reproducing that needs the block parser, not this loop.
+//
+// The trailing strip is what makes the trailing case exact: `"    a\r"` is one
+// code block and then an empty line here as it is upstream, and the empty line
+// is stripped off the `convert` output in both.
+//
+// The admonition grouping runs **again** over the normalized lines, because
+// `AdmonitionProcessor` is a block processor and so sees the document after the
+// preprocessors: a `\r` in front of a `!!!` opens an admonition upstream, where
+// only the top-level grouping — which reads the raw lines — would leave the
+// marker literal. `"a\r!!! note"` is `"a\n#summary[]"`, measured.
+func convertChunk(chunk string) string {
+	lines := strings.Split(normalizeWhitespace(chunk), "\n")
+	parts := make([]string, 0, len(lines))
+
+	for i := 0; i < len(lines); {
+		if !strings.HasPrefix(lines[i], "!!!") {
+			parts = append(parts, convertLine(lines[i]))
+			i++
+			continue
+		}
+
+		block, next := admonitionBlock(lines, i)
+		parts = append(parts, convertAdmonition(block))
+		i = next
+	}
+	return trimPythonSpace(strings.Join(parts, "\n"))
 }
 
 // convertLine is one `md.convert` call, and the strip at the end is **Python's,
