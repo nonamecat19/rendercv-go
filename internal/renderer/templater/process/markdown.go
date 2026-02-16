@@ -67,12 +67,13 @@ func isHorizontalRule(line string) bool {
 // every following line indented by four spaces — which is converted as a unit
 // because it is multi-line by design and is what `process_summary` produces.
 func MarkdownToTypst(text string) string {
-	// **The split is on the raw text, and `NormalizeWhitespace` runs inside each
-	// `md.convert`.** It is a *preprocessor* (`preprocessors.py:66-73`), so
-	// upstream's order is `split("\n")` first (`markdown_parser.py:176`) and the
-	// `\r` folding second, per chunk. Normalizing the whole string up front — as
-	// this did — turns a lone `\r` into a chunk boundary that upstream does not
-	// have, and every construct spanning it is lost:
+	// **The split is over the raw string** (`markdown_parser.py:175`), before any
+	// whitespace normalization — `NormalizeWhitespace` is a preprocessor
+	// (`preprocessors.py:66-73`) and so runs *inside* each `md.convert`.
+	// Normalizing first and splitting after is not the same function: it turns a
+	// `\r` into a top-level line boundary upstream does not have. A trailing one
+	// gained a newline `output.strip()` removes upstream — `"    a  \r"` — and a
+	// `\r` in the *middle* of a line took every construct spanning it with it:
 	//
 	//	a `\rx` span  ->  "a `\nx` span"  upstream "a `x` span"
 	//	[t `a\rb`](u) ->  "\\[t `a\nb`\\](u)"  upstream "#link(\"u\")[t `a\nb`]"
@@ -82,25 +83,41 @@ func MarkdownToTypst(text string) string {
 	lines := strings.Split(text, "\n")
 	parts := make([]string, 0, len(lines))
 
-	for i := 0; i < len(lines); i++ {
+	for i := 0; i < len(lines); {
 		if !strings.HasPrefix(lines[i], "!!!") {
 			parts = append(parts, convertChunk(lines[i]))
+			i++
 			continue
 		}
 
-		block := []string{lines[i]}
-		i++
-		for i < len(lines) && strings.HasPrefix(lines[i], "    ") {
-			block = append(block, lines[i])
-			i++
-		}
-		i--
-		// `md.convert("\n".join(block))` (`markdown_parser.py:186`) — one
-		// `md.convert`, so the preprocessor runs over the joined block here too.
+		// **The group goes to `convertAdmonition`, not through `convertChunk`.**
+		// `md.convert("\n".join(block))` (`markdown_parser.py:186`) is one
+		// convert, and its top-level `parseChunk` splits on a blank line
+		// *before* `AdmonitionProcessor` runs — so a second indented block after
+		// a blank line is a separate top-level block that `parse_content`
+		// re-attaches to the same `div` as a sibling
+		// (`extensions/admonition.py:70-120`). Feeding the group to
+		// `convertChunk` would split it and lose that: `!!! note\r    a\r\r    b`
+		// is `#summary[a \ b]` upstream, one admonition holding two paragraphs.
+		block, next := admonitionBlock(lines, i)
 		parts = append(parts, trimPythonSpace(strings.Join(
 			convertAdmonition(normalizeChunk(strings.Join(block, "\n"))), "\n")))
+		i = next
 	}
 	return strings.Join(parts, "\n")
+}
+
+// admonitionBlock is the `!!!` line at lines[i] plus every following line
+// indented by a full `tab_length` (`markdown_parser.py:178-185`), and the index
+// the caller resumes at.
+func admonitionBlock(lines []string, i int) ([]string, int) {
+	block := []string{lines[i]}
+	i++
+	for i < len(lines) && strings.HasPrefix(lines[i], indentWidth) {
+		block = append(block, lines[i])
+		i++
+	}
+	return block, i
 }
 
 // convertChunk is one `md.convert` call, and the strip at the end is **Python's,

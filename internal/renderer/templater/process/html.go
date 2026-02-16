@@ -40,7 +40,9 @@ var converter = goldmark.New(
 			util.Prioritized(linkParser{}, 190),
 			util.Prioritized(emphasisParser{}, 450))...),
 		parser.WithParagraphTransformers(parser.DefaultParagraphTransformers()...),
-		parser.WithASTTransformers(util.Prioritized(linkTitleSplitter{}, 100)),
+		parser.WithASTTransformers(
+			util.Prioritized(linkTitleSplitter{}, 100),
+			util.Prioritized(lazyOrderedList{}, 101)),
 	)),
 	goldmark.WithRendererOptions(
 		html.WithUnsafe(),
