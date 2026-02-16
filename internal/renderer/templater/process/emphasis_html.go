@@ -423,7 +423,7 @@ func parseEmphasisBody(container ast.Node, block text.Reader, pc parser.Context,
 				continue
 			}
 		case '!':
-			if node, ok := buildImage(block, line, segment.Start); ok {
+			if node, ok := buildImage(block, bw); ok {
 				container.AppendChild(container, node)
 				continue
 			}

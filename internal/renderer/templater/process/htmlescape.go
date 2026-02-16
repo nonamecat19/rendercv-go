@@ -351,13 +351,15 @@ func closingQuote(dest []byte, open int) int {
 	return closing
 }
 
+// trimSpaceBytes is Python's `str.strip()` over a destination or a title —
+// `href = self.unescape(href).strip()` (`inlinepatterns.py:828`) and the title's
+// own `.strip()` at `:826`.
+//
+// **The predicate is `isPythonSpace`, not a literal space.** It used to be the
+// latter, which was indistinguishable while `getLink` could only ever see one
+// line: `![a](p.png\n)` now reaches it — `IMAGE_LINK_RE` is `re.DOTALL` and the
+// destination is matched over the joined block — and kept the newline inside
+// the `src` attribute.
 func trimSpaceBytes(b []byte) []byte {
-	start, end := 0, len(b)
-	for start < end && b[start] == ' ' {
-		start++
-	}
-	for end > start && b[end-1] == ' ' {
-		end--
-	}
-	return b[start:end]
+	return []byte(trimPythonSpace(string(b)))
 }
