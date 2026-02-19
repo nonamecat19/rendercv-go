@@ -141,30 +141,31 @@ func TestWatchLoopSurvivesFailingRender(t *testing.T) {
 	}
 
 	renders := make(chan struct{}, 8)
-	done := make(chan error, 1)
+	done := make(chan struct{}, 1)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	go func() {
-		done <- watchLoop(ctx, []string{input}, func() int {
+		watchLoop(ctx, []string{input}, func() int {
 			renders <- struct{}{}
 			return exitValidationError
 		})
+		done <- struct{}{}
 	}()
 
 	// The first render happens before the loop (`watcher.py:62-63`).
 	select {
 	case <-renders:
-	case err := <-done:
-		t.Fatalf("watchLoop returned before the first render: %v", err)
+	case <-done:
+		t.Fatal("watchLoop returned before the first render")
 	case <-time.After(5 * time.Second):
 		t.Fatal("the first render never happened")
 	}
 
 	// A bounded wait: the loop must still be running.
 	select {
-	case err := <-done:
-		t.Fatalf("watchLoop returned %v after a failing render, want it still running", err)
+	case <-done:
+		t.Fatal("watchLoop returned after a failing render, want it still running")
 	case <-time.After(300 * time.Millisecond):
 	}
 
@@ -174,18 +175,15 @@ func TestWatchLoopSurvivesFailingRender(t *testing.T) {
 	}
 	select {
 	case <-renders:
-	case err := <-done:
-		t.Fatalf("watchLoop returned instead of re-rendering: %v", err)
+	case <-done:
+		t.Fatal("watchLoop returned instead of re-rendering")
 	case <-time.After(5 * time.Second):
 		t.Fatal("a modification of a watched file did not re-render")
 	}
 
 	cancel()
 	select {
-	case err := <-done:
-		if err != nil {
-			t.Errorf("watchLoop = %v, want nil on cancellation", err)
-		}
+	case <-done:
 	case <-time.After(5 * time.Second):
 		t.Fatal("watchLoop did not return on cancellation")
 	}
@@ -348,12 +346,13 @@ func TestWatchLoopWatchesTheLexicalDirectory(t *testing.T) {
 	}
 
 	renders := make(chan struct{}, 8)
-	done := make(chan error, 1)
+	done := make(chan struct{}, 1)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	go func() {
-		done <- watchLoop(ctx, WatchSet(RenderOptions{InputPath: input}), func() int {
+		defer func() { done <- struct{}{} }()
+		watchLoop(ctx, WatchSet(RenderOptions{InputPath: input}), func() int {
 			renders <- struct{}{}
 			return 0
 		})
@@ -361,8 +360,8 @@ func TestWatchLoopWatchesTheLexicalDirectory(t *testing.T) {
 
 	select {
 	case <-renders:
-	case err := <-done:
-		t.Fatalf("watchLoop returned before the first render: %v", err)
+	case <-done:
+		t.Fatal("watchLoop returned before the first render")
 	case <-time.After(5 * time.Second):
 		t.Fatal("the first render never happened")
 	}
@@ -384,8 +383,8 @@ func TestWatchLoopWatchesTheLexicalDirectory(t *testing.T) {
 	}
 	select {
 	case <-renders:
-	case err := <-done:
-		t.Fatalf("watchLoop returned instead of re-rendering: %v", err)
+	case <-done:
+		t.Fatal("watchLoop returned instead of re-rendering")
 	case <-time.After(5 * time.Second):
 		t.Fatalf("an edit under the lexical path %s did not re-render", lexical)
 	}
@@ -672,37 +671,35 @@ func TestWatchLoopSurvivesAnUnwatchableDirectory(t *testing.T) {
 	input := filepath.Join(unwatchableDir(t), "cv.yaml")
 
 	renders := make(chan struct{}, 8)
-	done := make(chan error, 1)
+	done := make(chan struct{}, 1)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	go func() {
-		done <- watchLoop(ctx, []string{input}, func() int {
+		watchLoop(ctx, []string{input}, func() int {
 			renders <- struct{}{}
 			return 0
 		})
+		done <- struct{}{}
 	}()
 
 	select {
 	case <-renders:
-	case err := <-done:
-		t.Fatalf("watchLoop returned instead of rendering: %v", err)
+	case <-done:
+		t.Fatal("watchLoop returned instead of rendering")
 	case <-time.After(5 * time.Second):
 		t.Fatal("the first render never happened")
 	}
 
 	select {
-	case err := <-done:
-		t.Fatalf("watchLoop returned %v, want it still watching", err)
+	case <-done:
+		t.Fatal("watchLoop returned, want it still watching")
 	case <-time.After(300 * time.Millisecond):
 	}
 
 	cancel()
 	select {
-	case err := <-done:
-		if err != nil {
-			t.Errorf("watchLoop = %v, want nil on cancellation", err)
-		}
+	case <-done:
 	case <-time.After(5 * time.Second):
 		t.Fatal("watchLoop did not return on cancellation")
 	}
