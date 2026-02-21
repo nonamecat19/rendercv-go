@@ -19,6 +19,17 @@ import (
 // checked in isHorizontalRule rather than in the pattern.
 var horizontalRulePattern = regexp.MustCompile(`^ {0,3}[-_*][-_* ]*$`)
 
+// admonitionPattern is `AdmonitionProcessor.RE`
+// (`markdown/extensions/admonition.py:53`) matched against one line, its
+// `(?:^|\n)` and `(?:\n|$)` bounds being the line's own ends.
+//
+// **The keyword is required and the line may hold nothing else**: `!!! note` and
+// `!!! note "T"` open an admonition, `!!!` alone and `!!! note: x` do not — the
+// trailing `*(?:\n|$)` leaves no room for the `: x`. The class and the title
+// select nothing on this path (see `convertAdmonition`), so neither group is
+// captured here.
+var admonitionPattern = regexp.MustCompile(`^!!! ?[\w\-]+( +[\w\-]+)*( +"[^"]*")? *$`)
+
 // isHorizontalRule is the rest of the rule: at least three of the **same**
 // marker, and nothing else but spaces.
 func isHorizontalRule(line string) bool {
@@ -58,11 +69,17 @@ func isHorizontalRule(line string) bool {
 func MarkdownToTypst(text string) string {
 	// **The split is over the raw string** (`markdown_parser.py:175`), before any
 	// whitespace normalization — `NormalizeWhitespace` is a preprocessor
-	// (`preprocessors.py:66-73`) and so runs *inside* each `md.convert`, over one
-	// line at a time. Normalizing first and splitting after is not the same
-	// function: it turns a trailing `\r` into a top-level line boundary where
-	// upstream keeps it inside the `convert` whose `output.strip()` then removes
-	// it, so `"    a  \r"` gained a newline it does not have upstream.
+	// (`preprocessors.py:66-73`) and so runs *inside* each `md.convert`.
+	// Normalizing first and splitting after is not the same function: it turns a
+	// `\r` into a top-level line boundary upstream does not have. A trailing one
+	// gained a newline `output.strip()` removes upstream — `"    a  \r"` — and a
+	// `\r` in the *middle* of a line took every construct spanning it with it:
+	//
+	//	a `\rx` span  ->  "a `\nx` span"  upstream "a `x` span"
+	//	[t `a\rb`](u) ->  "\\[t `a\nb`\\](u)"  upstream "#link(\"u\")[t `a\nb`]"
+	//
+	// A `\r` is what a CV field pasted from a Windows editor carries, and a
+	// chunk that keeps one is a **multi-line** `md.convert` — see `convertChunk`.
 	lines := strings.Split(text, "\n")
 	parts := make([]string, 0, len(lines))
 
@@ -73,8 +90,18 @@ func MarkdownToTypst(text string) string {
 			continue
 		}
 
+		// **The group goes to `convertAdmonition`, not through `convertChunk`.**
+		// `md.convert("\n".join(block))` (`markdown_parser.py:186`) is one
+		// convert, and its top-level `parseChunk` splits on a blank line
+		// *before* `AdmonitionProcessor` runs — so a second indented block after
+		// a blank line is a separate top-level block that `parse_content`
+		// re-attaches to the same `div` as a sibling
+		// (`extensions/admonition.py:70-120`). Feeding the group to
+		// `convertChunk` would split it and lose that: `!!! note\r    a\r\r    b`
+		// is `#summary[a \ b]` upstream, one admonition holding two paragraphs.
 		block, next := admonitionBlock(lines, i)
-		parts = append(parts, convertChunk(strings.Join(block, "\n")))
+		parts = append(parts, trimPythonSpace(strings.Join(
+			convertAdmonition(normalizeChunk(strings.Join(block, "\n"))), "\n")))
 		i = next
 	}
 	return strings.Join(parts, "\n")
@@ -93,103 +120,139 @@ func admonitionBlock(lines []string, i int) ([]string, int) {
 	return block, i
 }
 
-// convertChunk is one `md.convert` call: the preprocessors, the parse, and the
-// `output.strip()` `Markdown.convert` ends with (`markdown/core.py:329-360`).
+// convertChunk is one `md.convert` call, and the strip at the end is **Python's,
+// not a tidy-up**: `Markdown.convert` returns `output.strip()`. It is why a
+// four-space-indented line loses its indent and why a trailing
+// `#sym.ast.basic#h(0pt, weak: true) ` loses its space — both measured.
 //
-// The chunk is one raw line, or the raw lines of an admonition block. It is
-// **normalized here**, which is the only place a chunk can grow lines: a `\r`
-// inside a raw line makes `md.convert` see a multi-line document. What upstream
-// then runs over it is the block parser; what runs here is still the line-wise
-// conversion, so the newline a `\r` introduces is only reproduced where the two
-// agree — a line boundary, a code block of its own, a paragraph of its own. A
-// `\r` in the *middle* of a line is still open, and is a different defect: there
-// upstream's block parser joins the halves into one block, so `"    a\r    b"`
-// is one two-line code block carrying "a\nb\n", and `"*a\rb*"` is one `#emph`
-// spanning the break. Reproducing that needs the block parser, not this loop.
-//
-// The trailing strip is what makes the trailing case exact: `"    a\r"` is one
-// code block and then an empty line here as it is upstream, and the empty line
-// is stripped off the `convert` output in both.
-//
-// The admonition grouping runs **again** over the normalized lines, because
-// `AdmonitionProcessor` is a block processor and so sees the document after the
-// preprocessors: a `\r` in front of a `!!!` opens an admonition upstream, where
-// only the top-level grouping — which reads the raw lines — would leave the
-// marker literal. `"a\r!!! note"` is `"a\n#summary[]"`, measured.
+// A chunk is one raw line of the input, so it is usually one block and one
+// element. It is only usually: `NormalizeWhitespace` runs here (see
+// `MarkdownToTypst`) and folds a `\r` into a newline, so a chunk can arrive at
+// the block parser as several lines and produce several elements, which
+// `PrettifyTreeprocessor` and the serializer then join with `"\n"`.
 func convertChunk(chunk string) string {
-	lines := strings.Split(normalizeWhitespace(chunk), "\n")
-	parts := make([]string, 0, len(lines))
+	// `Markdown.convert`'s own first statement — `if not source.strip(): return
+	// ''` (`markdown/core.py:279-282`) — which is why the predicate has to be
+	// Python's whitespace and not Go's.
+	if trimPythonSpace(chunk) == "" {
+		return ""
+	}
 
-	for i := 0; i < len(lines); {
-		if !strings.HasPrefix(lines[i], "!!!") {
-			parts = append(parts, convertLine(lines[i]))
-			i++
-			continue
-		}
-
-		block, next := admonitionBlock(lines, i)
-		parts = append(parts, convertAdmonition(block))
-		i = next
+	parts := make([]string, 0, 2)
+	for _, block := range splitOnBlank(normalizeChunk(chunk)) {
+		parts = append(parts, convertBlock(block)...)
 	}
 	return trimPythonSpace(strings.Join(parts, "\n"))
 }
 
-// convertLine is one `md.convert` call, and the strip at the end is **Python's,
-// not a tidy-up**: `Markdown.convert` returns `output.strip()`. It is why a
-// four-space-indented line loses its indent and why a trailing
-// `#sym.ast.basic#h(0pt, weak: true) ` loses its space — both measured.
-func convertLine(line string) string {
+// normalizeChunk is `NormalizeWhitespace` (`preprocessors.py:66-73`) run over
+// one chunk, returning its lines with every whitespace-only one emptied so that
+// `splitOnBlank` can read them as block separators.
+//
+// The emptying is the preprocessor's last step, `re.sub(r'(?<=\n) +\n', '\n',
+// source)` (`:74`), and both of its edges are load-bearing. The lookbehind
+// spares the **first** line — a chunk opening with a space is not a blank line —
+// and the character class is literal spaces, so a line of `\x0b` is not emptied
+// and does not separate blocks. RE2 has no lookbehind, so the rule is applied
+// per line instead; upstream appends `"\n\n"` before the substitution, which is
+// what makes a trailing space-only line match its own trailing newline.
+func normalizeChunk(chunk string) []string {
+	lines := strings.Split(normalizeWhitespace(chunk), "\n")
+	for i := 1; i < len(lines); i++ {
+		if lines[i] != "" && strings.Trim(lines[i], " ") == "" {
+			lines[i] = ""
+		}
+	}
+	return lines
+}
+
+// convertBlock is `BlockParser.parseBlocks` over one block, in the registry's
+// priority order (`blockprocessors.py:60-77`) with the five processors spec 008
+// §4C behavior 35 names deregistered. It returns one string per element,
+// because both of the processors below can turn one block into several.
+func convertBlock(lines []string) []string {
+	if len(lines) == 0 {
+		return nil
+	}
+
+	// `AdmonitionProcessor` is registered at 105, above every core processor
+	// (`extensions/admonition.py:47`), and it **searches** the block: its `RE`
+	// starts `(?:^|\n)`, so a `!!!` line anywhere in the block opens an
+	// admonition and the lines before it are re-parsed as their own block
+	// (`:131-136`). A chunk reaches this only through a `\r`, since
+	// `MarkdownToTypst` already groups a `!!!` line that begins a raw one.
+	for i, line := range lines {
+		if !admonitionPattern.MatchString(line) {
+			continue
+		}
+		return append(convertBlock(lines[:i]), convertAdmonition(lines[i:])...)
+	}
+
 	// **`indent` is still registered.** Only five block processors are
-	// deregistered (spec 008 §4C behavior 35) and the indented-code one is not
-	// among them, so a line starting with four spaces is a code block — and
-	// `to_typst_string`'s `code` branch emits its raw text, newline included.
+	// deregistered and the indented-code one is not among them, so a block
+	// starting with four spaces is a code block — and `to_typst_string`'s `code`
+	// branch emits its raw text, newline included.
 	//
 	// It reaches a real document through a highlight that happens to start
 	// indented; `process_summary`'s four-space indent does not, because its
 	// lines are inside an admonition block that is converted as a unit.
 	//
-	// The block's text is HTML-escaped on the way in —
-	// `util.code_escape(block.rstrip())` (`markdown/blockprocessors.py:269`
-	// and `:276`) — the second of `code_escape`'s two call sites, the other
-	// being the inline code span. `to_typst_string`'s `code` branch emits the
-	// text verbatim (`markdown_parser.py:42-45`), so an indented `a & b`
-	// has to become `` `a &amp; b\n` `` here or nowhere.
-	if isHorizontalRule(line) {
-		return ""
+	// Tabs cannot appear: `normalizeWhitespace` expanded them.
+	if strings.HasPrefix(lines[0], indentWidth) {
+		body, rest := detab(lines)
+		// **`rstrip` before `code_escape`, not after.** The block processor
+		// escapes `block.rstrip()` (`blockprocessors.py:269` and `:276`) — the
+		// second of `code_escape`'s two call sites, the other being the inline
+		// code span — so the trailing whitespace of the last line of a code
+		// block is gone before any `&` becomes `&amp;`. It is the **block** that
+		// is stripped, not each line: upstream keeps `x  ` in `    x  \n    y  `.
+		//
+		// `to_typst_string`'s `code` branch emits the text verbatim
+		// (`markdown_parser.py:42-45`), so an indented `a & b` has to become
+		// `` `a &amp; b\n` `` here or nowhere.
+		block := "`" + codeEscape(trimPythonSpaceRight(strings.Join(body, "\n"))) + "\n`"
+		return append([]string{block}, convertBlock(rest)...)
 	}
 
-	// **A blank line is a blank line, however it is spelled.** The block parser
-	// splits on blank lines before `indent` ever runs, so a line of nothing but
-	// whitespace produces no element at all — `markdown_to_typst("    ")` and
-	// `markdown_to_typst("  \t")` are both `""` upstream. Without this the
-	// indent branch below reads an empty body and emits an empty code block,
-	// which `NormalizeWhitespace` then made reachable from `" \t"` by expanding
-	// the tab to the fourth column.
+	// `HRProcessor` **searches** the block rather than testing its first line
+	// (`blockprocessors.py:517-547`): the lines before the rule are re-parsed as
+	// a block of their own and the lines after it go back on the queue.
 	//
-	// The mechanism is `Markdown.convert`'s own first statement — `if not
-	// source.strip(): return ''` (`markdown/core.py:279-282`) — which is why the
-	// predicate has to be Python's whitespace and not Go's.
-	if trimPythonSpace(line) == "" {
-		return ""
+	// The rule itself is an `hr` element, which takes `to_typst_string`'s default
+	// branch and recurses into a node with no text and no children — **the empty
+	// string, not nothing.** It is still an element, so the serializer puts a
+	// newline on each side of it: `a\r---\rb` is `"a\n\nb"` upstream, a blank
+	// line between the two paragraphs, where dropping the element gives `"a\nb"`.
+	for i, line := range lines {
+		if !isHorizontalRule(line) {
+			continue
+		}
+		out := append(convertBlock(lines[:i]), "")
+		return append(out, convertBlock(lines[i+1:])...)
 	}
 
-	// A tab counts as the same indent.
-	for _, indent := range []string{"    ", "\t"} {
-		if body, indented := strings.CutPrefix(line, indent); indented {
-			// **`rstrip` before `code_escape`, not after.** The block processor
-			// escapes `block.rstrip()` (`blockprocessors.py:269` and `:276`), so
-			// the trailing whitespace of the last line of a code block is gone
-			// before any `&` becomes `&amp;` — an indented highlight ending in a
-			// space carried it into the `.typ` here.
-			//
-			// It is the **block** that is stripped, not each line: upstream keeps
-			// `x  ` in `    x  \n    y  `. Nothing is needed for that here,
-			// because this path converts a line at a time and every code block is
-			// therefore one line long.
-			return "`" + codeEscape(trimPythonSpaceRight(body)) + "\n`"
+	// `ParagraphProcessor` (`:612-640`) lstrips the block — the whole block, not
+	// each line, which is why `  a\r  b` keeps the second line's two spaces.
+	text := lineBreakPattern.ReplaceAllString(strings.Join(lines, "\n"), "\n")
+	return []string{ParseInline(strings.TrimLeft(text, " \t\n\r\f\v"))}
+}
+
+// detab is `BlockProcessor.detab` (`blockprocessors.py:100-130`): it removes one
+// indent from each line, keeps a blank line as blank, and stops at the first
+// line carrying neither — returning that line and everything after it as the
+// remainder, which upstream puts back at the head of the block queue.
+func detab(lines []string) (body, rest []string) {
+	for i, line := range lines {
+		switch {
+		case strings.HasPrefix(line, indentWidth):
+			body = append(body, line[len(indentWidth):])
+		case trimPythonSpace(line) == "":
+			body = append(body, "")
+		default:
+			return body, lines[i:]
 		}
 	}
-	return strings.TrimSpace(ParseInline(line))
+	return body, nil
 }
 
 // convertAdmonition is the `div` branch of `to_typst_string` (`:52-57`):
@@ -218,24 +281,23 @@ func convertLine(line string) string {
 //  3. `BlockParser.parseChunk` splits on a blank line and `ParagraphProcessor`
 //     lstrips each block (`:612-640`), and `PrettifyTreeprocessor` puts a single
 //     `"\n"` between the resulting paragraphs.
-func convertAdmonition(block []string) string {
-	body := make([]string, 0, len(block))
-	for _, line := range block[1:] {
-		if strings.TrimSpace(line) == "" {
-			body = append(body, "")
-			continue
-		}
-		body = append(body, strings.TrimPrefix(line, indentWidth))
-	}
+//
+// It returns one string per element, because the detab in step 2 has a
+// remainder: an unindented line **after** an indented one ends the admonition
+// and goes back on the block queue (`extensions/admonition.py:163-167`), where
+// it becomes a sibling of the `div` rather than a child of it. Reachable only
+// through a `\r`, since `MarkdownToTypst`'s grouping stops at the same line.
+func convertAdmonition(block []string) []string {
+	body, rest := detab(block[1:])
 
 	paragraphs := make([]string, 0, len(body))
 	for _, lines := range splitOnBlank(body) {
-		text := lineBreakPattern.ReplaceAllString(strings.Join(lines, "\n"), "\n")
-		paragraphs = append(paragraphs, ParseInline(strings.TrimLeft(text, " \t\n\r\f\v")))
+		paragraphs = append(paragraphs, convertBlock(lines)...)
 	}
 
 	content := strings.Trim(strings.Join(paragraphs, "\n"), "\n")
-	return "#summary[" + strings.ReplaceAll(content, "\n", ` \ `) + "]"
+	summary := "#summary[" + strings.ReplaceAll(content, "\n", ` \ `) + "]"
+	return append([]string{summary}, convertBlock(rest)...)
 }
 
 // indentWidth is python-markdown's `tab_length`, four spaces.
