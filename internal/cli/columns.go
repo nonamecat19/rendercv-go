@@ -1,9 +1,6 @@
 package cli
 
-import (
-	"strings"
-	"unicode/utf8"
-)
+import "strings"
 
 // columnsPadding is `rich.columns.Columns`' default padding, and the gap it
 // leaves between two items on the same line: `max(left, right)` of `(0, 1)`
@@ -34,9 +31,15 @@ func HelpColumns(items []string, width int) []string {
 	// **Each item measures at most the column width.** `Measurement.get` clamps
 	// to `options.max_width`, which is why a 138-character help string measures
 	// 33 in a 33-cell column and the loop below can terminate.
+	//
+	// **In cells, not runes**: `Measurement.get` measures with `cell_len`
+	// (`rich/measure.py`), so a wide character claims the two columns it
+	// occupies. Nothing in the captured help text differs between the two
+	// counts today, which is why this stood; `å` in the locale list is already
+	// proof that non-ASCII reaches here.
 	measured := make([]int, len(items))
 	for i, item := range items {
-		measured[i] = min(utf8.RuneCountInString(item), width)
+		measured[i] = min(cellLen(item), width)
 	}
 
 	count := columnCount(measured, width)

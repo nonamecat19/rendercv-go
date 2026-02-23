@@ -181,9 +181,12 @@ func requiredMark(required bool) string {
 // first fixed at the longest command name and never wrapped, the second
 // greedy.
 func commandsPanel(subcommands []helpSubcommand) string {
+	// The fixed first column is as wide as the longest command name **in
+	// cells** — `len()` here was bytes, which over-reserves for any name
+	// outside ASCII.
 	longest := 0
 	for _, sub := range subcommands {
-		longest = max(longest, len(sub.Name))
+		longest = max(longest, cellLen(sub.Name))
 	}
 
 	columns := []helpColumn{{Width: longest, NoWrap: true}, {Flexible: true}}
