@@ -108,11 +108,12 @@ func MarkdownToHTML(markdown string) (string, error) {
 	return strings.TrimRight(out.String(), "\n"), nil
 }
 
-// pythonBlockParsers is goldmark's default block parser set with five changes
+// pythonBlockParsers is goldmark's default block parser set with six changes
 // upstream forces: no fenced code, a narrowed raw-HTML block, a list item that
 // swallows all of its marker's padding (`listitem.go`), an indented code block
-// that survives a line only Python calls whitespace (`codeblock.go`), and a
-// paragraph that is `lstrip`ped and thrown away when blank (`paragraph.go`).
+// that survives a line only Python calls whitespace (`codeblock.go`), a
+// paragraph that is `lstrip`ped and thrown away when blank (`paragraph.go`),
+// and an ATX heading whose text is stripped at both ends (`heading.go`).
 //
 // **Fenced code has no counterpart in `markdown.markdown(string)`.**
 //
@@ -151,10 +152,31 @@ func pythonBlockParsers() []util.PrioritizedValue {
 			kept = append(kept, util.Prioritized(
 				pythonParagraphParser{BlockParser: paragraph}, p.Priority))
 		default:
+			if isATXHeadingParser(p.Value) {
+				// **Not an identity test, because there is no identity to
+				// test.** `NewATXHeadingParser` takes options and returns a
+				// fresh `&atxHeadingParser{}` every call, where the four
+				// parsers above are package-level values; comparing against a
+				// second call silently matched nothing and the wrapper below
+				// never ran. The trigger is the parser's own declaration of
+				// what it claims, and `#` is the only one that claims it.
+				kept = append(kept, util.Prioritized(
+					pythonATXHeadingParser{BlockParser: p.Value.(parser.BlockParser)}, p.Priority))
+				continue
+			}
 			kept = append(kept, p)
 		}
 	}
 	return kept
+}
+
+// isATXHeadingParser reports whether a default block parser is the one that
+// parses `# h`. `pythonATXHeadingParser` re-checks the node's kind before it
+// touches anything, so a future parser that also triggered on `#` would be
+// wrapped but not altered.
+func isATXHeadingParser(value any) bool {
+	block, ok := value.(parser.BlockParser)
+	return ok && bytes.Equal(block.Trigger(), []byte{'#'})
 }
 
 // pythonInlineParsers is goldmark's default inline parser set minus its own
