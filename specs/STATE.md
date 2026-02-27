@@ -100,6 +100,47 @@ is correct", and a recorded finding is not the statement "the port is wrong."** 
 - **`kindguard`'s two blind spots closed** — an `if/else if` chain and a `map[Kind]bool` set literal,
   both planted and proven red first, 0 false positives across the tree.
 
+### Four live divergences no ledger entry predicted
+
+Each was found by doing adjacent work, not by looking for it, and each is reachable from ordinary
+use. They are the strongest evidence that the recorded open-item list was not the real risk surface.
+
+1. **`--watch` on an unwatchable directory.** Upstream's watchdog swallows the `EACCES` and watches
+   on in silence; the port exited 1 having rendered nothing. Fixed. Not D-011 — no traceback exists
+   to match.
+2. **The theme *folder* name.** `design.py:57` computes the theme name once and everything
+   downstream uses that value, so upstream's `theme: 007` looks for the folder `7` and `0x1f` for
+   `31`. The port passed the raw token and looked for `007`. Both spellings pass the
+   lowercase-alphanumeric check, so this was a live branch, not just a message. Fixed together with
+   the repr, because fixing the message alone would leave the port telling the user `7` while
+   searching for `007`.
+3. **Narrow terminals.** Upstream truncates with an ellipsis where the port wraps. Measured:
+   `COLUMNS=40 render --help` is port 233 lines against upstream 190, with 68 `…` upstream and 0 in
+   the port. At `COLUMNS >= 60` (render, root) and `>= 80` (new) the geometry is identical line for
+   line — **which is why every golden, captured at 80, is blind to it**. Open; own unit.
+4. **A registered parser wrapper that never ran.** `NewATXHeadingParser` takes options and returns a
+   fresh value per call, while the fenced-code, HTML-block, list-item, code-block and paragraph
+   parsers are package-level values — so `pythonBlockParsers`' identity-based `case` matched nothing.
+   The wrapper was installed and silently inert. **The comment in `html.go` asserting "the parsers
+   are goldmark singletons, so identity is the test" was true of the four cases it named and false
+   as a rule.** Standing hazard for any future wrap of a configurable parser — the emphasis work is
+   the likely next victim, since it wraps inline parsers.
+
+### Vacuous gates — six found and repaired this pass
+
+A test that cannot fail is this project's most persistent defect class, and it has now been found in
+six places: `TestEveryPhrasingRowIsReachable`'s message-equality half (compared a row against
+itself), `kindguard`'s two blind spots (planted shapes stayed green), `AssertUnreachable` (compared
+file names, so a case was held up by D-009 rather than by what it claimed), a `commandsPanel` width
+test (compared whole-line widths, which the panel pads to the console width), and — the important
+one — a parser wrapper whose null result was the *only* evidence it was inert.
+
+**The detection methods that worked, in order of reliability:** planting the violation and requiring
+red; mutating the source and requiring red; stashing the fix and re-running the pin; and recognising
+that "0 fixed, 0 regressions" is the signature of code that is not executing. The last one caught a
+defect the first three would have missed, because there was nothing to plant — the mechanism was
+absent, not wrong.
+
 ### Findings this pass declared rather than fixed
 
 Each was measured, and each is named here because declaring a known-wrong shape is what makes the
