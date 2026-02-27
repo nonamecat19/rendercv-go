@@ -230,17 +230,36 @@ the work is in populating and consuming them:
 - **synthesized keys:** `modelbuilder/merge.go:228` and `:321` build `Item{Key:, Value:}` for
   CLI-overlay keys with no source node. `KeyNode` is `nil` there and the renderer must fall back to
   `pythonStringRepr(item.Key)` — those keys are always strings, so the fallback is exact.
-- **consume:** the two duplicated reprs, `schemaerr/pythonrepr.go` and `models/design/design.go`.
+- **consume:** `schemaerr/pythonrepr.go`, and only it — see §5.2. Within it, the arm to change is
+  `pythonRepr` (`:71-76`), the container-member path. **`PythonText`'s own `KindTagged` arm
+  (`:51-57`) and `RenderInput` (`schemaerr/error.go:163-164`) must not change**: those are `str()`
+  and the Input Value column, where a `TaggedScalar` correctly renders as its bare text
+  (`ruamel/yaml/comments.py:1177-1178`). The whole of finding 1/2 is the difference between `str()`
+  and `repr()`, and the port already has that split in the right place.
 - **tests constructing `Item`:** `binder_test.go`, `renderinput_test.go`, `node_test.go` — unaffected,
   since a new field defaults to its zero value.
 
-### 5.2 A note on the duplication
+### 5.2 There is one renderer, not two
 
-`PythonText`/`pythonRepr` and `themeNameRepr`/`pythonElemRepr` are two copies of one function, and
-both carry the same "knowingly wrong" comment about `KindTagged`. Fixing the tag in one and not the
-other would leave a real divergence. **Whether to unify them first is a genuine design question** and
-I recommend against bundling it: unifying touches the design validator's messages, which are their
-own parity surface, and it can follow once both are correct and a differential covers them.
+**An earlier draft of this section was wrong and is corrected here.** It described
+`PythonText`/`pythonRepr` and `themeNameRepr`/`pythonElemRepr` as two copies of one function and
+recommended against unifying them as part of this work. That duplication no longer exists:
+`themeNameRepr`, `pythonElemRepr` and `pythonBoolRepr` are deleted and `design.go:88` calls
+`schemaerr.PythonText`, landed as its own unit with its own red test over 19 shapes through the
+theme path — and it fixed a live defect on the way, since `design.py:57` computes the theme name
+once, so upstream's `theme: 007` looks for the folder `7` where the port looked for `007`.
+
+Three consequences for the work this document scopes, all of them reductions:
+
+1. **One consumer to change, not two.** Every "both reprs" in §5.1 and §7 is one function in
+   `schemaerr/pythonrepr.go`.
+2. **The divergence hazard is gone.** There is no longer a way to fix the tag in one renderer and
+   leave the other wrong, which was the reason the earlier draft argued for care here.
+3. **No unification unit is needed and none should be scheduled.**
+
+One near-miss for a future reader: `models/design/schema.go:276` still defines a `pythonRepr`, but
+it renders **Go values** (`any`) for the JSON-schema description resplice and never sees a
+`yamldoc.Node`. It is not a second node renderer and is out of scope.
 
 ---
 
@@ -254,7 +273,7 @@ own parity surface, and it can follow once both are correct and a differential c
 3. **`[!!str]` and `{a: !!str}` in flow style.** Both raise a `RenderCVUserValidationError` whose
    `str()` is **empty** upstream — a different defect, unrelated to repr, and worth its own record.
    The block spelling `- !!str` behaves normally and is in the §3.2 table.
-4. Unifying the two repr implementations — §5.2.
+4. ~~Unifying the two repr implementations.~~ **Already done and merged** — §5.2.
 
 ---
 
@@ -269,7 +288,10 @@ own parity surface, and it can follow once both are correct and a differential c
 4. Every row of §4 passes, and the four rows now `t.Skip`ped in
    `models/locale/languagerepr_test.go:75-90` are unskipped rather than deleted.
 5. A tagged key renders as §4.1, including the two forced-tag rows.
-6. Both repr implementations agree, checked by a test that drives each with the same inputs.
+6. The **theme path** renders the same as the locale path for the same shapes, since both now go
+   through `schemaerr.PythonText` (§5.2). This replaces the earlier criterion "both repr
+   implementations agree", which no longer has two implementations to compare: the check is now that
+   unifying them did not leave the theme path reading a value the locale path renders differently.
 7. `just check` and `go test -tags conformance ./internal/schema/...` clean.
 
 ---
@@ -280,13 +302,39 @@ own parity surface, and it can follow once both are correct and a differential c
 
 | Unit | Content | Depends on |
 |---|---|---|
-| A | `Node.Tag`, populated in `buildTagged`, consumed by both reprs — findings 1 and 2 | — |
-| B | `Item.KeyNode`, populated in `buildMapping`, consumed by both reprs for untagged keys — finding 3, scalar half | — |
-| C | tagged keys — §4.1 | A **and** B |
+| A | `Node.Tag`, populated in `buildTagged`, consumed by `pythonRepr` — findings 1 and 2 | — |
+| B | `Item.KeyNode`, populated in `buildMapping`, consumed by `pythonRepr` for untagged keys — finding 3, scalar half | — |
+| C | tagged keys — §4.1 | A **and** B, and **may cost nothing** — see below |
 | D | container keys — §4.2 | goccy; **human gate**, not an implementation unit |
 
-A and B are independent and can run in parallel; neither reads the other's output. C is small and
-must follow both. D is not work until someone decides it is a declared divergence.
+A and B are independent and can run in parallel; neither reads the other's output. D is not work
+until someone decides it is a declared divergence.
+
+### 8.1 Does the unification collapse A and B? No — and why not
+
+The unification (§5.2) halves the *consumer* half of both A and B, but it does not merge them. They
+remain two defects with two upstream mechanisms — a tag on a scalar, a kind on a key — two parse
+sites that do not touch (`buildTagged` and `buildMapping`), and two disjoint fixture sets: B's is
+the four rows already `t.Skip`ped in `languagerepr_test.go:75-90`, A's does not exist yet. Bundling
+them is the "add all X" shape `AGENTS.md` §7 forbids, and it would produce one commit that cannot
+be reverted in halves. **Keep A and B separate.**
+
+### 8.2 One real simplification: C may be free
+
+`buildMapping` currently strips a key's tag before reading it (`untagKey`, `build.go:353-362`), so
+whether C is a unit at all depends on a single decision B's implementer makes:
+
+- if `KeyNode = buildNode(mv.Key)` — the key built by the **same** path as any value, before
+  `untagKey` — then a forced tag constructs the value and an unforced one yields a `KindTagged`
+  node, which is exactly §4.1's measured behavior: `{!!int 1: a}` → `{1: 'a'}` and `{!!str k: a}`
+  → `{TaggedScalar(…): 'a'}`. C then falls out of A + B with no further code.
+- if `KeyNode` is built from the *untagged inner* node, C needs its own arm.
+
+**The first is both simpler and upstream's own shape** — ruamel constructs a key with the same
+constructor it uses for a value — so I recommend it, and C should then be scheduled as a
+**fixture-only unit** that pins §4.1 and confirms it already passes. `Item.KeyTagged` stays as the
+binder's signal and is not the renderer's input; the two answer different questions and merging them
+would repeat the mistake §5 avoids with `Item.Key`.
 
 **On cost: A and B are each genuinely small** — the information is already in hand at both parse
 sites, the field addition breaks nothing, and the rendering rules are ones the port already
