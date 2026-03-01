@@ -9,6 +9,7 @@ import (
 	"github.com/goccy/go-yaml/token"
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
+	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamlreader"
 )
 
@@ -126,7 +127,7 @@ func TestParserMessageNormalization(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := parserMessage(tc.text, ""); got != tc.want {
+			if got := parserMessage(tc.text, "", yamldoc.Position{}); got != tc.want {
 				t.Errorf("parserMessage(%q) = %q, want %q", tc.text, got, tc.want)
 			}
 		})
