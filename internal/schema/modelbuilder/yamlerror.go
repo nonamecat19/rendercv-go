@@ -90,6 +90,16 @@ func yamlSyntaxValidationError(
 	}
 }
 
+// flowMapRow is the substring of the one row whose ruamel phrasing depends on
+// the source as well as on goccy's text. It covers both of goccy's spellings
+// for a flow mapping it could not finish — `could not find flow map content`
+// and `could not find flow mapping end token '}'`.
+const flowMapRow = "flow map"
+
+// badIndentRow is the substring of the row for a key indented deeper than its
+// siblings.
+const badIndentRow = "mapping value is not allowed in this context"
+
 // ruamelPhrasing maps goccy's error taxonomy onto ruamel's, for the syntax
 // failures the corpus contains (spec 004 §7.5, plan §6 option B).
 //
@@ -107,16 +117,6 @@ func yamlSyntaxValidationError(
 //
 // Each key is a substring of goccy's message; each value is ruamel's verbatim
 // first line, measured against the vendored Python.
-// flowMapRow is the substring of the one row whose ruamel phrasing depends on
-// the source as well as on goccy's text. It covers both of goccy's spellings
-// for a flow mapping it could not finish — `could not find flow map content`
-// and `could not find flow mapping end token '}'`.
-const flowMapRow = "flow map"
-
-// badIndentRow is the substring of the row for a key indented deeper than its
-// siblings.
-const badIndentRow = "mapping value is not allowed in this context"
-
 var ruamelPhrasing = []struct{ goccy, ruamel string }{
 	{"sequence end token", "while parsing a flow sequence"},
 	// **A block line that breaks an open flow collection is a third shape.**
