@@ -126,6 +126,49 @@ use. They are the strongest evidence that the recorded open-item list was not th
    as a rule.** Standing hazard for any future wrap of a configurable parser — the emphasis work is
    the likely next victim, since it wraps inline parsers.
 
+### A fifth divergence, and the only one on axis 1 — the port rejects a valid document
+
+**`goccy/go-yaml` refuses a document ruamel accepts, so the port cannot render a CV upstream
+renders.** This is **artifact parity**, the first axis of the contract, not the validation-error
+axis, and it is the most serious finding of the pass. No open item predicted it; it surfaced because
+a porter enumerating 1050 shapes for an unrelated *location* defect refused to write off the 12 that
+would not fit its rule.
+
+Measured end-to-end by two parties:
+
+```
+cv: {name: John
+  Doe}
+```
+upstream renders (`Generated PDF: ./rendercv_output/John_Doe_CV.pdf`); the port answers *"This is
+not a valid YAML file"* and produces no artifacts.
+
+The YAML rule: a plain scalar may span lines inside a flow collection, and ruamel folds it in both
+kinds — `cv: {a: 1\n  d}` → `{'cv': {'a': '1 d'}}`, `cv: [a\n  b]` → `{'cv': ['a b']}`. **goccy folds
+it in a flow SEQUENCE and refuses it in a flow MAPPING** (`',' or '}' must be specified`). So the two
+parsers disagree about what the document *says*, not about where an error is — and no rule over
+goccy's token can recover a mark from a parse ruamel never made.
+
+**Reach, scoped precisely** (probed against both sides; only the first shape fails):
+
+| Shape | ruamel | port |
+|---|---|---|
+| `{name: John⏎  Doe}` — unquoted plain scalar, folded | accepts | **rejects** |
+| `[a⏎  b]` — same fold in a flow *sequence* | accepts | accepts |
+| `{name: "John⏎  Doe"}` — quoted scalar spanning lines | accepts | accepts |
+| `{name: John,⏎  label: X}` — comma-separated, multi-line | accepts | accepts |
+
+So it is exactly: **an unquoted value continued on the following line inside `{ }`**. Rare in a
+hand-written CV, legal YAML, and unrenderable here.
+
+Pinned by `TestGoccyRejectsAFoldedFlowScalar`, which is written to `t.Skip` with a re-measure
+instruction if goccy ever fixes it, so the evidence stays in the repo either way.
+
+**This needs a human decision (AGENTS.md §5)** and none of the three options belongs to a porter:
+a `divergences.md` entry recording that the port rejects a shape upstream accepts; an upstream issue
+against `goccy/go-yaml` with a pin here until it is fixed; or a workaround in the reader that folds
+multi-line plain scalars inside flow mappings before goccy sees them.
+
 ### Vacuous gates — six found and repaired this pass
 
 A test that cannot fail is this project's most persistent defect class, and it has now been found in
