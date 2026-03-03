@@ -24,6 +24,14 @@ const columnsPadding = 1
 // So neither "join with a space" nor "one per line" is right, and each is right
 // for one of the two.
 func HelpColumns(items []string, width int) []string {
+	return helpColumnsOverflow(items, width, false)
+}
+
+// helpColumnsOverflow is HelpColumns under an explicit overflow: fold splits an
+// over-long word across lines, and the default cuts it with `…`. The choice
+// belongs to the enclosing table column (`rich/table.py:834`), which is why it
+// is a parameter here rather than a property of the layout.
+func helpColumnsOverflow(items []string, width int, fold bool) []string {
 	if len(items) == 0 {
 		return nil
 	}
@@ -47,7 +55,7 @@ func HelpColumns(items []string, width int) []string {
 	var lines []string
 	for start := 0; start < len(items); start += count {
 		end := min(start+count, len(items))
-		lines = append(lines, columnsRow(items[start:end], measured, count, width)...)
+		lines = append(lines, columnsRow(items[start:end], measured, count, width, fold)...)
 	}
 	return lines
 }
@@ -88,13 +96,13 @@ func columnCount(measured []int, width int) int {
 
 // columnsRow renders one row of the flow, wrapping each cell to its column's
 // width and padding the shorter cells so the row is rectangular.
-func columnsRow(row []string, measured []int, count, width int) []string {
+func columnsRow(row []string, measured []int, count, width int, fold bool) []string {
 	widths := gridColumnWidths(measured, count, width)
 
 	cells := make([][]string, len(row))
 	height := 0
 	for i, item := range row {
-		cells[i] = wrap(item, widths[i])
+		cells[i] = overflowLines(item, widths[i], fold)
 		height = max(height, len(cells[i]))
 	}
 
@@ -133,4 +141,20 @@ func gridColumnWidths(measured []int, count, width int) []int {
 		widths[column] = max(widths[column], itemWidth)
 	}
 	return widths
+}
+
+// overflowLines wraps one item under an overflow. Folding is `divide_line`'s
+// `fold=True` and needs no truncation afterwards, because no line it produces
+// is wider than the column. The ellipsis path is the other half of
+// `Text.wrap`: divide without folding, so a word too long for the column stays
+// whole, then cut each line at the width (`rich/text.py:1239`, `:1248`).
+func overflowLines(item string, width int, fold bool) []string {
+	if fold {
+		return wrap(item, width)
+	}
+	lines := wrapKeepingWords(item, width)
+	for i, line := range lines {
+		lines[i] = truncate(line, width)
+	}
+	return lines
 }
