@@ -165,8 +165,10 @@ func optionColumnSet(required bool) []helpColumn {
 	if required {
 		columns = append(columns, helpColumn{})
 	}
+	// The fifth is the metavar, the one column typer gives its own overflow
+	// (`rich_utils.py:376`), and the sixth is the help.
 	return append(columns, helpColumn{}, helpColumn{}, helpColumn{}, helpColumn{},
-		helpColumn{}, helpColumn{Flexible: true})
+		helpColumn{Fold: true}, helpColumn{Flexible: true})
 }
 
 func requiredMark(required bool) string {

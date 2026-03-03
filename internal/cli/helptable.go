@@ -21,6 +21,13 @@ type helpColumn struct {
 	Width int
 	// NoWrap is `no_wrap=True`, likewise the `Commands` panel's first column.
 	NoWrap bool
+	// Fold marks the one column that overflows by folding rather than by
+	// ellipsis: the metavar, which typer builds as
+	// `Text(style=STYLE_METAVAR, overflow="fold")`
+	// (`typer/rich_utils.py:376`). A `Text`'s own overflow beats the render
+	// options it is given (`rich/text.py:694`), so it keeps folding inside a
+	// table whose columns all default to `"ellipsis"` (`rich/table.py:90`).
+	Fold bool
 }
 
 // helpCell is one cell. Plain columns hold a single item; the flexible column
@@ -107,6 +114,28 @@ func helpTable(columns []helpColumn, rows [][]helpCell, maxWidth int) []string {
 	return lines
 }
 
+// helpTableCell lays one cell out at its content width under the column's
+// overflow, which `render_lines` takes from the column (`rich/table.py:834`).
+//
+// Three shapes, and every help panel uses all three:
+//
+//   - `no_wrap` skips the wrapping and truncates the one line it has
+//     (`rich/text.py:1233-1237`, then `:1248`) — the `Commands` panel's first
+//     column. The tab expansion still happens, because `Text.wrap` expands
+//     before it consults the flag (`:1231`).
+//   - `Fold` splits an over-long word across lines and never ellipsizes — the
+//     metavar alone.
+//   - Everything else leaves the word whole and cuts the line with `…`.
+func helpTableCell(column helpColumn, cell helpCell, width int) []string {
+	if width <= 0 {
+		return []string{""}
+	}
+	if column.NoWrap {
+		return []string{truncate(expandTabs(strings.Join(cell.items, " ")), width)}
+	}
+	return helpColumnsOverflow(cell.items, width, column.Fold)
+}
+
 func helpTableRow(columns []helpColumn, row []helpCell, widths []int) []string {
 	cells := make([][]string, len(columns))
 	height := 0
@@ -114,7 +143,7 @@ func helpTableRow(columns []helpColumn, row []helpCell, widths []int) []string {
 	for i := range columns {
 		content := widths[i] - helpPadding(i, len(columns))
 		if i < len(row) {
-			cells[i] = HelpColumns(row[i].items, content)
+			cells[i] = helpTableCell(columns[i], row[i], content)
 		}
 		height = max(height, len(cells[i]))
 	}
