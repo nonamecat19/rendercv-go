@@ -68,3 +68,57 @@ func pythonSpaceSuffix(line []byte) int {
 	}
 	return width
 }
+
+// pythonSetextHeadingParser is goldmark's setext heading parser with
+// `SetextHeaderProcessor`'s strip (`blockprocessors.py:510`).
+//
+// `h.text = lines[0].strip()` is the same rule as the ATX processor's at :479 —
+// a full strip over Python's whitespace — reached through a different seam.
+// goldmark builds the heading's text from the paragraph above the bar and only
+// hands it over in `Close` (`parser/setext_headings.go:79-104`,
+// `heading.SetLines(tmp.Lines())`), so `Open` has nothing to trim yet.
+//
+// The leading end is already right when this runs, because the lines come from
+// a paragraph and `pythonParagraphParser` has `lstrip`ped them (`paragraph.go`).
+// The trailing end is what was left: `"h\v\n==="` was `<h1>h\v</h1>` against
+// `<h1>h</h1>`. Both ends are trimmed here anyway — `lines[0].strip()` is one
+// call and splitting it across two files by which half currently shows would be
+// a rule nobody could check.
+type pythonSetextHeadingParser struct {
+	parser.BlockParser
+}
+
+// Close delegates and strips what the paragraph handed over.
+func (p pythonSetextHeadingParser) Close(node ast.Node, reader text.Reader, pc parser.Context) {
+	p.BlockParser.Close(node, reader, pc)
+	if node.Parent() == nil || node.Kind() != ast.KindHeading {
+		// goldmark turns a heading with no text above the bar back into a
+		// paragraph and removes the node (`setext_headings.go:87-95`).
+		return
+	}
+	stripHeadingText(node, reader.Source())
+}
+
+// stripHeadingText is `str.strip()` over a heading's own lines: the leading run
+// off the first and the trailing run off the last, which for the one line a
+// heading has is the single strip upstream performs.
+func stripHeadingText(node ast.Node, source []byte) {
+	lines := node.Lines()
+	if lines.Len() == 0 {
+		return
+	}
+
+	first := lines.At(0)
+	value := first.Value(source)
+	if left := pythonSpacePrefix(value); left == len(value) && lines.Len() == 1 {
+		lines.Clear()
+		return
+	} else if left > 0 {
+		lines.Set(0, first.WithStart(first.Start+left))
+	}
+
+	last := lines.At(lines.Len() - 1)
+	if right := pythonSpaceSuffix(last.Value(source)); right > 0 {
+		lines.Set(lines.Len()-1, last.WithStop(last.Stop-right))
+	}
+}

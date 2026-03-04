@@ -77,3 +77,45 @@ func TestHTMLHeadingStripsBothEnds(t *testing.T) {
 		})
 	}
 }
+
+// TestHTMLSetextHeadingStripsEveryPythonSpace sweeps `SetextHeaderProcessor`'s
+// strip (`blockprocessors.py:510`) over all 29 characters, at both bars.
+//
+// `=` is an `<h1>` and `-` an `<h2>` (`:505-508`), and the bar's own shape is
+// not part of this rule — the text comes from the line above it either way.
+//
+// `\n` is the character that makes it a different document, and it is upstream's
+// answer too: the heading's text ends at the line break, so the bar no longer
+// follows a paragraph line and stops being a bar. `\t` is the same story one
+// step further on, since `expandtabs` turns a leading one into the four spaces
+// of an indented code block. Both are measured, not skipped.
+func TestHTMLSetextHeadingStripsEveryPythonSpace(t *testing.T) {
+	bars := map[string]int{"===": 1, "---": 2}
+	for bar, level := range bars {
+		t.Run(bar, func(t *testing.T) {
+			for _, r := range pythonSpaces {
+				in := fmt.Sprintf("%sh%s\n%s", string(r), string(r), bar)
+				want := fmt.Sprintf("<h%d>h</h%d>", level, level)
+				switch r {
+				case '\n':
+					want = "<p>h</p>\n<p>===</p>"
+					if level == 2 {
+						want = "<p>h</p>\n<hr />"
+					}
+				case '\t':
+					want = "<pre><code>h\n</code></pre>\n<p>===</p>"
+					if level == 2 {
+						want = "<pre><code>h\n</code></pre>\n<hr />"
+					}
+				}
+				got, err := process.MarkdownToHTML(in)
+				if err != nil {
+					t.Fatalf("MarkdownToHTML(%q): %v", in, err)
+				}
+				if got != want {
+					t.Errorf("MarkdownToHTML(%q) = %q, want %q", in, got, want)
+				}
+			}
+		})
+	}
+}
