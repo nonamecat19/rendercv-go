@@ -128,3 +128,36 @@ func TestHTMLParagraphStripsOnlyTheHeadOfTheBlock(t *testing.T) {
 		})
 	}
 }
+
+// TestHTMLBlankParagraphUnderASetextBarIsAHeading is the boundary of
+// `:614`'s throw-away, and the shape that showed the rule needs one.
+//
+// `SetextHeaderProcessor` is registered above `ParagraphProcessor`
+// (`blockprocessors.py:493`), so a chunk whose second line is a bar is a
+// heading before it is ever a block to discard — `"\v\n==="` is `<h1></h1>`,
+// not nothing. goldmark reaches the same verdict one line later, at the bar,
+// and needs the paragraph still in the tree to do it.
+func TestHTMLBlankParagraphUnderASetextBarIsAHeading(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"equals bar", "\v\n===", "<h1></h1>"},
+		{"dash bar", "\v\n---", "<h2></h2>"},
+		{"padded bar", "\v\n===  ", "<h1></h1>"},
+		{"a blank line between is not a heading", "\v\n\n===", "<p>===</p>"},
+		{"and an ordinary blank block is still dropped", "a\n\n\v\n\nb", "<p>a</p>\n<p>b</p>"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := process.MarkdownToHTML(test.in)
+			if err != nil {
+				t.Fatalf("MarkdownToHTML(%q): %v", test.in, err)
+			}
+			if got != test.want {
+				t.Errorf("MarkdownToHTML(%q) = %q, want %q", test.in, got, test.want)
+			}
+		})
+	}
+}
