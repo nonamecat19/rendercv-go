@@ -866,7 +866,15 @@ func yamlErrorLocation(parserErr goyaml.Error, content string) *yamldoc.Span {
 			// **A block line can stop this scan short of the end**, and goccy
 			// routes an *indented* one here rather than to the branch above:
 			// `cv: [a\n  b: c` is `line 1 to line 2`, not to EOF.
-			stop := breakingLine(content, anchor)
+			//
+			// **A quoted scalar is the exception**: its scan hunts for the
+			// closing quote and a block line on the way is more scalar, not a
+			// stop, so it runs to the end of the stream — `cv: [\n  b: 'c\n
+			// e: f` ends at line 4 and not at line 3. Measured on 90 shapes.
+			stop := 0
+			if !strings.Contains(message, "quoted text") {
+				stop = breakingLine(content, anchor)
+			}
 			if stop == 0 {
 				stop = streamEndLine(content, anchor)
 			}
