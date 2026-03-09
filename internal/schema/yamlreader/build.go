@@ -290,6 +290,17 @@ func buildTagged(node *ast.TagNode) *yamldoc.Node {
 		return &yamldoc.Node{Kind: yamldoc.KindNull}
 	}
 
+	// **A bare `!` is the non-specific tag and names no type.** It asks the
+	// resolver for the answer it would have given anyway, so `! x` is the
+	// string `x` and `! 31` the integer 31 — `inner`, exactly as built. It has
+	// to be caught before `ResolveTag`, whose "everything else is opaque" arm
+	// would make it a `TaggedScalar`; that is the kind every typed field
+	// rejects, so `locale.language: ! english` failed here and raises nothing
+	// upstream. Spec 015 delta §3.3.
+	if tagName(node) == "!" {
+		return buildNode(node.Value)
+	}
+
 	inner := buildNode(node.Value)
 	switch inner.Kind {
 	case yamldoc.KindMapping, yamldoc.KindSequence:
