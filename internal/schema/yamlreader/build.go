@@ -312,6 +312,11 @@ func buildTagged(node *ast.TagNode) *yamldoc.Node {
 
 	kind, forced := ResolveTag(tagName(node))
 	if !forced {
+		// The resolved tag, kept for `repr(TaggedScalar)` — the one thing this
+		// function used to compute and discard (spec 015 delta §2). Only an
+		// opaque scalar carries it: a forced tag constructs an ordinary value,
+		// which has no tag in its repr.
+		inner.Tag = ResolveTagText(tagName(node))
 		// Opaque: ruamel's TaggedScalar, which keeps the scalar's text and
 		// nothing else. A tag with no value at all carries the empty string
 		// rather than a null — `a: !!str` is `TaggedScalar('')` upstream, and

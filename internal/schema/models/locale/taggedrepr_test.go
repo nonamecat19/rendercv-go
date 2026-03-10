@@ -36,6 +36,11 @@ func TestATaggedScalarReprsAsItsConstructor(t *testing.T) {
 		name string
 		yaml string
 		want string
+		// unrepresentable names the reason the port cannot produce want. The
+		// measured value stays in the table rather than being deleted, so the
+		// evidence survives the limitation — the same convention
+		// `languagerepr_test.go` uses.
+		unrepresentable string
 	}{
 		// §3.4 — the shapes the finding names.
 		{
@@ -76,8 +81,20 @@ func TestATaggedScalarReprsAsItsConstructor(t *testing.T) {
 		// (`ruamel/yaml/parser.py:106`); anything else is its own text,
 		// URI-decoded (`tag.py:55-88`).
 		{
+			// **goccy rejects this document**, `could not find merge key`. It
+			// checks a handful of standard tags against the node's shape while
+			// parsing, where ruamel defers to the constructor and gets a
+			// `TaggedScalar`. Measured on a scalar: `!!merge`, `!!omap`,
+			// `!!set`, `!!seq` and `!!map` are all refused, and so is the
+			// verbatim `!<tag:…>` form below. Spec 015 delta §6.5.
 			name: "merge tag", yaml: "[!!merge x]",
-			want: `[TaggedScalar(value='x', style=None, tag=Tag('tag:yaml.org,2002:merge'))]`,
+			want:            `[TaggedScalar(value='x', style=None, tag=Tag('tag:yaml.org,2002:merge'))]`,
+			unrepresentable: "goccy refuses a !!merge scalar: could not find merge key",
+		},
+		{
+			name: "verbatim uri", yaml: "[!<tag:x.com,1:t> x]",
+			want:            `[TaggedScalar(value='x', style=None, tag=Tag('tag:x.com,1:t'))]`,
+			unrepresentable: "goccy refuses the verbatim !<URI> form",
 		},
 		{
 			name: "local without bangs", yaml: "[!foo bar]",
@@ -168,6 +185,9 @@ func TestATaggedScalarReprsAsItsConstructor(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			if test.unrepresentable != "" {
+				t.Skipf("upstream prints %s; %s", test.want, test.unrepresentable)
+			}
 			block, language := localeBlock(t, test.yaml)
 			errs := locale.ValidateLanguage(block, language, []string{"locale"}, schemaerr.SourceMain)
 			if len(errs) != 1 {
