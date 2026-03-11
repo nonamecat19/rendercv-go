@@ -63,16 +63,62 @@ func PythonText(node *yamldoc.Node) string {
 // a container quotes. It is what a container's own `str()` uses for its
 // members, which is why `[english]` reads `['english']`.
 //
-// **`KindTagged` is knowingly wrong here**, and identically to
-// `design.go`'s copy: a `TaggedScalar`'s `repr()` is not its text but
-// `TaggedScalar(value='x', style=None, tag=Tag('tag:yaml.org,2002:str'))`,
-// measured against the vendored ruamel. Rendering that needs the tag, which
-// `yamldoc.Node` does not keep.
+// **A `TaggedScalar` is the other kind whose `repr` is not its `str`.** Its
+// `__str__` is the bare value (`ruamel/yaml/comments.py:1177-1178`) and its
+// `__repr__` is a constructor call (`:1186-1187`), so the two differ exactly
+// where a container is involved — which is why this arm lives here and
+// `PythonText`'s `KindTagged` arm stays `RenderInput`. `[!!str 31]` was `[31]`
+// here, indistinguishable from a plain `[31]`.
 func pythonRepr(node *yamldoc.Node) string {
-	if node != nil && node.Kind == yamldoc.KindString {
+	if node == nil {
+		return PythonText(node)
+	}
+	switch node.Kind {
+	case yamldoc.KindString:
 		return pythonStringRepr(node.Raw)
+	case yamldoc.KindTagged:
+		return taggedScalarRepr(node)
+	case yamldoc.KindNull, yamldoc.KindBool, yamldoc.KindInt, yamldoc.KindFloat,
+		yamldoc.KindMapping, yamldoc.KindSequence:
+		// Every other kind reprs as it prints. Named rather than left to a
+		// `default` so a new kind has to decide here (kindguard).
 	}
 	return PythonText(node)
+}
+
+// taggedScalarRepr is `TaggedScalar.__repr__`
+// (`ruamel/yaml/comments.py:1186-1187`), one f-string:
+//
+//	f'TaggedScalar(value={self.value!r}, style={self.style!r}, tag={self.tag!r})'
+//
+// with `Tag.__repr__` supplying `Tag(<repr of trval>)`
+// (`ruamel/yaml/tag.py:31-32`). All three interpolations are Python `repr`,
+// which is why `[!!str "it's"]` renders `value="it's"` — the quote-selection
+// rule reaches inside the constructor call too.
+func taggedScalarRepr(node *yamldoc.Node) string {
+	return "TaggedScalar(value=" + pythonStringRepr(node.Raw) +
+		", style=" + pythonStyleRepr(node.Style) +
+		", tag=Tag(" + pythonStringRepr(node.Tag) + "))"
+}
+
+// pythonStyleRepr is `repr()` of the scalar style ruamel records —
+// `data2.style = node.style` (`ruamel/yaml/constructor.py:1618-1620`), the
+// scanner's own style byte, which is `None` for a plain scalar and the marker
+// character for every other style. Measured on all five.
+func pythonStyleRepr(style yamldoc.ScalarStyle) string {
+	switch style {
+	case yamldoc.StylePlain:
+		return "None"
+	case yamldoc.StyleSingleQuoted:
+		return pythonStringRepr("'")
+	case yamldoc.StyleDoubleQuoted:
+		return pythonStringRepr(`"`)
+	case yamldoc.StyleLiteral:
+		return pythonStringRepr("|")
+	case yamldoc.StyleFolded:
+		return pythonStringRepr(">")
+	}
+	return "None"
 }
 
 // pythonStringRepr is CPython's `repr(str)` (Objects/unicodeobject.c,
