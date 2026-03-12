@@ -871,15 +871,38 @@ Each is mechanically checkable. "Differential" means: run the vendored
 scratch directories outside the repository, and compare raw stdout, raw stderr, the exit code and
 the written file tree — **with no trailing-newline normalization** (§7.4).
 
+**A differential compares the port against a process, never against a digest of one.** A captured
+fixture — an md5 table, a recorded output — is not a differential: it moves only when someone
+reruns the generator that wrote it, so it cannot notice upstream changing under a submodule bump.
+Where an invocation-per-case is too slow to be a routine gate, the vendored library may be driven
+once per test run and asked for every case at once, and one process-level invocation then bridges
+the two levels by showing the CLI writes what the library returned. Live is the requirement;
+one-process-per-case is not.
+
 ### Sample generator
 
-- [ ] A 198-case differential over every (theme, locale) pair: the file `new` writes is
-      **byte-identical** to upstream's, including the final byte.
-- [ ] A name differential over at least the eight rows of behavior 7's table plus `Matías`
-      (`tests/schema/test_sample_generator.py:46`): byte-identical file **and** byte-identical file
-      name.
-- [ ] `internal/cli/samples/*.yaml` and `tools/sampleprobe` are **deleted**; nothing in the port
-      embeds a captured starter CV.
+- [ ] A 198-case **live** differential over every (theme, locale) pair: the document the port
+      generates is **byte-identical** to the one the vendored Python generates on that run,
+      including the final byte, and the whole text crosses the boundary so a mismatch names the
+      line. `internal/cli/sample/upstream_conformance_test.go`, driving
+      `internal/cli/sample/testdata/upstream.py`; 198 cases in ~5s of one interpreter.
+- [ ] A live name differential over at least the eight rows of behavior 7's table plus `Matías`
+      (`tests/schema/test_sample_generator.py:46`): the `cv.name` region byte-identical to what
+      ruamel emits on that run, **and** a byte-identical file name.
+- [ ] One process-level case runs upstream's `new` in a scratch directory and asserts the file it
+      writes — name and bytes — is the document the 198-case battery claims for that pair, so the
+      library-level battery stands for what the CLI does.
+- [ ] `internal/cli/samples/*.yaml` is **deleted**, and no *fixture* in the port holds a captured
+      starter CV or a digest of one — the two that did, `internal/cli/sample/testdata/matrix.json`
+      and `names.json`, are gone with the criteria they served.
+      `internal/cli/sample/blocks/**` **stays and is not a fixture**: it is the pydantic dump the
+      generator runs on (§3.1 behavior 14's 33 blocks), embedded *data* rather than an
+      expectation, and the live differential above is what holds it to upstream.
+      The earlier form of this bullet asked for `tools/sampleprobe` to be deleted too, on the
+      reading that it existed only to write those fixtures. It does not: it is also the sole
+      generator of `blocks/**`, so deleting it would remove the regeneration path for embedded
+      production data after a submodule bump. **The tool stays; whether that regeneration path is
+      worth keeping now that the differential is live is a human gate, unresolved.**
 - [ ] `ErrSampleNameUnsupported` (`internal/cli/new.go`) is deleted and no invocation of `new`
       can produce it.
 - [ ] A unit test asserts the block order `cv`, `design`, `locale`, `settings` and that exactly
@@ -967,7 +990,7 @@ generated file added to `files.txt`; today only `render` cases capture a file tr
 | Finding | Source | How |
 |---|---|---|
 | `new` accepts only the literal name `"John Doe"` | STATE pass 22, human-gated divergence proposal | §3.1 behavior 2 — a real generator; the proposal is withdrawn, not approved |
-| Only 7 of 198 theme/locale variants exist | `tools/sampleprobe/main.go` header | §8's 198-case differential |
+| Only 7 of 198 theme/locale variants exist | `tools/sampleprobe/main.go` header | §8's 198-case live differential |
 | The two `RenderCVUserError` panel paths were three ad-hoc fixes with no spec | STATE 2026-08-11 (`fa12ea5`, `504c91a`, `cb56ddd`) | §3.4 behaviors 28–39, §6.2 |
 | Five panel bodies no spec named (`OS Error:`, template syntax, two empty-message fallbacks, `Rendering...`) | none | §4.6–§4.9 |
 | The `--watch` stub returning "not implemented" | STATE G-10, spec 012 §6.2 | §3.7 |
