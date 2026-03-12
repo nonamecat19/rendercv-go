@@ -105,7 +105,13 @@ func TestTableStripsTheControlCodesRichStrips(t *testing.T) {
 		{"start of heading", "a\x014", "a\x014"},
 		{"escape", "a\x1b4", "a\x1b4"},
 		{"delete", "a\x7f4", "a\x7f4"},
-		{"tab", "a\t4", "a\t4"},
+		// **A tab survives the stripping and is then expanded**, which this
+		// row used to get half right: `Text.wrap` turns it into spaces up to
+		// the next eight-column stop (`rich/text.py:1231`) long after
+		// `strip_control_codes` has let it through. Re-measured with the same
+		// `design.page.size` probe as the rest — upstream's cell is
+		// `a       4`, not `a\t4`.
+		{"tab", "a\t4", "a       4"},
 	}
 
 	for _, c := range cases {

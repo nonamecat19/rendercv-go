@@ -275,8 +275,13 @@ func TestMarkdownToTypstFindings(t *testing.T) {
 // whitespace set is the 29 characters `str.isspace()` accepts — four of them,
 // U+001C–U+001F, are outside Go's `unicode.IsSpace`.
 //
-// The fixture carries four of the 29; this runs the other 25, each measured
+// The fixture carries six of the 29; this runs all of them, each measured
 // against the vendored `markdown_to_typst` and identical.
+//
+// **A newline is the one that is not the same shape**, and `\r` is no longer
+// with it: `markdown_to_typst` splits the raw string, so a trailing `\n` is a
+// second, empty top-level chunk while a trailing `\r` stays inside the one
+// `md.convert` whose `output.strip()` removes it.
 func TestCodeBlockStripsEveryPythonSpace(t *testing.T) {
 	pythonSpaces := []rune{
 		0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x1c, 0x1d, 0x1e, 0x1f, 0x20,
@@ -287,18 +292,7 @@ func TestCodeBlockStripsEveryPythonSpace(t *testing.T) {
 
 	for _, r := range pythonSpaces {
 		want := "`a\n`"
-		switch r {
-		case '\r':
-			// Upstream splits the **raw** string into lines and normalizes each
-			// one inside `md.convert`, where this port normalizes first and
-			// splits after, so a trailing `\r` becomes a second, empty line here
-			// and does not there: `"    a\r"` is `` `a\n` `` upstream and
-			// `` `a\n`\n `` here. A separate divergence in the same function,
-			// recorded rather than asserted so this case says only what it is
-			// about.
-			continue
-		case '\n':
-			// Not the same shape for the same reason, and here the two agree.
+		if r == '\n' {
 			want = "`a\n`\n"
 		}
 
