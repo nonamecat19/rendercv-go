@@ -99,6 +99,21 @@ type Item struct {
 	KeySpan Span
 	Value   *Node
 
+	// KeyNode is the key as an ordinary node, built by the same path as any
+	// value — which is what ruamel does, constructing a key with the
+	// constructor it uses for a value.
+	//
+	// It exists because a key is `repr`'d like a value, so its *kind* decides
+	// the spelling: `{1: a}` is `{1: 'a'}` and `{'1': a}` is `{'1': 'a'}`
+	// (spec 015 delta §4). Key alone cannot tell those apart — it is the
+	// **binding** key, the text that names a field, which is a different
+	// question from how the key is rendered.
+	//
+	// Nil for a key with no source node, which a CLI overlay synthesizes
+	// (`modelbuilder/merge.go`); those keys are always strings, so a renderer
+	// falls back to the repr of Key.
+	KeyNode *Node
+
 	// KeyTagged marks a key written with an explicit tag. Upstream resolves it
 	// to a `TaggedScalar` rather than a `str`, so it names no field at all and
 	// pydantic reports `Keys should be strings.` against the enclosing mapping
