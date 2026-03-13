@@ -23,15 +23,7 @@ import (
 // `RenderCVValidationError.message`. The flow spelling used here and the block
 // spelling `\n  1: a` were measured separately and agree.
 func TestMappingKeyRepr(t *testing.T) {
-	cases := []struct {
-		name string
-		yaml string
-		want string
-		// unrepresentable names the reason the port cannot produce want. The
-		// measured value stays in the table rather than being deleted, so the
-		// evidence survives the limitation.
-		unrepresentable string
-	}{
+	cases := []keyReprCase{
 		{name: "integer", yaml: "{1: a}", want: "{1: 'a'}"},
 		{name: "integer single quoted", yaml: "{'1': a}", want: "{'1': 'a'}"},
 		{name: "integer double quoted", yaml: `{"1": a}`, want: "{'1': 'a'}"},
@@ -116,6 +108,60 @@ func TestMappingKeyRepr(t *testing.T) {
 		},
 	}
 
+	runKeyReprCases(t, cases)
+}
+
+// TestTaggedMappingKeyRepr pins spec 015 delta §4.1: a **tagged** key, where
+// the two findings meet.
+//
+// The tag decides which one applies. An unforced tag leaves ruamel a
+// `TaggedScalar`, which reprs as its constructor call; a forced one constructs
+// the value, and the value's own kind decides — so `{!!int 1: a}` is `{1: 'a'}`
+// exactly as a bare `{1: a}` is.
+//
+// **No code was written for this.** `Item.KeyNode` is built from the key with
+// its tag still on it, by the path a value takes, so both halves fall out of
+// the tag fix and the key fix together. This test exists to say so, and to
+// fail if either one is later narrowed.
+func TestTaggedMappingKeyRepr(t *testing.T) {
+	cases := []keyReprCase{
+		// Unforced: a TaggedScalar, whose repr is a constructor call.
+		{
+			name: "string tag", yaml: "{!!str k: a}",
+			want: "{TaggedScalar(value='k', style=None, tag=Tag('tag:yaml.org,2002:str')): 'a'}",
+		},
+		{
+			name: "local tag", yaml: "{!unknown k: a}",
+			want: "{TaggedScalar(value='k', style=None, tag=Tag('!unknown')): 'a'}",
+		},
+		{
+			name: "quoted under a tag", yaml: `{!!str "k": a}`,
+			want: `{TaggedScalar(value='k', style='"', tag=Tag('tag:yaml.org,2002:str')): 'a'}`,
+		},
+
+		// Forced: the constructed value, tag gone from the repr.
+		{name: "integer tag", yaml: "{!!int 1: a}", want: "{1: 'a'}"},
+		{name: "boolean tag", yaml: "{!!bool yes: a}", want: "{True: 'a'}"},
+		{name: "float tag", yaml: "{!!float 1.50: a}", want: "{1.5: 'a'}"},
+		{name: "null tag", yaml: "{!!null x: a}", want: "{None: 'a'}"},
+	}
+
+	runKeyReprCases(t, cases)
+}
+
+// keyReprCase is one measured shape of `locale.language`.
+type keyReprCase struct {
+	name string
+	yaml string
+	want string
+	// unrepresentable names the reason the port cannot produce want. The
+	// measured value stays in the table rather than being deleted, so the
+	// evidence survives the limitation.
+	unrepresentable string
+}
+
+func runKeyReprCases(t *testing.T, cases []keyReprCase) {
+	t.Helper()
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			if c.unrepresentable != "" {
