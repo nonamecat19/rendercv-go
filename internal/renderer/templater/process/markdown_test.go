@@ -9,8 +9,10 @@ import (
 	"github.com/nonamecat19/rendercv-go/internal/renderer/templater/process"
 )
 
-// The markdown→Typst differential: 101 inputs and the vendored Python's answer
-// for each, captured into testdata rather than restated here.
+// The markdown→Typst differential: 531 inputs and the vendored Python's answer
+// for each, captured into testdata rather than restated here. (It said 101 for
+// four iterations after it stopped being 101; `tools/mdprobe` owns the file now
+// and prints the count.)
 //
 // **The fixture is generated, and what that does and does not buy is the same
 // trade `tools/localeprobe` states.** It was produced by running upstream's
@@ -41,7 +43,19 @@ func TestMarkdownToTypst(t *testing.T) {
 
 	for _, row := range rows {
 		t.Run(row.In, func(t *testing.T) {
-			if got := process.MarkdownToTypst(row.In); got != row.Want {
+			got := process.MarkdownToTypst(row.In)
+			// The same inverted pin the HTML differential uses, for the same
+			// reason: spec 011-E §3's rows are here before the fix, and a
+			// tolerated mismatch that cannot notice being fixed is a mute
+			// button.
+			if classERemainder[row.In] {
+				if got == row.Want {
+					t.Errorf("MarkdownToTypst(%q) now matches upstream"+
+						" — remove it from classERemainder", row.In)
+				}
+				return
+			}
+			if got != row.Want {
 				t.Errorf("MarkdownToTypst(%q) =\n%q\nwant\n%q", row.In, got, row.Want)
 			}
 		})

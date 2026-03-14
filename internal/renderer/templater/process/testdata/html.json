@@ -3042,5 +3042,417 @@
   {
     "In": " \n---",
     "Out": "<h2></h2>"
+  },
+  {
+    "In": "**\u001cb**",
+    "Out": "<p>**\u001cb**</p>"
+  },
+  {
+    "In": "**b\u001c** x",
+    "Out": "<p>**b\u001c** x</p>"
+  },
+  {
+    "In": "a **\u001c** b",
+    "Out": "<p>a **\u001c** b</p>"
+  },
+  {
+    "In": "**\u001db**",
+    "Out": "<p>**\u001db**</p>"
+  },
+  {
+    "In": "**b\u001d** x",
+    "Out": "<p>**b\u001d** x</p>"
+  },
+  {
+    "In": "a **\u001d** b",
+    "Out": "<p>a **\u001d** b</p>"
+  },
+  {
+    "In": "**\u001eb**",
+    "Out": "<p>**\u001eb**</p>"
+  },
+  {
+    "In": "**b\u001e** x",
+    "Out": "<p>**b\u001e** x</p>"
+  },
+  {
+    "In": "a **\u001e** b",
+    "Out": "<p>a **\u001e** b</p>"
+  },
+  {
+    "In": "**\u001fb**",
+    "Out": "<p>**\u001fb**</p>"
+  },
+  {
+    "In": "**b\u001f** x",
+    "Out": "<p>**b\u001f** x</p>"
+  },
+  {
+    "In": "a **\u001f** b",
+    "Out": "<p>a **\u001f** b</p>"
+  },
+  {
+    "In": "**b**",
+    "Out": "<p>**b**</p>"
+  },
+  {
+    "In": "**b** x",
+    "Out": "<p>**b** x</p>"
+  },
+  {
+    "In": "a **** b",
+    "Out": "<p>a **** b</p>"
+  },
+  {
+    "In": "** b**",
+    "Out": "<p>** b**</p>"
+  },
+  {
+    "In": "**b ** x",
+    "Out": "<p>**b ** x</p>"
+  },
+  {
+    "In": "a ** ** b",
+    "Out": "<p>a ** ** b</p>"
+  },
+  {
+    "In": "** b**",
+    "Out": "<p>** b**</p>"
+  },
+  {
+    "In": "**b ** x",
+    "Out": "<p>**b ** x</p>"
+  },
+  {
+    "In": "a ** ** b",
+    "Out": "<p>a ** ** b</p>"
+  },
+  {
+    "In": "** b**",
+    "Out": "<p>** b**</p>"
+  },
+  {
+    "In": "**b ** x",
+    "Out": "<p>**b ** x</p>"
+  },
+  {
+    "In": "a ** ** b",
+    "Out": "<p>a ** ** b</p>"
+  },
+  {
+    "In": "** b**",
+    "Out": "<p>** b**</p>"
+  },
+  {
+    "In": "**b ** x",
+    "Out": "<p>**b ** x</p>"
+  },
+  {
+    "In": "a ** ** b",
+    "Out": "<p>a ** ** b</p>"
+  },
+  {
+    "In": "** b**",
+    "Out": "<p>** b**</p>"
+  },
+  {
+    "In": "**b ** x",
+    "Out": "<p>**b ** x</p>"
+  },
+  {
+    "In": "a ** ** b",
+    "Out": "<p>a ** ** b</p>"
+  },
+  {
+    "In": "** b**",
+    "Out": "<p>** b**</p>"
+  },
+  {
+    "In": "**b ** x",
+    "Out": "<p>**b ** x</p>"
+  },
+  {
+    "In": "a ** ** b",
+    "Out": "<p>a ** ** b</p>"
+  },
+  {
+    "In": "** b**",
+    "Out": "<p>** b**</p>"
+  },
+  {
+    "In": "**b ** x",
+    "Out": "<p>**b ** x</p>"
+  },
+  {
+    "In": "a ** ** b",
+    "Out": "<p>a ** ** b</p>"
+  },
+  {
+    "In": "** b**",
+    "Out": "<p>** b**</p>"
+  },
+  {
+    "In": "**b ** x",
+    "Out": "<p>**b ** x</p>"
+  },
+  {
+    "In": "a ** ** b",
+    "Out": "<p>a ** ** b</p>"
+  },
+  {
+    "In": "** b**",
+    "Out": "<p>** b**</p>"
+  },
+  {
+    "In": "**b ** x",
+    "Out": "<p>**b ** x</p>"
+  },
+  {
+    "In": "a ** ** b",
+    "Out": "<p>a ** ** b</p>"
+  },
+  {
+    "In": "** b**",
+    "Out": "<p>** b**</p>"
+  },
+  {
+    "In": "**b ** x",
+    "Out": "<p>**b ** x</p>"
+  },
+  {
+    "In": "a ** ** b",
+    "Out": "<p>a ** ** b</p>"
+  },
+  {
+    "In": "** b**",
+    "Out": "<p>** b**</p>"
+  },
+  {
+    "In": "**b ** x",
+    "Out": "<p>**b ** x</p>"
+  },
+  {
+    "In": "a ** ** b",
+    "Out": "<p>a ** ** b</p>"
+  },
+  {
+    "In": "** b**",
+    "Out": "<p>** b**</p>"
+  },
+  {
+    "In": "**b ** x",
+    "Out": "<p>**b ** x</p>"
+  },
+  {
+    "In": "a ** ** b",
+    "Out": "<p>a ** ** b</p>"
+  },
+  {
+    "In": "** b**",
+    "Out": "<p>** b**</p>"
+  },
+  {
+    "In": "**b ** x",
+    "Out": "<p>**b ** x</p>"
+  },
+  {
+    "In": "a ** ** b",
+    "Out": "<p>a ** ** b</p>"
+  },
+  {
+    "In": "** b**",
+    "Out": "<p>** b**</p>"
+  },
+  {
+    "In": "**b ** x",
+    "Out": "<p>**b ** x</p>"
+  },
+  {
+    "In": "a ** ** b",
+    "Out": "<p>a ** ** b</p>"
+  },
+  {
+    "In": "** b**",
+    "Out": "<p>** b**</p>"
+  },
+  {
+    "In": "**b ** x",
+    "Out": "<p>**b ** x</p>"
+  },
+  {
+    "In": "a ** ** b",
+    "Out": "<p>a ** ** b</p>"
+  },
+  {
+    "In": "** b**",
+    "Out": "<p>** b**</p>"
+  },
+  {
+    "In": "**b ** x",
+    "Out": "<p>**b ** x</p>"
+  },
+  {
+    "In": "a ** ** b",
+    "Out": "<p>a ** ** b</p>"
+  },
+  {
+    "In": "** b**",
+    "Out": "<p>** b**</p>"
+  },
+  {
+    "In": "**b ** x",
+    "Out": "<p>**b ** x</p>"
+  },
+  {
+    "In": "a ** ** b",
+    "Out": "<p>a ** ** b</p>"
+  },
+  {
+    "In": "**　b**",
+    "Out": "<p>**　b**</p>"
+  },
+  {
+    "In": "**b　** x",
+    "Out": "<p>**b　** x</p>"
+  },
+  {
+    "In": "a **　** b",
+    "Out": "<p>a **　** b</p>"
+  },
+  {
+    "In": "a_b_ c",
+    "Out": "<p>a<em>b</em> c</p>"
+  },
+  {
+    "In": "a _b_ c",
+    "Out": "<p>a <em>b</em> c</p>"
+  },
+  {
+    "In": "a _b_ c",
+    "Out": "<p>a <em>b</em> c</p>"
+  },
+  {
+    "In": "a _b_ c",
+    "Out": "<p>a <em>b</em> c</p>"
+  },
+  {
+    "In": "a _b_ c",
+    "Out": "<p>a <em>b</em> c</p>"
+  },
+  {
+    "In": "a _b_ c",
+    "Out": "<p>a <em>b</em> c</p>"
+  },
+  {
+    "In": "a _b_ c",
+    "Out": "<p>a <em>b</em> c</p>"
+  },
+  {
+    "In": "a _b_ c",
+    "Out": "<p>a <em>b</em> c</p>"
+  },
+  {
+    "In": "a _b_ c",
+    "Out": "<p>a <em>b</em> c</p>"
+  },
+  {
+    "In": "a _b_ c",
+    "Out": "<p>a <em>b</em> c</p>"
+  },
+  {
+    "In": "a _b_ c",
+    "Out": "<p>a <em>b</em> c</p>"
+  },
+  {
+    "In": "a _b_ c",
+    "Out": "<p>a <em>b</em> c</p>"
+  },
+  {
+    "In": "a _b_ c",
+    "Out": "<p>a <em>b</em> c</p>"
+  },
+  {
+    "In": "a _b_ c",
+    "Out": "<p>a <em>b</em> c</p>"
+  },
+  {
+    "In": "a _b_ c",
+    "Out": "<p>a <em>b</em> c</p>"
+  },
+  {
+    "In": "a _b_ c",
+    "Out": "<p>a <em>b</em> c</p>"
+  },
+  {
+    "In": "a _b_ c",
+    "Out": "<p>a <em>b</em> c</p>"
+  },
+  {
+    "In": "a _b_ c",
+    "Out": "<p>a <em>b</em> c</p>"
+  },
+  {
+    "In": "a　_b_ c",
+    "Out": "<p>a　<em>b</em> c</p>"
+  },
+  {
+    "In": "·_x_",
+    "Out": "<p>·<em>x</em></p>"
+  },
+  {
+    "In": "_x_·",
+    "Out": "<p><em>x</em>·</p>"
+  },
+  {
+    "In": "—_x_",
+    "Out": "<p>—<em>x</em></p>"
+  },
+  {
+    "In": "_x_—",
+    "Out": "<p><em>x</em>—</p>"
+  },
+  {
+    "In": "·__x__",
+    "Out": "<p>·<strong>x</strong></p>"
+  },
+  {
+    "In": "__x__—",
+    "Out": "<p><strong>x</strong>—</p>"
+  },
+  {
+    "In": "€_x_",
+    "Out": "<p>€<em>x</em></p>"
+  },
+  {
+    "In": "_x_©",
+    "Out": "<p><em>x</em>©</p>"
+  },
+  {
+    "In": "** Senior Engineer**",
+    "Out": "<p>** Senior Engineer**</p>"
+  },
+  {
+    "In": "**Team lead ** at ACME",
+    "Out": "<p>**Team lead ** at ACME</p>"
+  },
+  {
+    "In": "Led **a team** of 5",
+    "Out": "<p>Led <strong>a team</strong> of 5</p>"
+  },
+  {
+    "In": "Built _the pipeline_",
+    "Out": "<p>Built <em>the pipeline</em></p>"
+  },
+  {
+    "In": "Grew revenue by **20 %**",
+    "Out": "<p>Grew revenue by <strong>20 %</strong></p>"
+  },
+  {
+    "In": "Wrote *docs* and tests",
+    "Out": "<p>Wrote <em>docs</em> and tests</p>"
+  },
+  {
+    "In": "**Python** / **Go**",
+    "Out": "<p><strong>Python</strong> / <strong>Go</strong></p>"
   }
 ]
