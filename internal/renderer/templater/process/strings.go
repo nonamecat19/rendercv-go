@@ -147,6 +147,14 @@ func isWordBoundary(text string, at int) bool {
 // isWordRune is Python's `\w` under `re.UNICODE`: a letter, a digit or an
 // underscore. `utf8.RuneError` from an empty side is not a word rune, which
 // makes a match at either end of the string a boundary.
+//
+// **It is `unicode.IsDigit` where `pyclass.go`'s `isPyWordRune` is
+// `unicode.IsNumber`, and that is a known gap, not a distinction.** `\w` takes
+// all of `N*`, so a keyword next to `²` (`No`) or `Ⅷ` (`Nl`) gets a boundary
+// here that Python does not give it. Closing it changes `MakeKeywordsBold`'s
+// output, which is a different feature with its own differential and no
+// measurement yet — spec 011-E §11.1, its own unit. Whoever takes it deletes
+// this function and calls `isPyWordRune`.
 func isWordRune(r rune) bool {
 	return r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r)
 }

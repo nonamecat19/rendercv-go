@@ -265,7 +265,7 @@ func maskNotStrong(b []byte) func(rest []byte, at int) int {
 		if rest[0] != '*' && rest[0] != '_' {
 			return 0
 		}
-		if at > 0 && !isSpaceByte(b[at-1]) {
+		if at > 0 && !spaceBefore(b, at) {
 			return 0 // `(^|(?<=\s))`
 		}
 		run := 0
@@ -276,7 +276,7 @@ func maskNotStrong(b []byte) func(rest []byte, at int) int {
 			if width < run {
 				continue // `(?=\s|$)` cannot hold with a delimiter next
 			}
-			if width >= len(rest) || isSpaceByte(rest[width]) {
+			if width >= len(rest) || spaceAt(rest, width) {
 				return width
 			}
 		}
