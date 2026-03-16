@@ -9,8 +9,10 @@ import (
 	"github.com/nonamecat19/rendercv-go/internal/renderer/templater/process"
 )
 
-// The markdown→Typst differential: 101 inputs and the vendored Python's answer
-// for each, captured into testdata rather than restated here.
+// The markdown→Typst differential: 531 inputs and the vendored Python's answer
+// for each, captured into testdata rather than restated here. (It said 101 for
+// four iterations after it stopped being 101; `tools/mdprobe` owns the file now
+// and prints the count.)
 //
 // **The fixture is generated, and what that does and does not buy is the same
 // trade `tools/localeprobe` states.** It was produced by running upstream's

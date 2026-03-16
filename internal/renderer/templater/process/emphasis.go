@@ -209,7 +209,7 @@ func matchEmphasis(patterns []emphasisPattern, data string, pos, cutoff, floor i
 // character before the opening `_` is a word character — while `_em_` at a word
 // boundary becomes emphasis.
 func matchSmart(data string, pos int, run string) (end, bodyStart, bodyEnd int, ok bool) {
-	if pos > 0 && isWordByte(data[pos-1]) {
+	if wordBefore(data, pos) {
 		return 0, 0, 0, false
 	}
 	if !strings.HasPrefix(data[pos:], run) {
@@ -228,7 +228,7 @@ func matchSmart(data string, pos int, run string) (end, bodyStart, bodyEnd int, 
 			continue
 		}
 		after := i + len(run)
-		if after < len(rest) && isWordByte(rest[after]) {
+		if wordAt(rest, after) {
 			continue
 		}
 		bodyStart = pos + len(run)
@@ -236,14 +236,6 @@ func matchSmart(data string, pos int, run string) (end, bodyStart, bodyEnd int, 
 		return bodyEnd + len(run), bodyStart, bodyEnd, true
 	}
 	return 0, 0, 0, false
-}
-
-// isWordByte is Python's `\w` over the ASCII range, with every byte above it
-// treated as a word character too — which is right for UTF-8 continuation bytes
-// and for the Latin letters the corpus contains.
-func isWordByte(b byte) bool {
-	return b == '_' || (b >= '0' && b <= '9') ||
-		(b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || b >= 0x80
 }
 
 // matchTriple is the shape both EM_STRONG_RE and STRONG_EM_RE have: three
@@ -290,7 +282,7 @@ func matchTriple(data string, pos int, delim byte, innerRun, outerRun int) (end,
 // three `\w`-adjacency checks `STRONG_EM3_RE` does not have, because `*` is
 // never a word byte and the checks would be vacuous for it.
 func matchStrongEm3(data string, pos int, delim byte, smart bool) (end, firstStart, firstEnd, secondStart, secondEnd int, ok bool) {
-	if smart && pos > 0 && isWordByte(data[pos-1]) {
+	if smart && wordBefore(data, pos) {
 		return 0, 0, 0, 0, 0, false // `(?<!\w)` before the opening pair
 	}
 
@@ -313,7 +305,7 @@ func matchStrongEm3(data string, pos int, delim byte, smart bool) (end, firstSta
 		if i+1 < len(rest) && rest[i+1] == delim {
 			continue // the second `(?!\1)`
 		}
-		if smart && isWordByte(rest[i-1]) {
+		if smart && wordBefore(rest, i) {
 			continue // `(?<!\w)` before the middle delimiter
 		}
 		tail := rest[i+1:]
@@ -323,7 +315,7 @@ func matchStrongEm3(data string, pos int, delim byte, smart bool) (end, firstSta
 				continue
 			}
 			closeEnd := pos + 2 + i + 1 + j + 3
-			if smart && closeEnd < len(data) && isWordByte(data[closeEnd]) {
+			if smart && wordAt(data, closeEnd) {
 				continue // `(?!\w)` after the closing run
 			}
 			firstStart = pos + 2
