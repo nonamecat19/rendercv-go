@@ -6,6 +6,7 @@ import (
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
+	"github.com/yuin/goldmark/util"
 )
 
 // pythonATXHeadingParser is goldmark's ATX heading parser with
@@ -49,8 +50,15 @@ type pythonATXHeadingParser struct {
 // blockquote's one space are gone before upstream's processor sees the line, so
 // `- # h` and `> # h` are headings in both libraries and only the space the
 // container did not claim counts. That is `BlockIndent`, and it is most of the
-// rule — `continuationIndent` is the rest, for the one place the two libraries
-// disagree about who the space belongs to.
+// rule — `containerSwallowedIndent` is the rest, for the one place the two
+// libraries disagree about who the space belongs to.
+//
+// **No space is required after the hashes** either (§3.1): nothing in the
+// expression separates `#{1,6}` from `header`, where CommonMark 0.31 §4.2 asks
+// for a space, a tab or the end of the line and goldmark declines without one
+// (`parser/atx_heading.go:97-100`). `openTightHeading` is that case, and it is
+// the one an ordinary CV reaches — `#1 in sales` is `<h1>1 in sales</h1>`
+// upstream and was a paragraph here.
 func (p pythonATXHeadingParser) Open(
 	parent ast.Node, reader text.Reader, pc parser.Context,
 ) (ast.Node, parser.State) {
@@ -58,7 +66,10 @@ func (p pythonATXHeadingParser) Open(
 		return nil, parser.NoChildren
 	}
 
-	node, state := p.BlockParser.Open(parent, reader, pc)
+	node, state := openTightHeading(reader, pc)
+	if node == nil {
+		node, state = p.BlockParser.Open(parent, reader, pc)
+	}
 	if node == nil || node.Kind() != ast.KindHeading || node.Lines().Len() == 0 {
 		return node, state
 	}
@@ -78,6 +89,68 @@ func (p pythonATXHeadingParser) Open(
 	trimmed := line.WithStart(line.Start + left)
 	node.Lines().Set(0, trimmed.WithStop(trimmed.Stop-right))
 	return node, state
+}
+
+// openTightHeading opens the heading goldmark turns down for want of a space
+// after the hashes, and returns nil for every other shape so goldmark's own
+// parser keeps the ones the two libraries already agree on.
+//
+// It is goldmark's `Open` with the space requirement removed
+// (`parser/atx_heading.go:82-137`) rather than upstream's `RE.search` over the
+// whole block: with a space present every `search`-reachable shape already
+// agrees, including a heading that interrupts a paragraph or ends a list, so
+// nothing here needs the `before`/`after` splitting of
+// `blockprocessors.py:470-487` (spec-delta-atx §3.5).
+func openTightHeading(reader text.Reader, pc parser.Context) (ast.Node, parser.State) {
+	line, segment := reader.PeekLine()
+	pos := pc.BlockOffset()
+	if pos < 0 {
+		return nil, parser.NoChildren
+	}
+	end := pos
+	for ; end < len(line) && line[end] == '#'; end++ {
+	}
+	level := end - pos
+	if level == 0 || level > 6 {
+		return nil, parser.NoChildren
+	}
+	if end == len(line) || util.IsSpace(line[end]) {
+		// A space, a tab or the end of the line: goldmark and upstream open the
+		// same heading, so let goldmark open it.
+		return nil, parser.NoChildren
+	}
+
+	body := text.NewSegment(
+		segment.Start+end-segment.Padding,
+		segment.Start+len(line)-segment.Padding)
+	body = body.TrimRightSpace(reader.Source())
+	node := ast.NewHeading(level)
+	if body.Len() > 0 {
+		body.Stop = body.Start + cutClosingRun(body.Value(reader.Source()))
+		node.Lines().Append(body)
+	}
+	reader.AdvanceToEOL()
+	return node, parser.NoChildren
+}
+
+// cutClosingRun is where a heading's text ends: goldmark's closing-sequence
+// rule (`parser/atx_heading.go:120-136`), which drops a trailing run of hashes
+// only when a space precedes it.
+func cutClosingRun(line []byte) int {
+	stop := len(line)
+	if stop == 0 {
+		return 0
+	}
+	i := stop - 1
+	for ; line[i] == '#' && i > 0; i-- {
+	}
+	if i == 0 && line[0] == '#' {
+		return 0
+	}
+	if i != stop-1 && util.IsSpace(line[i]) {
+		return i - util.TrimRightSpaceLength(line[0:i])
+	}
+	return stop
 }
 
 // containerSwallowedIndent reports whether the line's own indentation was taken
