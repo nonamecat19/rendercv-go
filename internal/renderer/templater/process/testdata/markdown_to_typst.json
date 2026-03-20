@@ -1710,5 +1710,29 @@
  {
   "in": "a\rb\rc",
   "want": "a\nb\nc"
+ },
+ {
+  "in": "#1 in sales",
+  "want": "\\#1 in sales"
+ },
+ {
+  "in": "#hashtag",
+  "want": "#hashtag"
+ },
+ {
+  "in": "#h",
+  "want": "#h"
+ },
+ {
+  "in": "#######h",
+  "want": "\\#\\#\\#\\#\\#\\##h"
+ },
+ {
+  "in": "#h#",
+  "want": "#h#"
+ },
+ {
+  "in": " # h",
+  "want": "\\# h"
  }
 ]
