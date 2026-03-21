@@ -3454,5 +3454,513 @@
   {
     "In": "**Python** / **Go**",
     "Out": "<p><strong>Python</strong> / <strong>Go</strong></p>"
+  },
+  {
+    "In": " # h",
+    "Out": "<p># h</p>"
+  },
+  {
+    "In": "  # h",
+    "Out": "<p># h</p>"
+  },
+  {
+    "In": "   # h",
+    "Out": "<p># h</p>"
+  },
+  {
+    "In": " ### h",
+    "Out": "<p>### h</p>"
+  },
+  {
+    "In": "  ### h",
+    "Out": "<p>### h</p>"
+  },
+  {
+    "In": "   ### h",
+    "Out": "<p>### h</p>"
+  },
+  {
+    "In": " # h #",
+    "Out": "<p># h #</p>"
+  },
+  {
+    "In": "a\n\n # h",
+    "Out": "<p>a</p>\n<p># h</p>"
+  },
+  {
+    "In": "a\n\n  ## h",
+    "Out": "<p>a</p>\n<p>## h</p>"
+  },
+  {
+    "In": "a\n # h\nb",
+    "Out": "<p>a\n # h\nb</p>"
+  },
+  {
+    "In": ">  # h",
+    "Out": "<blockquote>\n<p># h</p>\n</blockquote>"
+  },
+  {
+    "In": "- item\n  # h",
+    "Out": "<ul>\n<li>item\n  # h</li>\n</ul>"
+  },
+  {
+    "In": "- item\n\n  # h",
+    "Out": "<ul>\n<li>item</li>\n</ul>\n<p># h</p>"
+  },
+  {
+    "In": " # h\n===",
+    "Out": "<h1># h</h1>"
+  },
+  {
+    "In": " #h",
+    "Out": "<p>#h</p>"
+  },
+  {
+    "In": "  #h",
+    "Out": "<p>#h</p>"
+  },
+  {
+    "In": "   #h",
+    "Out": "<p>#h</p>"
+  },
+  {
+    "In": " #1 in sales",
+    "Out": "<p>#1 in sales</p>"
+  },
+  {
+    "In": "  #1 in sales",
+    "Out": "<p>#1 in sales</p>"
+  },
+  {
+    "In": "- # h",
+    "Out": "<ul>\n<li>\n<h1>h</h1>\n</li>\n</ul>"
+  },
+  {
+    "In": "-   # h",
+    "Out": "<ul>\n<li>\n<h1>h</h1>\n</li>\n</ul>"
+  },
+  {
+    "In": "1. # h",
+    "Out": "<ol>\n<li>\n<h1>h</h1>\n</li>\n</ol>"
+  },
+  {
+    "In": "   1. # h",
+    "Out": "<ol>\n<li>\n<h1>h</h1>\n</li>\n</ol>"
+  },
+  {
+    "In": "> # h",
+    "Out": "<blockquote>\n<h1>h</h1>\n</blockquote>"
+  },
+  {
+    "In": "    #h",
+    "Out": "<pre><code>#h\n</code></pre>"
+  },
+  {
+    "In": "    # h",
+    "Out": "<pre><code># h\n</code></pre>"
+  },
+  {
+    "In": "#h",
+    "Out": "<h1>h</h1>"
+  },
+  {
+    "In": "##h",
+    "Out": "<h2>h</h2>"
+  },
+  {
+    "In": "###h",
+    "Out": "<h3>h</h3>"
+  },
+  {
+    "In": "####h",
+    "Out": "<h4>h</h4>"
+  },
+  {
+    "In": "#####h",
+    "Out": "<h5>h</h5>"
+  },
+  {
+    "In": "######h",
+    "Out": "<h6>h</h6>"
+  },
+  {
+    "In": "#1",
+    "Out": "<h1>1</h1>"
+  },
+  {
+    "In": "#!",
+    "Out": "<h1>!</h1>"
+  },
+  {
+    "In": "#-",
+    "Out": "<h1>-</h1>"
+  },
+  {
+    "In": "#.",
+    "Out": "<h1>.</h1>"
+  },
+  {
+    "In": "#(",
+    "Out": "<h1>(</h1>"
+  },
+  {
+    "In": "#_",
+    "Out": "<h1>_</h1>"
+  },
+  {
+    "In": "#\u000b",
+    "Out": "<h1></h1>"
+  },
+  {
+    "In": "- #h",
+    "Out": "<ul>\n<li>\n<h1>h</h1>\n</li>\n</ul>"
+  },
+  {
+    "In": "1. #h",
+    "Out": "<ol>\n<li>\n<h1>h</h1>\n</li>\n</ol>"
+  },
+  {
+    "In": "> #h",
+    "Out": "<blockquote>\n<h1>h</h1>\n</blockquote>"
+  },
+  {
+    "In": "#",
+    "Out": "<h1></h1>"
+  },
+  {
+    "In": "# ",
+    "Out": "<h1></h1>"
+  },
+  {
+    "In": "#\n",
+    "Out": "<h1></h1>"
+  },
+  {
+    "In": "## ",
+    "Out": "<h2></h2>"
+  },
+  {
+    "In": "###### ",
+    "Out": "<h6></h6>"
+  },
+  {
+    "In": "\\# h",
+    "Out": "<p># h</p>"
+  },
+  {
+    "In": "\\#h",
+    "Out": "<p>#h</p>"
+  },
+  {
+    "In": "#\th",
+    "Out": "<h1>h</h1>"
+  },
+  {
+    "In": "#  h",
+    "Out": "<h1>h</h1>"
+  },
+  {
+    "In": "#1 in sales",
+    "Out": "<h1>1 in sales</h1>"
+  },
+  {
+    "In": "#1 in sales\n",
+    "Out": "<h1>1 in sales</h1>"
+  },
+  {
+    "In": "#1 ranked team",
+    "Out": "<h1>1 ranked team</h1>"
+  },
+  {
+    "In": "#2 of 300 applicants",
+    "Out": "<h1>2 of 300 applicants</h1>"
+  },
+  {
+    "In": "#hashtag",
+    "Out": "<h1>hashtag</h1>"
+  },
+  {
+    "In": "#TeamWork",
+    "Out": "<h1>TeamWork</h1>"
+  },
+  {
+    "In": "#tag and #tag2",
+    "Out": "<h1>tag and #tag2</h1>"
+  },
+  {
+    "In": "#include <stdio.h>",
+    "Out": "<h1>include <stdio.h></h1>"
+  },
+  {
+    "In": "#!/bin/sh",
+    "Out": "<h1>!/bin/sh</h1>"
+  },
+  {
+    "In": "#define X 1",
+    "Out": "<h1>define X 1</h1>"
+  },
+  {
+    "In": "#FF00AA is the brand colour",
+    "Out": "<h1>FF00AA is the brand colour</h1>"
+  },
+  {
+    "In": "#1 in sales\nand more prose",
+    "Out": "<h1>1 in sales</h1>\n<p>and more prose</p>"
+  },
+  {
+    "In": "#1 in sales -- led the team\n\nnext paragraph",
+    "Out": "<h1>1 in sales -- led the team</h1>\n<p>next paragraph</p>"
+  },
+  {
+    "In": "#1 in sales\n===",
+    "Out": "<h1>1 in sales</h1>\n<p>===</p>"
+  },
+  {
+    "In": "- #1 in sales",
+    "Out": "<ul>\n<li>\n<h1>1 in sales</h1>\n</li>\n</ul>"
+  },
+  {
+    "In": "Ranked #1 in sales",
+    "Out": "<p>Ranked #1 in sales</p>"
+  },
+  {
+    "In": "C# and .NET",
+    "Out": "<p>C# and .NET</p>"
+  },
+  {
+    "In": "issue #42",
+    "Out": "<p>issue #42</p>"
+  },
+  {
+    "In": "a #b",
+    "Out": "<p>a #b</p>"
+  },
+  {
+    "In": "\\#1 in sales",
+    "Out": "<p>#1 in sales</p>"
+  },
+  {
+    "In": "a\n#h",
+    "Out": "<p>a</p>\n<h1>h</h1>"
+  },
+  {
+    "In": "a\n\n#h",
+    "Out": "<p>a</p>\n<h1>h</h1>"
+  },
+  {
+    "In": "#h\nb",
+    "Out": "<h1>h</h1>\n<p>b</p>"
+  },
+  {
+    "In": "a\n#h\nb",
+    "Out": "<p>a</p>\n<h1>h</h1>\n<p>b</p>"
+  },
+  {
+    "In": "> q\n#h",
+    "Out": "<blockquote>\n<p>q</p>\n</blockquote>\n<h1>h</h1>"
+  },
+  {
+    "In": "- item\n#h",
+    "Out": "<ul>\n<li>item</li>\n</ul>\n<h1>h</h1>"
+  },
+  {
+    "In": "a\n# h\nb",
+    "Out": "<p>a</p>\n<h1>h</h1>\n<p>b</p>"
+  },
+  {
+    "In": "- item\n# h",
+    "Out": "<ul>\n<li>item</li>\n</ul>\n<h1>h</h1>"
+  },
+  {
+    "In": "> q\n# h",
+    "Out": "<blockquote>\n<p>q</p>\n</blockquote>\n<h1>h</h1>"
+  },
+  {
+    "In": "a\n\n- item\n# h",
+    "Out": "<p>a</p>\n<ul>\n<li>item</li>\n</ul>\n<h1>h</h1>"
+  },
+  {
+    "In": "#h\n===",
+    "Out": "<h1>h</h1>\n<p>===</p>"
+  },
+  {
+    "In": "#h\n---",
+    "Out": "<h1>h</h1>\n<hr />"
+  },
+  {
+    "In": "a\n===",
+    "Out": "<h1>a</h1>"
+  },
+  {
+    "In": "a\n\nb\n===",
+    "Out": "<p>a</p>\n<h1>b</h1>"
+  },
+  {
+    "In": "#######h",
+    "Out": "<h6>#h</h6>"
+  },
+  {
+    "In": "########h",
+    "Out": "<h6>##h</h6>"
+  },
+  {
+    "In": "####### h",
+    "Out": "<h6># h</h6>"
+  },
+  {
+    "In": "####### ",
+    "Out": "<h6>#</h6>"
+  },
+  {
+    "In": "#######",
+    "Out": "<h6></h6>"
+  },
+  {
+    "In": "####### h #######",
+    "Out": "<h6># h</h6>"
+  },
+  {
+    "In": "########\th",
+    "Out": "<h6>##    h</h6>"
+  },
+  {
+    "In": "#########h",
+    "Out": "<h6>###h</h6>"
+  },
+  {
+    "In": "#######1 in sales",
+    "Out": "<h6>#1 in sales</h6>"
+  },
+  {
+    "In": "\\#######h",
+    "Out": "<p>#######h</p>"
+  },
+  {
+    "In": "- #######h",
+    "Out": "<ul>\n<li>\n<h6>#h</h6>\n</li>\n</ul>"
+  },
+  {
+    "In": "a\n\n#######h",
+    "Out": "<p>a</p>\n<h6>#h</h6>"
+  },
+  {
+    "In": "# h#",
+    "Out": "<h1>h</h1>"
+  },
+  {
+    "In": "# h##",
+    "Out": "<h1>h</h1>"
+  },
+  {
+    "In": "# h#\n",
+    "Out": "<h1>h</h1>"
+  },
+  {
+    "In": "# h\u000b#",
+    "Out": "<h1>h</h1>"
+  },
+  {
+    "In": "#h#",
+    "Out": "<h1>h</h1>"
+  },
+  {
+    "In": "#h #",
+    "Out": "<h1>h</h1>"
+  },
+  {
+    "In": "#h#h#",
+    "Out": "<h1>h#h</h1>"
+  },
+  {
+    "In": "#h\\#",
+    "Out": "<h1>h#</h1>"
+  },
+  {
+    "In": "# h #",
+    "Out": "<h1>h</h1>"
+  },
+  {
+    "In": "## h ##",
+    "Out": "<h2>h</h2>"
+  },
+  {
+    "In": "### h###",
+    "Out": "<h3>h</h3>"
+  },
+  {
+    "In": "# h \\#",
+    "Out": "<h1>h #</h1>"
+  },
+  {
+    "In": "#h\\#h",
+    "Out": "<h1>h#h</h1>"
+  },
+  {
+    "In": "# #",
+    "Out": "<h1></h1>"
+  },
+  {
+    "In": "## ##",
+    "Out": "<h2></h2>"
+  },
+  {
+    "In": "# h#\nb",
+    "Out": "<h1>h</h1>\n<p>b</p>"
+  },
+  {
+    "In": "- # h#",
+    "Out": "<ul>\n<li>\n<h1>h</h1>\n</li>\n</ul>"
+  },
+  {
+    "In": "> # h#",
+    "Out": "<blockquote>\n<h1>h</h1>\n</blockquote>"
+  },
+  {
+    "In": "####### h#",
+    "Out": "<h6># h</h6>"
+  },
+  {
+    "In": "#h\\",
+    "Out": "<p>#h\\</p>"
+  },
+  {
+    "In": "# h\\#",
+    "Out": "<h1>h#</h1>"
+  },
+  {
+    "In": "# h\\",
+    "Out": "<p># h\\</p>"
+  },
+  {
+    "In": "#\\",
+    "Out": "<p>#\\</p>"
+  },
+  {
+    "In": "# h\\\\",
+    "Out": "<h1>h\\</h1>"
+  },
+  {
+    "In": "#h\\\\#",
+    "Out": "<h1>h\\</h1>"
+  },
+  {
+    "In": "# h\\ #",
+    "Out": "<h1>h\\</h1>"
+  },
+  {
+    "In": "#h\\#\\#",
+    "Out": "<h1>h##</h1>"
+  },
+  {
+    "In": "# h\\\nb",
+    "Out": "<p># h\\\nb</p>"
+  },
+  {
+    "In": "####### h\\",
+    "Out": "<p>####### h\\</p>"
+  },
+  {
+    "In": "- #h\\",
+    "Out": "<ul>\n<li>#h\\</li>\n</ul>"
   }
 ]

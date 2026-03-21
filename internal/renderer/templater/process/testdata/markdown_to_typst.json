@@ -2122,5 +2122,29 @@
  {
   "in": "**Python** / **Go**",
   "want": "#strong[Python] \\/ #strong[Go]"
+ },
+ {
+  "in": "#1 in sales",
+  "want": "\\#1 in sales"
+ },
+ {
+  "in": "#hashtag",
+  "want": "#hashtag"
+ },
+ {
+  "in": "#h",
+  "want": "#h"
+ },
+ {
+  "in": "#######h",
+  "want": "\\#\\#\\#\\#\\#\\##h"
+ },
+ {
+  "in": "#h#",
+  "want": "#h#"
+ },
+ {
+  "in": " # h",
+  "want": "\\# h"
  }
 ]
