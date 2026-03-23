@@ -141,6 +141,14 @@ gentemplates:
 designprobe:
     go run ./tools/designprobe
 
+# Covers both fixtures: html.json and markdown_to_typst.json. The output column
+# is generated and never hand-written (AGENTS.md §10.1), and a row that does not
+# reproduce stops the tool and writes nothing — it is a finding, not a rewrite.
+# `-write` rewrites them, `-fixture html|typst -add shapes.json` appends inputs.
+# Verify the markdown differentials row by row against the vendored library.
+mdprobe *ARGS:
+    go run ./tools/mdprobe {{ARGS}}
+
 # Regenerate Rich's unicode width table — what every panel and table is
 # measured with. Generated, never hand-edited (AGENTS.md §10.1). Not a golden:
 # no human gate.
