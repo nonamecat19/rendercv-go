@@ -87,6 +87,14 @@ func headerCells(columns []TableColumn) []string {
 // columnWidths is Rich's `Table._calculate_column_widths`. The widths it returns
 // include each column's padding; the box's own dividers are the extra on top.
 func columnWidths(columns []TableColumn, rows [][]string, maxWidth, extra int) []int {
+	// **The table's own width bounds every column before anything is reduced.**
+	// `_measure_column` ends in `.with_maximum(max_width)`
+	// (`rich/table.py:748`), and `max_width` there is the space left after the
+	// box's dividers (`:489`). The port measured the natural width instead, so
+	// `collapse` and the even reduction below divided a different excess and
+	// laid out every column of a narrow validation table one column off.
+	available := maxWidth - extra
+
 	widths := make([]int, len(columns))
 	for i, column := range columns {
 		widest := cellLen(column.Header)
@@ -98,8 +106,14 @@ func columnWidths(columns []TableColumn, rows [][]string, maxWidth, extra int) [
 				widest = max(widest, cellLen(strings.TrimRight(line, "\n")))
 			}
 		}
-		// `_range.maximum or 1`: an empty column still occupies a cell.
-		widths[i] = max(widest+tablePadding, 1)
+		// `if max_width < 1: return Measurement(0, 0)` (`:725-726`), and then
+		// `_range.maximum or 1` (`:532`) turns that zero back into one — so a
+		// table with no room at all still starts from a column apiece.
+		measured := 0
+		if available >= 1 {
+			measured = min(widest+tablePadding, available)
+		}
+		widths[i] = max(measured, 1)
 	}
 
 	wrappable := make([]bool, len(columns))
