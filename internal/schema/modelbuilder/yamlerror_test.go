@@ -1946,6 +1946,17 @@ func TestBlockContextNamesTheInnermostOpenConstruct(t *testing.T) {
 		message: "while parsing a block mapping",
 		from:    yamldoc.Position{Line: 2, Column: 1},
 		to:      yamldoc.Position{Line: 4, Column: 2},
+	}, {
+		// The shape an independent panel-vs-panel audit found and demoted
+		// iteration 12 for: the offending line sits between the sequence's dash
+		// and the key that opened it, so neither the sequence nor `cv` is the
+		// answer — the mapping `a` belongs to is. The port reported line 6
+		// alone, with goccy's `[6:6]` coordinate still in the text.
+		name:    "the iteration 12 audit shape",
+		src:     "cv:\n  name: A\n  sections:\n    a:\n      - hi\n     b: 2\n",
+		message: "while parsing a block mapping",
+		from:    yamldoc.Position{Line: 4, Column: 5},
+		to:      yamldoc.Position{Line: 6, Column: 6},
 	}}
 
 	for _, test := range tests {
