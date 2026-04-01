@@ -2146,5 +2146,173 @@
  {
   "in": " # h",
   "want": "\\# h"
+ },
+ {
+  "in": "<div>block</div>\n\nafter",
+  "want": "<div>block</div>\n\nafter"
+ },
+ {
+  "in": "after\n\n<div>block</div>",
+  "want": "after\n\n<div>block</div>"
+ },
+ {
+  "in": "<div>block</div>\n\n<section>two</section>",
+  "want": "<div>block</div>\n\n<section>two</section>"
+ },
+ {
+  "in": "<section>two</section>\n\n<div>block</div>",
+  "want": "<section>two</section>\n\n<div>block</div>"
+ },
+ {
+  "in": "<div>block</div>\n\n- one\n- two",
+  "want": "<div>block</div>\n\n- one\n- two"
+ },
+ {
+  "in": "- one\n- two\n\n<div>block</div>",
+  "want": "- one\n- two\n\n<div>block</div>"
+ },
+ {
+  "in": "<div>block</div>\n\n1. one\n2. two",
+  "want": "<div>block</div>\n\n1. one\n2. two"
+ },
+ {
+  "in": "1. one\n2. two\n\n<div>block</div>",
+  "want": "1. one\n2. two\n\n<div>block</div>"
+ },
+ {
+  "in": "<div>block</div>\n\n# H",
+  "want": "<div>block</div>\n\n\\# H"
+ },
+ {
+  "in": "# H\n\n<div>block</div>",
+  "want": "\\# H\n\n<div>block</div>"
+ },
+ {
+  "in": "<div>block</div>\n\nH\n==",
+  "want": "<div>block</div>\n\nH\n=="
+ },
+ {
+  "in": "H\n==\n\n<div>block</div>",
+  "want": "H\n==\n\n<div>block</div>"
+ },
+ {
+  "in": "<div>block</div>\n\n    indented",
+  "want": "<div>block</div>\n\n`indented\n`"
+ },
+ {
+  "in": "    indented\n\n<div>block</div>",
+  "want": "`indented\n`\n\n<div>block</div>"
+ },
+ {
+  "in": "<div>block</div>\n\n> quoted",
+  "want": "<div>block</div>\n\n\\> quoted"
+ },
+ {
+  "in": "> quoted\n\n<div>block</div>",
+  "want": "\\> quoted\n\n<div>block</div>"
+ },
+ {
+  "in": "<div>block</div>\n\n---",
+  "want": "<div>block</div>\n\n"
+ },
+ {
+  "in": "---\n\n<div>block</div>",
+  "want": "\n\n<div>block</div>"
+ },
+ {
+  "in": "<div>block</div>\nafter",
+  "want": "<div>block</div>\nafter"
+ },
+ {
+  "in": "<div>block</div>\n<section>two</section>",
+  "want": "<div>block</div>\n<section>two</section>"
+ },
+ {
+  "in": "<div>block</div>\n- one\n- two",
+  "want": "<div>block</div>\n- one\n- two"
+ },
+ {
+  "in": "<div>block</div>\n1. one\n2. two",
+  "want": "<div>block</div>\n1. one\n2. two"
+ },
+ {
+  "in": "<div>block</div>\n# H",
+  "want": "<div>block</div>\n\\# H"
+ },
+ {
+  "in": "<div>block</div>\nH\n==",
+  "want": "<div>block</div>\nH\n=="
+ },
+ {
+  "in": "<div>block</div>\n    indented",
+  "want": "<div>block</div>\n`indented\n`"
+ },
+ {
+  "in": "<div>block</div>\n> quoted",
+  "want": "<div>block</div>\n\\> quoted"
+ },
+ {
+  "in": "<div>block</div>\n---",
+  "want": "<div>block</div>\n"
+ },
+ {
+  "in": "<span>x</span>\n\nafter",
+  "want": "<span>x</span>\n\nafter"
+ },
+ {
+  "in": "after\n\n<span>x</span>",
+  "want": "after\n\n<span>x</span>"
+ },
+ {
+  "in": "<span>x</span>\nafter",
+  "want": "<span>x</span>\nafter"
+ },
+ {
+  "in": "<div>block</div>\n\n",
+  "want": "<div>block</div>\n\n"
+ },
+ {
+  "in": "<div>block</div>\n\n\nafter",
+  "want": "<div>block</div>\n\n\nafter"
+ },
+ {
+  "in": "<div>block</div> tail\n\nafter",
+  "want": "<div>block</div>\ntail\n\nafter"
+ },
+ {
+  "in": "<div>\nmulti\nline\n</div>\n\nafter",
+  "want": "<div>\nmulti\nline\n</div>\n\nafter"
+ },
+ {
+  "in": "<!-- comment -->\n\nafter",
+  "want": "<!-- comment -->\n\nafter"
+ },
+ {
+  "in": "<hr />\n\nafter",
+  "want": "<hr />\n\nafter"
+ },
+ {
+  "in": "<script>var a=1;</script>\n\nafter",
+  "want": "<script>var a=1;</script>\n\nafter"
+ },
+ {
+  "in": "<div>a</div>\n\n<div>b</div>\n\n<div>c</div>",
+  "want": "<div>a</div>\n\n<div>b</div>\n\n<div>c</div>"
+ },
+ {
+  "in": "para\n\n<div>x</div>\n\npara2",
+  "want": "para\n\n<div>x</div>\n\npara2"
+ },
+ {
+  "in": "<div>x</div>\n\npara\n\n<div>y</div>",
+  "want": "<div>x</div>\n\npara\n\n<div>y</div>"
+ },
+ {
+  "in": "<p>already</p>\n\nafter",
+  "want": "<p>already</p>\n\nafter"
+ },
+ {
+  "in": "<div>x</div>\n\n    indented",
+  "want": "<div>x</div>\n\n`indented\n`"
  }
 ]

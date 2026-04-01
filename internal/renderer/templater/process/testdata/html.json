@@ -3962,5 +3962,173 @@
   {
     "In": "- #h\\",
     "Out": "<ul>\n<li>#h\\</li>\n</ul>"
+  },
+  {
+    "In": "<div>block</div>\n\nafter",
+    "Out": "<div>block</div>\n\n<p>after</p>"
+  },
+  {
+    "In": "after\n\n<div>block</div>",
+    "Out": "<p>after</p>\n<div>block</div>"
+  },
+  {
+    "In": "<div>block</div>\n\n<section>two</section>",
+    "Out": "<div>block</div>\n\n<section>two</section>"
+  },
+  {
+    "In": "<section>two</section>\n\n<div>block</div>",
+    "Out": "<section>two</section>\n\n<div>block</div>"
+  },
+  {
+    "In": "<div>block</div>\n\n- one\n- two",
+    "Out": "<div>block</div>\n\n<ul>\n<li>one</li>\n<li>two</li>\n</ul>"
+  },
+  {
+    "In": "- one\n- two\n\n<div>block</div>",
+    "Out": "<ul>\n<li>one</li>\n<li>two</li>\n</ul>\n<div>block</div>"
+  },
+  {
+    "In": "<div>block</div>\n\n1. one\n2. two",
+    "Out": "<div>block</div>\n\n<ol>\n<li>one</li>\n<li>two</li>\n</ol>"
+  },
+  {
+    "In": "1. one\n2. two\n\n<div>block</div>",
+    "Out": "<ol>\n<li>one</li>\n<li>two</li>\n</ol>\n<div>block</div>"
+  },
+  {
+    "In": "<div>block</div>\n\n# H",
+    "Out": "<div>block</div>\n\n<h1>H</h1>"
+  },
+  {
+    "In": "# H\n\n<div>block</div>",
+    "Out": "<h1>H</h1>\n<div>block</div>"
+  },
+  {
+    "In": "<div>block</div>\n\nH\n==",
+    "Out": "<div>block</div>\n\n<h1>H</h1>"
+  },
+  {
+    "In": "H\n==\n\n<div>block</div>",
+    "Out": "<h1>H</h1>\n<div>block</div>"
+  },
+  {
+    "In": "<div>block</div>\n\n    indented",
+    "Out": "<div>block</div>\n\n<pre><code>indented\n</code></pre>"
+  },
+  {
+    "In": "    indented\n\n<div>block</div>",
+    "Out": "<pre><code>indented\n</code></pre>\n<div>block</div>"
+  },
+  {
+    "In": "<div>block</div>\n\n> quoted",
+    "Out": "<div>block</div>\n\n<blockquote>\n<p>quoted</p>\n</blockquote>"
+  },
+  {
+    "In": "> quoted\n\n<div>block</div>",
+    "Out": "<blockquote>\n<p>quoted</p>\n</blockquote>\n<div>block</div>"
+  },
+  {
+    "In": "<div>block</div>\n\n---",
+    "Out": "<div>block</div>\n\n<hr />"
+  },
+  {
+    "In": "---\n\n<div>block</div>",
+    "Out": "<hr />\n<div>block</div>"
+  },
+  {
+    "In": "<div>block</div>\nafter",
+    "Out": "<div>block</div>\n<p>after</p>"
+  },
+  {
+    "In": "<div>block</div>\n<section>two</section>",
+    "Out": "<div>block</div>\n<section>two</section>"
+  },
+  {
+    "In": "<div>block</div>\n- one\n- two",
+    "Out": "<div>block</div>\n<ul>\n<li>one</li>\n<li>two</li>\n</ul>"
+  },
+  {
+    "In": "<div>block</div>\n1. one\n2. two",
+    "Out": "<div>block</div>\n<ol>\n<li>one</li>\n<li>two</li>\n</ol>"
+  },
+  {
+    "In": "<div>block</div>\n# H",
+    "Out": "<div>block</div>\n<h1>H</h1>"
+  },
+  {
+    "In": "<div>block</div>\nH\n==",
+    "Out": "<div>block</div>\n<h1>H</h1>"
+  },
+  {
+    "In": "<div>block</div>\n    indented",
+    "Out": "<div>block</div>\n<pre><code>indented\n</code></pre>"
+  },
+  {
+    "In": "<div>block</div>\n> quoted",
+    "Out": "<div>block</div>\n<blockquote>\n<p>quoted</p>\n</blockquote>"
+  },
+  {
+    "In": "<div>block</div>\n---",
+    "Out": "<div>block</div>\n<hr />"
+  },
+  {
+    "In": "<span>x</span>\n\nafter",
+    "Out": "<p><span>x</span></p>\n<p>after</p>"
+  },
+  {
+    "In": "after\n\n<span>x</span>",
+    "Out": "<p>after</p>\n<p><span>x</span></p>"
+  },
+  {
+    "In": "<span>x</span>\nafter",
+    "Out": "<p><span>x</span>\nafter</p>"
+  },
+  {
+    "In": "<div>block</div>\n\n",
+    "Out": "<div>block</div>"
+  },
+  {
+    "In": "<div>block</div>\n\n\nafter",
+    "Out": "<div>block</div>\n\n<p>after</p>"
+  },
+  {
+    "In": "<div>block</div> tail\n\nafter",
+    "Out": "<div>block</div>\n<p>tail</p>\n<p>after</p>"
+  },
+  {
+    "In": "<div>\nmulti\nline\n</div>\n\nafter",
+    "Out": "<div>\nmulti\nline\n</div>\n\n<p>after</p>"
+  },
+  {
+    "In": "<!-- comment -->\n\nafter",
+    "Out": "<!-- comment -->\n\n<p>after</p>"
+  },
+  {
+    "In": "<hr />\n\nafter",
+    "Out": "<hr />\n\n<p>after</p>"
+  },
+  {
+    "In": "<script>var a=1;</script>\n\nafter",
+    "Out": "<script>var a=1;</script>\n\n<p>after</p>"
+  },
+  {
+    "In": "<div>a</div>\n\n<div>b</div>\n\n<div>c</div>",
+    "Out": "<div>a</div>\n\n<div>b</div>\n\n<div>c</div>"
+  },
+  {
+    "In": "para\n\n<div>x</div>\n\npara2",
+    "Out": "<p>para</p>\n<div>x</div>\n\n<p>para2</p>"
+  },
+  {
+    "In": "<div>x</div>\n\npara\n\n<div>y</div>",
+    "Out": "<div>x</div>\n\n<p>para</p>\n<div>y</div>"
+  },
+  {
+    "In": "<p>already</p>\n\nafter",
+    "Out": "<p>already</p>\n\n<p>after</p>"
+  },
+  {
+    "In": "<div>x</div>\n\n    indented",
+    "Out": "<div>x</div>\n\n<pre><code>indented\n</code></pre>"
   }
 ]
