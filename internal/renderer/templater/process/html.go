@@ -16,6 +16,10 @@ import (
 // listMarker is a list item's indentation and bullet.
 var listMarker = regexp.MustCompile(`^( +)([-*+] |\d+\. )`)
 
+// hashRun is what `HashHeaderProcessor.RE` opens on — one to six hashes at the
+// very start of a line (`markdown/blockprocessors.py:461`).
+var hashRun = regexp.MustCompile(`^#{1,6}`)
+
 // pythonMarkdownTabLength is `markdown.Markdown`'s `tab_length` default, which
 // decides whether an indented list item is a **child or a sibling**
 // (`markdown/blockprocessors.py`, `ListIndentProcessor.tab_length`).
@@ -68,6 +72,9 @@ var converter = goldmark.New(
 			}, 105),
 			util.Prioritized(autoLinkRenderer{inner: defaultNodeRendererFunc(ast.KindAutoLink, defaultRenderer)}, 102),
 			util.Prioritized(codeBlockRenderer{writer: pythonMarkdownWriter}, 106),
+			util.Prioritized(htmlBlockRenderer{
+				inner: defaultNodeRendererFunc(ast.KindHTMLBlock, defaultRenderer),
+			}, 107),
 		),
 	),
 )
@@ -287,6 +294,24 @@ func flattenShallowLists(markdown string) string {
 		switch {
 		case blank:
 		case afterBlank && indent > 0 && indent < pythonMarkdownTabLength:
+			if hashRun.MatchString(line[indent:]) {
+				// **A hash run keeps one space of it** (`heading.go`, §3.4 of
+				// spec 011's delta A). This dedent does two of upstream's jobs
+				// at once: it takes the block out of the list item above it,
+				// which `ListIndentProcessor` only keeps at a full
+				// `tab_length`, and it performs the `block.lstrip()`
+				// `ParagraphProcessor` would. Upstream does them in that order
+				// and asks `HashHeaderProcessor` in between, where an indented
+				// hash run is not a heading — so moving the hashes to column 0
+				// creates the heading the indent was meant to prevent.
+				//
+				// One space is the whole difference: a list item's content
+				// begins at column 2 or beyond, so a single space still leaves
+				// it, and the paragraph parser `lstrip`s what is left
+				// (`paragraph.go`). The text is identical; the element is not.
+				lines[i] = " " + line[indent:]
+				break
+			}
 			lines[i] = line[indent:]
 		default:
 			match := listMarker.FindStringSubmatch(line)
