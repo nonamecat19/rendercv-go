@@ -278,11 +278,9 @@ func inventory(capture string) map[string]int {
 	return counts
 }
 
-// readable renders an escape sequence the way this file's failure messages
-// print it, with the escape byte spelled out.
-func readable(sequence string) string {
-	return strings.ReplaceAll(sequence, "\x1b", "ESC")
-}
+// `readable` — spelling the escape byte out so a failure is legible — lives in
+// `style_test.go`, which is untagged and so is always compiled into this test
+// binary.
 
 // eraseBlock is the sequence `Live` writes to wipe the frame it is about to
 // replace: a carriage return, then one `ESC[2K` per line with `ESC[1A` between
