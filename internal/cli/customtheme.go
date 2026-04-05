@@ -31,14 +31,13 @@ type CreateThemeOptions struct {
 func CreateTheme(options CreateThemeOptions, stdout, stderr io.Writer) int {
 	name := options.ThemeName
 
-	if !customThemeNamePattern.MatchString(name) {
-		//nolint:staticcheck // upstream's text
-		failPanel(stdout, fmt.Errorf(
-			"The custom theme name should only contain lowercase letters and digits."+
-				" The provided value is `%s`.", name))
-		return exitValidationError
-	}
-
+	// **The existing-folder guard comes first**, because upstream runs it
+	// first: `new_theme_folder.exists()` raises at `create_theme_command.py:34`
+	// and the name pattern is not looked at until `create_init_file_for_theme`
+	// at `:39`. The port had the two the other way round and answered
+	// `create-theme Bad`, in a directory already holding `Bad`, with the
+	// name-pattern message where upstream answers `The theme folder "Bad"
+	// already exists!`.
 	folder := name
 	if _, err := os.Stat(folder); err == nil {
 		//nolint:staticcheck // upstream's text
@@ -46,6 +45,20 @@ func CreateTheme(options CreateThemeOptions, stdout, stderr io.Writer) int {
 		return exitValidationError
 	} else if !errors.Is(err, os.ErrNotExist) {
 		fail(stderr, err)
+		return exitValidationError
+	}
+
+	// **The name check stays ahead of the copy, which upstream's is not.**
+	// Upstream copies thirteen files and only then validates, so an invalid
+	// name leaves a partial theme on disk — and `create-theme ../escaped`
+	// leaves it outside the working directory, measured. Matching that means
+	// writing a template tree to a path this binary has already judged invalid,
+	// so it is reported for the human gate rather than reproduced here.
+	if !customThemeNamePattern.MatchString(name) {
+		//nolint:staticcheck // upstream's text
+		failPanel(stdout, fmt.Errorf(
+			"The custom theme name should only contain lowercase letters and digits."+
+				" The provided value is `%s`.", name))
 		return exitValidationError
 	}
 
