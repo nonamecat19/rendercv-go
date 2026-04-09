@@ -35,9 +35,10 @@ recipes are in §7.
 > place. Upstream is also the correct venue on the merits: ruamel is right and goccy is wrong
 > against the YAML spec on both defects, and both are small and crisply reproducible (§3.4).
 
-**§3 also records a defect nobody has logged: folded plain scalars already carry the wrong source
-coordinates in documents the port parses successfully today.** That is validation-error parity
-(axis 4) and it is live now, independent of any rejection.
+**§3.3 records a defect nobody has logged: folded plain scalars carry the wrong source coordinates
+in documents the port parses successfully today. It is LATENT, not live** — measured, nothing
+prints a line for a document that parses, so no invocation surfaces it. It should not be weighed in
+the folding decision.
 
 ---
 
@@ -224,16 +225,42 @@ line 3 column 1, which is left of the key at column 4, and the parser rejects it
 `[3:1] value is not allowed in this context`. The identical document with the key at column 1
 parses. The rejection is **a positioning bug, not a folding gap.**
 
-### 3.3 A live defect nobody has logged
+### 3.3 A defect nobody has logged — latent, not live
 
-Defect B is not confined to documents that fail. `k: 1\n  - item\n` **parses** in the port today,
-and the value's coordinate is line 2 column 9 where upstream's is line 1 column 4. Any validation
-error reported against a folded plain scalar therefore points at the wrong place right now — parity
-axis 4, live, in documents that render.
+**This section previously claimed defect B was a live axis-4 defect. That was wrong, and the
+correction is measured below.** The wrong coordinate is real, but nothing prints it.
 
-I have not sized this: it needs a differential of *coordinates* over documents that parse, which
-neither gate currently runs. It is called out here because it is the same root cause and it should
-not be discovered separately later.
+The coordinate is real: `k: 1\n  - item\n` **parses** in the port today, and the value's coordinate
+is line 2 column 9 where upstream's is line 1 column 4.
+
+Nothing surfaces it. `validationLocation` (`internal/cli/render.go:623-634`, mirroring
+`format_validation_error_location`) prints a line **only when the record has no schema path**:
+
+```go
+if len(record.SchemaLocation) > 0 { return strings.Join(record.SchemaLocation, ".") }
+...
+return fmt.Sprintf("%s: line %d", record.YamlSource, start)
+```
+
+and a record has no schema path only when it came from one of the three sites in
+`modelbuilder/yamlerror.go`, all of which are **parse** failures — documents that never produced a
+node to carry a folded coordinate. Checked four ways:
+
+- It is the only consumer. `validationLocation` is called from one site; nothing else reads
+  `YamlLocation`, and `pkg/rendercv` does not expose spans at all.
+- The one validation site that starts with an empty schema location — the publication DOI-length
+  rule (`entries/publication.go:186-195`) — has it prefixed by the error pipeline
+  (`errorpipeline.go:199-210`). Measured upstream, that record comes out as
+  `["cv","sections","publications","0"]`, not empty, so the panel prints the path.
+- Of every golden fixture in `testdata/`, exactly one prints a line at all: `err_not_yaml`, a parse
+  error.
+- End to end, measured: a CV whose `doi` is a **folded** plain scalar and the same CV with that
+  value on **one line** produce **byte-identical** panels from the port. Upstream likewise resolves
+  that error's coordinate to the publication entry, `[[5,7],[5,8]]`, not to the scalar.
+
+So defect B is a latent internal inaccuracy. It becomes live only if something later starts
+reporting positions for values in documents that parse. **It should not be weighed in the folding
+decision**, and the narrow option in §6 loses the coordinate argument for it accordingly.
 
 ### 3.4 Both defects are goccy's, and both are small
 
@@ -331,9 +358,10 @@ The reasoning, in the order it changed my mind:
 
 If the human wants relief before upstream moves, the *narrow* form of (c) is defensible on its own:
 Defect B alone, at the `Dealias` seam, resetting a folded scalar token's position to the start of
-its fold. It is value-preserving by construction (it moves a mark, it does not change text), it
-addresses the §3.3 live coordinate defect, and it fixes the one document of the seven that fails
-purely on column comparison. That is a much smaller decision than folding and could be scoped
+its fold. It is value-preserving by construction (it moves a mark, it does not change text) and it
+fixes the one document of the seven that fails purely on column comparison. **It does not buy any
+user-visible coordinate fix** — §3.3's inaccuracy is latent — so its whole case rests on that one
+rejection. That is a much smaller decision than folding and could be scoped
 separately. **I am not proposing it as work here; I am recording that it exists so the human is not
 offered a false all-or-nothing.**
 
