@@ -2314,5 +2314,137 @@
  {
   "in": "<div>x</div>\n\n    indented",
   "want": "<div>x</div>\n\n`indented\n`"
+ },
+ {
+  "in": "- <div>block</div>",
+  "want": "- <div>block</div>"
+ },
+ {
+  "in": "- <div>block</div>\n- second",
+  "want": "- <div>block</div>\n- second"
+ },
+ {
+  "in": "- a\n- <div>x</div>",
+  "want": "- a\n- <div>x</div>"
+ },
+ {
+  "in": "- <div>x</div>\n\n- y",
+  "want": "- <div>x</div>\n\n- y"
+ },
+ {
+  "in": "- text <div>x</div> more",
+  "want": "- text <div>x</div> more"
+ },
+ {
+  "in": "- <div>x</div> tail",
+  "want": "- <div>x</div> tail"
+ },
+ {
+  "in": "* <p>para</p>",
+  "want": "#sym.ast.basic <p>para</p>"
+ },
+ {
+  "in": "+ <div>x</div>",
+  "want": "+ <div>x</div>"
+ },
+ {
+  "in": "1. <div>x</div>",
+  "want": "1. <div>x</div>"
+ },
+ {
+  "in": "2. <div>x</div>\n3. second",
+  "want": "2. <div>x</div>\n3. second"
+ },
+ {
+  "in": "- <span>x</span>",
+  "want": "- <span>x</span>"
+ },
+ {
+  "in": "- <hr />",
+  "want": "- <hr />"
+ },
+ {
+  "in": "- <!-- comment -->",
+  "want": "- <!-- comment -->"
+ },
+ {
+  "in": "- <script>var a=1;</script>",
+  "want": "- <script>var a=1;</script>"
+ },
+ {
+  "in": "- <table><tr><td>a</td></tr></table>",
+  "want": "- <table><tr><td>a</td></tr></table>"
+ },
+ {
+  "in": "- <div>\nmulti\n</div>",
+  "want": "- <div>\nmulti\n</div>"
+ },
+ {
+  "in": "- <div>a</div>\n  <div>b</div>",
+  "want": "- <div>a</div>\n<div>b</div>"
+ },
+ {
+  "in": "- <div>x</div>\n\nafter",
+  "want": "- <div>x</div>\n\nafter"
+ },
+ {
+  "in": "before\n\n- <div>x</div>",
+  "want": "before\n\n- <div>x</div>"
+ },
+ {
+  "in": "- outer\n    - <div>x</div>",
+  "want": "- outer\n`- &lt;div&gt;x&lt;/div&gt;\n`"
+ },
+ {
+  "in": "- <div>x</div>\n    - nested",
+  "want": "- <div>x</div>\n`- nested\n`"
+ },
+ {
+  "in": "> <div>x</div>",
+  "want": "\\> <div>x</div>"
+ },
+ {
+  "in": "> a\n> <div>x</div>",
+  "want": "\\> a\n\\> <div>x</div>"
+ },
+ {
+  "in": "> <div>x</div>\n\nafter",
+  "want": "\\> <div>x</div>\n\nafter"
+ },
+ {
+  "in": "<div>x</div>",
+  "want": "<div>x</div>"
+ },
+ {
+  "in": " <div>x</div>",
+  "want": "<div>x</div>"
+ },
+ {
+  "in": "  <div>x</div>",
+  "want": "<div>x</div>"
+ },
+ {
+  "in": "   <div>x</div>",
+  "want": "<div>x</div>"
+ },
+ {
+  "in": "    <div>x</div>",
+  "want": "`&lt;div&gt;x&lt;/div&gt;\n`"
+ },
+ {
+  "in": "text <div>x</div>",
+  "want": "text <div>x</div>"
+ },
+ {
+  "in": "text\n<div>x</div>",
+  "want": "text\n<div>x</div>"
+ },
+ {
+  "in": " <span>x</span>",
+  "want": "<span>x</span>"
+ },
+ {
+  "in": "- <b>bold</b>",
+  "want": "- <b>bold</b>"
  }
 ]

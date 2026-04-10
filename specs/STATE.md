@@ -129,6 +129,90 @@ use. They are the strongest evidence that the recorded open-item list was not th
    as a rule.** Standing hazard for any future wrap of a configurable parser — the emphasis work is
    the likely next victim, since it wraps inline parsers.
 
+### The locale axis is verified end-to-end for the first time — 22/22, with a negative control
+
+The auditor's "17 of 21 locale catalogs not verified" is now closed, and the closure is a **null
+result made meaningful by proving the test could fail**:
+
+- **22/22 locales byte-identical** on `.typ`, `.md` *and* `.html`, driven end-to-end through both
+  binaries — 21 catalogs plus English, which has no catalog file.
+- **The document actually exercises the catalog**: all 31 strings of every catalog reach the
+  rendered `.typ` (651 checks, 0 missing). This is precisely what the old claim lacked — the stock
+  `single_date` template prints only *abbreviations*, so the twelve month **names** were unreachable
+  from any ordinary CV. The new fixture steps through twelve months one entry at a time and asks for
+  `DEGREE_WITH_AREA`, which the stock classic template never uses.
+- **Negative control**: changing one character in the port's Turkish catalog (`Şubat` → `Subat`)
+  makes Turkish differ in all three artifacts while French stays identical. Reverted.
+
+**Why the previous "22/22 byte-identical" claim meant less than its wording** — and it was not wrong,
+only narrower: `TestGenerateMatrix` compares the starter CVs `new` writes, and the catalog
+conformance test diffs Go data against the submodule YAML. **Neither renders a document**, so
+neither could fail on a wrong `month_names[7]`.
+
+Two gates landed, deliberately split because neither is sufficient alone: an **untagged** 0.7s test
+in the default run asserting every catalog string reaches the `.typ` and that the 22 documents are
+pairwise distinct (this is the anti-rot gate — it fails if the fixture stops exercising a catalog),
+and a **conformance-tagged** 2.25s live differential against the vendored Python. The untagged gate
+cannot catch a mistranslation (both sides read the same Go data); the differential can, but would
+pass on a fixture that quietly stopped exercising the catalogs.
+
+### `create-theme` — one divergence fixed, one for the gate, and a factual error in D-008
+
+**Fixed**: upstream's guard order is `exists()` (`create_theme_command.py:34`), then `copy_templates`
+(`:36`), and the name pattern not until `:39`. The port checked the name first, so `create-theme Bad`
+in a directory already holding `Bad` gave the name-pattern message where upstream gives *"The theme
+folder "Bad" already exists!"*.
+
+**For the human gate**: upstream copies the thirteen templates **before** validating the name, so an
+invalid name leaves a partial theme on disk — `create-theme MyTheme` writes 13 files upstream and 0
+here. Exit code and message already match; only the filesystem side effect differs. Measured
+independently: **`create-theme ../escaped` writes five files OUTSIDE the working directory
+upstream** (exit 1, files present) while the port writes none. There is no privilege boundary — it is
+the user's own command — so this is not a security finding, but it is a question of how literally to
+follow parity when upstream's behaviour is plainly undesirable, and it belongs in `divergences.md`.
+
+**D-008 carries a factual error**: it says "the other twelve files are byte-identical". Measured,
+**zero of the thirteen are** — 5 differ by a missing final newline only, 8 in content. Both classes
+are legitimate D-005 consequences (Jinja's `keep_trailing_newline` defaults to False and
+`templater.py:34-44` does not set it), so the entry's *reasoning* is right and its *count* is wrong.
+
+### The fold workaround is costed — and the framing everyone had was wrong
+
+Option (c) of the goccy decision — a reader-side workaround — had never been costed, so the decision
+was being made blind on its most important option. It now is
+(`specs/002-yaml-and-core-model/spec-delta-folding.md`), and **two premises this ledger carried were
+false**:
+
+1. **`yamlreader` does not absorb the 172 near-miss documents.** goccy's own parse *mode* does, and
+   the entire gap is `ParseComments` versus not — measured across all four call shapes. So there is
+   **no existing precedent** for absorbing this class. The one real precedent,
+   `parseTolerantOfQuotedTabs`, sets a bar a text-level fold fails by construction: it is
+   value-preserving, replaces tabs one-for-one, and leaves later columns unchanged. A fold deletes
+   newlines and breaks both value and coordinates.
+2. **goccy's lexer already folds.** The framing "a workaround means reimplementing a YAML scanner"
+   is wrong: a token dump shows the lexer already makes the fold-versus-sequence distinction that
+   needs the indent stack. The expensive part is solved *inside goccy*. What remains is two narrow
+   defects — the fold stops one line early (and strips quotes from a continuation ruamel keeps
+   literally, so a token merge must re-derive from `Origin`, not concatenate `Value`), and the
+   folded token carries the position of the fold's **end**, drifting with trailing blank lines.
+
+**Recommendation from the investigation: (b) — an upstream issue against `goccy/go-yaml` with a pin
+here.** The decisive argument is asymmetry: a wrong phrasing rule mis-messages an already-failing
+document, while **a wrong fold silently corrupts a rendering one**. `blockscan.go` tolerates 26
+wrong out of 82,418 because those are messages; the same rate on values is unshippable. The naive
+merge predicate was measured and fires on 2 of the 179 documents it is meant to fix, because the
+continuation token is usually `DoubleQuote`/`SingleQuote`/`Null`.
+
+**Gating (c) is itself a prerequisite nobody has built**: a fold can be verified against ruamel by
+diffing loaded *values*, but the 170,003-document corpus is the wrong sample — 150,791 of them fail
+to parse, and a value-corrupting fold does its damage on documents that *succeed*. Option (c) needs
+a differently generated corpus of valid documents, plausibly larger than the fold itself.
+
+**A narrow third option exists so the human is not offered a false all-or-nothing**: fix only the
+folded token's **position** at the `Dealias` seam. It moves a mark without changing text, so it is
+value-preserving by construction, and it fixes the one document of the seven that fails purely on a
+column comparison. Recorded, not proposed as scheduled work.
+
 ### THE GOCCY STRICTNESS CATEGORY — the largest open question in the port
 
 **`goccy/go-yaml` rejects documents `ruamel` accepts.** Four classes are now measured, and they are
