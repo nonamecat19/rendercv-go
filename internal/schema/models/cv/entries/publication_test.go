@@ -332,10 +332,19 @@ func TestPublicationDOIURLPreservesBytes(t *testing.T) {
 }
 
 // Spec §3.12 behavior 23, §4.2 — the only reachable failure of the generated DOI
-// URL is its length, and the error carries an **empty** schema location, naming
-// no field. Verified against the vendored Python for `"10." + 2100*"a"`:
-// `[{loc: [], type: "url_too_long", msg: "URL should have at most 2083
-// characters"}]`.
+// URL is its length, and it names the **entry**, not a field within it.
+//
+// **This test used to assert an empty location, citing a measurement of
+// `[{loc: []}]`.** That measurement was taken by validating a bare
+// `PublicationEntry`, which no upstream code path does. `section.py:229`
+// validates the wrapper shape `{"entries": [...]}`, and re-measured at that
+// level the same input gives `[{loc: ["entries", 0], type: "url_too_long"}]` —
+// two entries give `["entries", 0]` and `["entries", 1]`. An empty location made
+// the spliced record collide with its own wrapper's, and dedup then deleted the
+// row (`errorpipeline/splice_test.go`), so the whole error never reached a user.
+//
+// It is the entry's own location, exactly like the start-after-end rule beside
+// it in `bases/complexfieldsentry.go`.
 func TestPublicationDOIURLTooLong(t *testing.T) {
 	_, errs := validatePublication(t, publicationMinimal+"doi: 10."+strings.Repeat("a", 2100)+"\n")
 	if len(errs) != 1 {
@@ -346,8 +355,8 @@ func TestPublicationDOIURLTooLong(t *testing.T) {
 	if errs[0].Code != "url_too_long" {
 		t.Errorf("code = %q, want %q", errs[0].Code, "url_too_long")
 	}
-	if len(errs[0].SchemaLocation) != 0 {
-		t.Errorf("location = %v, want it empty", errs[0].SchemaLocation)
+	if got := strings.Join(errs[0].SchemaLocation, "."); got != "cv.sections.x.0" {
+		t.Errorf("location = %q, want the entry's own %q", got, "cv.sections.x.0")
 	}
 	const want = "URL should have at most 2083 characters"
 	if errs[0].Message != want {
