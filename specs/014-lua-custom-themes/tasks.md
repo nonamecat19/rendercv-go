@@ -62,7 +62,7 @@ record at the right location, differentially.
 return, a shape conflict and a bad declared value as it does for "there is no script at all". The
 document renders with base defaults at **exit 0** with no signal of any kind.
 
-**The human gate on wording was taken on 2026-08-11 and answered: exit 1 with a generic message.**
+**The wording decision was made on 2026-08-11: exit 1 with a generic message.**
 The approved shape is an `Error` panel naming the theme's script path and the reason, e.g.
 
 ```

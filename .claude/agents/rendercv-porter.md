@@ -42,10 +42,9 @@ Refusing costs one message. A bundled commit costs the project its reviewable hi
 - **Never hand-write or hand-edit a golden file** in `testdata/golden/`. If a golden looks wrong,
   report it; goldens come only from `tools/gengolden`.
 - **Never edit `third_party/rendercv/`.**
-- **Never relax a test to make it pass.** If parity is unreachable, stop and report — a
-  divergence needs the human gate.
+- **Never relax a test to make it pass.** If parity is unreachable, write a `specs/divergences.md` entry.
 - **Never touch `specs/STATE.md`.** The merge owner updates the ledger after verification.
-- **Never `git push`.** Human gate.
+- **Never `git push`** unless explicitly asked.
 - Exact strings are exact. Error text, template output, and flag spellings are copied character
   for character from upstream.
 

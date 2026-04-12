@@ -25,7 +25,7 @@
 // The fixture is GENERATED and is NEVER hand-written or hand-edited
 // (AGENTS.md §10.1); this program is its only author. It is not part of
 // testdata/golden, so regenerating it does not change the parity contract and
-// needs no human gate.
+// needs no special approval.
 //
 // Usage:
 //

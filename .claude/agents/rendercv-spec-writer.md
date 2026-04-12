@@ -18,7 +18,7 @@ reading Python.
    byte-level parity contract; a paraphrased error message is a defect.
 5. Inherit `specs/000-parity-contract/spec.md`. Do not restate it — reference it. If your
    subsystem cannot meet an axis, do not quietly relax it: write a proposed entry for
-   `specs/divergences.md` and flag that it needs the human gate.
+    `specs/divergences.md` and flag it as a divergence.
 6. Mine `third_party/rendercv/tests/` for the subsystem. Upstream tests are a free behavior
    spec; every case they encode becomes an acceptance criterion or a corpus case.
 

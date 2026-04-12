@@ -223,14 +223,14 @@ ports the surrounding behavior:
 ## 7. Out of scope
 
 - **A one-call `Render`** composing all seven — cut in §1.2. It mirrors no upstream function, so it
-  needs a `divergences.md` entry and the human gate. Candidate for a later iteration.
+  needs a `divergences.md` entry. Candidate for a later iteration.
 - **`run_rendercv` itself**, for the reason in §1.3.
 - **Re-exporting the theme and locale catalogs** as public types. The analyst did not enumerate
   `design/other_themes/` or `locale/other_locales/` class-by-class, and this surface does not need
   them: themes and locales enter through YAML, not through Go identifiers.
 - **Semver freezing.** `AGENTS.md` §3 calls this surface semver'd, and the stretch-goal list in
   `STATE.md` carries "Public `pkg/rendercv` API frozen and semver'd" as a separate item. This
-  iteration builds the surface; declaring it frozen is a release decision behind the human gate.
+  iteration builds the surface; declaring it frozen is a release decision.
 - **A `py.typed`-equivalent stability claim.** Upstream ships none (§1.1), so the port claims none
   beyond what §5 tests.
 

@@ -36,11 +36,11 @@ Spawn `rendercv-spec-writer` with the analyst's report. It produces `spec.md`, t
 then `tasks.md`. Review `tasks.md` yourself before proceeding: every task must be one commit,
 and each must be marked `[parallel]` or `[sequential]`.
 
-If the spec proposes a divergence, **stop.** Divergences are human-gated (`AGENTS.md` §5).
+If the spec proposes a divergence, write the `specs/divergences.md` entry as part of the iteration.
 
 ### 4. Land the tests red
 Add this iteration's corpus cases to `tools/gengolden`, regenerate goldens
-(`rendercv-golden-refresh` skill — human-gated), and write the conformance tests behind
+(`rendercv-golden-refresh` skill), and write the conformance tests behind
 `//go:build conformance`. Commit fixtures and tests **before** any implementation. They must
 fail for the right reason: assert the failure is "not implemented", not "test is broken".
 

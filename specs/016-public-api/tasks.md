@@ -21,7 +21,7 @@ Determine against the vendored Python whether an explicit `False` differs from a
 (`rendercv_model_builder.py:24-39`, plan §3.1). Probe all five flags.
 
 - If they differ: `*bool` is required, and **check whether the CLI mishandles it** — if it does,
-  that is a behavioral divergence that **stops for the human gate** (plan §5) rather than being
+  that is a behavioral divergence that is recorded in `specs/divergences.md` (plan §5) rather than being
   fixed here.
 - If they do not differ: `*bool` is still built for the library, and the measurement is recorded
   in the commit body so the next reader does not redo it.

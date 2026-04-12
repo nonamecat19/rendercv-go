@@ -24,7 +24,7 @@ import (
 //
 // **The errno body stays Go's.** `[Errno 13] Permission denied: '<path>'` is
 // unreachable from Go's `syscall.Errno`, whose `<op> <path>: <strerror>` shape
-// is fixed; that residue is spec 013 §10's P-3 and is a human-gated proposal,
+// is fixed; that residue is spec 013 §10's P-3,
 // not something to fake here.
 //
 // The second result reports whether err was an OS error at all. Only failures

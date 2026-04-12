@@ -6,5 +6,5 @@
 // `conformance` build tag. It deliberately does **not** use
 // `internal/conformance`: that package's Normalize appends a trailing newline to
 // both sides (`conformance.go:241-248`), which is exactly the byte spec 013 §6.2
-// is about, and un-blinding it is human-gated (§7.4).
+// is about, and un-blinding it is a spec 013 §7.4 concern.
 package clidiff

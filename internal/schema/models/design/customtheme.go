@@ -15,7 +15,7 @@ import (
 //
 // **The messages are ported, not invented.** They are upstream's exact strings,
 // so reproducing them is axis 4 parity rather than new user-visible text — which
-// is why this does not need the human gate that spec 014 §2 behavior 9's
+// is why this does not need the divergence entry that spec 014 §2 behavior 9's
 // Lua-specific messages do. A verifier found the port rendering happily where
 // upstream reports each of these.
 //

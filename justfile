@@ -87,7 +87,7 @@ parity-case case: build
 
 # --- Golden fixtures ---------------------------------------------------------
 
-# HUMAN GATE. Changes the parity contract. Use the rendercv-golden-refresh skill.
+# Regenerate testdata/golden from the submodule. Use the rendercv-golden-refresh skill.
 golden:
     @echo "This regenerates the parity contract. Follow .claude/skills/rendercv-golden-refresh."
     go run ./tools/gengolden
@@ -114,7 +114,7 @@ schema-diff:
 # installed typst-py is 0.14.8.
 #
 # The output is ~29 MB and is NOT committed by this recipe — see
-# specs/010-typst-compilation/tasks.md T2, which is human-gated.
+# specs/010-typst-compilation/tasks.md T2.
 typst-wasm:
     cd tools/typstwasm && cargo build --release --target wasm32-wasip1
     @ls -l tools/typstwasm/target/wasm32-wasip1/release/typstwasm.wasm
@@ -150,19 +150,18 @@ mdprobe *ARGS:
     go run ./tools/mdprobe {{ARGS}}
 
 # Regenerate Rich's unicode width table — what every panel and table is
-# measured with. Generated, never hand-edited (AGENTS.md §10.1). Not a golden:
-# no human gate.
+# measured with. Generated, never hand-edited (AGENTS.md §10.1).
 cellprobe:
     go run ./tools/cellprobe
 
 # Regenerate the help-page model — usage lines, descriptions and every option
 # row — from the vendored typer. Generated, never hand-edited (AGENTS.md §10.1).
-# Not a golden: no human gate. The layout is not in here; see specs/012-cli/help.md.
+# Not a golden. The layout is not in here; see specs/012-cli/help.md.
 helpprobe:
     go run ./tools/helpprobe
 
 # Regenerate the entry-model field-order fixture from the vendored Python.
-# Generated, never hand-edited (AGENTS.md §10.1). Not a golden: no human gate.
+# Generated, never hand-edited (AGENTS.md §10.1).
 entryprobe:
     go run ./tools/entryprobe
 

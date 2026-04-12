@@ -92,7 +92,7 @@ func TestMappingKeyRepr(t *testing.T) {
 		// A container key is a **tuple** upstream and never reaches the
 		// renderer here: goccy refuses the document with `found an invalid key
 		// for this map`, so no node exists to render. Spec 015 delta §4.2 — a
-		// parser-level divergence for the human gate, recorded rather than
+		// parser-level divergence, recorded rather than
 		// worked around.
 		{
 			name: "sequence key", yaml: "{[1]: a}", want: "{(1,): 'a'}",

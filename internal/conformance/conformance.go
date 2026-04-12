@@ -212,8 +212,8 @@ func Run(t *testing.T, c Case, env map[string]string) Result {
 // **This makes the case pass on the machine the goldens were generated on, and
 // it does not make the goldens portable.** They still carry that machine's
 // repository path. Fixing that means regenerating them with a path-normalising
-// step, which is a change to the contract and human-gated (`AGENTS.md` §5); it
-// is recorded in `specs/STATE.md` as iteration 1's open defect.
+// step, which is a change to the contract; it is recorded in `specs/STATE.md`
+// as iteration 1's open defect.
 func caseWorkDir(t *testing.T, root, name string) string {
 	t.Helper()
 

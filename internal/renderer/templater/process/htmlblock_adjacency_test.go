@@ -33,7 +33,7 @@ package process_test
 // It is a block-parser change, not a renderer one, and it is the only one of
 // the two that also moves the **Typst** path — the last row below is the one
 // Typst row in this class. Its own unit; nothing here is a `divergences.md`
-// entry, and that file is human-gated in any case (`AGENTS.md` §5).
+// entry, and that file is a divergence register.
 var rawBlockTail = map[string]bool{
 	"<div>block</div>\nafter":          true,
 	"<div>block</div>\n- one\n- two":   true,

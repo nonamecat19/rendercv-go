@@ -447,8 +447,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// reportKnownOpen records a divergence a human-gated proposal of spec 013 §10
-// covers.
+// reportKnownOpen records a divergence spec 013 §10 covers.
 //
 // It does not use t.Logf, which `go test` shows only under -v. It does not rely
 // on stderr alone either: **`go test` discards a passing package's output

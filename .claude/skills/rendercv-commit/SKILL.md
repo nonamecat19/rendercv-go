@@ -29,9 +29,9 @@ Mandatory splits:
 | goldens + the code they test | goldens first, in their own commit, landing red |
 | a refactor + a feature | two commits, refactor first |
 | a fix + unrelated formatting | two commits |
-| a submodule bump + anything | bump alone, first, human-gated |
+| a submodule bump + anything | bump alone, first |
 | `specs/STATE.md` + implementation | ledger updates are their own commit, by the merge owner |
-| `specs/divergences.md` + anything | divergences alone, human-gated |
+| `specs/divergences.md` + anything | divergences alone |
 | generated files + hand-written files | separate |
 
 Ordering rule: each commit must leave `go build ./... && go test ./...` green on its own. That
@@ -85,7 +85,7 @@ iterations later.
 
 ## 6. Never
 
-- `git push` — human gate (`AGENTS.md` §5).
+- `git push` — push only when explicitly asked.
 - `git commit -a`.
 - Amend or rebase a commit that has been pushed.
 - Commit inside `third_party/rendercv/`.
