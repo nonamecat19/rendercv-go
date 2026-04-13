@@ -58,11 +58,15 @@ Each entry: what differs · upstream citation · why parity is impossible or und
     conflicts with a *base-tree-typed* field (`page.size: {a: 1}`) on a theme whose script exists
     but never mentions that field — `create-theme`'s own generated `init.lua` is an empty
     `return {}` — is dropped rather than merged (leak prevention, `effective.go`'s
-    `withoutTreeConflicts`), but a document setting an **unknown** key on a scripted custom theme
-    is still silently accepted where upstream's `theme_data_model_class(**design)` rejects it at
-    exit 1 (forbid-extra). That needs the script loaded during *validation*, not only at render
-    time, and is unfixed. Found by a fresh-context verifier 2026-08-10 (`specs/STATE.md`, iteration
-    14's second re-verification).
+    `withoutTreeConflicts`).
+  - **Closed, corrected**: this paragraph used to claim a document setting an unknown key on a
+    scripted custom theme is silently accepted. Measured against the vendored binary and against
+    the port (`internal/schema/models/design/scriptextra_test.go`,
+    `TestValidateScriptedThemeUnknownKeys`), both are exit 1/1 — an unrecognised key is rejected the
+    same way upstream's `extra="forbid"` rejects it, over the union of the built-in tree's fields
+    and the script's own declared keys. The script is now loaded during validation, not only at
+    render time. Fixed since the 2026-08-10 finding; the claim was stale, found false by pass 24's
+    fresh-context verifier (`specs/STATE.md`).
   - Upstream's other custom-theme rules are preserved unchanged: lowercase-alphanumeric theme
     name, folder beside the input file, folder must contain ≥1 `*.j2.typ`.
   - **Sandboxed.** The Lua state is opened without `io`, `os`, `package`, `debug` or `dofile`.
@@ -453,3 +457,86 @@ The last is the only case in this entry where the port renders and upstream does
   can be kept: not landed yet" paragraph.
 - **User notices:** a broken theme script is reported instead of ignored, naming the script and the
   reason, in Lua's terms rather than Python's.
+
+---
+
+## D-014 — Any upstream unhandled exception is reported as a clean error, not a traceback
+
+**Status:** approved · **Iteration:** 13 (spec 013 §10, proposals P-1 and P-2)
+
+- **Differs:** D-011 named exactly two vectors (`err_missing_file`, `err_bad_override_key`). Spec
+  013 §5.2 counts twenty-two more `RenderCVInternalError` raise sites plus every undecorated
+  `create-theme` failure that are the same class: upstream has no `RenderCVUserError` wrapper on
+  the path, so Typer's default `sys.excepthook` prints a Rich traceback with this machine's
+  absolute paths and this checkout's Python source lines baked in.
+- **Upstream:** `cli/error_handler.py:38-49`'s `handle_user_errors` decorator only catches
+  `RenderCVUserError`; every other exception reaches Typer's own handler. `create_theme_command.py`
+  raises its two messages (`"The theme folder \"{name}\" already exists!"`,
+  `"The custom theme name should only contain lowercase letters and digits. The provided value is
+  \`{name}\`."`) undecorated, so both surface as the last line of a traceback on **stderr**, prefixed
+  `RenderCVUserError: `, at 0 bytes stdout / 1348 bytes stderr (spec 013 §4.12, behavior 34) — not
+  as the stdout panel every other `err_*` case gets.
+- **Why parity is impossible:** identical to D-011 — a Go binary has no CPython call stack and no
+  way to print source lines from `third_party/rendercv`'s `.py` files, and the paths baked into such
+  a traceback are non-reproducible even for upstream on a different machine.
+- **Instead:** `rendercv-go` reports the nearest clean error at the same exit code and, where
+  determinable, the same stream — the `create-theme` messages already print as a stdout panel
+  (`internal/cli/customtheme.go:44,59-60`), which for these two vectors is a **stream inversion**
+  as well as a shape change (upstream: stderr traceback; port: stdout panel).
+- **User notices:** a real error message instead of a Python stack trace with someone else's
+  filesystem paths in it — arguably an improvement, never byte-identical.
+- **Supersedes:** D-011's framing of "two goldens"; D-011 stays as the historical record of where
+  this was first measured but is no longer the boundary of the class. `create-theme`'s stream
+  inversion is the one instance with its own exact message pair and is called out by name so a
+  future audit does not have to re-derive it.
+
+---
+
+## D-015 — `OS Error:` carries Go's `strerror` text, not Python's
+
+**Status:** approved · **Iteration:** 13 (spec 013 §10, proposal P-3)
+
+- **Differs:** upstream's path-B `OS Error: {exception}` panel embeds Python's `OSError.__str__`,
+  which is `[Errno 13] Permission denied: '/abs/path'`. The port's `syscall.Errno`/`fs.PathError`
+  produce Go's fixed shape, `<op> <path>: permission denied`.
+- **Upstream:** `cli/render_command/run_rendercv.py:195-196` — `except OSError as e: raise
+  RenderCVUserError(message=f"OS Error: {e}")`. Measured: `OS Error: [Errno 13] Permission denied:
+  '{absolute path}'`, 637 bytes at `COLUMNS=80`.
+- **Port:** `internal/cli/oserror.go` — `osErrorMessage` prefixes `OS Error: ` (matching that much)
+  and absolutizes the path (matching upstream's `OSError.filename` semantics), but the body is
+  `reported.Error()` / `errno.Error()`, e.g. `open /abs/out/John_Doe_CV.typ: permission denied` —
+  552 bytes for the same vector.
+- **Why parity is impossible:** `[Errno N] <Capitalized strerror>` is CPython's `OSError.__str__`
+  formatting, keyed off `errno.errorcode` and `os.strerror`. Go's `syscall.Errno.Error()` returns
+  the platform C library's `strerror` in a different shape (`<op> <path>: <lowercase strerror>`)
+  with no public seam to reformat it as Python's without hand-mapping every errno the target
+  platform can raise, per platform — the exact thing D-011 already rejects doing for a full
+  traceback, at smaller scale but the same shape of cost.
+- **Instead:** the port keeps `OS Error: ` and the absolute path (both already match), and accepts
+  the message *body* diverging — Go's own `<op>: <strerror>` phrasing.
+- **User notices:** the error class (`OS Error:`) and the failing path are identical; the exact
+  wording of the underlying OS complaint is Go's, not Python's.
+
+---
+
+## D-016 — A pongo2 template-syntax error cannot carry Jinja's exception text
+
+**Status:** approved · **Iteration:** 13 (spec 013 §10, proposal P-4) · **Extends D-005**
+
+- **Differs:** D-005 already establishes that template *source* diverges (pongo2 syntax, not
+  Jinja2) and that rendered *output* does not. It does not cover what happens when a user-supplied
+  override template fails to *parse* — that error's text is Jinja's on the reference side and
+  pongo2's here, by the same root cause as D-005.
+- **Upstream:** `cli/render_command/run_rendercv.py:188-193` builds `Template syntax error in
+  {filename} on line {lineno}: {exception}` from a caught `jinja2.TemplateSyntaxError`.
+- **Why parity is impossible:** `{filename}` and `{lineno}` are reproducible (the port knows which
+  override file it was reading and can track a line number), but `{exception}` is Jinja2's own
+  parser diagnostic text, which has no pongo2 analogue — the two libraries do not fail on the same
+  malformed input in the same place with the same words, for the reason D-005 already gives.
+- **Instead:** the port reproduces the message *shape* (`Template syntax error in {filename} on
+  line {lineno}: {pongo2's own message}`) and accepts the final clause diverging.
+- **User notices:** a template syntax error names the right file and, where determinable, the right
+  line; the diagnostic sentence explaining *what* is wrong is pongo2's phrasing, not Jinja2's.
+- **Not yet measured against the rendered panel bytes** — spec 013 §11 flags this as unmeasured
+  without a deliberately broken override template constructed and run; the message *template* above
+  is read off upstream source, not observed.

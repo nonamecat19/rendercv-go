@@ -458,28 +458,29 @@ surrounding numbers trustworthy.
 5. Fixture corpora merged from two branches must be resolved by **re-deriving the union from the
    vendored Python**, never by picking a side.
 
-### Still blocked on the human gate (AGENTS.md §5) — unchanged by this pass
+### Formerly "blocked on the human gate" — resolved 2026-08-13, unverified by a fresh context
 
-Nothing below may land ahead of an explicit decision, and these are now the majority of what keeps a
-row from green:
+The gate is gone (policy change, top of this file). Three of the four items below were closed this
+session by direct edit, not by a porter or a fresh-context verifier — **flag these for the next
+`rendercv-parity-verifier` pass rather than trusting the self-report**, per AGENTS.md §10.6.
 
-1. **`specs/divergences.md`** — P-1 (generalizing D-011 from two goldens to the whole
-   unhandled-exception class), P-2/P-3, and **two claims in D-002 that measure false** (an unknown
-   key on a scripted custom theme is *not* silently accepted — it is exit 1/1; and a `!!binary`
-   claim at `:394` contradicts its own table at `:355`). P-1 blocks iteration 6's missing-`theme`
-   crash and the missing-input-file finding. Draft text exists on an unmerged branch.
-2. **Regenerating `testdata/golden/`** — the goldens bake the generating machine's absolute path, so
-   `TestParity/err_unknown_theme` fails from *any* worktree, and `conformance.Normalize` appends
-   `\n` to both sides so the final byte of every golden is unverifiable by construction. Only
-   `err_unknown_theme` is compared byte-wise (the other two are D-011 tracebacks behind inverted
-   assertions) and its path is *truncated at the panel box width*, so a fixed-length,
-   checkout-independent work root would close this and the shared-`caseWorkDir` race together.
-3. **`tools/sampleprobe`** — spec 013 §8's 198-case criterion is an md5 against a fixture the tool
-   generates, while the same iteration says to delete the tool. **New information**: it is also the
-   sole generator of the `//go:embed`ed `blocks/**` *production* data (1 cv + 9 design + 22 locale +
-   1 settings), so deleting it loses the regeneration path after a submodule bump. Spec §8 also
-   carries a bullet the tree already fails ("nothing in the port embeds a captured starter CV" —
-   `blocks/cv.yaml` is exactly that).
+1. **`specs/divergences.md`** — written: D-014 (generalizes D-011 into the whole unhandled-exception
+   class, folds in P-1 and P-2's `create-theme` stream inversion), D-015 (P-3, `OS Error:`'s
+   strerror body), D-016 (P-4, template-syntax error text, extends D-005). **D-002's unknown-key
+   claim corrected** — measured against `internal/schema/models/design/scriptextra_test.go`
+   (`TestValidateScriptedThemeUnknownKeys`), exit 1/1, not silently accepted; the paragraph now says
+   so. **The `!!binary` contradiction did not reproduce** — D-012's table (`!!binary` renders
+   upstream, opaque exit 1 here) is internally consistent as read; whatever line pair this claim
+   named no longer exists at those coordinates, and no contradiction was found elsewhere in the
+   file. Recorded here as non-reproducing rather than silently dropped.
+2. **Regenerating `testdata/golden/`** — **still open**, not attempted this session. The fix needs a
+   fixed-length, checkout-independent work root (closes both the absolute-path bake-in and the
+   shared-`caseWorkDir` race together per the prior write-up) before a regen is safe to run; that is
+   itself a code change to `internal/conformance`, sized as its own unit, not done yet.
+3. **`tools/sampleprobe`** — resolved: spec 013 §8 amended to say the tool stays unconditionally
+   (`specs/013-parity-closeout/spec.md`, Sample generator bullet), because it is the only
+   regeneration path for `blocks/**` after a submodule bump regardless of whether the live
+   differential is active. No code change; spec text only.
 4. Iteration 13's 13-commit history rewrite — **declined**; stays as recorded debt.
 
 ---
