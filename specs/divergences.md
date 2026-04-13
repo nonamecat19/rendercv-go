@@ -540,3 +540,67 @@ The last is the only case in this entry where the port renders and upstream does
 - **Not yet measured against the rendered panel bytes** — spec 013 §11 flags this as unmeasured
   without a deliberately broken override template constructed and run; the message *template* above
   is read off upstream source, not observed.
+
+---
+
+## D-017 — `goccy/go-yaml` rejects some documents `ruamel` accepts
+
+**Status:** approved · **Axis 1 (artifact parity)** · Costing:
+[`specs/002-yaml-and-core-model/spec-delta-folding.md`](002-yaml-and-core-model/spec-delta-folding.md)
+
+- **Differs:** a small number of YAML shapes that `ruamel` (upstream's parser) loads successfully
+  make `goccy/go-yaml` v1.19.1 (the port's parser) refuse the document outright — `rendercv-go`
+  cannot render a CV upstream renders. This is the **only axis-1 finding in the port**: every other
+  divergence is a message, a stream, or a byte the user does not act on; this one is a document the
+  user cannot render at all.
+- **Measured, five classes:**
+
+  | Class | Minimal shape | ruamel | port |
+  |---|---|---|---|
+  | Folded plain scalar, **flow mapping** context | `cv: {name: John⏎  Doe}` | renders (`John Doe`) | rejects: `',' or '}' must be specified` |
+  | Folded plain scalar, **block** context | `k: 1⏎  - item⏎ q` → `{"k": "1 - item q"}` | renders | rejects |
+  | Empty block scalar, blank line, comment | `k: >⏎⏎# c` → `{"k": ""}` | renders | rejects |
+  | Collection tags on a scalar | `!!merge`, `!!seq`, `!!map`, `!!set`, `!!omap` | node exists | refused at parse |
+  | Sequence keys | a sequence used as a mapping key | renders | skipped rows |
+
+  The flow and block folded-scalar classes share one mechanism — goccy's lexer already performs the
+  fold correctly, but carries it forward with two narrow, crisply reproducible defects: the fold
+  stops one line early in some shapes, and the folded token's position drifts with trailing blank
+  lines. Fixing "goccy does not fold plain scalars the way ruamel does" settles both rows at once.
+- **Why parity is impossible as-is:** goccy is a different parser implementation with its own
+  strictness, not a configurable dial. Three options were weighed, in order of how directly each
+  attacks the cause:
+  1. **A reader-side workaround** (fold the text before goccy sees it) — costed in the linked spec
+     delta and rejected. goccy's lexer already does the hard part (distinguishing a fold from a
+     sequence needs the same indent-stack tracking the workaround would have to reimplement), so it
+     looked cheap going in. What is actually needed is fixing two *position/tokenisation* bugs
+     inside goccy's own lexer from the outside — the same class of problem `blockscan.go` needed
+     358 lines and tolerates 26 wrong answers out of 82,418 to solve for *error messages*, where
+     "26 wrong" is an acceptable defect rate. **A fold changes values, not messages** — a
+     wrong fold silently corrupts a document that currently fails loudly into one that renders
+     wrong, which is a strictly worse failure mode than refusing it. No corpus exists to gate a
+     value-preserving proof at the scale this would need (the 170,003-document corpus is 88% parse
+     failures; a fold's damage shows only on documents that succeed).
+  2. **Fix it in goccy itself, upstream, with a pin here** — the chosen path. Both defects are on
+     goccy's side of a YAML-spec disagreement (ruamel is spec-correct on both; goccy is not), small,
+     and independently reproducible (spec-delta-folding.md §3.4), which makes them a normal upstream
+     bug report rather than a project-specific request.
+  3. **Do nothing, record only** — the fallback captured by this entry itself; always true
+     regardless of 1 or 2, since either fix takes time to land and this entry documents the gap in
+     the meantime.
+- **Instead:** `rendercv-go` refuses these documents (`This is not a valid YAML file...`) where
+  upstream renders them. **Recommendation, not yet executed:** file an issue against
+  `github.com/goccy/go-yaml` describing the two lexer defects (spec-delta-folding.md §3.4 has
+  minimal repros for both) and pin the current behavior here until a fix lands — filing that issue
+  is an action on a third-party public tracker and is being left for explicit confirmation rather
+  than taken as part of this pass.
+- **User notices:** a hand-written CV using an unquoted value that continues on the next line inside
+  `{ }`, a multi-line plain scalar folded across an over-indented sequence marker, or (separately)
+  an empty block scalar followed by a blank line and a comment, an explicit YAML 1.1 collection tag
+  on a scalar, or a sequence used as a mapping key — refuses to render here and renders upstream.
+  Rare in practice: none of these shapes appear in any example, template, or generated file in
+  either project.
+- **Pinned by:** `TestGoccyRejectsAFoldedFlowScalar`
+  (`internal/schema/modelbuilder/yamlerror_test.go`), written to `t.Skip` with a re-measure
+  instruction so the evidence survives either way — a fix upstream, or a decision to workaround
+  after all.
