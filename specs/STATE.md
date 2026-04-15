@@ -338,10 +338,16 @@ write, exit 1); **all six of row 3's probes byte-identical**, so that promotion 
 2. **The port emits no ANSI colour on a tty** — zero escape sequences against upstream's thirteen
    escape-carrying lines. Every golden is captured non-tty, so **the suite has never been able to
    see the port's terminal appearance**. This is the largest blind spot found all pass.
-3. **`.html` loses a blank line after a raw HTML block.** `markdown.markdown("<div>block</div>\n\nafter")`
-   is `'<div>block</div>\n\n<p>after</p>'` — a *double* newline where every other block boundary is
-   single. The corpus is blind because it carries the construct (`<div>block</div>` alone, matching)
-   but not the *adjacency*.
+3. **CLOSED, does not reproduce.** `markdown.markdown("<div>block</div>\n\nafter")` was measured
+   again 2026-08-13 by a fresh porter: port and upstream both give `<div>block</div>\n\n<p>after</p>`,
+   the double newline, byte-identical, on the full 15-shape adjacency matrix (`go run ./tools/mdprobe
+   -fixture html`, 1065/1065 reproducing). `a8db308` (`internal/renderer/templater/process/htmlblock.go:136-213`)
+   had already fixed this before pass 24 measured it stale — the audit's finding 5 ("my 'narrow
+   terminals' entry was stale within hours") applies here too. **`html.json` is not blind to the
+   adjacency** as this row claimed — it carries the exact shape and ~30 siblings as live rows. What
+   remains open in this area is a *different* defect, `rawBlockTail` in
+   `htmlblock_adjacency_test.go` (no blank line **after the closing tag**, 9 HTML shapes + 1 Typst
+   shape) — a block-parser problem, not this one, already pinned and named as its own unit.
 4. Eight commits bundle differential fixtures with the production code that fixes them, against §7's
    "fixtures land first, red".
 5. My "narrow terminals" entry was **stale within hours** — recorded open, already closed.
