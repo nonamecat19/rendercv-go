@@ -429,11 +429,20 @@ absent, not wrong.
 Each was measured, and each is named here because declaring a known-wrong shape is what makes the
 surrounding numbers trustworthy.
 
-- `continuationIndent` takes the second line's indentation when a paragraph loses its first line:
-  `"\v\n    a\n    b"` is `<p>a\n    b</p>` upstream, `<p>a\nb</p>` here. It differed before the
-  change too, so the unit is a net improvement, but it is a new *kind* of wrong in that one shape.
-  Emptying the line in place is unavailable — a zero-length line panics goldmark at
-  `parser/parser.go:1174`.
+- **CLOSED 2026-08-13**, `2c4a7c8`. `continuationIndent` took the second line's indentation when a
+  paragraph lost its first line; a fresh porter found the rule is wider than the one shape —
+  upstream's `ParagraphProcessor.run` strips the block as one string, so **every** later line keeps
+  its own indentation independently, not just the second. Fixed by recording the block's true
+  opening offset (`rendercvBlockStart` attribute) before either paragraph edit moves it, mirroring
+  `codeblock.go`'s `detabEmptiedAttribute`. A 29-shape matrix against the live vendored Python: 16/29
+  mismatched before, 5/29 after, 0 regressions (`html.json` +14 verified rows via `tools/mdprobe`,
+  not hand-transcribed). Emptying the `\v`/`\f` line in place is still unavailable — the zero-length
+  panic at `parser/parser.go:1174` is untouched, this works around it rather than removing it.
+  **Four shapes remain open, none touched by this fix, named so they aren't mistaken for new**: a
+  Python-blank-then-indented paragraph that becomes a code block here (`"  \n    a\n    b"`); the
+  same class inside a blockquote; a blockquote paragraph with no dropped line still over-counting its
+  own indent; and a tight-list item, where goldmark's list transform rebuilds the `TextBlock` and the
+  attribute doesn't survive.
 - A non-string mapping **key** (`{1: a}` → upstream `{1: 'a'}`, port `{'1': 'a'}`) is
   unrepresentable: `yamldoc.Item` keeps the key's text and drops its kind and quoting style, and the
   quoted spelling `'1': a` genuinely *is* `{'1': 'a'}` upstream — so guessing from the text moves the
