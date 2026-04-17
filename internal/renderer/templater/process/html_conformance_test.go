@@ -53,10 +53,18 @@ import (
 // of 33 shapes. `htmlblock.go`'s `atLineStart` closed 18 and the key left
 // `knownRemainder`.
 //
-// Measured after that work: 2 rows differ in `knownRemainder`, 9 in
-// `rawBlockTail` and 4 in `containerBlockTag`, checked by running
-// `MarkdownToHTML` over every `In` and diffing against the fixture's `Out` —
-// not read off a commit message.
+// An eighth enumerated 42 raw-block adjacencies — a raw block with **another
+// block after it**, which no row had carried — and 29 differed, in two classes.
+// The first, a blank line between the two, is `htmlblock.go`'s
+// `htmlBlockRenderer`. The second was a raw block with **no** blank line after
+// its closing tag, where upstream ends the block anyway
+// (`htmlparser.py:240-253`) and goldmark runs on to the next blank line: its 9
+// rows, and the one row of it the Typst fixture reaches, are closed by
+// `blockLevelHTMLParser.Continue` and `splitRawBlockTails`.
+//
+// Measured after that work: 2 rows differ in `knownRemainder` and 4 in
+// `containerBlockTag`, checked by running `MarkdownToHTML` over every `In` and
+// diffing against the fixture's `Out` — not read off a commit message.
 //
 // It lives behind the conformance tag because it needs no upstream process but
 // does encode upstream's exact output.
@@ -79,13 +87,13 @@ func TestMarkdownToHTMLMatchesPython(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%q: %v", row.In, err)
 		}
-		if _, known := knownRemainder[row.In]; known || rawBlockTail[row.In] || containerBlockTag[row.In] {
+		if _, known := knownRemainder[row.In]; known || containerBlockTag[row.In] {
 			// Inverted, for the same reason conformance.AssertUnreachable is:
 			// a list of tolerated mismatches that does not notice being fixed
 			// becomes a mute button.
 			if got == row.Out {
 				t.Errorf("MarkdownToHTML(%q) now matches python-markdown"+
-					" — remove it from whichever of knownRemainder, rawBlockTail"+
+					" — remove it from whichever of knownRemainder"+
 					" or containerBlockTag holds it", row.In)
 			}
 			continue
