@@ -26,8 +26,10 @@ submodule:
 build:
     go build -o {{bin}} ./cmd/rendercv-go
 
+# The conformance work root is outside the checkout on purpose — its absolute
+# path is recorded in the goldens. See internal/conformance/workroot.
 clean:
-    rm -rf bin dist testdata/.work
+    rm -rf bin dist testdata/.work /tmp/rendercv-go-conformance
 
 # --- Quality -----------------------------------------------------------------
 

@@ -39,11 +39,12 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/nonamecat19/rendercv-go/internal/conformance/workroot"
 )
 
 const (
 	upstreamDir = "third_party/rendercv"
-	corpusDir   = "testdata/.work/run"
 	outDir      = "internal/renderer/document/testdata/documents"
 
 	// CurrentDate is what every case is rendered with, so the preamble's
@@ -163,7 +164,8 @@ func run() error {
 		return err
 	}
 
-	cases, err := os.ReadDir(filepath.Join(root, corpusDir))
+	corpusDir := filepath.Join(workroot.Root, "run")
+	cases, err := os.ReadDir(corpusDir)
 	if err != nil {
 		return fmt.Errorf("reading the corpus (run `just golden` first?): %w", err)
 	}
@@ -180,7 +182,7 @@ func run() error {
 		}
 		name := entry.Name()
 
-		input := filepath.Join(root, corpusDir, name, "cv.yaml")
+		input := filepath.Join(corpusDir, name, "cv.yaml")
 		if _, err := os.Stat(input); err != nil {
 			skipped = append(skipped, name+" (no cv.yaml)")
 			continue
