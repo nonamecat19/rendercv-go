@@ -3,7 +3,7 @@
 │ │ Location │ Input Value │ Explanation                                     │ │
 │ ├──────────┼─────────────┼─────────────────────────────────────────────────┤ │
 │ │ design   │ ...         │ The custom theme folder                         │ │
-│ │          │             │ `/home/nnc/Projects/rendercv-go/testdata/.work… │ │
+│ │          │             │ `/tmp/rendercv-go-conformance/run/err_unknown_… │ │
 │ │          │             │ does not exist. It should be in the same        │ │
 │ │          │             │ directory as the input file.                    │ │
 │ ╰──────────┴─────────────┴─────────────────────────────────────────────────╯ │
