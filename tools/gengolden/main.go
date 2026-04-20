@@ -330,13 +330,16 @@ var durationPattern = regexp.MustCompile(`\b\d+(\.\d+)?\s?(ms|s)\b[ \t]*`)
 //
 // internal/conformance applies the identical transform to rendercv-go's output, so
 // any change here must be mirrored there.
+//
+// **It does not append a trailing newline.** It used to, and so did the
+// harness, on both sides of every comparison — which made the last byte of
+// every golden unverifiable by construction: a stream ending without a newline
+// was recorded as if it ended with one, and a port emitting the wrong final
+// byte compared equal. 23 of the corpus's 42 recorded streams genuinely end
+// without a newline.
 func normalize(s string) string {
 	s = strings.ReplaceAll(s, "\r\n", "\n")
-	s = durationPattern.ReplaceAllString(s, "<duration> ")
-	if s != "" && !strings.HasSuffix(s, "\n") {
-		s += "\n"
-	}
-	return s
+	return durationPattern.ReplaceAllString(s, "<duration> ")
 }
 
 // pngGeometry reads a PNG's pixel dimensions without decoding the image.
