@@ -12,6 +12,14 @@
 //	go run ./tools/gengolden                # regenerate every case
 //	go run ./tools/gengolden -case theme_ink
 //	go run ./tools/gengolden -verify        # regenerate to a temp dir, compare, write nothing
+//	go run ./tools/gengolden -upstream /abs/path/to/third_party/rendercv
+//
+// The -upstream flag exists for git worktrees, which do not carry the
+// submodule's checkout. Two goldens are Rich-rendered Python tracebacks that
+// bake the *interpreter's* view of the source files (D-011), so generating from
+// a worktree would rewrite them with a directory that is about to be deleted;
+// pointing at the main checkout keeps them stable. specs/STATE.md records the
+// same lesson — drive upstream by absolute path, never by a symlink.
 package main
 
 import (
@@ -31,13 +39,18 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+
+	"github.com/nonamecat19/rendercv-go/internal/conformance/workroot"
 )
 
 const (
 	upstreamDir = "third_party/rendercv"
 	corpusPath  = "testdata/corpus.json"
 	goldenDir   = "testdata/golden"
-	workDir     = "testdata/.work"
+	// workDir holds the scratch golden tree only. The directory the *cases*
+	// run in is workroot.Root, outside the checkout, because its absolute path
+	// is recorded in the goldens — see that package's doc comment.
+	workDir = "testdata/.work"
 )
 
 // Corpus is testdata/corpus.json.
@@ -86,24 +99,29 @@ func main() {
 	var (
 		only   = flag.String("case", "", "regenerate only this case")
 		verify = flag.Bool("verify", false, "compare against committed goldens; write nothing")
+		up     = flag.String("upstream", "",
+			"absolute path to the vendored RenderCV checkout (default: <repo>/"+upstreamDir+")")
 	)
 	flag.Parse()
 
-	if err := run(*only, *verify); err != nil {
+	if err := run(*only, *verify, *up); err != nil {
 		fmt.Fprintf(os.Stderr, "gengolden: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(only string, verify bool) error {
+func run(only string, verify bool, upstream string) error {
 	root, err := repoRoot()
 	if err != nil {
 		return err
 	}
+	if upstream == "" {
+		upstream = filepath.Join(root, upstreamDir)
+	}
 
-	bin := filepath.Join(root, upstreamDir, ".venv", "bin", "rendercv")
+	bin := filepath.Join(upstream, ".venv", "bin", "rendercv")
 	if runtime.GOOS == "windows" {
-		bin = filepath.Join(root, upstreamDir, ".venv", "Scripts", "rendercv.exe")
+		bin = filepath.Join(upstream, ".venv", "Scripts", "rendercv.exe")
 	}
 	if _, err := os.Stat(bin); err != nil {
 		return fmt.Errorf("vendored RenderCV not installed at %s: run `just setup` (%w)", bin, err)
@@ -114,7 +132,7 @@ func run(only string, verify bool) error {
 		return err
 	}
 
-	sha, version, err := upstreamPin(root)
+	sha, version, err := upstreamPin(upstream)
 	if err != nil {
 		return err
 	}
@@ -142,7 +160,7 @@ func run(only string, verify bool) error {
 		if only != "" && c.Name != only {
 			continue
 		}
-		if err := generateCase(root, bin, corpus.Env, c, scratch); err != nil {
+		if err := generateCase(upstream, bin, corpus.Env, c, scratch); err != nil {
 			return fmt.Errorf("case %s: %w", c.Name, err)
 		}
 		ran++
@@ -174,17 +192,15 @@ func run(only string, verify bool) error {
 
 // generateCase runs one corpus case in an isolated directory and captures everything
 // the run produced: created files, stdout, stderr and the exit code.
-func generateCase(root, bin string, env map[string]string, c Case, scratch string) error {
-	caseWork := filepath.Join(root, workDir, "run", c.Name)
-	if err := os.RemoveAll(caseWork); err != nil {
+func generateCase(upstream, bin string, env map[string]string, c Case, scratch string) error {
+	caseWork, release, err := workroot.Prepare(c.Name)
+	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(caseWork, 0o755); err != nil {
-		return err
-	}
+	defer release()
 
 	for _, f := range c.Files {
-		src := filepath.Join(root, upstreamDir, f.Src)
+		src := filepath.Join(upstream, f.Src)
 		dst := filepath.Join(caseWork, f.Dst)
 		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 			return err
@@ -314,13 +330,16 @@ var durationPattern = regexp.MustCompile(`\b\d+(\.\d+)?\s?(ms|s)\b[ \t]*`)
 //
 // internal/conformance applies the identical transform to rendercv-go's output, so
 // any change here must be mirrored there.
+//
+// **It does not append a trailing newline.** It used to, and so did the
+// harness, on both sides of every comparison — which made the last byte of
+// every golden unverifiable by construction: a stream ending without a newline
+// was recorded as if it ended with one, and a port emitting the wrong final
+// byte compared equal. 23 of the corpus's 42 recorded streams genuinely end
+// without a newline.
 func normalize(s string) string {
 	s = strings.ReplaceAll(s, "\r\n", "\n")
-	s = durationPattern.ReplaceAllString(s, "<duration> ")
-	if s != "" && !strings.HasSuffix(s, "\n") {
-		s += "\n"
-	}
-	return s
+	return durationPattern.ReplaceAllString(s, "<duration> ")
 }
 
 // pngGeometry reads a PNG's pixel dimensions without decoding the image.
@@ -445,8 +464,7 @@ func loadCorpus(path string) (*Corpus, error) {
 	return &c, nil
 }
 
-func upstreamPin(root string) (sha, version string, err error) {
-	dir := filepath.Join(root, upstreamDir)
+func upstreamPin(dir string) (sha, version string, err error) {
 	sha, err = git(dir, "rev-parse", "HEAD")
 	if err != nil {
 		return "", "", err
@@ -462,7 +480,7 @@ func upstreamPin(root string) (sha, version string, err error) {
 	if dirty != "" {
 		return "", "", fmt.Errorf(
 			"%s has local modifications; the vendored upstream must be pristine (AGENTS.md §10.4):\n%s",
-			upstreamDir, dirty)
+			dir, dirty)
 	}
 	return sha, version, nil
 }

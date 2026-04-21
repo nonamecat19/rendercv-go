@@ -20,6 +20,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/nonamecat19/rendercv-go/internal/conformance/workroot"
 )
 
 const (
@@ -153,7 +155,7 @@ func Run(t *testing.T, c Case, env map[string]string) Result {
 		t.Fatalf("rendercv-go is not built at %s — run `just build` (%v)", bin, err)
 	}
 
-	dir := caseWorkDir(t, root, c.Name)
+	dir := caseWorkDir(t, c.Name)
 	for _, f := range c.Files {
 		writeFile(t, filepath.Join(dir, f.Dst), readFile(t, filepath.Join(root, upstream, f.Src)))
 	}
@@ -200,30 +202,31 @@ func Run(t *testing.T, c Case, env map[string]string) Result {
 }
 
 // caseWorkDir is the directory a case runs in, and it is **the same path
-// `tools/gengolden` used** — `testdata/.work/run/<case>` under the repository
-// root — rather than a `t.TempDir`.
+// `tools/gengolden` used** — `workroot.CaseDir(name)` — rather than a
+// `t.TempDir`.
 //
-// The reason is a defect in the goldens, not a preference. Several of them bake
-// an absolute path into the text they compare: `err_unknown_theme`'s message
-// names the custom theme folder it could not find, and upstream prints
+// The reason is a defect in upstream's output, not a preference. Several
+// goldens bake an absolute path into the text they compare: `err_unknown_theme`'s
+// message names the custom theme folder it could not find, and upstream prints
 // `custom_theme_folder.absolute()` (`design.py:79`). Run anywhere else, that
 // line can never match no matter how correct the port is.
 //
-// **This makes the case pass on the machine the goldens were generated on, and
-// it does not make the goldens portable.** They still carry that machine's
-// repository path. Fixing that means regenerating them with a path-normalising
-// step, which is a change to the contract; it is recorded in `specs/STATE.md`
-// as iteration 1's open defect.
-func caseWorkDir(t *testing.T, root, name string) string {
+// The directory used to be `testdata/.work/run/<case>` under *the generating
+// checkout*, which made the goldens pass on one machine and nowhere else — not
+// from a git worktree, a second clone, or CI. `workroot.Root` is a fixed
+// absolute path instead, so the recorded string is the same everywhere. See
+// that package for the whole argument, and for the lock that keeps a shared
+// path from being a shared race.
+func caseWorkDir(t *testing.T, name string) string {
 	t.Helper()
 
-	dir := filepath.Join(root, "testdata", ".work", "run", name)
-	if err := os.RemoveAll(dir); err != nil {
-		t.Fatalf("clearing the case directory: %v", err)
+	dir, release, err := workroot.Prepare(name)
+	if err != nil {
+		t.Fatalf("case %s: %v", name, err)
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatalf("creating the case directory: %v", err)
-	}
+	// Released at the end of the test rather than when the command exits: the
+	// comparisons below read the artifacts the run left in this directory.
+	t.Cleanup(release)
 	return dir
 }
 
@@ -249,13 +252,16 @@ var durationPattern = regexp.MustCompile(`\b\d+(\.\d+)?\s?(ms|s)\b[ \t]*`)
 // Normalize applies the same transform gengolden applied to upstream output: it removes
 // wall-clock timings (and the padding that follows them) and nothing else. Any change
 // here must be mirrored in tools/gengolden.
+//
+// **It does not append a trailing newline.** It used to, and so did the
+// generator, which made the final byte of every golden unverifiable by
+// construction: upstream output ending without a newline was recorded as if it
+// ended with one, and a port emitting the wrong last byte compared equal. 23 of
+// the 42 recorded streams genuinely end without a newline, so the padding was
+// covering a real difference on more than half the corpus.
 func Normalize(s string) string {
 	s = strings.ReplaceAll(s, "\r\n", "\n")
-	s = durationPattern.ReplaceAllString(s, "<duration> ")
-	if s != "" && !strings.HasSuffix(s, "\n") {
-		s += "\n"
-	}
-	return s
+	return durationPattern.ReplaceAllString(s, "<duration> ")
 }
 
 // RepoRoot walks up from the test's working directory to the directory holding go.mod.

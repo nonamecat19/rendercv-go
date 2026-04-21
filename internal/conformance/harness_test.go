@@ -144,6 +144,11 @@ func TestManifestMatchesTheGoldenTree(t *testing.T) {
 // TestNormalizeOnlyRemovesTimings pins the one transform applied to CLI output. If it
 // ever removes more than wall-clock timings, every CLI and error golden silently
 // weakens.
+//
+// The trailing-newline rows are why it is worth having twice over: Normalize
+// used to *add* one when it was missing, on both sides of every comparison, so
+// the last byte of a golden asserted nothing. 23 of the corpus's 42 recorded
+// streams genuinely end without a newline.
 func TestNormalizeOnlyRemovesTimings(t *testing.T) {
 	tests := []struct {
 		name string
@@ -154,7 +159,8 @@ func TestNormalizeOnlyRemovesTimings(t *testing.T) {
 		{"seconds", "✓ 1.2 s   Generated PDF\n", "✓ <duration> Generated PDF\n"},
 		{"padding absorbed", "✓ 7 ms      x\n", "✓ <duration> x\n"},
 		{"no timing", "│ cv.email.0 │ not_a_valid_email │\n", "│ cv.email.0 │ not_a_valid_email │\n"},
-		{"trailing newline added", "no newline", "no newline\n"},
+		{"a missing trailing newline stays missing", "no newline", "no newline"},
+		{"a trailing newline is not doubled", "newline\n", "newline\n"},
 		{"empty stays empty", "", ""},
 		{"crlf normalised", "a\r\nb\r\n", "a\nb\n"},
 		{"version string untouched", "RenderCV v2.8\n", "RenderCV v2.8\n"},

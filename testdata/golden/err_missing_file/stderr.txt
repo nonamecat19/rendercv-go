@@ -55,5 +55,4 @@
 │   1016 │   │   """                                                           │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 FileNotFoundError: [Errno 2] No such file or directory: 
-'/home/nnc/Projects/rendercv-go/testdata/.work/run/err_missing_file/does_not_exi
-st.yaml'
+'/tmp/rendercv-go-conformance/run/err_missing_file/does_not_exist.yaml'
