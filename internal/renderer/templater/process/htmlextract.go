@@ -186,14 +186,37 @@ func endsTagName(c byte) bool {
 // the *input* had it (`htmlblock.go`), turning `<p>tail</p>` into a paragraph
 // one newline too far down.
 //
-// Only a tail on the closing tag's own line is moved. A tail that is only
-// whitespace is left alone: upstream stashes the tag without it, but inserting a
-// separator there would manufacture exactly the blank line the paragraph above
-// describes.
+// # The whitespace between the tag and the tail
+//
+// Whitespace that follows the closing tag belongs to the tail and travels with
+// it, because upstream hands it to the block parser in the same `handle_data`
+// chunk — that is the indented-code shape above. **Two positions are different,
+// and this drops the whitespace at both**, because upstream's stash begins and
+// ends at a tag:
+//
+//   - before a raw block that opens in the tail. `handle_starttag` writes its
+//     own `'\n'` into `cleandoc` before the block (`:214-217`), so the
+//     whitespace is left on a line of its own and the second block starts at a
+//     line start: `<div>a</div> <div>b</div>` → `<div>a</div>\n<div>b</div>`.
+//   - before the end of the line. The stash stops at the tag and the spaces go
+//     to `cleandoc`, where a whitespace-only line is a block boundary and
+//     nothing else: `<div>block</div>   \nafter` → `<div>block</div>\n<p>after</p>`.
+//
+// Dropping is not quite upstream's mechanism, and one shape shows the gap: four
+// or more columns of that whitespace is an indented code block upstream, an
+// empty one, between the two blocks (`<div>a</div>\t<div>b</div>` →
+// `<div>a</div>\n<pre><code>\n</code></pre>\n<div>b</div>`). Keeping the
+// whitespace on its own line cannot reproduce it either — goldmark reads a
+// whitespace-only line as blank, and a blank line here is read back by
+// `blankLineAfterRawBlock` as one the input never had.
 func splitRawBlockTails(source, separator string) string {
 	var out strings.Builder
 	raw := []byte(source)
 	written := 0
+	// inTail: `i` is exactly where a raw block's closing tag left off, which is
+	// upstream's `intail` (`:246-247`) — the one state in which a block-level
+	// tag opens a raw block without being at a line start (`:215`).
+	inTail := false
 
 	for i := 0; i < len(raw); {
 		lineEnd := bytes.IndexByte(raw[i:], '\n')
@@ -204,10 +227,15 @@ func splitRawBlockTails(source, separator string) string {
 		}
 
 		tag := i + tagOffset(raw[i:lineEnd])
-		end := rawBlockOnLine(raw, tag, lineEnd)
+		end := rawBlockOnLine(raw, tag, lineEnd, inTail)
 		if end < 0 {
 			i = lineEnd + 1
+			inTail = false
 			continue
+		}
+		if inTail && tag > i {
+			out.Write(raw[written:i])
+			written = tag
 		}
 
 		tailEnd := bytes.IndexByte(raw[end:], '\n')
@@ -217,7 +245,12 @@ func splitRawBlockTails(source, separator string) string {
 			tailEnd += end
 		}
 		if len(bytes.Trim(raw[end:tailEnd], " \t")) == 0 {
+			if tailEnd > end {
+				out.Write(raw[written:end])
+				written = tailEnd
+			}
 			i = tailEnd + 1
+			inTail = false
 			continue
 		}
 
@@ -228,6 +261,7 @@ func splitRawBlockTails(source, separator string) string {
 		// it is at a line start too — `<div>a</div> <div>b</div>` is two blocks
 		// upstream (`:215`'s `intail`).
 		i = end
+		inTail = true
 	}
 	if written == 0 {
 		return source
@@ -238,14 +272,16 @@ func splitRawBlockTails(source, separator string) string {
 
 // rawBlockOnLine is `rawBlockEnd` for a raw block that starts at `tag`, guarded
 // by the two things `handle_starttag` checks first: the tag is block-level
-// (`:215`) and it is at the start of its line (`:181-192`, `atLineStart`).
+// (`:215`) and it is at the start of its line (`:181-192`, `atLineStart`) — or,
+// with `inTail` set, that it stands in the tail of the block that just closed,
+// which upstream accepts in place of the line start whatever the indentation.
 //
 // **The start tag has to be complete on that line.** A tag broken over two lines
 // leaves `self.offset` past the start of the line it ends on, so upstream is not
 // at a line start when it reads it and the block never opens: `<div\n
 // class='x'>a</div> t` is a paragraph upstream, not a raw block.
-func rawBlockOnLine(source []byte, tag, lineEnd int) int {
-	if tag >= lineEnd || source[tag] != '<' || !atLineStart(source, tag) {
+func rawBlockOnLine(source []byte, tag, lineEnd int, inTail bool) int {
+	if tag >= lineEnd || source[tag] != '<' || (!inTail && !atLineStart(source, tag)) {
 		return -1
 	}
 	name, end, ok := scanTag(source, tag)

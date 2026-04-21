@@ -14,12 +14,15 @@ import (
 // nine shapes spec 011 §9.5's enumeration had pinned, and these are the rest of
 // the class — the ones that establish the rule rather than one instance of it.
 //
-// **Two residuals this does not assert.** A raw block that opens *in* the tail
-// of another keeps the whitespace between them, where upstream's stash begins at
-// the tag (`<div>a</div> <div>b</div>`); and a closing tag followed by nothing
-// but spaces keeps them, where upstream leaves them out of the stash. Both are
-// the raw block's own indentation rather than this rule, and neither differential
-// carries a row for them.
+// **The residual is four columns of whitespace after a closing tag.** The
+// whitespace before a raw block that opens in another's tail, and the whitespace
+// between a closing tag and the end of its line, are both dropped now
+// (`splitRawBlockTails`) — but upstream leaves them in the document, where four
+// or more columns of them are an indented code block, an empty one:
+// `<div>a</div>\t<div>b</div>` is `<div>a</div>\n<pre><code>\n</code></pre>\n
+// <div>b</div>` upstream and `<div>a</div>\n<div>b</div>` here. Reproducing it
+// needs a block goldmark does not read from a whitespace-only line; the two
+// differentials carry no row for that shape.
 func TestRawBlockEndsAtClosingTag(t *testing.T) {
 	tests := []struct {
 		name  string

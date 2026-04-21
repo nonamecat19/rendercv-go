@@ -2446,5 +2446,29 @@
  {
   "in": "- <b>bold</b>",
   "want": "- <b>bold</b>"
+ },
+ {
+  "in": "<div>a</div> <div>b</div>",
+  "want": "<div>a</div>\n<div>b</div>"
+ },
+ {
+  "in": "<div>a</div> <div>b</div> tail",
+  "want": "<div>a</div>\n<div>b</div>\ntail"
+ },
+ {
+  "in": "<div>a</div> <p>b</p>",
+  "want": "<div>a</div>\n<p>b</p>"
+ },
+ {
+  "in": "<div>block</div>   \nafter",
+  "want": "<div>block</div>\nafter"
+ },
+ {
+  "in": "<div>block</div>   ",
+  "want": "<div>block</div>"
+ },
+ {
+  "in": "<div>a</div> \n\nafter",
+  "want": "<div>a</div>\n\nafter"
  }
 ]
