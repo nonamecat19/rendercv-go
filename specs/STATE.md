@@ -497,10 +497,25 @@ session by direct edit, not by a porter or a fresh-context verifier — **flag t
    upstream, opaque exit 1 here) is internally consistent as read; whatever line pair this claim
    named no longer exists at those coordinates, and no contradiction was found elsewhere in the
    file. Recorded here as non-reproducing rather than silently dropped.
-2. **Regenerating `testdata/golden/`** — **still open**, not attempted this session. The fix needs a
-   fixed-length, checkout-independent work root (closes both the absolute-path bake-in and the
-   shared-`caseWorkDir` race together per the prior write-up) before a regen is safe to run; that is
-   itself a code change to `internal/conformance`, sized as its own unit, not done yet.
+2. **CLOSED, `9c2e69b`, 2026-08-13.** `internal/conformance/workroot` replaces the checkout-relative
+   `testdata/.work/run/<case>` with a fixed absolute root (`/tmp/rendercv-go-conformance`), used
+   identically by `tools/gengolden` (generation) and `conformance.Run` (testing) — the baked-in path
+   is now the same **byte sequence** everywhere, not merely the same length. A per-case `flock` fixes
+   the shared-path race a fixed root reintroduces (measured 8 and 14 false failures with two
+   checkouts running `TestParity` concurrently and the lock stubbed out; 0 and 0 with it in place).
+   `Normalize`'s unconditional trailing-`\n` pad is also removed — it was hiding a real difference on
+   **23 of the 42** recorded streams, all now regenerated correctly; every case still passes, so
+   nothing in the port depended on the pad. **Verified independently in the main checkout, not just
+   trusted from the porter's report**: `go test -tags conformance ./...` 0 FAIL / 0 SKIP,
+   `gengolden -verify` clean against the pinned upstream (351 files), run *after* merging, from this
+   checkout's own path — the thing the fix claims to have stopped mattering.
+   **Not closed by this fix, named by the porter**: `gengolden -verify` still cannot pass run against
+   a *different* machine's upstream checkout — `err_bad_override_key/stderr.txt` and
+   `err_missing_file/stderr.txt` are D-011 Python tracebacks embedding that machine's CPython
+   install path, which no work-root change reaches; this is pre-existing, and CI's own "Verify golden
+   fixtures" step should be checked against an actual run to see whether it was ever really passing.
+   `/tmp/rendercv-go-conformance` is also not user-namespaced (deliberate — namespacing would break
+   the same-string property this fix depends on), so two users sharing a box can collide on it.
 3. **`tools/sampleprobe`** — resolved: spec 013 §8 amended to say the tool stays unconditionally
    (`specs/013-parity-closeout/spec.md`, Sample generator bullet), because it is the only
    regeneration path for `blocks/**` after a submodule bump regardless of whether the live
