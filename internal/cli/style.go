@@ -147,6 +147,21 @@ func (s Style) IsZero() bool {
 // (`rich/style.py:345-380`), which is what makes `bold green` read `ESC[1;32m`
 // and not `ESC[32;1m`.
 func (s Style) SGR(terminal Terminal) string {
+	// **A terminal with no colour system emits no sequence at all, attributes
+	// included.** `Style.render` returns the text untouched when
+	// `color_system is None` (`rich/style.py:346-349`), and that is the only
+	// gate: `_render_buffer` hands the console's system straight to it
+	// (`rich/console.py:2119-2136`). So `bold` does *not* survive a dumb
+	// terminal, where it does survive `NO_COLOR` below.
+	//
+	// Measured: `Console(force_terminal=True, color_system=None)` printing
+	// `[bold green]hi` writes `hi`, and upstream's whole CLI emits zero
+	// sequences under `TERM=dumb` on a pty — which is what
+	// `TestTerminalDetection`'s colourless rows already pin.
+	if terminal.System == ColorNone {
+		return ""
+	}
+
 	parameters := make([]string, 0, 3)
 	if s.Bold {
 		parameters = append(parameters, "1")
