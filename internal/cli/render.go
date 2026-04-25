@@ -568,7 +568,18 @@ func failPanel(stdout io.Writer, err error) {
 	if osMessage, isOS := osErrorMessage(err); isOS {
 		message = osMessage
 	}
-	writeLivePanel(stdout, Panel("Error", []PanelRow{{Text: message}}))
+	writeLivePanel(stdout, errorPanel(message, stdout))
+}
+
+// errorPanel is the one-message `Error` box, `bold red` border and `bold red`
+// title (`cli/error_handler.py:43-47`, `progress_panel.py:126-135`).
+//
+// **The title carries the same style as the border but is a run of its own**:
+// upstream writes `title="[bold red]Error[/bold red]"` alongside
+// `border_style="bold red"`, and the six runs of the top line are what the pty
+// differential compares (spec 012 delta §2.4).
+func errorPanel(message string, stdout io.Writer) string {
+	return StyledPanel("Error", []PanelRow{{Text: message}}, StyleBoldRed, TerminalFor(stdout))
 }
 
 // failPrintedPanel is `failPanel`'s pre-progress-panel twin: the `Error` box the
@@ -585,7 +596,7 @@ func failPanel(stdout io.Writer, err error) {
 // suppresses `RenderCVUserValidationError` (`run_rendercv.py:113`), so the only
 // box that can reach `rich.print` is the one-message one.
 func failPrintedPanel(stdout io.Writer, err error) {
-	writePrintedPanel(stdout, Panel("Error", []PanelRow{{Text: err.Error()}}))
+	writePrintedPanel(stdout, errorPanel(err.Error(), stdout))
 }
 
 // validationPanel is `print_validation_errors` (`progress_panel.py:138-169`).
