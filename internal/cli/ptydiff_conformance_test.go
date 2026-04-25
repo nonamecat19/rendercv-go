@@ -131,8 +131,11 @@ func TestTerminalStylingIsPending(t *testing.T) {
 		// point of the case.
 		wrapsOnTheBinaryName bool
 	}{
-		{name: "validation table", unit: "D", args: []string{"render", "CV.yaml"}, input: invalidCV},
-		{name: "user error panel", unit: "D", args: []string{"render", "CV.yaml"}, input: emptyCV},
+		// The `user error panel` row is **gone, not disabled**: that surface is
+		// styled now and is compared byte for byte by `TestErrorPanelColour`
+		// below. What is left of unit D is the validation table's own three
+		// column styles and the header's bold.
+		{name: "validation table", unit: "D (the table half)", args: []string{"render", "CV.yaml"}, input: invalidCV},
 		{name: "new", unit: "E", args: []string{"new", "JohnDoe"}},
 		{name: "help", unit: "F", args: []string{"render", "--help"}, wrapsOnTheBinaryName: true},
 	}
@@ -153,6 +156,49 @@ func TestTerminalStylingIsPending(t *testing.T) {
 				diffLines(t, portText(got), frameText(want))
 			}
 			assertStylingIsStillPending(t, test.unit, got, want)
+		})
+	}
+}
+
+// TestErrorPanelColour is delta §8's unit D on its **deterministic half**: the
+// one-message `Error` box, compared byte for byte against upstream on a pty.
+//
+// **Bytes, not an inventory.** This surface is the one place on the styled
+// terminal where a byte comparison is honest: the panel is printed by
+// `rich.print` from the `@handle_user_errors` decorator, never through `Live`,
+// so there is no repaint, no cursor hide/show and no timing in it — measured, a
+// capture of it carries nothing but the panel. Every other styled surface has
+// to fall back to the style inventory (§5), which cannot see a run opened
+// around the wrong characters. Here a misplaced run fails the case.
+//
+// The environment rows are §3's rules applied to this surface: the palette-free
+// `bold red` is the same sequence on every colour system, so what they actually
+// pin is *whether* a sequence is emitted at all and whether `NO_COLOR` keeps the
+// bold.
+func TestErrorPanelColour(t *testing.T) {
+	tests := []struct {
+		name string
+		env  map[string]string
+	}{
+		{name: "default tty"},
+		{name: "NO_COLOR keeps bold", env: map[string]string{"NO_COLOR": "1"}},
+		{name: "NO_COLOR set but empty is ignored", env: map[string]string{"NO_COLOR": ""}},
+		{name: "eight colour TERM", env: map[string]string{"TERM": "xterm", "COLORTERM": ""}},
+		{name: "256 colour TERM", env: map[string]string{"TERM": "xterm-256color", "COLORTERM": ""}},
+		{name: "TERM=dumb", env: map[string]string{"TERM": "dumb"}},
+		{name: "TTY_COMPATIBLE=0", env: map[string]string{"TTY_COMPATIBLE": "0"}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			dir := filepath.Join(t.TempDir(), "w")
+			want := runSide(t, dir, upstreamArgv(t, []string{"render", "CV.yaml"}), test.env, emptyCV)
+			got := runSide(t, dir, portArgv(t, []string{"render", "CV.yaml"}), test.env, emptyCV)
+
+			if got != want {
+				t.Error("the styled Error panel differs from upstream's")
+				diffLines(t, got, want)
+			}
 		})
 	}
 }

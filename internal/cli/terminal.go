@@ -1,6 +1,29 @@
 package cli
 
-import "strings"
+import (
+	"io"
+	"os"
+	"strings"
+
+	"golang.org/x/term"
+)
+
+// TerminalFor is the detection `rich.console.Console` performs for the file it
+// was handed (`rich/console.py:937-984`), asked of the writer the command is
+// printing through rather than of the process's own stdout.
+//
+// **Asking the writer is what keeps package `cli` testable.** Every test in it
+// passes a `bytes.Buffer`, which is not a file and therefore not a terminal —
+// the same answer Rich gives for a pipe, and the answer every golden was
+// captured under.
+//
+// The environment is still consulted for a non-file writer, because `FORCE_COLOR`
+// and `TTY_COMPATIBLE` outrank `isatty` in Rich's own order and a user who sets
+// them means it.
+func TerminalFor(writer io.Writer) Terminal {
+	file, ok := writer.(*os.File)
+	return DetectTerminal(os.LookupEnv, ok && term.IsTerminal(int(file.Fd())))
+}
 
 // ColorSystem is Rich's `ColorSystem` (`rich/console.py:88-97`): how much
 // colour the terminal is believed to understand, which decides the SGR form a
