@@ -604,3 +604,33 @@ The last is the only case in this entry where the port renders and upstream does
   (`internal/schema/modelbuilder/yamlerror_test.go`), written to `t.Skip` with a re-measure
   instruction so the evidence survives either way — a fix upstream, or a decision to workaround
   after all.
+
+---
+
+## D-018 — `%YAML 1.1` does not switch the scalar resolver
+
+**Status:** approved · Costing: [`specs/002-yaml-and-core-model/spec-delta-directives.md`](002-yaml-and-core-model/spec-delta-directives.md) §6.4
+
+- **Differs:** a document opening with a `%YAML 1.1` directive resolves plain scalars by YAML 1.1
+  rules upstream — `yes`/`no`/`on`/`off`/`y`/`n` become booleans, a leading-zero integer like `010`
+  is octal (`8`, not `10`), `0o10` is a plain **string** (1.1 has no `0o` octal prefix), and
+  `1:30`/`1:30.5` are sexagesimal (base-60) numbers (`90`, `90.5`). `rendercv-go` resolves plain
+  scalars by YAML 1.2 rules regardless of any `%YAML` directive present.
+- **Upstream:** `ruamel/yaml/resolver.py:377-392` selects the resolver version from the scanner's
+  directive-derived `yaml_version`, falling back to 1.2 only absent one; the 1.1 tables are
+  `:30-35` (bool), `:45-53` (float, incl. sexagesimal), `:62-69` (int, incl. bare octal and
+  sexagesimal).
+- **Why not implemented:** a second, complete scalar-resolution table behind a directive that no CV
+  in either project writes and that no upstream test covers (`grep '%YAML'
+  third_party/rendercv/tests/` is empty) — pure speculative surface, the same shape of cost this
+  project has repeatedly declined elsewhere (D-002's Lua `validate` callback, D-017's fold
+  workaround) in favor of the smaller, honest option. **The decision is forced by D-017's own
+  directive-parsing fix** (spec-delta-directives.md §6.1, tracked as its own implementation unit,
+  not yet landed): once directive-headed documents parse at all, a `%YAML 1.1` document stops being
+  loudly rejected — silently rendering it with 1.2 values instead would be strictly worse, a message
+  defect turning into a value defect, exactly the asymmetry D-017 already weighs against.
+- **Instead:** once the directive-parsing fix lands, a document opening `%YAML 1.1` is rejected with
+  a named error identifying the unsupported directive, rather than silently resolved by 1.2 rules or
+  left to fail with an unrelated message. The exact error text is that fix's to choose.
+- **User notices:** nothing, unless they hand-write a `%YAML 1.1` directive — a construct absent from
+  every example, template, and generated file in both projects.
