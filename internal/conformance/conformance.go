@@ -21,6 +21,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/nonamecat19/rendercv-go/internal/conformance/cmdpanel"
 	"github.com/nonamecat19/rendercv-go/internal/conformance/workroot"
 )
 
@@ -250,18 +251,20 @@ func (r Result) artifactBytes(rel string) ([]byte, error) {
 var durationPattern = regexp.MustCompile(`\b\d+(\.\d+)?\s?(ms|s)\b[ \t]*`)
 
 // Normalize applies the same transform gengolden applied to upstream output: it removes
-// wall-clock timings (and the padding that follows them) and nothing else. Any change
-// here must be mirrored in tools/gengolden.
+// wall-clock timings (and the padding that follows them), and puts the entries of a
+// `Commands` help panel into one canonical order, because upstream's is its checkout's
+// readdir order (cmdpanel, D-019). Nothing else. Any change here must be mirrored in
+// tools/gengolden.
 //
-// **It does not append a trailing newline.** It used to, and so did the
-// generator, which made the final byte of every golden unverifiable by
-// construction: upstream output ending without a newline was recorded as if it
-// ended with one, and a port emitting the wrong last byte compared equal. 23 of
-// the 42 recorded streams genuinely end without a newline, so the padding was
-// covering a real difference on more than half the corpus.
+// **It does not append a trailing newline.** It used to, and so did the generator, which
+// made the final byte of every golden unverifiable by construction: upstream output ending
+// without a newline was recorded as if it ended with one, and a port emitting the wrong
+// last byte compared equal. 23 of the 42 recorded streams genuinely end without a newline,
+// so the padding was covering a real difference on more than half the corpus.
 func Normalize(s string) string {
 	s = strings.ReplaceAll(s, "\r\n", "\n")
-	return durationPattern.ReplaceAllString(s, "<duration> ")
+	s = durationPattern.ReplaceAllString(s, "<duration> ")
+	return cmdpanel.Sort(s)
 }
 
 // RepoRoot walks up from the test's working directory to the directory holding go.mod.

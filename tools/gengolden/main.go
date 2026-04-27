@@ -44,6 +44,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/nonamecat19/rendercv-go/internal/conformance/cmdpanel"
 	"github.com/nonamecat19/rendercv-go/internal/conformance/workroot"
 )
 
@@ -329,8 +330,11 @@ func generateCase(upstream, bin string, env map[string]string, c Case, scratch s
 // is right-padded to a fixed width and a shorter timing means more spaces.
 var durationPattern = regexp.MustCompile(`\b\d+(\.\d+)?\s?(ms|s)\b[ \t]*`)
 
-// normalize strips the parts of CLI output that vary between runs on the same input.
-// Everything else — wording, layout, box drawing, ordering — is contractual.
+// normalize strips the parts of CLI output that vary between runs on the same input,
+// or between checkouts of the same upstream commit. Everything else — wording, layout,
+// box drawing — is contractual, and so is every ordering upstream's source states:
+// cmdpanel.Sort touches the one panel whose order upstream reads off a directory
+// listing instead (D-019), and no other.
 //
 // internal/conformance applies the identical transform to rendercv-go's output, so
 // any change here must be mirrored there.
@@ -343,7 +347,8 @@ var durationPattern = regexp.MustCompile(`\b\d+(\.\d+)?\s?(ms|s)\b[ \t]*`)
 // without a newline.
 func normalize(s string) string {
 	s = strings.ReplaceAll(s, "\r\n", "\n")
-	return durationPattern.ReplaceAllString(s, "<duration> ")
+	s = durationPattern.ReplaceAllString(s, "<duration> ")
+	return cmdpanel.Sort(s)
 }
 
 // pngGeometry reads a PNG's pixel dimensions without decoding the image.
