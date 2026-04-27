@@ -454,3 +454,65 @@ The last is the only case in this entry where the port renders and upstream does
   can be kept: not landed yet" paragraph.
 - **User notices:** a broken theme script is reported instead of ignored, naming the script and the
   reason, in Lua's terms rather than Python's.
+
+---
+
+## D-018 — The `Commands` help panel is captured in a canonical order
+
+**Status:** approved (agent-executable per `specs/STATE.md`, policy change 2026-08-12) ·
+**Iteration:** 16
+
+- **Differs:** the order of the three entries in the `╭─ Commands ─╮` panel of `--help` is
+  **normalized to ascending command name** on both sides of every golden comparison — in
+  `tools/gengolden`'s capture of upstream, and in `internal/conformance.Normalize`'s treatment of
+  the port's output. Nothing else in the panel is touched: the same rows, the same column widths,
+  the same byte count.
+- **Upstream:** `src/rendercv/cli/app.py:142-151` registers the commands by walking its own package
+  directory —
+
+  ```python
+  cli_folder_path = pathlib.Path(__file__).parent
+  for file in cli_folder_path.rglob("*_command.py"):
+      ...
+      module = importlib.import_module(full_module)
+  ```
+
+  `pathlib.Path.rglob` yields raw `os.scandir` order; it is not sorted, unlike
+  `sorted(rglob(...))`. Typer then lists subcommands in **registration** order rather than click's
+  sorted one (`typer/core.py:816-820`: *"Note that in Click's Group class, these are sorted. In
+  Typer, we wish to maintain the original order of creation (cf Issue #933)"* — click's own
+  `Group.list_commands` is `sorted(self.commands)`, `click/core.py:1784-1786`).
+- **Why parity is not the right target here:** there is no upstream order to be identical to. The
+  order is a property of the directory the interpreter happens to read, not of the release.
+  Measured on the pinned submodule `2eba248`, one interpreter, one command
+  (`COLUMNS=80 NO_COLOR=1 TERM=dumb rendercv --help`):
+
+  ```
+  the submodule checkout : create-theme, new, render
+  a plain `cp -r` of src/: render, new, create-theme
+  ```
+
+  Both are 2,433 bytes and differ **only** in which of the three entries comes first — the column
+  width is set by the longest command name, which reordering does not change. So the committed
+  golden records a coin flip, `gengolden -verify` fails on any checkout whose readdir order landed
+  the other way (this is what broke `cli_help` and `cli_help_short` off the generating machine),
+  and no port behavior could fix it: matching a value that is not a function of upstream's source
+  is not achievable, and would not mean anything if it were.
+- **Instead:** `rendercv-go` lists `create-theme, new, render`, fixed, from
+  `internal/cli/helpdata/help.json` — the same order the pinned checkout happens to print, which is
+  also the ascending one. `internal/conformance/cmdpanel` puts both sides into that order before
+  they are compared. It is deliberately narrow: only a `╭─ Commands` panel, only whole entries
+  (an entry's wrapped continuation rows move with it), and any panel shape it does not recognize is
+  passed through untouched. `Options` and `Arguments` panels are **not** reordered — their order is
+  written in upstream's source, so a difference there is a real defect and stays one.
+- **User notices:** nothing. The port's own listing is unchanged; only what the fixtures compare is.
+- **Consequence for the suite:** `cli_help` and `cli_help_short` stay unreachable under D-010 (the
+  binary name re-wraps their prose), and are unaffected by this entry in `TestParity`. What changes
+  is `gengolden -verify`: it now passes from a foreign checkout of the pinned upstream.
+  **Measured, both directions**: with the flipped copy on the child's `PYTHONPATH`,
+  `gengolden -verify -case cli_help` and `-case cli_help_short` report *goldens match the pinned
+  upstream 2eba2481*; with `cmdpanel.Sort` removed and nothing else changed, the same command
+  reports *golden differs from the committed bytes: cli_help/stdout.txt*.
+- **Not licensed by this:** any other reordering of upstream output. Ordering upstream states in
+  its source — sections, entries, options, the file list in `files.txt` — is contractual and is
+  compared as-is. This entry covers exactly the one panel upstream fills from a directory listing.
