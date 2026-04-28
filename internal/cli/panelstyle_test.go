@@ -52,7 +52,7 @@ func TestStyledPanelMatchesUpstreamsBytes(t *testing.T) {
 		{"standard", Terminal{IsTerminal: true, System: ColorStandard}},
 	} {
 		t.Run(terminal.name, func(t *testing.T) {
-			got := spellEscapes(StyledPanel("Error", rows, StyleBoldRed, terminal.term))
+			got := spellEscapes(StyledPanel(StyledText("Error", StyleBoldRed), rows, StyleBoldRed, terminal.term))
 			if got != upstreamErrorPanel {
 				t.Errorf("StyledPanel() =\n  %q\nwant\n  %q", got, upstreamErrorPanel)
 			}
@@ -88,7 +88,7 @@ func TestStyledPanelIsPlainWithoutColour(t *testing.T) {
 		},
 	} {
 		t.Run(terminal.name, func(t *testing.T) {
-			got := StyledPanel("Error", rows, StyleBoldRed, terminal.term)
+			got := StyledPanel(StyledText("Error", StyleBoldRed), rows, StyleBoldRed, terminal.term)
 			if (got == plainPanel) != terminal.want {
 				t.Errorf("StyledPanel() =\n  %q\nplain is\n  %q", spellEscapes(got), plainPanel)
 			}
@@ -117,7 +117,7 @@ func TestStyledPanelCropsTheTitleWithItsStyle(t *testing.T) {
 			t.Setenv("COLUMNS", strconv.Itoa(test.columns))
 
 			terminal := Terminal{IsTerminal: true, System: ColorTruecolor}
-			got := StyledPanel("Error", nil, StyleBoldRed, terminal)
+			got := StyledPanel(StyledText("Error", StyleBoldRed), nil, StyleBoldRed, terminal)
 			top, _, _ := strings.Cut(got, "\n")
 			if spelled := spellEscapes(top); spelled != test.want {
 				t.Errorf("top border = %q, want %q", spelled, test.want)
