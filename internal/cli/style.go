@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -240,6 +241,23 @@ func (t Text) Append(other Text) Text {
 	return Text{Plain: t.Plain + other.Plain, Spans: spans}
 }
 
+// StylizeBefore lays a style **underneath** the styles already there — Rich's
+// `Text.stylize_before` (`rich/text.py`), which a panel applies to its title so
+// the border's colour shows wherever the title's own markup says nothing
+// (`rich/panel.py:205-206`).
+//
+// The span goes to the front of the list, and `styleAt` lets a later span win
+// the colour, so `[bold red]Error[/bold red]` inside a `bright_black` border
+// keeps its red.
+func (t Text) StylizeBefore(start, end int, style Style) Text {
+	if start >= end || style.IsZero() {
+		return t
+	}
+	spans := make([]Span, 0, len(t.Spans)+1)
+	spans = append(spans, Span{Start: start, End: end, Style: style})
+	return Text{Plain: t.Plain, Spans: append(spans, t.Spans...)}
+}
+
 // Stylize lays a style over a rune range, the way `Text.stylize` does.
 func (t Text) Stylize(start, end int, style Style) Text {
 	if start >= end || style.IsZero() {
@@ -349,6 +367,88 @@ func (t Text) Render(terminal Terminal) string {
 	}
 	flush(len(runes))
 	return out.String()
+}
+
+// Segments cuts the text into the runs Rich's `Text.render` yields
+// (`rich/text.py:684-748`): **one segment per interval between span
+// boundaries**, not one per distinct style.
+//
+// The difference is visible in the bytes, which is why this is not `Render`.
+// Two neighbours that resolve to the same style stay two runs: the `Error`
+// panel's title band is `bold red` throughout and still comes out as three
+// separately opened and closed runs, because `pad(1)` and the title's own
+// markup put boundaries inside it (spec 012 delta §2.4). The progress panel's
+// title carries no markup at all, so the same band is **one** run — measured,
+// `ESC[90m Your CV is ready ESC[0m`.
+func (t Text) Segments() []Segment {
+	runes := []rune(t.Plain)
+	if len(runes) == 0 {
+		return nil
+	}
+
+	bounds := []int{0, len(runes)}
+	for _, span := range t.Spans {
+		bounds = append(bounds, min(max(span.Start, 0), len(runes)), min(max(span.End, 0), len(runes)))
+	}
+	slices.Sort(bounds)
+
+	segments := make([]Segment, 0, len(bounds))
+	for i := 0; i+1 < len(bounds); i++ {
+		start, end := bounds[i], bounds[i+1]
+		if start == end {
+			continue
+		}
+		segments = append(segments, Segment{Text: string(runes[start:end]), Style: t.styleAt(start)})
+	}
+	return segments
+}
+
+// SplitLines breaks at every newline, which Rich does **before** it wraps
+// anything (`rich/text.py:1231`): a newline inside a row is a hard break and
+// each piece gets its own bordered line.
+func (t Text) SplitLines() []Text {
+	runes := []rune(t.Plain)
+	var lines []Text
+	start := 0
+	for i, character := range runes {
+		if character != '\n' {
+			continue
+		}
+		lines = append(lines, t.Slice(start, i))
+		start = i + 1
+	}
+	return append(lines, t.Slice(start, len(runes)))
+}
+
+// ExpandTabs is `expandTabs` with the spans moved to follow the text it widens
+// — Rich's `Text.expand_tabs` (`rich/text.py:817-857`), which rebuilds the
+// spans rather than leaving them pointing at the pre-expansion offsets.
+//
+// **It walks prefixes rather than expanding each span's text on its own.** A tab
+// stop is counted in cells from the start of the line, so how far one tab moves
+// depends on everything before it — including earlier tabs. Expanding the whole
+// prefix each time reuses `expandTabs`'s arithmetic instead of restating it,
+// which is what keeps the styled path and the plain one from drifting apart.
+func (t Text) ExpandTabs() Text {
+	if !strings.ContainsRune(t.Plain, '\t') {
+		return t
+	}
+
+	runes := []rune(t.Plain)
+	expanded := Text{}
+	previous := 0
+	for i, character := range runes {
+		if character != '\t' {
+			continue
+		}
+		expanded = expanded.Append(t.Slice(previous, i))
+		// The fully expanded prefix through this tab. Everything before it is
+		// already in `expanded`, so what is left over is this tab's own spaces.
+		prefix := []rune(expandTabs(string(runes[:i+1])))
+		expanded = expanded.Append(PlainText(string(prefix[len([]rune(expanded.Plain)):])))
+		previous = i + 1
+	}
+	return expanded.Append(t.Slice(previous, len(runes)))
 }
 
 // styleAt combines every span covering one rune.
