@@ -1,0 +1,16 @@
+╭─ There are validation errors! ───────────────────────────────────────────────╮
+│ ╭──────────┬─────────────┬─────────────────────────────────────────────────╮ │
+│ │ Location │ Input Value │ Explanation                                     │ │
+│ ├──────────┼─────────────┼─────────────────────────────────────────────────┤ │
+│ │ locale   │ ...         │ Input tag '[TaggedScalar(value='x', style=None, │ │
+│ │          │             │ tag=Tag('tag:example.com,2000:str'))]' found    │ │
+│ │          │             │ using 'language' does not match any of the      │ │
+│ │          │             │ expected tags: 'english', 'arabic', 'danish',   │ │
+│ │          │             │ 'dutch', 'french', 'german', 'hebrew', 'hindi', │ │
+│ │          │             │ 'hungarian', 'indonesian', 'italian',           │ │
+│ │          │             │ 'japanese', 'korean', 'mandarin_chinese',       │ │
+│ │          │             │ 'norwegian_bokmål', 'norwegian_nynorsk',        │ │
+│ │          │             │ 'persian', 'portuguese', 'russian', 'spanish',  │ │
+│ │          │             │ 'turkish', 'vietnamese'.                        │ │
+│ ╰──────────┴─────────────┴─────────────────────────────────────────────────╯ │
+╰──────────────────────────────────────────────────────────────────────────────╯
