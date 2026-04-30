@@ -345,6 +345,16 @@ func TestEveryPhrasingRowIsReachable(t *testing.T) {
 			"while parsing a block collection",
 			"cv:\n  - name: John\n  bad: 1\n",
 		},
+		{
+			"unknown YAML version",
+			"found incompatible YAML document (version 1.* is required)",
+			"%YAML 2.0\n---\ncv: 1\n",
+		},
+		{
+			"unexpected directive value",
+			"mapping values are not allowed here",
+			"%TAG !e! tag:x,1:\ncv: 1\n",
+		},
 	}
 
 	covered := make(map[int]bool, len(reaching))

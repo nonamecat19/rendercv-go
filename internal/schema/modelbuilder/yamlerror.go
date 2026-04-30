@@ -127,6 +127,17 @@ const badIndentRow = "mapping value is not allowed in this context"
 // and every test of it must reach the row rather than assume it.
 const blockContextRow = "value is not allowed in this context"
 
+// directiveRow is the substring of goccy's one message for a directive block it
+// could not read — a directive with no `---` marker after it, and any stream
+// carrying more than one directive, which goccy does not support at all.
+// ruamel answers it four ways; see directiveScan.
+const directiveRow = "unexpected directive value"
+
+// yamlVersionRow is the substring of goccy's complaint about a `%YAML` version
+// it does not implement. ruamel accepts every 1.x and rejects the rest by major
+// version alone (`ruamel/yaml/parser.py:296-304`).
+const yamlVersionRow = "unknown YAML version"
+
 // isBlockContextFailure reports whether a goccy message is the shorter spelling
 // and not the longer one that contains it.
 func isBlockContextFailure(message string) bool {
@@ -203,6 +214,15 @@ var ruamelPhrasing = []struct{ goccy, ruamel string }{
 	// commonest of them and `blockScan` supplies the rest, or declines. See
 	// blockScan for the discriminator and what it was measured on.
 	{blockContextRow, "while parsing a block mapping"},
+	// A `%YAML` whose major version is not 1. goccy names the version it read;
+	// ruamel names the one it needs, and does not quote the version at all.
+	{yamlVersionRow, "found incompatible YAML document (version 1.* is required)"},
+	// **The second row whose answer is not in goccy's text, and the second that
+	// can decline.** goccy reports one message for a directive block it cannot
+	// read; ruamel reports three different failures for it and renders a fourth
+	// class of document without error. `directiveScan` supplies the answer from
+	// the source; the value here is the commonest of them.
+	{directiveRow, "mapping values are not allowed here"},
 }
 
 // parserMessage mirrors rendercv_model_builder.py:87-89: the first line of the
@@ -241,6 +261,14 @@ func parserMessage(text, content string, tok yamldoc.Position) string {
 				break
 			}
 			text = failure.phrasing
+			break
+		}
+		if row.goccy == directiveRow {
+			failure, ok := directiveScan(content)
+			if !ok {
+				break
+			}
+			text = failure.message
 			break
 		}
 
@@ -823,6 +851,24 @@ func yamlErrorLocation(parserErr goyaml.Error, content string) *yamldoc.Span {
 			at := yamldoc.Position{Line: line, Column: column}
 			return &yamldoc.Span{Start: at, End: at}
 		}
+	}
+
+	// **A directive failure is marked where ruamel stopped, not where goccy
+	// did.** goccy blames the first directive line at column 1 whatever the
+	// fault; ruamel marks the second of a duplicated pair, or the content line
+	// the missing `---` ran the block into. ruamel reports no context mark for
+	// any of them, so the span is a point.
+	if strings.Contains(message, directiveRow) {
+		if failure, ok := directiveScan(content); ok {
+			return &yamldoc.Span{Start: failure.at, End: failure.at}
+		}
+	}
+
+	// A `%YAML` with a bad major version is ruamel's parser failing *at the
+	// directive*, column 1 — goccy points at the version string instead.
+	if strings.Contains(message, yamlVersionRow) {
+		at := yamldoc.Position{Line: start.Line, Column: 1}
+		return &yamldoc.Span{Start: at, End: at}
 	}
 
 	// **The shorter spelling carries neither of ruamel's marks.** goccy blames
