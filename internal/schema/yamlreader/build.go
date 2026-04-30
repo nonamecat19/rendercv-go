@@ -42,7 +42,14 @@ func parse(src string) (*yamldoc.Node, error) {
 	if body == nil {
 		return nil, nil
 	}
-	return buildNode(body), nil
+	return builder{handles: tagHandlesFor(file.Docs)}.node(body), nil
+}
+
+// builder carries the parse state a node needs beyond its own subtree, which
+// today is only the document's tag-handle table. It is a value, not a pointer,
+// because nothing in it is written during a build.
+type builder struct {
+	handles TagHandles
 }
 
 // TabError is ruamel's scanner refusing a tab used as separation whitespace.
@@ -250,16 +257,16 @@ func checkSingleDocument(docs []*ast.DocumentNode) error {
 	return err
 }
 
-func buildNode(n ast.Node) *yamldoc.Node {
+func (b builder) node(n ast.Node) *yamldoc.Node {
 	switch v := n.(type) {
 	case *ast.MappingNode:
-		return buildMapping(v)
+		return b.mapping(v)
 	case *ast.SequenceNode:
-		return buildSequence(v)
+		return b.sequence(v)
 	case *ast.AnchorNode:
-		return buildNode(v.Value)
+		return b.node(v.Value)
 	case *ast.TagNode:
-		return buildTagged(v)
+		return b.tagged(v)
 	case *ast.LiteralNode:
 		return buildLiteral(v)
 	case *ast.StringNode:
@@ -295,7 +302,7 @@ func buildNode(n ast.Node) *yamldoc.Node {
 // A *known scalar* tag over a collection (`!!str [1, 2]`, which upstream reads
 // as a plain sequence) never reaches here: goccy's parser refuses the document
 // with `unexpected scalar value type`. Recorded as a divergence.
-func buildTagged(node *ast.TagNode) *yamldoc.Node {
+func (b builder) tagged(node *ast.TagNode) *yamldoc.Node {
 	if node.Value == nil {
 		return &yamldoc.Node{Kind: yamldoc.KindNull}
 	}
@@ -308,10 +315,10 @@ func buildTagged(node *ast.TagNode) *yamldoc.Node {
 	// rejects, so `locale.language: ! english` failed here and raises nothing
 	// upstream. Spec 015 delta §3.3.
 	if tagName(node) == "!" {
-		return buildNode(node.Value)
+		return b.node(node.Value)
 	}
 
-	inner := buildNode(node.Value)
+	inner := b.node(node.Value)
 	switch inner.Kind {
 	case yamldoc.KindMapping, yamldoc.KindSequence:
 		return inner
@@ -320,13 +327,18 @@ func buildTagged(node *ast.TagNode) *yamldoc.Node {
 		// A scalar; the tag decides its kind below.
 	}
 
-	kind, forced := ResolveTag(tagName(node))
+	// The tag is expanded through the document's handle table *before* the
+	// constructor lookup, because ruamel looks the constructor up by the
+	// resolved URI: `!!int` is not `tag:yaml.org,2002:int` in a document whose
+	// `%TAG !!` directive rebound the handle.
+	resolved := ResolveTagText(tagName(node), b.handles)
+	kind, forced := ResolveTag(resolved)
 	if !forced {
 		// The resolved tag, kept for `repr(TaggedScalar)` — the one thing this
 		// function used to compute and discard (spec 015 delta §2). Only an
 		// opaque scalar carries it: a forced tag constructs an ordinary value,
 		// which has no tag in its repr.
-		inner.Tag = ResolveTagText(tagName(node))
+		inner.Tag = resolved
 		// Opaque: ruamel's TaggedScalar, which keeps the scalar's text and
 		// nothing else. A tag with no value at all carries the empty string
 		// rather than a null — `a: !!str` is `TaggedScalar('')` upstream, and
@@ -376,12 +388,12 @@ func hasWrittenValue(node *ast.TagNode) bool {
 // this port does not reproduce (`RenderCVInternalError: Key '1' not found in the
 // YAML file.`, the D-011 class) and so is left where an untagged `1: x` already
 // is.
-func untagKey(key ast.Node) (ast.Node, bool) {
+func (b builder) untagKey(key ast.Node) (ast.Node, bool) {
 	tag, ok := key.(*ast.TagNode)
 	if !ok || tag.Value == nil {
 		return key, false
 	}
-	if _, forced := ResolveTag(tagName(tag)); forced {
+	if _, forced := ResolveTag(ResolveTagText(tagName(tag), b.handles)); forced {
 		return tag.Value, false
 	}
 	return tag.Value, true
@@ -410,7 +422,7 @@ func buildPlainScalar(tok *token.Token) *yamldoc.Node {
 	}
 }
 
-func buildMapping(n *ast.MappingNode) *yamldoc.Node {
+func (b builder) mapping(n *ast.MappingNode) *yamldoc.Node {
 	node := &yamldoc.Node{Kind: yamldoc.KindMapping}
 	for _, mv := range n.Values {
 		// A tagged key is upstream's TaggedScalar again, and a mapping key is
@@ -419,7 +431,7 @@ func buildMapping(n *ast.MappingNode) *yamldoc.Node {
 		// against the enclosing mapping (measured on `cv: {!!str name: Bob}`).
 		// The tag itself is not part of the key's text, so the inner scalar is
 		// what the span and the Input Value column read.
-		keyNode, keyTagged := untagKey(mv.Key)
+		keyNode, keyTagged := b.untagKey(mv.Key)
 		keyTok := keyNode.GetToken()
 		// The token's value, not the node's source form: `mv.Key.String()` keeps
 		// the quotes a quoted key was written with, so `"name": John` would bind
@@ -438,7 +450,7 @@ func buildMapping(n *ast.MappingNode) *yamldoc.Node {
 		item := yamldoc.Item{
 			Key:     key,
 			KeySpan: keySpan,
-			Value:   buildNode(mv.Value),
+			Value:   b.node(mv.Value),
 			// The key as a node, built from `mv.Key` — the tag still on it,
 			// the same path a value takes. That is ruamel's own shape, and it
 			// is what makes a key's repr fall out: an unforced tag leaves a
@@ -446,7 +458,7 @@ func buildMapping(n *ast.MappingNode) *yamldoc.Node {
 			// `{!!str k: a}` reprs as a TaggedScalar and `{!!int 1: a}` as 1.
 			// The untagged `keyNode` above is the *binding* key's text and
 			// answers a different question.
-			KeyNode:   buildNode(mv.Key),
+			KeyNode:   b.node(mv.Key),
 			KeyTagged: keyTagged,
 		}
 		node.Items = append(node.Items, item)
@@ -503,10 +515,10 @@ func valueEndPosition(val ast.Node, keyTok *token.Token) yamldoc.Position {
 	return yamldoc.Position{Line: first.Position.Line, Column: first.Position.Column}
 }
 
-func buildSequence(n *ast.SequenceNode) *yamldoc.Node {
+func (b builder) sequence(n *ast.SequenceNode) *yamldoc.Node {
 	node := &yamldoc.Node{Kind: yamldoc.KindSequence}
 	for i, entry := range n.Values {
-		elem := buildNode(entry)
+		elem := b.node(entry)
 		pos := sequenceEntryPosition(n, i, entry)
 		elem.Span = yamldoc.Span{
 			Start: pos,
