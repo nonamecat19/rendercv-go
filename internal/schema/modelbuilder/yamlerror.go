@@ -138,11 +138,21 @@ const directiveRow = "unexpected directive value"
 // version alone (`ruamel/yaml/parser.py:296-304`).
 const yamlVersionRow = "unknown YAML version"
 
-// isBlockContextFailure reports whether a goccy message is the shorter spelling
-// and not the longer one that contains it.
+// nonMapValueRow is the substring of goccy's *other* spelling for a badly
+// indented line: the one it uses when the line is a value where its parser was
+// building a mapping (`parser.go:499`), which is the same failure ruamel splits
+// between `while scanning a simple key` and `while parsing a block mapping`.
+const nonMapValueRow = "non-map value is specified"
+
+// isBlockContextFailure reports whether a goccy message is one of the two
+// spellings blockScan answers: the shorter of the two "not allowed in this
+// context" ones — not the longer one that contains it — or the non-map value.
 func isBlockContextFailure(message string) bool {
 	if i := strings.IndexByte(message, '\n'); i >= 0 {
 		message = message[:i]
+	}
+	if strings.Contains(message, nonMapValueRow) {
+		return true
 	}
 	return strings.Contains(message, blockContextRow) &&
 		!strings.Contains(message, badIndentRow)
@@ -223,6 +233,15 @@ var ruamelPhrasing = []struct{ goccy, ruamel string }{
 	// class of document without error. `directiveScan` supplies the answer from
 	// the source; the value here is the commonest of them.
 	{directiveRow, "mapping values are not allowed here"},
+	// **goccy's second spelling for the same mistake**, used when the offending
+	// line is a value and its parser was building a mapping: `cv:\n  a: 1\nbad`.
+	// ruamel splits these between its scanner's `while scanning a simple key`
+	// and its parser's `while parsing a block mapping`, so this row is decided
+	// by `blockScan` too. Enumerated over 3,605 block shapes: 750 reach it, 491
+	// are the scanner's and 259 the parser's, and all 750 leaked goccy's own
+	// text with its `[n:m]` coordinate before this row existed. The value here
+	// is the commonest of the two, for the tests that read the table.
+	{nonMapValueRow, "while scanning a simple key"},
 }
 
 // parserMessage mirrors rendercv_model_builder.py:87-89: the first line of the
@@ -249,13 +268,13 @@ func parserMessage(text, content string, tok yamldoc.Position) string {
 		if !strings.Contains(text, row.goccy) {
 			continue
 		}
-		// **The other row whose answer is not in goccy's text**, and the only
-		// one that can decline. When the offending line is left of everything
+		// **The two rows whose answer is not in goccy's text**, and the only
+		// ones that can decline. When the offending line is left of everything
 		// the document opened, ruamel is not inside a block construct at all
 		// and says `expected '<document start>', but found ...` — a phrasing
 		// whose found-token spelling is not reconstructible here — so goccy's
 		// own line is left to reach the user.
-		if row.goccy == blockContextRow {
+		if row.goccy == blockContextRow || row.goccy == nonMapValueRow {
 			failure, ok := blockScan(content, tok)
 			if !ok {
 				break
