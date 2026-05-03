@@ -567,8 +567,32 @@ surrounding numbers trustworthy.
   rows in either fixture, though they pass live; fixture-only, via `tools/mdprobe -add`), and §11.1
   (`strings.go`'s `isWordRune` still uses `unicode.IsDigit` rather than the full predicate for a
   *different* feature, `MakeKeywordsBold`'s `\b` — deliberately left, needs its own unit).
-- Five genuine line-break shapes, and the goccy residue where a shorter spelling splits 31/3 between
-  two ruamel phrasings and needs a discriminator — **still open, unmeasured this pass.**
+- **The "31/3 discriminator" item — stale, already fixed hours after it was recorded.** Investigated
+  2026-08-13: `6a15f9f` (20:54 on 2026-08-12) closed the named finding four hours after the pass-24
+  measurement (`03598ca`, 17:02) that recorded it — the "shorter spelling" (`blockContextRow`,
+  goccy's `value is not allowed in this context`) now discriminates into **four** ruamel phrasings,
+  not two, which is presumably why "31/3" doesn't match anything measurable now. Re-swept over 3,605
+  block shapes: 1,806 reach it, splitting 1200/288/246/72 across the four phrasings, **0 message
+  mismatches, 0 mark mismatches**.
+  **The same sweep found a real, larger, previously-unrecorded gap and it's now CLOSED**, `0c0bbb7`,
+  2026-08-13: goccy's *other* spelling for the same class of mistake, `non-map value is specified`
+  (`parser.go:499`, used when the offending line is a value and goccy's parser was building a
+  mapping), was leaking raw goccy text with a `[n:m]` coordinate on **5,429 of 18,730** shapes in a
+  widened grid, splitting 3,404/1,977 between ruamel's `while scanning a simple key` and `while
+  parsing a block mapping`. Routed through the existing `blockScan` discriminator as a new
+  `ruamelPhrasing` row: 4,810 of 5,429 now match phrasing, 3,980 also match marks — 0 did before.
+  Proven red first (all pinned rows fail on HEAD without the change). Re-verified independently after
+  merge: `go test -tags conformance ./...` 0 FAIL/0 SKIP tree-wide, `just check` 0 issues.
+  **Left open, each named and sized rather than hidden**: 595 shapes whose offending line is a block
+  scalar header get the wrong phrasing — a **pre-existing** `blockScan` miss on the same shape class,
+  not introduced by this fix; 830 have a wrong end mark (427 trailing-comment, 331
+  flow-collection-on-the-offending-line); a sibling spelling, `unexpected key name` (75 shapes,
+  51/24 split), was deliberately left leaking rather than mapped, because the naive routing gets 24
+  of the 75 wrong — a mapped-but-wrong phrasing is worse than a visibly-leaked one, per this file's
+  own standing lesson; and two more unmapped spellings surfaced incidentally, `could not find
+  multi-line content` (96 shapes) and a column-3-vs-column-1 span start on
+  `expected a single document in the stream` (240 shapes, the `MultiDocumentError` path).
+- Five genuine line-break shapes — **still open, unmeasured this pass.**
 
 ### Process findings against the merge owner, recorded so they are not repeated
 
