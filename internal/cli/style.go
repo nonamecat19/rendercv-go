@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"math/rand/v2"
 	"slices"
 	"strconv"
 	"strings"
@@ -58,12 +59,26 @@ var (
 	colorDodgerBlue3 = Color{kind: colorPaletteKind, code: 26, downgrade: 94}
 )
 
-// Style is a Rich style: the attributes and the foreground colour a run of text
-// carries. Only the attributes RenderCV and typer actually use are modelled.
+// Style is a Rich style: the attributes, the foreground colour and the
+// hyperlink a run of text carries. Only the attributes RenderCV and typer
+// actually use are modelled.
 type Style struct {
 	Bold  bool
 	Dim   bool
 	Color Color
+
+	// Link is the URL an OSC 8 hyperlink points at — Rich's `Style(link=…)`,
+	// which `[link=…]` markup builds (`cli/new_command/print_welcome.py:22`).
+	//
+	// **It is not SGR at all**, and it is the one styled element whose exact
+	// bytes are not reproducible between two runs (spec 012 delta §2.5): the
+	// sequence carries an id, and Rich's is `randint(0, 999999)`
+	// (`rich/style.py:197`).
+	Link string
+	// LinkID is that id. It belongs to the style rather than to the run because
+	// Rich stores it on the `Style` object, so a link split across two lines
+	// writes the **same** id twice.
+	LinkID string
 }
 
 // The styles RenderCV and typer name, as values.
@@ -93,7 +108,26 @@ var (
 	StyleDimRed      = Style{Dim: true, Color: colorRed}
 	StyleDimYellow   = Style{Dim: true, Color: colorYellow}
 	StyleDimBlue     = Style{Dim: true, Color: colorBlue}
+
+	// StyleReprNumber is Rich's `repr.number`
+	// (`rich/default_styles.py:81`), the one highlighter style reachable from
+	// RenderCV's own output — the digit in `RenderCV v2.8` (delta §2.6).
+	//
+	// Its `italic=False` is not modelled because Rich emits a code only for an
+	// attribute that is both set **and** true (`Style._make_ansi_codes`,
+	// `rich/style.py:354`), so a false italic writes nothing.
+	StyleReprNumber = Style{Bold: true, Color: colorCyan}
 )
+
+// LinkStyle is Rich's `Style(link=url)`: a style that carries no colour and no
+// attribute, only the OSC 8 hyperlink.
+//
+// **The id is random, exactly as upstream's is** (`rich/style.py:197`). It is
+// not a value a test can pin, and the pty differential normalizes it away
+// (delta §2.5).
+func LinkStyle(url string) Style {
+	return Style{Link: url, LinkID: strconv.Itoa(rand.IntN(1_000_000))}
+}
 
 // namedStyles maps each markup spelling upstream writes to its style.
 //
@@ -138,7 +172,35 @@ func ParseStyle(name string) (Style, bool) {
 
 // IsZero reports whether the style would emit nothing.
 func (s Style) IsZero() bool {
-	return !s.Bold && !s.Dim && s.Color.kind == colorUnset
+	return !s.Bold && !s.Dim && s.Color.kind == colorUnset && s.Link == ""
+}
+
+// Render writes one run of text in this style — `Style.render`
+// (`rich/style.py:690-714`), which is where every escape sequence RenderCV
+// emits is finally assembled.
+//
+// The order is upstream's and is visible in the bytes: the SGR sequence wraps
+// the text, and the **hyperlink wraps that**, so a coloured link reads
+// `OSC8 open`, `ESC[…m`, text, `ESC[0m`, `OSC8 close`.
+//
+// **A terminal with no colour system gets the bare text**, hyperlink included:
+// `render` returns early on `color_system is None` (`:706`), which is why
+// `TERM=dumb` produces no OSC 8 either.
+func (s Style) Render(text string, terminal Terminal) string {
+	if text == "" || terminal.System == ColorNone {
+		return text
+	}
+	rendered := text
+	if sequence := s.SGR(terminal); sequence != "" {
+		rendered = sequence + text + reset
+	}
+	if s.Link != "" {
+		// `f"\x1b]8;id={id};{link}\x1b\\{rendered}\x1b]8;;\x1b\\"` (`:711-713`).
+		// **`NO_COLOR` does not remove it**: `Style.without_color` keeps the
+		// link and only drops the colour (`rich/style.py:474-490`).
+		rendered = "\x1b]8;id=" + s.LinkID + ";" + s.Link + "\x1b\\" + rendered + "\x1b]8;;\x1b\\"
+	}
+	return rendered
 }
 
 // SGR is the escape sequence that opens a run in this style, or the empty
@@ -347,14 +409,7 @@ func (t Text) Render(terminal Terminal) string {
 	var out strings.Builder
 	runStart, runStyle := 0, t.styleAt(0)
 	flush := func(end int) {
-		segment := string(runes[runStart:end])
-		if sequence := runStyle.SGR(terminal); sequence != "" {
-			out.WriteString(sequence)
-			out.WriteString(segment)
-			out.WriteString(reset)
-			return
-		}
-		out.WriteString(segment)
+		out.WriteString(runStyle.Render(string(runes[runStart:end]), terminal))
 	}
 
 	for i := 1; i < len(runes); i++ {
@@ -367,6 +422,17 @@ func (t Text) Render(terminal Terminal) string {
 	}
 	flush(len(runes))
 	return out.String()
+}
+
+// RenderSegments writes the text the way a console writes a renderable: one
+// run per span boundary, which is what `Segments` cuts and what every measured
+// capture shows.
+//
+// It is `Render`'s counterpart and the one to reach for. `Render` merges two
+// neighbours that resolve to the same style; Rich does not, and the difference
+// is visible in the bytes.
+func (t Text) RenderSegments(terminal Terminal) string {
+	return renderSegments(t.Segments(), terminal)
 }
 
 // Segments cuts the text into the runs Rich's `Text.render` yields
@@ -462,6 +528,12 @@ func (t Text) styleAt(index int) Style {
 		style.Dim = style.Dim || span.Style.Dim
 		if span.Style.Color.kind != colorUnset {
 			style.Color = span.Style.Color
+		}
+		// `Style.__add__` is `new_style._link = style._link or self._link`
+		// (`rich/style.py:743`), so the later span's link wins and an earlier
+		// one survives underneath a span that names none.
+		if span.Style.Link != "" {
+			style.Link, style.LinkID = span.Style.Link, span.Style.LinkID
 		}
 	}
 	return style
