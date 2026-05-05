@@ -362,14 +362,35 @@ write, exit 1); **all six of row 3's probes byte-identical**, so that promotion 
    than upstream's on the full PDF path (~3s vs ~245ms), which the token substitution also covers.
    Re-verified independently after merge, from this checkout: `go test -tags conformance ./...` 0
    FAIL/0 SKIP tree-wide, `just check` 0 issues.
+   **Unit E (`new`/`create-theme`, incl. OSC 8) — CLOSED**, `29c66be`, 2026-08-13. Landed a from-
+   scratch port of `rich.markup.render` (`internal/cli/markup.go` — nearest-match tag closing,
+   end-of-text closing, the `sorted(spans[::-1])` precedence order, `\[` escapes) plus OSC 8
+   hyperlink support on `Style`, following the existing `Style`/`Segment`/`Text` model, plus the one
+   reachable `ReprHighlighter` rule (hand-scanned — Go regexp has no lookbehind, and dropping it gave
+   the wrong answer on `v2.8`). Measured live via pty: the hyperlink carries no SGR and survives
+   `NO_COLOR` (only vanishes with no colour system at all); the greeting's version number gets both
+   the highlighter's bold and the markup's blue, layered; `create-theme`'s panel has an upstream
+   authoring bug (an unclosed `[purple]` on one line closed by the nearer of two later `[/purple]`s,
+   leaving the *outer* one running for five more lines) which the port reproduces faithfully rather
+   than fixing, since D-005/D-008 already establish exact upstream text is the target, bugs included.
+   Two new pty differentials (`TestNewCommandColour`, `TestCreateThemeColour`), line-by-line with
+   escapes kept, over 6–7 environments each, with a non-vacuity guard. **Confirmed live in this
+   checkout, not just from tests**: `script -qec 'rendercv-go new "John Doe"'` under a real pty shows
+   working OSC 8 links and coloured panels. Re-verified independently after merge: `go test -tags
+   conformance ./...` 0 FAIL/0 SKIP tree-wide, `just check` 0 issues.
+   **A behavior change beyond colour, incidental to the fix**: markup is now parsed on non-tty output
+   too (matching upstream), so `new "[bold]John"` now strips the bracket where it previously didn't —
+   no golden covers a bracketed name, so nothing moved, but it's a real semantic change worth naming.
+   **Not implemented, named rather than silently dropped**: emoji-code replacement (`:name:`) — Rich
+   passes `emoji=True`; unreachable from any of RenderCV's own strings, reachable only through a
+   user's CV name.
    **Still open, each its own unit, inverted assertions already in place naming them**: the
    validation table (unit D's other half — `Table` doesn't emit segments yet, and cell-run counting
    differs between content cells (3 runs: pad/content/pad) and blank continuation cells (1 run
-   spanning the column) — measured, not guessed), `new`/`create-theme` including OSC 8 links (E),
-   `--help` under typer's own console (F), and dumb-terminal width handling (G), plus `Live`'s
-   repaint protocol itself, left as a named human-gated decision by unit C. The usage-error panel
-   (`internal/cli/root.go:291`) is deliberately out of scope — it's typer's own, plain `red` not
-   `bold red`.
+   spanning the column) — measured, not guessed), `--help` under typer's own console (F), and
+   dumb-terminal width handling (G), plus `Live`'s repaint protocol itself, left as a named
+   human-gated decision by unit C. The usage-error panel (`internal/cli/root.go:291`) is deliberately
+   out of scope — it's typer's own, plain `red` not `bold red`.
 3. **CLOSED, does not reproduce.** `markdown.markdown("<div>block</div>\n\nafter")` was measured
    again 2026-08-13 by a fresh porter: port and upstream both give `<div>block</div>\n\n<p>after</p>`,
    the double newline, byte-identical, on the full 15-shape adjacency matrix (`go run ./tools/mdprobe
