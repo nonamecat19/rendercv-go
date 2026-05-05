@@ -71,7 +71,7 @@ func CreateTheme(options CreateThemeOptions, stdout, stderr io.Writer) int {
 		return exitValidationError
 	}
 
-	_, _ = fmt.Fprint(stdout, createThemePanel(name))
+	_, _ = fmt.Fprint(stdout, createThemePanel(name, TerminalFor(stdout)))
 	return 0
 }
 
@@ -145,27 +145,31 @@ return {}
 `
 
 // createThemePanel is the "Theme created" panel
-// (`create_theme_command.py:41-58`), with `__init__.py` renamed to `init.lua`
+// (`create_theme_command.py:41-64`), with `__init__.py` renamed to `init.lua`
 // throughout — D-008's user-visible half.
-func createThemePanel(themeName string) string {
-	lines := []string{
-		"✓ Created your custom theme: ./" + themeName,
-		"",
-		"What you can do with this theme:",
-		"1. Modify the Typst templates in ./" + themeName + "/",
-		"2. Edit ./" + themeName + "/init.lua to:",
-		"    - Add your own design options to use in the YAML input file",
-		"    - Change the default values of existing options",
-		"    - Or simply delete it if you only want to customize templates",
-		"",
-		"To use your theme, set in your YAML input file:",
-		"  design:",
-		"    theme: " + themeName,
-	}
+//
+// **The markup is upstream's, tag for tag, including the three tags it never
+// closes**, because they are what the colours on a terminal actually are. The
+// `[purple]` opened on the `1. Modify` line is closed by the `[/purple]` on the
+// *next* line — `pop_style` takes the nearest match, not the innermost — so the
+// outer one keeps running to the end of the message, and the two `[cyan]` tags
+// override its colour over the last two lines without ending it. Measured:
+// `2. Edit …` comes out as three separately opened `ESC[38;5;129m` runs, and
+// the last two lines as one `ESC[36m` run each.
+func createThemePanel(themeName string, terminal Terminal) string {
+	message := "[green]✓[/green] Created your custom theme: [purple]./" + themeName + "[/purple]\n" +
+		"\n" +
+		"What you can do with this theme:\n" +
+		"1. Modify the Typst templates in [purple]./" + themeName + "/\n" +
+		"2. Edit [purple]./" + themeName + "/init.lua[/purple] to:\n" +
+		"    - Add your own design options to use in the YAML input file\n" +
+		"    - Change the default values of existing options\n" +
+		"    - Or simply delete it if you only want to customize templates\n" +
+		"\n" +
+		"To use your theme, set in your YAML input file:\n" +
+		"[cyan]  design:\n" +
+		"[cyan]    theme: " + themeName
 
-	rows := make([]PanelRow, len(lines))
-	for i, line := range lines {
-		rows[i] = PanelRow{Text: line, IsText: line == ""}
-	}
-	return Panel("Theme created", rows)
+	return StyledPanel(PlainText("Theme created"), []PanelRow{{Body: Markup(message)}},
+		StyleBrightBlack, terminal)
 }
