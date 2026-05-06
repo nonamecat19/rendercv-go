@@ -2,7 +2,6 @@ package cli
 
 import (
 	"os"
-	"strconv"
 	"strings"
 	"unicode"
 )
@@ -21,13 +20,12 @@ const PanelWidth = 80
 //
 // A value that is not a positive number is ignored, which is what Rich's own
 // `int()` guard amounts to.
+//
+// **`COLUMNS` does not always win**: a dumb terminal is 80 whatever it says.
+// The rule is `ConsoleWidthFor`, which this reads the process's own environment
+// and stdout for.
 func ConsoleWidth() int {
-	if raw := os.Getenv("COLUMNS"); raw != "" {
-		if width, err := strconv.Atoi(raw); err == nil && width > 0 {
-			return width
-		}
-	}
-	return PanelWidth
+	return ConsoleWidthFor(os.LookupEnv, stdoutIsTerminal())
 }
 
 // PanelRow is one line inside the panel.
