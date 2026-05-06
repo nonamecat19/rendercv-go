@@ -3,6 +3,7 @@ package cli
 import (
 	"io"
 	"os"
+	"strconv"
 	"strings"
 
 	"golang.org/x/term"
@@ -121,6 +122,43 @@ func isDumbTerminal(env Environment, terminal bool) bool {
 		return terminal
 	}
 	return false
+}
+
+// ConsoleWidthFor is the width half of `Console.size`
+// (`rich/console.py:1011-1045`) — spec 012 delta §3.4, the one rule of that
+// section the port answered *wrongly* rather than not at all.
+//
+// **A dumb terminal is laid out to 80 and `COLUMNS` is ignored.** Rich returns
+// `ConsoleDimensions(80, 25)` before it ever looks at the environment
+// (`:1018-1019`), so a dumb terminal has no other width. Measured on a pty:
+// `TERM=dumb COLUMNS=100` gives upstream 80 and `COLUMNS=37` gives it 80 too,
+// where the port took both at their word.
+//
+// **Dumbness is composed through `is_terminal`, not through `isatty` alone.**
+// `is_dumb_terminal` is `is_terminal and TERM in {dumb, unknown}`, and
+// `is_terminal` has its own overrides — so `TTY_COMPATIBLE=1 TERM=dumb` on a
+// *pipe* is 80 (measured), and `TTY_COMPATIBLE=0 TERM=dumb` on a *pty* is the
+// 100 its `COLUMNS` asks for (measured). That is also why the golden corpus can
+// pin `TERM=dumb` together with `COLUMNS=80` and see neither rule: through a
+// pipe nothing is dumb, and its `COLUMNS` agrees with the fallback by
+// coincidence.
+//
+// Not covered here, and still divergent: with `COLUMNS` unset on a real
+// terminal Rich takes `os.get_terminal_size` (`:1027-1033`) where the port
+// takes 80. That is a separate rule with its own gate.
+func ConsoleWidthFor(env Environment, isatty bool) int {
+	if isDumbTerminal(env, isTerminal(env, isatty)) {
+		return PanelWidth
+	}
+	// Rich guards with `columns.isdigit()` and then folds a zero away with
+	// `width or 80` (`:1035-1044`), which together is "a positive number or
+	// nothing".
+	if raw, _ := env("COLUMNS"); raw != "" {
+		if width, err := strconv.Atoi(raw); err == nil && width > 0 {
+			return width
+		}
+	}
+	return PanelWidth
 }
 
 // detectColorSystem is `Console._detect_color_system`
