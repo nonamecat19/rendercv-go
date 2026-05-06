@@ -384,13 +384,28 @@ write, exit 1); **all six of row 3's probes byte-identical**, so that promotion 
    **Not implemented, named rather than silently dropped**: emoji-code replacement (`:name:`) — Rich
    passes `emoji=True`; unreachable from any of RenderCV's own strings, reachable only through a
    user's CV name.
+   **Unit G — CLOSED**, `cc928da`, 2026-08-13, and it turned out to be width detection, not colour:
+   Rich's `Console.size` short-circuits to a fixed `(80, 25)` for a dumb terminal, checked *before*
+   `COLUMNS` or `os.get_terminal_size` — the port read `COLUMNS` unconditionally with no tty notion
+   at all, a live wrong answer, not a stale one (the earlier "narrow terminals" fix was entirely
+   non-tty and never touched this path). New `ConsoleWidthFor(env, isatty)` plus real
+   `stdoutIsTerminal()` (a `TIOCGWINSZ` ioctl, deliberately not `os.Stdout.Stat()`'s char-device
+   test, which would misname `/dev/null` a terminal). Measured 8 scenarios live via pty and pipe,
+   including three that confirm dumbness composes through the same `is_terminal` check as colour
+   detection — `TTY_COMPATIBLE`/`FORCE_COLOR` override it — not through raw `isatty` alone. Port now
+   matches upstream on all 8. **A second, adjacent, still-open gap found and deliberately left, more
+   likely to be hit in ordinary use**: with `COLUMNS` unset on a real (non-dumb) terminal, upstream
+   takes the OS's actual terminal size; the port still hardcodes 80 regardless of the real window
+   width. Named in `ConsoleWidthFor`'s doc comment so it isn't mistaken for handled; wants its own
+   unit. Re-verified independently after merge: `go test -tags conformance ./...` 0 FAIL/0 SKIP
+   tree-wide, `just check` 0 issues.
    **Still open, each its own unit, inverted assertions already in place naming them**: the
    validation table (unit D's other half — `Table` doesn't emit segments yet, and cell-run counting
    differs between content cells (3 runs: pad/content/pad) and blank continuation cells (1 run
-   spanning the column) — measured, not guessed), `--help` under typer's own console (F), and
-   dumb-terminal width handling (G), plus `Live`'s repaint protocol itself, left as a named
-   human-gated decision by unit C. The usage-error panel (`internal/cli/root.go:291`) is deliberately
-   out of scope — it's typer's own, plain `red` not `bold red`.
+   spanning the column) — measured, not guessed) and `--help` under typer's own console (F), plus
+   `Live`'s repaint protocol itself, left as a named human-gated decision by unit C, and the
+   just-named real-terminal-width gap. The usage-error panel (`internal/cli/root.go:291`) is
+   deliberately out of scope — it's typer's own, plain `red` not `bold red`.
 3. **CLOSED, does not reproduce.** `markdown.markdown("<div>block</div>\n\nafter")` was measured
    again 2026-08-13 by a fresh porter: port and upstream both give `<div>block</div>\n\n<p>after</p>`,
    the double newline, byte-identical, on the full 15-shape adjacency matrix (`go run ./tools/mdprobe
