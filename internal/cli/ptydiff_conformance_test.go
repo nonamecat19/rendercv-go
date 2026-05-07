@@ -136,12 +136,11 @@ func TestTerminalStylingIsPending(t *testing.T) {
 		// point of the case.
 		wrapsOnTheBinaryName bool
 	}{
-		// The `user error panel` and `new` rows are **gone, not disabled**:
-		// those surfaces are styled now and are compared line by line by
-		// `TestErrorPanelColour` and `TestNewCommandColour` below. What is left
-		// of unit D is the validation table's own three column styles and the
-		// header's bold.
-		{name: "validation table", unit: "D (the table half)", args: []string{"render", "CV.yaml"}, input: invalidCV},
+		// The `user error panel`, `new` and `validation table` rows are **gone,
+		// not disabled**: those surfaces are styled now and are compared line by
+		// line by `TestErrorPanelColour`, `TestNewCommandColour` and
+		// `TestValidationTableColour` below. `--help` is the last one left, and
+		// it is unit F.
 		{name: "help", unit: "F", args: []string{"render", "--help"}, wrapsOnTheBinaryName: true},
 	}
 
@@ -203,6 +202,62 @@ func TestErrorPanelColour(t *testing.T) {
 			if got != want {
 				t.Error("the styled Error panel differs from upstream's")
 				diffLines(t, got, want)
+			}
+		})
+	}
+}
+
+// TestValidationTableColour is delta §8's unit D on its **other half**: the
+// `There are validation errors!` box and the three-column table inside it,
+// compared against upstream on a pty.
+//
+// **The final frame, because this panel is a `Live` update** — upstream clears
+// the progress panel and repaints this one in its place (`progress_panel.py:160`)
+// — but everything inside that frame is compared as bytes. There is no timing
+// in it and no repaint that survives the collapse, so the comparison is exact:
+// a run opened around the wrong characters fails the case.
+//
+// What the rows pin, beyond the panel's own `bold red`:
+//
+//   - the three column styles, `cyan`, `magenta` and `orange4`
+//     (`progress_panel.py:149-151`), and that the header carries **none** of
+//     them — it is `bold` alone, which is Rich's `table.header`;
+//   - `orange4` is a palette entry (94), so the eight-colour row is the one that
+//     catches a port hard-coding `ESC[38;5;94m` where upstream downgrades to
+//     `ESC[33m` (delta §2.2);
+//   - the box characters of the table are unstyled while the panel's border is
+//     not, which a misplaced run would break on every line.
+func TestValidationTableColour(t *testing.T) {
+	tests := []struct {
+		name string
+		env  map[string]string
+	}{
+		{name: "default tty"},
+		{name: "eight colour TERM", env: map[string]string{"TERM": "xterm", "COLORTERM": ""}},
+		{name: "256 colour TERM", env: map[string]string{"TERM": "xterm-256color", "COLORTERM": ""}},
+		{name: "NO_COLOR keeps bold", env: map[string]string{"NO_COLOR": "1"}},
+		{name: "NO_COLOR set but empty is ignored", env: map[string]string{"NO_COLOR": ""}},
+		{name: "TERM=dumb", env: map[string]string{"TERM": "dumb"}},
+		{name: "TTY_COMPATIBLE=0", env: map[string]string{"TTY_COMPATIBLE": "0"}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			dir := filepath.Join(t.TempDir(), "w")
+			want := runSide(t, dir, upstreamArgv(t, []string{"render", "CV.yaml"}), test.env, invalidCV)
+			got := runSide(t, dir, portArgv(t, []string{"render", "CV.yaml"}), test.env, invalidCV)
+
+			// **Non-vacuity.** `orange4`'s palette form is the sequence only this
+			// surface emits, so seeing it is what says the capture is of the
+			// table and not of an empty run.
+			if len(test.env) == 0 && !strings.Contains(want, "\x1b[38;5;94m") {
+				t.Fatal("upstream emitted no orange4 on a pty; the harness is not seeing the" +
+					" surface this case is about")
+			}
+
+			if styledFrame(got) != styledFrame(want) {
+				t.Error("the styled validation table differs from upstream's")
+				diffLines(t, styledFrame(got), styledFrame(want))
 			}
 		})
 	}
@@ -450,10 +505,12 @@ func normalizeTimings(frame string) string {
 // rule the port has to match — **the rule, not merely "emit colour"** — and
 // every expectation was measured through the vendored Python.
 //
-// The rows where upstream emits nothing are **asserted for real and pass
-// today**: they are the configurations the port is already right about, and
-// they are what stops unit B's detection from being wired up backwards later.
-// The rest are inverted until the styles land.
+// **Every row is asserted for real now.** The surface it drives is the
+// validation panel, which unit D styled, so the rows where upstream emits
+// colour are compared as the final frame's bytes rather than inverted — a port
+// that read `NO_COLOR` as "no styling", or that took `CI` for a colour hint,
+// fails here on the exact sequence it got wrong. The colourless rows keep their
+// own shape: they assert that upstream emits nothing and that the port matches.
 func TestTerminalDetection(t *testing.T) {
 	tests := []struct {
 		name string
@@ -472,8 +529,9 @@ func TestTerminalDetection(t *testing.T) {
 		{name: "TTY_COMPATIBLE=0", env: map[string]string{"TTY_COMPATIBLE": "0"}, colourless: true},
 		{name: "FORCE_COLOR set but empty", env: map[string]string{"FORCE_COLOR": ""}, colourless: true},
 
-		// Upstream emits colour: inverted until unit C–F attach the styles, and
-		// unit B's detection is what has to get each of these right.
+		// Upstream emits colour, and so must the port: unit B's detection is
+		// what has to get each of these right, and unit D is what attached the
+		// styles this surface carries.
 		{name: "default tty"},
 		{name: "NO_COLOR keeps bold", env: map[string]string{"NO_COLOR": "1"}},
 		{name: "NO_COLOR set but empty is ignored", env: map[string]string{"NO_COLOR": ""}},
@@ -500,7 +558,14 @@ func TestTerminalDetection(t *testing.T) {
 				assertInventory(t, got, want)
 				return
 			}
-			assertStylingIsStillPending(t, "C-F", got, want)
+			if len(sequences(want)) == 0 {
+				t.Fatalf("row claims upstream emits colour here and it emitted none;" +
+					" the harness has stopped seeing a terminal")
+			}
+			if styledFrame(got) != styledFrame(want) {
+				t.Error("the styled frame differs from upstream's")
+				diffLines(t, styledFrame(got), styledFrame(want))
+			}
 		})
 	}
 }
