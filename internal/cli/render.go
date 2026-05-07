@@ -622,19 +622,21 @@ func validationPanel(stdout io.Writer, records []schemaerr.ValidationError) {
 		})
 	}
 
+	// `style=` on each column (`progress_panel.py:149-151`). The header carries
+	// none of them: Rich styles a header cell under `table.header` alone, which
+	// is `bold`.
 	columns := []TableColumn{
-		{Header: "Location", NoWrap: true},
-		{Header: "Input Value", NoWrap: true},
-		{Header: "Explanation"},
+		{Header: "Location", NoWrap: true, Style: StyleCyan},
+		{Header: "Input Value", NoWrap: true, Style: StyleMagenta},
+		{Header: "Explanation", Style: StyleOrange4},
 	}
 
 	// The table is laid out at the panel's inner width, then each of its lines
 	// becomes a row of that panel.
 	inner := ConsoleWidth() - 4
-	table := Table(columns, rows, inner)
 
 	var panelRows []PanelRow
-	for line := range strings.SplitSeq(strings.TrimRight(table, "\n"), "\n") {
+	for _, line := range StyledTable(columns, rows, inner) {
 		// **A table is cropped to the panel, never folded into it.** Upstream
 		// nests the `rich.table.Table` in the `Panel` as a renderable, and
 		// `render_lines` pads or crops each of its lines to the child width —
@@ -642,10 +644,17 @@ func validationPanel(stdout io.Writer, records []schemaerr.ValidationError) {
 		// otherwise are. Below eight columns the box's four dividers no longer
 		// fit and the port folded one table across four bordered rows, where
 		// upstream shows a single cropped `╭`.
-		cropped, _ := cutCells(line, inner)
-		panelRows = append(panelRows, PanelRow{Text: cropped, IsText: true})
+		//
+		// `Truncate` is that crop with the spans clipped along with the plain
+		// text, so a cropped line never carries half an escape sequence.
+		panelRows = append(panelRows, PanelRow{Body: line.Truncate(inner)})
 	}
-	writeLivePanel(stdout, Panel("There are validation errors!", panelRows))
+
+	// The title is markup — `title="[bold red]There are validation errors!"`
+	// (`progress_panel.py:163`) — so its span boundaries put the band in three
+	// runs where a plain title would be one, and the top line is six.
+	writeLivePanel(stdout, StyledPanel(StyledText("There are validation errors!", StyleBoldRed),
+		panelRows, StyleBoldRed, TerminalFor(stdout)))
 }
 
 // validationLocation is `format_validation_error_location`
