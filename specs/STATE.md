@@ -399,13 +399,22 @@ write, exit 1); **all six of row 3's probes byte-identical**, so that promotion 
    width. Named in `ConsoleWidthFor`'s doc comment so it isn't mistaken for handled; wants its own
    unit. Re-verified independently after merge: `go test -tags conformance ./...` 0 FAIL/0 SKIP
    tree-wide, `just check` 0 issues.
-   **Still open, each its own unit, inverted assertions already in place naming them**: the
-   validation table (unit D's other half — `Table` doesn't emit segments yet, and cell-run counting
-   differs between content cells (3 runs: pad/content/pad) and blank continuation cells (1 run
-   spanning the column) — measured, not guessed) and `--help` under typer's own console (F), plus
-   `Live`'s repaint protocol itself, left as a named human-gated decision by unit C, and the
-   just-named real-terminal-width gap. The usage-error panel (`internal/cli/root.go:291`) is
-   deliberately out of scope — it's typer's own, plain `red` not `bold red`.
+   **Unit D — fully CLOSED**, `281c57a`, 2026-08-13. The validation-table half measured live via pty
+   confirms the earlier estimate exactly: header cells are bold-only with no column colour
+   (`rich/table.py:671-674`), a content cell is three runs (pad/content/pad), a blank continuation
+   cell is one run spanning the whole column (`Segment.align_top`), and `orange4` downgrades to
+   `ESC[33m` on 8-colour terminals. `TableColumn.Style`, `StyledTable`, and a three-runs/one-run
+   `tableRow` implement it; `validationPanel` now goes through `StyledPanel`/`StyledText` end to end.
+   `TestValidationTableColour` byte-identical to upstream on 7 environments; the whole `TestTerminal
+   Detection` matrix (7 colour-emitting rows) is now a real byte comparison, not an inversion.
+   Re-verified independently after merge, from this checkout: `go test -tags conformance ./...` 0
+   FAIL/0 SKIP tree-wide, `just check` 0 issues.
+   **Still open, each its own unit, inverted assertions already in place naming them**: `--help`
+   under typer's own console (F) — the last inverted colour row — plus `Live`'s repaint protocol
+   itself, left as a named human-gated decision by unit C, and the real-terminal-width gap unit G
+   named (COLUMNS unset on a real, non-dumb terminal still hardcodes 80). The usage-error panel
+   (`internal/cli/root.go:291`) is deliberately out of scope — it's typer's own, plain `red` not
+   `bold red`.
 3. **CLOSED, does not reproduce.** `markdown.markdown("<div>block</div>\n\nafter")` was measured
    again 2026-08-13 by a fresh porter: port and upstream both give `<div>block</div>\n\n<p>after</p>`,
    the double newline, byte-identical, on the full 15-shape adjacency matrix (`go run ./tools/mdprobe
