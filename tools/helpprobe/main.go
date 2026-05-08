@@ -12,9 +12,18 @@
 // upstream's order and wording, and a submodule bump moves them here rather
 // than leaving the Go side quietly stale.
 //
+// Each captured string arrives as its plain text plus **the style and the spans
+// rich resolved over it** — typer's markup and its three `RegexHighlighter`s,
+// already applied. That keeps the port from re-deriving them: the highlighter
+// patterns lean on Python's lookahead, and the one place their result is visible
+// is the bytes, where a run opened one character off is a real difference
+// (spec 012 delta §4).
+//
 // **What this tool does not capture**: the layout. Widths, padding and wrapping
 // are `internal/cli/helptable.go`'s, measured separately and pinned by
-// `specs/012-cli/help.md` §3.3.
+// `specs/012-cli/help.md` §3.3. Nor the styles that belong to the *structure*
+// rather than to a string — the panel border, the usage block's `bold`, the
+// `Commands` table's first column — which are `internal/cli/helpstyle.go`'s.
 //
 // GENERATED, never hand-edited; regenerate with `just helpprobe`.
 package main
@@ -37,11 +46,16 @@ import json
 
 import click
 import typer.main
+from rich.text import Text
 from typer.rich_utils import (
     MARKUP_MODE_RICH,
+    STYLE_METAVAR,
     _get_help_text,
     _get_parameter_help,
     _make_command_help,
+    highlighter,
+    metavar_highlighter,
+    negative_highlighter,
 )
 
 from rendercv.cli.app import app
@@ -49,34 +63,65 @@ from rendercv.cli.app import app
 group = typer.main.get_command(app)
 
 
-def plain(renderable):
-    """The text of a rich renderable, with no styling.
+def as_text(renderable):
+    """A rich renderable as one Text, spans and all.
 
-    _get_help_text returns a Group -- the first line is styled differently from
-    the rest -- so a Group's parts are joined back into one paragraph.
+    _get_help_text returns a Group -- the first paragraph is styled differently
+    from the rest -- so a Group's parts are joined back into one paragraph.
+    Text.join shifts each part's spans onto the joined string.
     """
     if hasattr(renderable, "renderables"):
-        return "\n".join(plain(part) for part in renderable.renderables)
-    if hasattr(renderable, "plain"):
-        return renderable.plain
-    return str(renderable)
+        return Text("\n").join(as_text(part) for part in renderable.renderables)
+    if isinstance(renderable, Text):
+        return renderable
+    return Text(str(renderable))
+
+
+def styled(renderable):
+    """A renderable as its plain text, its own style, and the spans over it.
+
+    **The spans are the whole point.** They are where typer's markup and its
+    three RegexHighlighters have already been resolved -- so the port renders
+    them rather than re-deriving them from regexes that would have to be ported
+    with Python's lookahead semantics intact.
+
+    Offsets are codepoints, which is what Go counts in runes. The order is
+    preserved because it decides the colour: rich lets the *last* span covering
+    a character win, which is why --help comes out bold cyan (the option span)
+    and not bold green (the switch span applied before it).
+    """
+    text = as_text(renderable)
+    return {
+        "text": text.plain,
+        "style": str(text.style),
+        "spans": [
+            {"start": span.start, "end": span.end, "style": str(span.style)}
+            for span in text.spans
+        ],
+    }
 
 
 def help_items(param, ctx):
     # _get_parameter_help returns a Columns; its renderables are the prose, the
     # env var, the default and [required], in that order.
-    return [plain(item) for item in _get_parameter_help(
+    return [styled(item) for item in _get_parameter_help(
         param=param, ctx=ctx, markup_mode=MARKUP_MODE_RICH
     ).renderables]
 
 
 def metavar_of(param, ctx):
+    # Built the way rich_utils.py:376-399 builds it, because its *style* is part
+    # of the answer: a Text of its own carrying STYLE_METAVAR, over which
+    # metavar_highlighter dims the separators.
+    metavar = Text(style=STYLE_METAVAR, overflow="fold")
     text = param.make_metavar(ctx=ctx)
     # typer replaces a positional's metavar with its type name.
     if isinstance(param, click.Argument) and param.name and text == param.name.upper():
         text = param.type.name.upper()
     # "Skip booleans and choices (handled above)" -- rich_utils.py:387
-    return "" if text == "BOOLEAN" else text
+    if text != "BOOLEAN":
+        metavar.append(text)
+    return styled(metavar_highlighter(metavar))
 
 
 def row(param, ctx):
@@ -87,10 +132,10 @@ def row(param, ctx):
     for opt in param.secondary_opts:
         (secondary_long if "--" in opt else secondary_short).append(opt)
     return {
-        "long": ",".join(long_strs),
-        "short": ",".join(short_strs),
-        "secondary_long": ",".join(secondary_long),
-        "secondary_short": ",".join(secondary_short),
+        "long": styled(highlighter(",".join(long_strs))),
+        "short": styled(highlighter(",".join(short_strs))),
+        "secondary_long": styled(negative_highlighter(",".join(secondary_long))),
+        "secondary_short": styled(negative_highlighter(",".join(secondary_short))),
         "metavar": metavar_of(param, ctx),
         "help": help_items(param, ctx),
         "required": bool(param.required),
@@ -109,14 +154,17 @@ def describe(command, ctx):
 
     # **Through typer's own _get_help_text, not command.help.** The raw
     # docstring carries rich markup -- create-theme's is
-    # "Example: [yellow]rendercv create-theme customtheme[/yellow]" -- and the
-    # goldens have it stripped. _get_help_text also folds single newlines away.
-    description = ""
+    # "Example: [yellow]rendercv create-theme customtheme[/yellow]" -- which
+    # arrives here as a span rather than as text. _get_help_text also folds
+    # single newlines away.
+    description = styled(Text(""))
     if command.help:
-        description = plain(_get_help_text(obj=command, markup_mode=MARKUP_MODE_RICH))
+        description = styled(_get_help_text(obj=command, markup_mode=MARKUP_MODE_RICH))
 
     return {
-        "usage": command.get_usage(ctx),
+        # Through the highlighter, which is what puts the usage span over
+        # the leading "Usage: " (rich_utils.py:552-554).
+        "usage": styled(highlighter(command.get_usage(ctx))),
         "description": description,
         "arguments": arguments,
         "options": options,
@@ -132,7 +180,7 @@ model = {"root": describe(group, root_ctx)}
 model["root"]["subcommands"] = [
     {
         "name": name,
-        "help": plain(_make_command_help(
+        "help": styled(_make_command_help(
             help_text=command.short_help or command.help or "",
             markup_mode=MARKUP_MODE_RICH,
         )),

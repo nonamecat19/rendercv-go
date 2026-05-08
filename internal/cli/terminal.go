@@ -26,6 +26,64 @@ func TerminalFor(writer io.Writer) Terminal {
 	return DetectTerminal(os.LookupEnv, ok && term.IsTerminal(int(file.Fd())))
 }
 
+// TerminalForHelp is the same detection for **typer's** console, which is a
+// different console with different switches (spec 012 delta §3.5).
+//
+// `--help` is not printed through RenderCV's console at all: `rich_format_help`
+// builds its own (`typer/rich_utils.py:140-158`) with `force_terminal` decided
+// at import time from three environment variables Rich itself never reads
+// (`:75-82`). So `PY_COLORS=1` colours the help page and nothing else, and
+// `_TYPER_FORCE_DISABLE_TERMINAL` uncolours the help page and nothing else — a
+// port with one detector for the whole binary is wrong on both.
+func TerminalForHelp(writer io.Writer) Terminal {
+	file, ok := writer.(*os.File)
+	return DetectHelpTerminal(os.LookupEnv, ok && term.IsTerminal(int(file.Fd())))
+}
+
+// DetectHelpTerminal is `DetectTerminal` under typer's `FORCE_TERMINAL`.
+//
+// **A forced value outranks `TTY_COMPATIBLE`**, where in Rich's own order
+// `TTY_COMPATIBLE` outranks everything: `is_terminal` returns `self._force_terminal`
+// before it reads any variable at all (`rich/console.py:944-945`). So
+// `PY_COLORS=1 TTY_COMPATIBLE=0` leaves `--help` coloured and the rest of the
+// CLI plain.
+//
+// What it does **not** change is dumbness or `NO_COLOR`: both are read off the
+// same environment by the same console code, so `TERM=dumb` still wins over a
+// forced terminal and `NO_COLOR=1` still keeps the attributes.
+func DetectHelpTerminal(env Environment, isatty bool) Terminal {
+	forced, ok := typerForceTerminal(env)
+	if !ok {
+		return DetectTerminal(env, isatty)
+	}
+	noColorValue, _ := env("NO_COLOR")
+	return Terminal{
+		IsTerminal: forced,
+		System:     detectColorSystem(env, forced),
+		NoColor:    noColorValue != "",
+	}
+}
+
+// typerForceTerminal is typer's module-level `FORCE_TERMINAL`
+// (`typer/rich_utils.py:75-82`), which is a tri-state: forced on, forced off, or
+// unset and left to Rich.
+//
+// The three that force it on are read with `getenv` in a boolean context, so an
+// **empty** value does not force — and `FORCE_COLOR=` then falls through to
+// Rich's own rule, which reads set-but-empty as "not a terminal". The disabling
+// variable is checked afterwards and overrides all three.
+func typerForceTerminal(env Environment) (forced, ok bool) {
+	if disable, _ := env("_TYPER_FORCE_DISABLE_TERMINAL"); disable != "" {
+		return false, true
+	}
+	for _, name := range []string{"GITHUB_ACTIONS", "FORCE_COLOR", "PY_COLORS"} {
+		if value, _ := env(name); value != "" {
+			return true, true
+		}
+	}
+	return false, false
+}
+
 // ColorSystem is Rich's `ColorSystem` (`rich/console.py:88-97`): how much
 // colour the terminal is believed to understand, which decides the SGR form a
 // style is written in.

@@ -72,12 +72,12 @@ func TestHelpTableNoWrapColumnEllipsizes(t *testing.T) {
 func TestHelpMetavarColumnFolds(t *testing.T) {
 	t.Setenv("COLUMNS", "24")
 
-	panel := paramPanel("Arguments", []helpParam{{
-		Short:    "input_file_name",
-		Metavar:  "PATH",
-		Help:     []string{"The YAML input file.", "[required]"},
+	panel := plainPanel(paramPanel("Arguments", []helpParam{{
+		Short:    helpString{Text: "input_file_name"},
+		Metavar:  helpString{Text: "PATH"},
+		Help:     []helpString{{Text: "The YAML input file."}, {Text: "[required]"}},
 		Required: true,
-	}})
+	}}))
 
 	joined := strings.Join(splitLines(panel), "\n")
 	if !strings.Contains(joined, "PA") || !strings.Contains(joined, "TH") {
@@ -106,7 +106,7 @@ func TestNarrowHelpPageMatchesUpstream(t *testing.T) {
 		"╰──────────────────────╯",
 	}
 
-	page := HelpPage("render")
+	page := HelpPage("render", Terminal{})
 	lines := splitLines(page)
 	start := slices.Index(lines, want[0])
 	if start < 0 {

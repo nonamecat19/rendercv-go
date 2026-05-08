@@ -171,50 +171,79 @@ func panelLines(title Text, rows []PanelRow, border Style) [][]Segment {
 	// spaces.
 	inner := width - 4
 
-	lines := [][]Segment{panelTop(title, width, border)}
-
+	var body [][]Segment
 	// **At four columns or fewer there is no body at all.** The child renders
 	// at `width - 4`, and Rich yields no lines for a width of zero
 	// (`rich/panel.py:225`), so the box is its two borders and nothing else.
-	if inner <= 0 {
-		return append(lines, []Segment{{Text: panelRule("╰", "╯", width), Style: border}})
-	}
-
-	for _, row := range rows {
-		// **A newline inside a row is a hard break**, not a character: Rich's
-		// `Text` splits on it before it wraps, so each segment gets its own
-		// bordered line. `new "$(printf 'a\nb')"` reaches this — the file name
-		// keeps the newline, because `new` sanitizes nothing but spaces
-		// (`cli/new_command/new_command.py:81`) — and without the split the
-		// newline lands raw inside the box and breaks the border.
-		//
-		// **A row wider than the panel wraps**, and its continuation is not
-		// indented — measured on `theme_classic`, whose two PNG paths do not fit
-		// on one line and whose second line starts at the panel's first column.
-		for _, piece := range row.body().SplitLines() {
-			for _, line := range wrapText(piece, inner) {
-				// **The padding either side of the body is unstyled**, and only
-				// the two border characters carry the style — measured on the
-				// `Error` panel, whose row is
-				// `S(│)` + the text and its padding + `S(│)`, and again on the
-				// progress panel, where the padding that follows a `purple`
-				// path is outside the run.
-				body := line.Segments()
-				segments := make([]Segment, 0, len(body)+4)
-				segments = append(segments, Segment{Text: "│", Style: border}, Segment{Text: " "})
-				segments = append(segments, body...)
-				segments = append(segments,
-					Segment{Text: strings.Repeat(" ", max(inner-cellLen(line.Plain), 0)) + " "},
-					Segment{Text: "│", Style: border},
-				)
-				lines = append(lines, segments)
+	if inner > 0 {
+		for _, row := range rows {
+			// **A newline inside a row is a hard break**, not a character:
+			// Rich's `Text` splits on it before it wraps, so each segment gets
+			// its own bordered line. `new "$(printf 'a\nb')"` reaches this — the
+			// file name keeps the newline, because `new` sanitizes nothing but
+			// spaces (`cli/new_command/new_command.py:81`) — and without the
+			// split the newline lands raw inside the box and breaks the border.
+			//
+			// **A row wider than the panel wraps**, and its continuation is not
+			// indented — measured on `theme_classic`, whose two PNG paths do not
+			// fit on one line and whose second line starts at the panel's first
+			// column.
+			for _, piece := range row.body().SplitLines() {
+				for _, line := range wrapText(piece, inner) {
+					body = append(body, line.Segments())
+				}
 			}
+		}
+	}
+	return panelFrame(title, body, width, border)
+}
+
+// panelFrame draws the box around rows that are **already laid out** to its
+// inner width and already cut into runs.
+//
+// It exists for the help pages, whose rows are a `rich.table.Table` rendered
+// into segments before the panel ever sees them (`typer/rich_utils.py:437-456`).
+// **A table's runs are the table's**: two neighbouring cells of the same style
+// stay two runs, and a cell's own padding lives inside its style. Re-deriving
+// them from a `Text`'s spans would merge exactly those pairs — measured on the
+// `Commands` panel, where `create-theme` and the padding cell after it are two
+// `bold cyan` runs and not one.
+func panelFrame(title Text, rows [][]Segment, width int, border Style) [][]Segment {
+	inner := width - 4
+	lines := [][]Segment{panelTop(title, width, border)}
+
+	if inner > 0 {
+		for _, row := range rows {
+			// **The padding either side of the body is unstyled**, and only the
+			// two border characters carry the style — measured on the `Error`
+			// panel, whose row is `S(│)` + the text and its padding + `S(│)`, and
+			// again on the progress panel, where the padding that follows a
+			// `purple` path is outside the run.
+			segments := make([]Segment, 0, len(row)+4)
+			segments = append(segments, Segment{Text: "│", Style: border}, Segment{Text: " "})
+			segments = append(segments, row...)
+			segments = append(segments,
+				Segment{Text: strings.Repeat(" ", max(inner-segmentsWidth(row), 0)) + " "},
+				Segment{Text: "│", Style: border},
+			)
+			lines = append(lines, segments)
 		}
 	}
 
 	// The closing border is **one** segment, corners included
 	// (`rich/panel.py:250-256`).
 	return append(lines, []Segment{{Text: panelRule("╰", "╯", width), Style: border}})
+}
+
+// segmentsWidth is a line's display width, measured on its text alone: an
+// escape sequence occupies no column, which is why the style never enters the
+// measured string in the first place (spec 012 delta §7.1).
+func segmentsWidth(segments []Segment) int {
+	width := 0
+	for _, segment := range segments {
+		width += cellLen(segment.Text)
+	}
+	return width
 }
 
 // panelTop draws the bordered line the title sits in
@@ -278,16 +307,9 @@ func panelRule(left, right string, width int) string {
 	return line
 }
 
-// wrap folds one row to the panel's inner width, the way Rich's `divide_line`
-// does: break before the word that would overflow and hard-split a single word
-// that cannot fit on a line of its own.
-//
-// It always returns at least one line, so a blank separator row survives.
-func wrap(text string, width int) []string {
-	return fold(text, width, true)
-}
-
-// wrapText is wrap over styled text: **the same breaks, at the same offsets,
+// wrapText folds one row to the panel's inner width, the way Rich's
+// `divide_line` does — break before the word that would overflow and hard-split
+// a single word that cannot fit on a line of its own — **at the same offsets,
 // with every span sliced to the line it fell in.**
 //
 // It re-uses `divideLine` rather than re-deriving anything, which is the whole
@@ -295,7 +317,19 @@ func wrap(text string, width int) []string {
 // §7.1.3). `rstripEnd` and the fold crop only ever trim from the end of a line,
 // so the surviving runes still start at the break offset and `Slice` places the
 // spans without a second measurement.
+//
+// It always returns at least one line, so a blank separator row survives.
 func wrapText(text Text, width int) []Text {
+	return foldText(text, width, true)
+}
+
+// wrapTextKeepingWords is `wrapKeepingWords` over styled text: the same breaks,
+// a word too long for the line left whole, and the caller ellipsizing it.
+func wrapTextKeepingWords(text Text, width int) []Text {
+	return foldText(text, width, false)
+}
+
+func foldText(text Text, width int, splitLongWords bool) []Text {
 	// `Text.wrap` expands tabs before it measures (`rich/text.py:1231-1233`),
 	// and the spans have to follow the widening or every offset after the tab
 	// points at the wrong rune.
@@ -306,13 +340,19 @@ func wrapText(text Text, width int) []Text {
 	}
 
 	runes := []rune(text.Plain)
-	breaks := divideLine(runes, width, true)
+	breaks := divideLine(runes, width, splitLongWords)
 
 	lines := make([]Text, 0, len(breaks)+1)
 	previous := 0
 	for _, offset := range append(breaks, len(runes)) {
 		trimmed := rstripEnd(runes[previous:offset], width)
-		lines = append(lines, text.Slice(previous, previous+len([]rune(trimmed))).Truncate(width))
+		line := text.Slice(previous, previous+len([]rune(trimmed)))
+		if splitLongWords {
+			// The panel's `"fold"` crops rather than ellipsizes; the ellipsizing
+			// callers spend the extra column themselves.
+			line = line.Truncate(width)
+		}
+		lines = append(lines, line)
 		previous = offset
 	}
 	return lines

@@ -1,50 +1,216 @@
 {
   "root": {
-    "usage": "Usage: rendercv [OPTIONS] COMMAND [ARGS]...",
-    "description": "RenderCV is a command-line tool for rendering CVs from YAML input files. For more information, see https://docs.rendercv.com.",
+    "usage": {
+      "text": "Usage: rendercv [OPTIONS] COMMAND [ARGS]...",
+      "style": "",
+      "spans": [
+        {
+          "start": 0,
+          "end": 7,
+          "style": "usage"
+        }
+      ]
+    },
+    "description": {
+      "text": "RenderCV is a command-line tool for rendering CVs from YAML input files. For more information, see https://docs.rendercv.com.",
+      "style": "",
+      "spans": []
+    },
     "arguments": [],
     "options": [
       {
-        "long": "--version",
-        "short": "-v",
-        "secondary_long": "",
-        "secondary_short": "",
-        "metavar": "",
+        "long": {
+          "text": "--version",
+          "style": "",
+          "spans": [
+            {
+              "start": 1,
+              "end": 9,
+              "style": "switch"
+            },
+            {
+              "start": 0,
+              "end": 9,
+              "style": "option"
+            }
+          ]
+        },
+        "short": {
+          "text": "-v",
+          "style": "",
+          "spans": [
+            {
+              "start": 0,
+              "end": 2,
+              "style": "switch"
+            }
+          ]
+        },
+        "secondary_long": {
+          "text": "",
+          "style": "",
+          "spans": []
+        },
+        "secondary_short": {
+          "text": "",
+          "style": "",
+          "spans": []
+        },
+        "metavar": {
+          "text": "",
+          "style": "bold yellow",
+          "spans": []
+        },
         "help": [
-          "Show the version"
+          {
+            "text": "Show the version",
+            "style": "",
+            "spans": []
+          }
         ],
         "required": false
       },
       {
-        "long": "--install-completion",
-        "short": "",
-        "secondary_long": "",
-        "secondary_short": "",
-        "metavar": "",
+        "long": {
+          "text": "--install-completion",
+          "style": "",
+          "spans": [
+            {
+              "start": 1,
+              "end": 9,
+              "style": "switch"
+            },
+            {
+              "start": 0,
+              "end": 20,
+              "style": "option"
+            }
+          ]
+        },
+        "short": {
+          "text": "",
+          "style": "",
+          "spans": []
+        },
+        "secondary_long": {
+          "text": "",
+          "style": "",
+          "spans": []
+        },
+        "secondary_short": {
+          "text": "",
+          "style": "",
+          "spans": []
+        },
+        "metavar": {
+          "text": "",
+          "style": "bold yellow",
+          "spans": []
+        },
         "help": [
-          "Install completion for the current shell."
+          {
+            "text": "Install completion for the current shell.",
+            "style": "",
+            "spans": []
+          }
         ],
         "required": false
       },
       {
-        "long": "--show-completion",
-        "short": "",
-        "secondary_long": "",
-        "secondary_short": "",
-        "metavar": "",
+        "long": {
+          "text": "--show-completion",
+          "style": "",
+          "spans": [
+            {
+              "start": 1,
+              "end": 6,
+              "style": "switch"
+            },
+            {
+              "start": 0,
+              "end": 17,
+              "style": "option"
+            }
+          ]
+        },
+        "short": {
+          "text": "",
+          "style": "",
+          "spans": []
+        },
+        "secondary_long": {
+          "text": "",
+          "style": "",
+          "spans": []
+        },
+        "secondary_short": {
+          "text": "",
+          "style": "",
+          "spans": []
+        },
+        "metavar": {
+          "text": "",
+          "style": "bold yellow",
+          "spans": []
+        },
         "help": [
-          "Show completion for the current shell, to copy it or customize the installation."
+          {
+            "text": "Show completion for the current shell, to copy it or customize the installation.",
+            "style": "",
+            "spans": []
+          }
         ],
         "required": false
       },
       {
-        "long": "--help",
-        "short": "-h",
-        "secondary_long": "",
-        "secondary_short": "",
-        "metavar": "",
+        "long": {
+          "text": "--help",
+          "style": "",
+          "spans": [
+            {
+              "start": 1,
+              "end": 6,
+              "style": "switch"
+            },
+            {
+              "start": 0,
+              "end": 6,
+              "style": "option"
+            }
+          ]
+        },
+        "short": {
+          "text": "-h",
+          "style": "",
+          "spans": [
+            {
+              "start": 0,
+              "end": 2,
+              "style": "switch"
+            }
+          ]
+        },
+        "secondary_long": {
+          "text": "",
+          "style": "",
+          "spans": []
+        },
+        "secondary_short": {
+          "text": "",
+          "style": "",
+          "spans": []
+        },
+        "metavar": {
+          "text": "",
+          "style": "bold yellow",
+          "spans": []
+        },
         "help": [
-          "Show this message and exit."
+          {
+            "text": "Show this message and exit.",
+            "style": "",
+            "spans": []
+          }
         ],
         "required": false
       }
@@ -52,340 +218,1582 @@
     "subcommands": [
       {
         "name": "create-theme",
-        "help": "Create a custom theme folder with Typst templates to customize. Example: rendercv create-theme customtheme. Details: rendercv create-theme --help"
+        "help": {
+          "text": "Create a custom theme folder with Typst templates to customize. Example: rendercv create-theme customtheme. Details: rendercv create-theme --help",
+          "style": "",
+          "spans": [
+            {
+              "start": 73,
+              "end": 106,
+              "style": "yellow"
+            },
+            {
+              "start": 117,
+              "end": 145,
+              "style": "cyan"
+            },
+            {
+              "start": 140,
+              "end": 145,
+              "style": "switch"
+            },
+            {
+              "start": 139,
+              "end": 145,
+              "style": "option"
+            }
+          ]
+        }
       },
       {
         "name": "new",
-        "help": "Generate a YAML input file to get started. Example: rendercv new \"John Doe\". Details: rendercv new --help"
+        "help": {
+          "text": "Generate a YAML input file to get started. Example: rendercv new \"John Doe\". Details: rendercv new --help",
+          "style": "",
+          "spans": [
+            {
+              "start": 52,
+              "end": 75,
+              "style": "yellow"
+            },
+            {
+              "start": 86,
+              "end": 105,
+              "style": "cyan"
+            },
+            {
+              "start": 100,
+              "end": 105,
+              "style": "switch"
+            },
+            {
+              "start": 99,
+              "end": 105,
+              "style": "option"
+            }
+          ]
+        }
       },
       {
         "name": "render",
-        "help": "Render a YAML input file. Example: rendercv render John_Doe_CV.yaml. Details: rendercv render --help"
+        "help": {
+          "text": "Render a YAML input file. Example: rendercv render John_Doe_CV.yaml. Details: rendercv render --help",
+          "style": "",
+          "spans": [
+            {
+              "start": 35,
+              "end": 67,
+              "style": "yellow"
+            },
+            {
+              "start": 78,
+              "end": 100,
+              "style": "cyan"
+            },
+            {
+              "start": 95,
+              "end": 100,
+              "style": "switch"
+            },
+            {
+              "start": 94,
+              "end": 100,
+              "style": "option"
+            }
+          ]
+        }
       }
     ]
   },
   "commands": {
     "create-theme": {
-      "usage": "Usage: rendercv create-theme [OPTIONS] THEME_NAME",
-      "description": "Create a custom theme folder with Typst templates to customize. Example: rendercv create-theme customtheme. Details: rendercv create-theme --help",
+      "usage": {
+        "text": "Usage: rendercv create-theme [OPTIONS] THEME_NAME",
+        "style": "",
+        "spans": [
+          {
+            "start": 0,
+            "end": 7,
+            "style": "usage"
+          }
+        ]
+      },
+      "description": {
+        "text": "Create a custom theme folder with Typst templates to customize. Example: rendercv create-theme customtheme. Details: rendercv create-theme --help",
+        "style": "",
+        "spans": [
+          {
+            "start": 73,
+            "end": 106,
+            "style": "yellow"
+          },
+          {
+            "start": 117,
+            "end": 145,
+            "style": "cyan"
+          },
+          {
+            "start": 140,
+            "end": 145,
+            "style": "switch"
+          },
+          {
+            "start": 139,
+            "end": 145,
+            "style": "option"
+          }
+        ]
+      },
       "arguments": [
         {
-          "long": "",
-          "short": "theme_name",
-          "secondary_long": "",
-          "secondary_short": "",
-          "metavar": "TEXT",
+          "long": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "short": {
+            "text": "theme_name",
+            "style": "",
+            "spans": []
+          },
+          "secondary_long": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "secondary_short": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "metavar": {
+            "text": "TEXT",
+            "style": "bold yellow",
+            "spans": []
+          },
           "help": [
-            "The name of the new theme",
-            "[required]"
+            {
+              "text": "The name of the new theme",
+              "style": "",
+              "spans": []
+            },
+            {
+              "text": "[required]",
+              "style": "dim red",
+              "spans": []
+            }
           ],
           "required": true
         }
       ],
       "options": [
         {
-          "long": "--help",
-          "short": "-h",
-          "secondary_long": "",
-          "secondary_short": "",
-          "metavar": "",
+          "long": {
+            "text": "--help",
+            "style": "",
+            "spans": [
+              {
+                "start": 1,
+                "end": 6,
+                "style": "switch"
+              },
+              {
+                "start": 0,
+                "end": 6,
+                "style": "option"
+              }
+            ]
+          },
+          "short": {
+            "text": "-h",
+            "style": "",
+            "spans": [
+              {
+                "start": 0,
+                "end": 2,
+                "style": "switch"
+              }
+            ]
+          },
+          "secondary_long": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "secondary_short": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "metavar": {
+            "text": "",
+            "style": "bold yellow",
+            "spans": []
+          },
           "help": [
-            "Show this message and exit."
+            {
+              "text": "Show this message and exit.",
+              "style": "",
+              "spans": []
+            }
           ],
           "required": false
         }
       ]
     },
     "new": {
-      "usage": "Usage: rendercv new [OPTIONS] FULL_NAME",
-      "description": "Generate a YAML input file to get started. Example: rendercv new \"John Doe\". Details: rendercv new --help",
+      "usage": {
+        "text": "Usage: rendercv new [OPTIONS] FULL_NAME",
+        "style": "",
+        "spans": [
+          {
+            "start": 0,
+            "end": 7,
+            "style": "usage"
+          }
+        ]
+      },
+      "description": {
+        "text": "Generate a YAML input file to get started. Example: rendercv new \"John Doe\". Details: rendercv new --help",
+        "style": "",
+        "spans": [
+          {
+            "start": 52,
+            "end": 75,
+            "style": "yellow"
+          },
+          {
+            "start": 86,
+            "end": 105,
+            "style": "cyan"
+          },
+          {
+            "start": 100,
+            "end": 105,
+            "style": "switch"
+          },
+          {
+            "start": 99,
+            "end": 105,
+            "style": "option"
+          }
+        ]
+      },
       "arguments": [
         {
-          "long": "",
-          "short": "full_name",
-          "secondary_long": "",
-          "secondary_short": "",
-          "metavar": "TEXT",
+          "long": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "short": {
+            "text": "full_name",
+            "style": "",
+            "spans": []
+          },
+          "secondary_long": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "secondary_short": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "metavar": {
+            "text": "TEXT",
+            "style": "bold yellow",
+            "spans": []
+          },
           "help": [
-            "Your full name",
-            "[required]"
+            {
+              "text": "Your full name",
+              "style": "",
+              "spans": []
+            },
+            {
+              "text": "[required]",
+              "style": "dim red",
+              "spans": []
+            }
           ],
           "required": true
         }
       ],
       "options": [
         {
-          "long": "--theme",
-          "short": "",
-          "secondary_long": "",
-          "secondary_short": "",
-          "metavar": "TEXT",
+          "long": {
+            "text": "--theme",
+            "style": "",
+            "spans": [
+              {
+                "start": 1,
+                "end": 7,
+                "style": "switch"
+              },
+              {
+                "start": 0,
+                "end": 7,
+                "style": "option"
+              }
+            ]
+          },
+          "short": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "secondary_long": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "secondary_short": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "metavar": {
+            "text": "TEXT",
+            "style": "bold yellow",
+            "spans": []
+          },
           "help": [
-            "The name of the theme (available themes are: classic, ember, engineeringclassic, engineeringresumes, harvard, ink, moderncv, opal, sb2nov)",
-            "[default: classic]"
+            {
+              "text": "The name of the theme (available themes are: classic, ember, engineeringclassic, engineeringresumes, harvard, ink, moderncv, opal, sb2nov)",
+              "style": "",
+              "spans": []
+            },
+            {
+              "text": "[default: classic]",
+              "style": "dim",
+              "spans": []
+            }
           ],
           "required": false
         },
         {
-          "long": "--locale",
-          "short": "",
-          "secondary_long": "",
-          "secondary_short": "",
-          "metavar": "TEXT",
+          "long": {
+            "text": "--locale",
+            "style": "",
+            "spans": [
+              {
+                "start": 1,
+                "end": 8,
+                "style": "switch"
+              },
+              {
+                "start": 0,
+                "end": 8,
+                "style": "option"
+              }
+            ]
+          },
+          "short": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "secondary_long": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "secondary_short": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "metavar": {
+            "text": "TEXT",
+            "style": "bold yellow",
+            "spans": []
+          },
           "help": [
-            "The name of the locale (available locales are: english, arabic, danish, dutch, french, german, hebrew, hindi, hungarian, indonesian, italian, japanese, korean, mandarin_chinese, norwegian_bokmål, norwegian_nynorsk, persian, portuguese, russian, spanish, turkish, vietnamese). You can also continue with `English`, and then write your own `locale` field for your own language.",
-            "[default: english]"
+            {
+              "text": "The name of the locale (available locales are: english, arabic, danish, dutch, french, german, hebrew, hindi, hungarian, indonesian, italian, japanese, korean, mandarin_chinese, norwegian_bokmål, norwegian_nynorsk, persian, portuguese, russian, spanish, turkish, vietnamese). You can also continue with `English`, and then write your own `locale` field for your own language.",
+              "style": "",
+              "spans": []
+            },
+            {
+              "text": "[default: english]",
+              "style": "dim",
+              "spans": []
+            }
           ],
           "required": false
         },
         {
-          "long": "--create-typst-templates",
-          "short": "",
-          "secondary_long": "",
-          "secondary_short": "",
-          "metavar": "",
+          "long": {
+            "text": "--create-typst-templates",
+            "style": "",
+            "spans": [
+              {
+                "start": 1,
+                "end": 8,
+                "style": "switch"
+              },
+              {
+                "start": 0,
+                "end": 24,
+                "style": "option"
+              }
+            ]
+          },
+          "short": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "secondary_long": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "secondary_short": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "metavar": {
+            "text": "",
+            "style": "bold yellow",
+            "spans": []
+          },
           "help": [
-            "Create Typst templates"
+            {
+              "text": "Create Typst templates",
+              "style": "",
+              "spans": []
+            }
           ],
           "required": false
         },
         {
-          "long": "--create-markdown-templates",
-          "short": "",
-          "secondary_long": "",
-          "secondary_short": "",
-          "metavar": "",
+          "long": {
+            "text": "--create-markdown-templates",
+            "style": "",
+            "spans": [
+              {
+                "start": 1,
+                "end": 8,
+                "style": "switch"
+              },
+              {
+                "start": 0,
+                "end": 27,
+                "style": "option"
+              }
+            ]
+          },
+          "short": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "secondary_long": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "secondary_short": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "metavar": {
+            "text": "",
+            "style": "bold yellow",
+            "spans": []
+          },
           "help": [
-            "Create Markdown templates"
+            {
+              "text": "Create Markdown templates",
+              "style": "",
+              "spans": []
+            }
           ],
           "required": false
         },
         {
-          "long": "--help",
-          "short": "-h",
-          "secondary_long": "",
-          "secondary_short": "",
-          "metavar": "",
+          "long": {
+            "text": "--help",
+            "style": "",
+            "spans": [
+              {
+                "start": 1,
+                "end": 6,
+                "style": "switch"
+              },
+              {
+                "start": 0,
+                "end": 6,
+                "style": "option"
+              }
+            ]
+          },
+          "short": {
+            "text": "-h",
+            "style": "",
+            "spans": [
+              {
+                "start": 0,
+                "end": 2,
+                "style": "switch"
+              }
+            ]
+          },
+          "secondary_long": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "secondary_short": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "metavar": {
+            "text": "",
+            "style": "bold yellow",
+            "spans": []
+          },
           "help": [
-            "Show this message and exit."
+            {
+              "text": "Show this message and exit.",
+              "style": "",
+              "spans": []
+            }
           ],
           "required": false
         }
       ]
     },
     "render": {
-      "usage": "Usage: rendercv render [OPTIONS] INPUT_FILE_NAME",
-      "description": "Render a YAML input file. Example: rendercv render John_Doe_CV.yaml. Details: rendercv render --help",
+      "usage": {
+        "text": "Usage: rendercv render [OPTIONS] INPUT_FILE_NAME",
+        "style": "",
+        "spans": [
+          {
+            "start": 0,
+            "end": 7,
+            "style": "usage"
+          }
+        ]
+      },
+      "description": {
+        "text": "Render a YAML input file. Example: rendercv render John_Doe_CV.yaml. Details: rendercv render --help",
+        "style": "",
+        "spans": [
+          {
+            "start": 35,
+            "end": 67,
+            "style": "yellow"
+          },
+          {
+            "start": 78,
+            "end": 100,
+            "style": "cyan"
+          },
+          {
+            "start": 95,
+            "end": 100,
+            "style": "switch"
+          },
+          {
+            "start": 94,
+            "end": 100,
+            "style": "option"
+          }
+        ]
+      },
       "arguments": [
         {
-          "long": "",
-          "short": "input_file_name",
-          "secondary_long": "",
-          "secondary_short": "",
-          "metavar": "PATH",
+          "long": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "short": {
+            "text": "input_file_name",
+            "style": "",
+            "spans": []
+          },
+          "secondary_long": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "secondary_short": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "metavar": {
+            "text": "PATH",
+            "style": "bold yellow",
+            "spans": []
+          },
           "help": [
-            "The YAML input file.",
-            "[required]"
+            {
+              "text": "The YAML input file.",
+              "style": "",
+              "spans": []
+            },
+            {
+              "text": "[required]",
+              "style": "dim red",
+              "spans": []
+            }
           ],
           "required": true
         }
       ],
       "options": [
         {
-          "long": "--output-folder",
-          "short": "-o",
-          "secondary_long": "",
-          "secondary_short": "",
-          "metavar": "PATH",
+          "long": {
+            "text": "--output-folder",
+            "style": "",
+            "spans": [
+              {
+                "start": 1,
+                "end": 8,
+                "style": "switch"
+              },
+              {
+                "start": 0,
+                "end": 15,
+                "style": "option"
+              }
+            ]
+          },
+          "short": {
+            "text": "-o",
+            "style": "",
+            "spans": [
+              {
+                "start": 0,
+                "end": 2,
+                "style": "switch"
+              }
+            ]
+          },
+          "secondary_long": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "secondary_short": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "metavar": {
+            "text": "PATH",
+            "style": "bold yellow",
+            "spans": []
+          },
           "help": [
-            "Base output folder for all generated files. Replaces the default 'rendercv_output' folder."
+            {
+              "text": "Base output folder for all generated files. Replaces the default 'rendercv_output' folder.",
+              "style": "",
+              "spans": []
+            }
           ],
           "required": false
         },
         {
-          "long": "--design",
-          "short": "-d",
-          "secondary_long": "",
-          "secondary_short": "",
-          "metavar": "PATH",
+          "long": {
+            "text": "--design",
+            "style": "",
+            "spans": [
+              {
+                "start": 1,
+                "end": 8,
+                "style": "switch"
+              },
+              {
+                "start": 0,
+                "end": 8,
+                "style": "option"
+              }
+            ]
+          },
+          "short": {
+            "text": "-d",
+            "style": "",
+            "spans": [
+              {
+                "start": 0,
+                "end": 2,
+                "style": "switch"
+              }
+            ]
+          },
+          "secondary_long": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "secondary_short": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "metavar": {
+            "text": "PATH",
+            "style": "bold yellow",
+            "spans": []
+          },
           "help": [
-            "The \"design\" field's YAML input file."
+            {
+              "text": "The \"design\" field's YAML input file.",
+              "style": "",
+              "spans": []
+            }
           ],
           "required": false
         },
         {
-          "long": "--locale-catalog",
-          "short": "-lc",
-          "secondary_long": "",
-          "secondary_short": "",
-          "metavar": "PATH",
+          "long": {
+            "text": "--locale-catalog",
+            "style": "",
+            "spans": [
+              {
+                "start": 1,
+                "end": 8,
+                "style": "switch"
+              },
+              {
+                "start": 0,
+                "end": 16,
+                "style": "option"
+              }
+            ]
+          },
+          "short": {
+            "text": "-lc",
+            "style": "",
+            "spans": [
+              {
+                "start": 0,
+                "end": 3,
+                "style": "switch"
+              }
+            ]
+          },
+          "secondary_long": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "secondary_short": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "metavar": {
+            "text": "PATH",
+            "style": "bold yellow",
+            "spans": []
+          },
           "help": [
-            "The \"locale\" field's YAML input file."
+            {
+              "text": "The \"locale\" field's YAML input file.",
+              "style": "",
+              "spans": []
+            }
           ],
           "required": false
         },
         {
-          "long": "--settings",
-          "short": "-s",
-          "secondary_long": "",
-          "secondary_short": "",
-          "metavar": "PATH",
+          "long": {
+            "text": "--settings",
+            "style": "",
+            "spans": [
+              {
+                "start": 1,
+                "end": 10,
+                "style": "switch"
+              },
+              {
+                "start": 0,
+                "end": 10,
+                "style": "option"
+              }
+            ]
+          },
+          "short": {
+            "text": "-s",
+            "style": "",
+            "spans": [
+              {
+                "start": 0,
+                "end": 2,
+                "style": "switch"
+              }
+            ]
+          },
+          "secondary_long": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "secondary_short": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "metavar": {
+            "text": "PATH",
+            "style": "bold yellow",
+            "spans": []
+          },
           "help": [
-            "The \"settings\" field's YAML input file."
+            {
+              "text": "The \"settings\" field's YAML input file.",
+              "style": "",
+              "spans": []
+            }
           ],
           "required": false
         },
         {
-          "long": "--typst-path",
-          "short": "-typ",
-          "secondary_long": "",
-          "secondary_short": "",
-          "metavar": "PATH",
+          "long": {
+            "text": "--typst-path",
+            "style": "",
+            "spans": [
+              {
+                "start": 1,
+                "end": 7,
+                "style": "switch"
+              },
+              {
+                "start": 0,
+                "end": 12,
+                "style": "option"
+              }
+            ]
+          },
+          "short": {
+            "text": "-typ",
+            "style": "",
+            "spans": [
+              {
+                "start": 0,
+                "end": 4,
+                "style": "switch"
+              }
+            ]
+          },
+          "secondary_long": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "secondary_short": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "metavar": {
+            "text": "PATH",
+            "style": "bold yellow",
+            "spans": []
+          },
           "help": [
-            "Save the generated Typst file to the specified path, relative to the input file."
+            {
+              "text": "Save the generated Typst file to the specified path, relative to the input file.",
+              "style": "",
+              "spans": []
+            }
           ],
           "required": false
         },
         {
-          "long": "--pdf-path",
-          "short": "-pdf",
-          "secondary_long": "",
-          "secondary_short": "",
-          "metavar": "PATH",
+          "long": {
+            "text": "--pdf-path",
+            "style": "",
+            "spans": [
+              {
+                "start": 1,
+                "end": 5,
+                "style": "switch"
+              },
+              {
+                "start": 0,
+                "end": 10,
+                "style": "option"
+              }
+            ]
+          },
+          "short": {
+            "text": "-pdf",
+            "style": "",
+            "spans": [
+              {
+                "start": 0,
+                "end": 4,
+                "style": "switch"
+              }
+            ]
+          },
+          "secondary_long": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "secondary_short": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "metavar": {
+            "text": "PATH",
+            "style": "bold yellow",
+            "spans": []
+          },
           "help": [
-            "Save the generated PDF file to the specified path, relative to the input file."
+            {
+              "text": "Save the generated PDF file to the specified path, relative to the input file.",
+              "style": "",
+              "spans": []
+            }
           ],
           "required": false
         },
         {
-          "long": "--markdown-path",
-          "short": "-md",
-          "secondary_long": "",
-          "secondary_short": "",
-          "metavar": "PATH",
+          "long": {
+            "text": "--markdown-path",
+            "style": "",
+            "spans": [
+              {
+                "start": 1,
+                "end": 10,
+                "style": "switch"
+              },
+              {
+                "start": 0,
+                "end": 15,
+                "style": "option"
+              }
+            ]
+          },
+          "short": {
+            "text": "-md",
+            "style": "",
+            "spans": [
+              {
+                "start": 0,
+                "end": 3,
+                "style": "switch"
+              }
+            ]
+          },
+          "secondary_long": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "secondary_short": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "metavar": {
+            "text": "PATH",
+            "style": "bold yellow",
+            "spans": []
+          },
           "help": [
-            "Save the generated Markdown file to the specified path, relative to the input file."
+            {
+              "text": "Save the generated Markdown file to the specified path, relative to the input file.",
+              "style": "",
+              "spans": []
+            }
           ],
           "required": false
         },
         {
-          "long": "--html-path",
-          "short": "-html",
-          "secondary_long": "",
-          "secondary_short": "",
-          "metavar": "PATH",
+          "long": {
+            "text": "--html-path",
+            "style": "",
+            "spans": [
+              {
+                "start": 1,
+                "end": 6,
+                "style": "switch"
+              },
+              {
+                "start": 0,
+                "end": 11,
+                "style": "option"
+              }
+            ]
+          },
+          "short": {
+            "text": "-html",
+            "style": "",
+            "spans": [
+              {
+                "start": 0,
+                "end": 5,
+                "style": "switch"
+              }
+            ]
+          },
+          "secondary_long": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "secondary_short": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "metavar": {
+            "text": "PATH",
+            "style": "bold yellow",
+            "spans": []
+          },
           "help": [
-            "Save the generated HTML file to the specified path, relative to the input file."
+            {
+              "text": "Save the generated HTML file to the specified path, relative to the input file.",
+              "style": "",
+              "spans": []
+            }
           ],
           "required": false
         },
         {
-          "long": "--png-path",
-          "short": "-png",
-          "secondary_long": "",
-          "secondary_short": "",
-          "metavar": "PATH",
+          "long": {
+            "text": "--png-path",
+            "style": "",
+            "spans": [
+              {
+                "start": 1,
+                "end": 5,
+                "style": "switch"
+              },
+              {
+                "start": 0,
+                "end": 10,
+                "style": "option"
+              }
+            ]
+          },
+          "short": {
+            "text": "-png",
+            "style": "",
+            "spans": [
+              {
+                "start": 0,
+                "end": 4,
+                "style": "switch"
+              }
+            ]
+          },
+          "secondary_long": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "secondary_short": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "metavar": {
+            "text": "PATH",
+            "style": "bold yellow",
+            "spans": []
+          },
           "help": [
-            "Save the generated PNG files to the specified path, relative to the input file."
+            {
+              "text": "Save the generated PNG files to the specified path, relative to the input file.",
+              "style": "",
+              "spans": []
+            }
           ],
           "required": false
         },
         {
-          "long": "--dont-generate-markdown",
-          "short": "-nomd",
-          "secondary_long": "",
-          "secondary_short": "",
-          "metavar": "",
+          "long": {
+            "text": "--dont-generate-markdown",
+            "style": "",
+            "spans": [
+              {
+                "start": 1,
+                "end": 6,
+                "style": "switch"
+              },
+              {
+                "start": 0,
+                "end": 24,
+                "style": "option"
+              }
+            ]
+          },
+          "short": {
+            "text": "-nomd",
+            "style": "",
+            "spans": [
+              {
+                "start": 0,
+                "end": 5,
+                "style": "switch"
+              }
+            ]
+          },
+          "secondary_long": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "secondary_short": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "metavar": {
+            "text": "",
+            "style": "bold yellow",
+            "spans": []
+          },
           "help": [
-            "If provided, the Markdown file will not be generated. Disabling Markdown generation implicitly disables HTML."
+            {
+              "text": "If provided, the Markdown file will not be generated. Disabling Markdown generation implicitly disables HTML.",
+              "style": "",
+              "spans": []
+            }
           ],
           "required": false
         },
         {
-          "long": "--dont-generate-html",
-          "short": "-nohtml",
-          "secondary_long": "",
-          "secondary_short": "",
-          "metavar": "",
+          "long": {
+            "text": "--dont-generate-html",
+            "style": "",
+            "spans": [
+              {
+                "start": 1,
+                "end": 6,
+                "style": "switch"
+              },
+              {
+                "start": 0,
+                "end": 20,
+                "style": "option"
+              }
+            ]
+          },
+          "short": {
+            "text": "-nohtml",
+            "style": "",
+            "spans": [
+              {
+                "start": 0,
+                "end": 7,
+                "style": "switch"
+              }
+            ]
+          },
+          "secondary_long": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "secondary_short": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "metavar": {
+            "text": "",
+            "style": "bold yellow",
+            "spans": []
+          },
           "help": [
-            "If provided, the HTML file will not be generated."
+            {
+              "text": "If provided, the HTML file will not be generated.",
+              "style": "",
+              "spans": []
+            }
           ],
           "required": false
         },
         {
-          "long": "--dont-generate-typst",
-          "short": "-notyp",
-          "secondary_long": "",
-          "secondary_short": "",
-          "metavar": "",
+          "long": {
+            "text": "--dont-generate-typst",
+            "style": "",
+            "spans": [
+              {
+                "start": 1,
+                "end": 6,
+                "style": "switch"
+              },
+              {
+                "start": 0,
+                "end": 21,
+                "style": "option"
+              }
+            ]
+          },
+          "short": {
+            "text": "-notyp",
+            "style": "",
+            "spans": [
+              {
+                "start": 0,
+                "end": 6,
+                "style": "switch"
+              }
+            ]
+          },
+          "secondary_long": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "secondary_short": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "metavar": {
+            "text": "",
+            "style": "bold yellow",
+            "spans": []
+          },
           "help": [
-            "If provided, the Typst file will not be generated. Disabling Typst generation implicitly disables PDF and PNG."
+            {
+              "text": "If provided, the Typst file will not be generated. Disabling Typst generation implicitly disables PDF and PNG.",
+              "style": "",
+              "spans": []
+            }
           ],
           "required": false
         },
         {
-          "long": "--dont-generate-pdf",
-          "short": "-nopdf",
-          "secondary_long": "",
-          "secondary_short": "",
-          "metavar": "",
+          "long": {
+            "text": "--dont-generate-pdf",
+            "style": "",
+            "spans": [
+              {
+                "start": 1,
+                "end": 6,
+                "style": "switch"
+              },
+              {
+                "start": 0,
+                "end": 19,
+                "style": "option"
+              }
+            ]
+          },
+          "short": {
+            "text": "-nopdf",
+            "style": "",
+            "spans": [
+              {
+                "start": 0,
+                "end": 6,
+                "style": "switch"
+              }
+            ]
+          },
+          "secondary_long": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "secondary_short": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "metavar": {
+            "text": "",
+            "style": "bold yellow",
+            "spans": []
+          },
           "help": [
-            "If provided, the PDF file will not be generated."
+            {
+              "text": "If provided, the PDF file will not be generated.",
+              "style": "",
+              "spans": []
+            }
           ],
           "required": false
         },
         {
-          "long": "--dont-generate-png",
-          "short": "-nopng",
-          "secondary_long": "",
-          "secondary_short": "",
-          "metavar": "",
+          "long": {
+            "text": "--dont-generate-png",
+            "style": "",
+            "spans": [
+              {
+                "start": 1,
+                "end": 6,
+                "style": "switch"
+              },
+              {
+                "start": 0,
+                "end": 19,
+                "style": "option"
+              }
+            ]
+          },
+          "short": {
+            "text": "-nopng",
+            "style": "",
+            "spans": [
+              {
+                "start": 0,
+                "end": 6,
+                "style": "switch"
+              }
+            ]
+          },
+          "secondary_long": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "secondary_short": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "metavar": {
+            "text": "",
+            "style": "bold yellow",
+            "spans": []
+          },
           "help": [
-            "If provided, the PNG file will not be generated."
+            {
+              "text": "If provided, the PNG file will not be generated.",
+              "style": "",
+              "spans": []
+            }
           ],
           "required": false
         },
         {
-          "long": "--watch",
-          "short": "-w",
-          "secondary_long": "",
-          "secondary_short": "",
-          "metavar": "",
+          "long": {
+            "text": "--watch",
+            "style": "",
+            "spans": [
+              {
+                "start": 1,
+                "end": 7,
+                "style": "switch"
+              },
+              {
+                "start": 0,
+                "end": 7,
+                "style": "option"
+              }
+            ]
+          },
+          "short": {
+            "text": "-w",
+            "style": "",
+            "spans": [
+              {
+                "start": 0,
+                "end": 2,
+                "style": "switch"
+              }
+            ]
+          },
+          "secondary_long": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "secondary_short": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "metavar": {
+            "text": "",
+            "style": "bold yellow",
+            "spans": []
+          },
           "help": [
-            "If provided, RenderCV will automatically re-run when the input file is updated."
+            {
+              "text": "If provided, RenderCV will automatically re-run when the input file is updated.",
+              "style": "",
+              "spans": []
+            }
           ],
           "required": false
         },
         {
-          "long": "--quiet",
-          "short": "-q",
-          "secondary_long": "",
-          "secondary_short": "",
-          "metavar": "",
+          "long": {
+            "text": "--quiet",
+            "style": "",
+            "spans": [
+              {
+                "start": 1,
+                "end": 7,
+                "style": "switch"
+              },
+              {
+                "start": 0,
+                "end": 7,
+                "style": "option"
+              }
+            ]
+          },
+          "short": {
+            "text": "-q",
+            "style": "",
+            "spans": [
+              {
+                "start": 0,
+                "end": 2,
+                "style": "switch"
+              }
+            ]
+          },
+          "secondary_long": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "secondary_short": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "metavar": {
+            "text": "",
+            "style": "bold yellow",
+            "spans": []
+          },
           "help": [
-            "If provided, RenderCV will not print any messages."
+            {
+              "text": "If provided, RenderCV will not print any messages.",
+              "style": "",
+              "spans": []
+            }
           ],
           "required": false
         },
         {
-          "long": "--YAMLLOCATION",
-          "short": "",
-          "secondary_long": "",
-          "secondary_short": "",
-          "metavar": "TEXT",
+          "long": {
+            "text": "--YAMLLOCATION",
+            "style": "",
+            "spans": [
+              {
+                "start": 1,
+                "end": 14,
+                "style": "switch"
+              },
+              {
+                "start": 0,
+                "end": 14,
+                "style": "option"
+              }
+            ]
+          },
+          "short": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "secondary_long": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "secondary_short": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "metavar": {
+            "text": "TEXT",
+            "style": "bold yellow",
+            "spans": []
+          },
           "help": [
-            "Overrides the value of YAMLLOCATION. For example, --cv.phone \"123-456-7890\"."
+            {
+              "text": "Overrides the value of YAMLLOCATION. For example, --cv.phone \"123-456-7890\".",
+              "style": "",
+              "spans": [
+                {
+                  "start": 50,
+                  "end": 75,
+                  "style": "bold cyan"
+                },
+                {
+                  "start": 51,
+                  "end": 54,
+                  "style": "switch"
+                },
+                {
+                  "start": 50,
+                  "end": 54,
+                  "style": "option"
+                }
+              ]
+            }
           ],
           "required": false
         },
         {
-          "long": "--help",
-          "short": "-h",
-          "secondary_long": "",
-          "secondary_short": "",
-          "metavar": "",
+          "long": {
+            "text": "--help",
+            "style": "",
+            "spans": [
+              {
+                "start": 1,
+                "end": 6,
+                "style": "switch"
+              },
+              {
+                "start": 0,
+                "end": 6,
+                "style": "option"
+              }
+            ]
+          },
+          "short": {
+            "text": "-h",
+            "style": "",
+            "spans": [
+              {
+                "start": 0,
+                "end": 2,
+                "style": "switch"
+              }
+            ]
+          },
+          "secondary_long": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "secondary_short": {
+            "text": "",
+            "style": "",
+            "spans": []
+          },
+          "metavar": {
+            "text": "",
+            "style": "bold yellow",
+            "spans": []
+          },
           "help": [
-            "Show this message and exit."
+            {
+              "text": "Show this message and exit.",
+              "style": "",
+              "spans": []
+            }
           ],
           "required": false
         }
