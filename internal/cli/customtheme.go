@@ -48,12 +48,29 @@ func CreateTheme(options CreateThemeOptions, stdout, stderr io.Writer) int {
 		return exitValidationError
 	}
 
-	// **The name check stays ahead of the copy, which upstream's is not.**
-	// Upstream copies thirteen files and only then validates, so an invalid
-	// name leaves a partial theme on disk — and `create-theme ../escaped`
-	// leaves it outside the working directory, measured. Matching that means
-	// writing a template tree to a path this binary has already judged invalid,
-	// so it is recorded in specs/divergences.md rather than reproduced here.
+	// **The copy comes before the name check, because upstream's does.**
+	// `copy_templates` runs at `create_theme_command.py:36` and the name
+	// pattern is not looked at until `create_init_file_for_theme` at `:39`, so
+	// a rejected name still leaves thirteen files on disk — measured: 13 files
+	// upstream, exit 1.
+	//
+	// **`create-theme ../escaped` therefore writes OUTSIDE the working
+	// directory, deliberately, not by accident.** Upstream joins the raw
+	// argument to the cwd (`:32`) with no containment check of any kind, so
+	// all thirteen files land in the parent; measured on both sides. The
+	// parity contract sanctions exactly one divergence, the binary name
+	// (AGENTS.md §2), and this is the user's own command with no privilege
+	// boundary crossed — so it is reproduced rather than "fixed". Any future
+	// containment check here is a divergence and needs an entry in
+	// specs/divergences.md.
+	if err := copyTypstTemplates(folder); err != nil {
+		fail(stderr, err)
+		return exitValidationError
+	}
+
+	// The name check sits where `create_init_file_for_theme` raises it: after
+	// the copy, before `__init__.py` — so the rejected run leaves the
+	// templates and no theme declaration.
 	if !customThemeNamePattern.MatchString(name) {
 		//nolint:staticcheck // upstream's text
 		failPanel(stdout, fmt.Errorf(
@@ -62,10 +79,6 @@ func CreateTheme(options CreateThemeOptions, stdout, stderr io.Writer) int {
 		return exitValidationError
 	}
 
-	if err := copyTypstTemplates(folder); err != nil {
-		fail(stderr, err)
-		return exitValidationError
-	}
 	if err := writeThemeInitLua(folder, name); err != nil {
 		fail(stderr, err)
 		return exitValidationError
