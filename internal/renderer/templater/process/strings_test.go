@@ -175,6 +175,40 @@ func TestMakeKeywordsBold(t *testing.T) {
 		{"inside a word", "prefixCafé", []string{"Café"}, "prefixCafé"},
 		{"before a digit", "Café2", []string{"Café"}, "Café2"},
 		{"an underscore blocks it", "_Java_", []string{"Java"}, "_Java_"},
+
+		// **`\w` is all of `N*`, not just `Nd`.** Every row below was measured
+		// against the vendored `make_keywords_bold` (spec 011-E §11.1); the
+		// predicate that used `unicode.IsDigit` failed all ten, and in *both*
+		// directions — it bolded where upstream does not when the neighbour is
+		// `Nl`/`No`, and refused to bold when the keyword's own first or last
+		// rune is.
+		{"No superscript before", "²Java rocks", []string{"Java"}, "²Java rocks"},
+		{"No superscript after", "Java² rocks", []string{"Java"}, "Java² rocks"},
+		{"No superscript both sides", "²Java²", []string{"Java"}, "²Java²"},
+		{"Nl roman numeral before", "ⅧJava", []string{"Java"}, "ⅧJava"},
+		{"Nl roman numeral after", "JavaⅧ", []string{"Java"}, "JavaⅧ"},
+		{"No vulgar fraction before", "½Java", []string{"Java"}, "½Java"},
+		{"No vulgar fraction after", "Java½", []string{"Java"}, "Java½"},
+		{"No circled digit before", "①Java", []string{"Java"}, "①Java"},
+		{
+			// The other direction: `\bR²\b` *does* match, because `²` is a word
+			// rune and the space after it is not. A predicate that calls `²` a
+			// non-word rune finds no boundary here and drops the match.
+			name: "a keyword ending in No matches", text: "x R² y",
+			keywords: []string{"R²"}, want: "x **R²** y",
+		},
+		{
+			name: "a keyword starting with No matches", text: "x ²R y",
+			keywords: []string{"²R"}, want: "x **²R** y",
+		},
+
+		// `Nd` outside ASCII was already right and stays right — `IsDigit`
+		// covers it, so these rows guard against over-correcting to `IsLetter`
+		// alone.
+		{"Nd Arabic-Indic blocks it", "١Java", []string{"Java"}, "١Java"},
+		{"Nd Devanagari blocks it", "१Java", []string{"Java"}, "१Java"},
+		// A combining mark is not `\w` in Python, so it does not block.
+		{"a combining mark does not block", "́Java", []string{"Java"}, "́**Java**"},
 	}
 
 	for _, tc := range tests {
