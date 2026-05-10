@@ -191,7 +191,9 @@ Each entry: what differs · upstream citation · why parity is impossible or und
 
 **Status:** approved · **Iteration:** 12
 
-- **Differs:** two of the fourteen files `create_theme` writes cannot be upstream's bytes.
+- **Differs:** **all fourteen** files `create_theme` writes differ from upstream's — one by name
+  (`__init__.py` → `init.lua`) and **all thirteen** templates by bytes. This entry used to say
+  "two of the fourteen", which measured false; see *Instead* for the split.
 - **Upstream:** `src/rendercv/cli/create_theme_command/`.
 - **Why:**
   - `__init__.py` is Python that upstream *executes* at validation time. This port does not
@@ -202,8 +204,20 @@ Each entry: what differs · upstream citation · why parity is impossible or und
     one it just wrote** — measured on `Header.j2.typ`, where upstream's carries a newline after
     `{% macro image() %}` that Jinja's `trim_blocks` eats at parse time.
 - **Instead:** `create-theme` writes `init.lua` in place of `__init__.py`, and the pongo2
-  transform of each template in place of the Jinja source. The other twelve files are
-  byte-identical.
+  transform of each template in place of the Jinja source.
+
+  **Correction (measured 2026-08-13, `create-theme mytheme` on both sides, file by file):
+  ZERO of the thirteen templates are byte-identical.** The earlier claim that "the other twelve
+  files are byte-identical" was wrong on the count, not on the reasoning. The split is:
+  - **5 differ by a missing final newline only** — `entries/{Bullet,Numbered,OneLine,
+    ReversedNumbered,Text}Entry.j2.typ`, each exactly one byte shorter here.
+  - **8 differ in content** — `Header.j2.typ` (935 → 913 B), `Preamble.j2.typ` (5944 → 5871 B),
+    `SectionBeginning.j2.typ` (115 → 111 B), `SectionEnding.j2.typ` (68 → 64 B) and
+    `entries/{Education,Experience,Normal,Publication}Entry.j2.typ`.
+
+  Both classes are D-005 consequences, not new divergences: the trailing newline goes because
+  Jinja's `keep_trailing_newline` defaults to False and `templater.py:34-44` does not set it, so
+  the transform bakes in what Jinja would have stripped at parse time.
 - **User notices:** the generated theme folder is scripted in Lua and its templates are in the
   port's dialect. It renders identically to the theme it was copied from, which the Jinja
   version would not.
@@ -211,7 +225,8 @@ Each entry: what differs · upstream citation · why parity is impossible or und
   is unreachable by construction. It stays red, with this entry as the reason. `new
   --create-typst-templates` writes the same thirteen `.typ` files through the same
   `copyTypstTemplates` path (`internal/cli/customtheme.go`), so `new_typst_templates` fails on
-  exactly the same four fragments and stays red for the same reason — not a second divergence.
+  exactly the same thirteen files — the 5/8 split above, not "four fragments" as this entry
+  previously said — and stays red for the same reason, not a second divergence.
   `create_theme` also differs on **stdout**, not just the file set: the panel's second step reads
   `Edit ./mytheme/__init__.py to:` upstream and `Edit ./mytheme/init.lua to:` here — the same
   substitution, one more place it shows.
