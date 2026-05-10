@@ -182,41 +182,104 @@ func isDumbTerminal(env Environment, terminal bool) bool {
 	return false
 }
 
+// TerminalSize is `os.get_terminal_size` over the file descriptors Rich probes
+// (`rich/console.py:1027-1034`), collapsed to the one number the port lays out
+// to.
+//
+// It reports **`ok` for a successful ioctl, whatever it returned** — including
+// the zero width a pseudo-terminal with an unset window size answers with,
+// which Rich takes and only folds away later (`:1043-1044`). "Failed" and
+// "succeeded with 0" are different answers because `COLUMNS` is read between
+// them.
+type TerminalSize func() (width int, ok bool)
+
 // ConsoleWidthFor is the width half of `Console.size`
-// (`rich/console.py:1011-1045`) — spec 012 delta §3.4, the one rule of that
-// section the port answered *wrongly* rather than not at all.
+// (`rich/console.py:1011-1049`) plus the half of it that lives in
+// `Console.__init__` (`:690-697`) — spec 012 delta §3.4.
 //
-// **A dumb terminal is laid out to 80 and `COLUMNS` is ignored.** Rich returns
-// `ConsoleDimensions(80, 25)` before it ever looks at the environment
-// (`:1018-1019`), so a dumb terminal has no other width. Measured on a pty:
-// `TERM=dumb COLUMNS=100` gives upstream 80 and `COLUMNS=37` gives it 80 too,
-// where the port took both at their word.
+// The order below is Rich's, and every step of it was measured on a pty
+// against the vendored Python rather than read off the source.
 //
-// **Dumbness is composed through `is_terminal`, not through `isatty` alone.**
-// `is_dumb_terminal` is `is_terminal and TERM in {dumb, unknown}`, and
-// `is_terminal` has its own overrides — so `TTY_COMPATIBLE=1 TERM=dumb` on a
-// *pipe* is 80 (measured), and `TTY_COMPATIBLE=0 TERM=dumb` on a *pty* is the
-// 100 its `COLUMNS` asks for (measured). That is also why the golden corpus can
-// pin `TERM=dumb` together with `COLUMNS=80` and see neither rule: through a
-// pipe nothing is dumb, and its `COLUMNS` agrees with the fallback by
-// coincidence.
+// **`COLUMNS` *and* `LINES` together outrank even a dumb terminal.** Rich reads
+// both at construction into `_width`/`_height` (`:690-697`), and `size` returns
+// them before the dumb short-circuit if *both* are set (`:1018-1019`). Measured
+// on a 120-column pty: `TERM=dumb COLUMNS=100 LINES=40` is 100, while
+// `TERM=dumb COLUMNS=100 LINES=abc` is 80. The pair is what unlocks it; a lone
+// `COLUMNS` does not.
 //
-// Not covered here, and still divergent: with `COLUMNS` unset on a real
-// terminal Rich takes `os.get_terminal_size` (`:1027-1033`) where the port
-// takes 80. That is a separate rule with its own gate.
-func ConsoleWidthFor(env Environment, isatty bool) int {
+// **A dumb terminal is otherwise 80 and `COLUMNS` is ignored** (`:1021-1022`),
+// and dumbness composes through `is_terminal`, not through `isatty` alone — so
+// `TTY_COMPATIBLE=1 TERM=dumb` on a *pipe* is 80 and `TTY_COMPATIBLE=0
+// TERM=dumb` on a *pty* is the width its `COLUMNS` asks for (both measured).
+// That is why the golden corpus can pin `TERM=dumb` with `COLUMNS=80` and see
+// neither rule: through a pipe nothing is dumb, and its `COLUMNS` agrees with
+// the fallback by coincidence.
+//
+// **Then the real window size, then `COLUMNS` on top of it.** Rich asks the OS
+// first and lets `COLUMNS` overwrite the answer (`:1027-1038`), which matters
+// for the values `COLUMNS` cannot be: it guards with `str.isdigit`, so
+// `COLUMNS=abc` and `COLUMNS=-5` are *not* "fall back to 80", they are "leave
+// the window size alone". Measured on a 120-column pty: both are 120, and
+// `COLUMNS=057` is 57 while `COLUMNS=" 57"` is 120.
+//
+// Two known, deliberate deviations, both about a **zero** width:
+//   - `COLUMNS=0` is `isdigit`, so Rich lays out to 0 and prints nothing
+//     (measured: empty output). The port folds it to 80, because 0 is not a
+//     width any box can be drawn at.
+//   - a `COLUMNS` too large for an `int` is a bignum to Rich; the port treats it
+//     as unset.
+func ConsoleWidthFor(env Environment, isatty bool, size TerminalSize) int {
+	columns, hasColumns := consoleDigits(env, "COLUMNS")
+	if _, hasLines := consoleDigits(env, "LINES"); hasColumns && hasLines {
+		return foldZeroWidth(columns)
+	}
 	if isDumbTerminal(env, isTerminal(env, isatty)) {
 		return PanelWidth
 	}
-	// Rich guards with `columns.isdigit()` and then folds a zero away with
-	// `width or 80` (`:1035-1044`), which together is "a positive number or
-	// nothing".
-	if raw, _ := env("COLUMNS"); raw != "" {
-		if width, err := strconv.Atoi(raw); err == nil && width > 0 {
-			return width
+	width := 0
+	if size != nil {
+		if probed, ok := size(); ok {
+			width = probed
 		}
 	}
-	return PanelWidth
+	if hasColumns {
+		width = columns
+	}
+	return foldZeroWidth(width)
+}
+
+// foldZeroWidth is Rich's `width = width or 80` (`rich/console.py:1044`),
+// widened to any non-positive width because a box cannot be drawn at one.
+func foldZeroWidth(width int) int {
+	if width <= 0 {
+		return PanelWidth
+	}
+	return width
+}
+
+// consoleDigits reads an environment variable under Python's `str.isdigit`
+// guard (`rich/console.py:692`, `:1037`): every character a digit, and at least
+// one of them. A sign, a space, or a decimal point makes the whole value
+// invisible rather than invalid.
+//
+// Only ASCII digits count. Python's `isdigit` is true for `０５７` too, and
+// `int` would read it as 57 — but a shell that exports a fullwidth `COLUMNS` is
+// not a case worth carrying a Unicode numeral table for.
+func consoleDigits(env Environment, name string) (int, bool) {
+	raw, _ := env(name)
+	if raw == "" {
+		return 0, false
+	}
+	for _, character := range raw {
+		if character < '0' || character > '9' {
+			return 0, false
+		}
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, false
+	}
+	return value, true
 }
 
 // detectColorSystem is `Console._detect_color_system`

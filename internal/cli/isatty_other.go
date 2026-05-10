@@ -10,3 +10,11 @@ package cli
 func stdoutIsTerminal() bool {
 	return false
 }
+
+// stdStreamsTerminalSize reports no window size where the port has no probe to
+// make, which is the answer Rich reaches when every `os.get_terminal_size`
+// raises (`rich/console.py:1031-1032`) — the caller then folds to 80, the width
+// every golden is captured at.
+func stdStreamsTerminalSize() (int, bool) {
+	return 0, false
+}
