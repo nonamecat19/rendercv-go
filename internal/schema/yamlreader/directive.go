@@ -2,6 +2,7 @@ package yamlreader
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/goccy/go-yaml/ast"
 )
@@ -93,6 +94,90 @@ func checkDirectives(docs []*ast.DocumentNode) error {
 		}
 	}
 	return nil
+}
+
+// MalformedDirectiveError is ruamel's `ScannerError` for a `%YAML` directive
+// whose version it could not read.
+//
+// **The scanner refuses the line before the parser ever sees a version.**
+// `scan_yaml_directive_value` (`ruamel/yaml/scanner.py:892-917`) wants digits,
+// a `.`, digits, and then the end of the token; `scan_directive_ignored_line`
+// (`:978-995`) wants the rest of the line to be blank or a comment. Any other
+// spelling raises with the context `while scanning a directive`, which is the
+// only line of ruamel's text upstream interpolates — so all of `%YAML`,
+// `%YAML 1`, `%YAML x.y`, `%YAML 1.`, `%YAML .2`, `%YAML 1.2.3` and
+// `%YAML 1.2 x` produce one byte-identical panel, measured.
+//
+// **goccy answers none of them the same way.** A bare `%YAML` parses clean, so
+// the port rendered a document upstream refuses at exit 1; the rest come back
+// as `unknown YAML version`, which the port mapped to ruamel's *parser*
+// message about an incompatible major version — a different failure at a
+// different exit shape. The rule is therefore applied to the source here,
+// before goccy runs, exactly as `checkTabs` is.
+type MalformedDirectiveError struct {
+	// Line is the 1-based line the directive's `%` sits on, which is ruamel's
+	// context mark.
+	Line int
+}
+
+func (e *MalformedDirectiveError) Error() string { return "while scanning a directive" }
+
+// checkYamlDirectiveVersions applies ruamel's scanner rule to every `%YAML`
+// line of the directive block.
+//
+// The block is the run of `%`-prefixed lines at the head of the stream, which
+// is where ruamel reads directives and nowhere else: the first line that is not
+// one — the `---` marker, or content — ends it.
+func checkYamlDirectiveVersions(src string) error {
+	for i, text := range strings.Split(src, "\n") {
+		if !strings.HasPrefix(text, "%") {
+			return nil
+		}
+		name, rest, _ := strings.Cut(strings.TrimPrefix(text, "%"), " ")
+		if name != yamlVersionDirective {
+			continue
+		}
+		if !isWellFormedVersionValue(rest) {
+			return &MalformedDirectiveError{Line: i + 1}
+		}
+	}
+	return nil
+}
+
+// isWellFormedVersionValue reports whether the text after `%YAML` is a version
+// ruamel's scanner can read: optional spaces, digits, `.`, digits, and then
+// nothing but spaces and an optional `#` comment.
+//
+// **Only the shape is checked, never the numbers.** `01.2` and `1.02` scan
+// clean and load (`int('01')` is 1), and so does `10.2` — its major version is
+// rejected a stage later, by the parser, with a different message. Measured on
+// all three.
+func isWellFormedVersionValue(text string) bool {
+	rest := strings.TrimLeft(text, " ")
+
+	major := len(rest) - len(strings.TrimLeft(rest, "0123456789"))
+	if major == 0 {
+		return false
+	}
+	rest = rest[major:]
+	if !strings.HasPrefix(rest, ".") {
+		return false
+	}
+	rest = rest[1:]
+
+	minor := len(rest) - len(strings.TrimLeft(rest, "0123456789"))
+	if minor == 0 {
+		return false
+	}
+	rest = rest[minor:]
+
+	// The version token must end at a space or the end of the line, and what
+	// follows may only be a comment.
+	if rest != "" && !strings.HasPrefix(rest, " ") {
+		return false
+	}
+	rest = strings.TrimLeft(rest, " ")
+	return rest == "" || strings.HasPrefix(rest, "#")
 }
 
 // tagDirective is the name goccy gives a `%TAG` directive.
