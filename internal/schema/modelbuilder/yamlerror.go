@@ -81,6 +81,26 @@ func ReadYamlWithValidationErrors(
 		}
 	}
 
+	// D-014 — a `%YAML 1.<n>` whose minor part is neither 1 nor 2. Upstream
+	// dies on an uncaught `AssertionError` with an empty stdout, so there is no
+	// panel to copy: the port matches the exit code and the refusal and prints
+	// upstream's own assertion sentence, the one line of that traceback that
+	// carries no machine paths. Like D-018 below, it wears no `This is not a
+	// valid YAML file.` prefix, because the document is valid YAML.
+	var versionErr *yamlreader.UnsupportedVersionError
+	if errors.As(err, &versionErr) {
+		at := yamldoc.Position{Line: versionErr.Line, Column: 1}
+		return nil, &schemaerr.UserValidationError{
+			Errors: []schemaerr.ValidationError{{
+				SchemaLocation: nil,
+				YamlLocation:   &yamldoc.Span{Start: at, End: at},
+				YamlSource:     source,
+				Message:        versionErr.Error(),
+				Input:          schemaerr.InputEllipsis,
+			}},
+		}
+	}
+
 	// D-018 — a `%YAML 1.1` directive. The port has no 1.1 scalar resolver and
 	// says so, rather than resolving by 1.2 and silently changing values. The
 	// message is the port's own: upstream has no error here at all, so there is

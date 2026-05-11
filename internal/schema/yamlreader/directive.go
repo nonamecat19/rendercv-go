@@ -2,6 +2,7 @@ package yamlreader
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/goccy/go-yaml/ast"
@@ -122,12 +123,56 @@ type MalformedDirectiveError struct {
 
 func (e *MalformedDirectiveError) Error() string { return "while scanning a directive" }
 
-// checkYamlDirectiveVersions applies ruamel's scanner rule to every `%YAML`
-// line of the directive block.
+// UnsupportedVersionError is D-014's substitution for ruamel's `AssertionError`
+// on a `%YAML 1.<n>` whose minor part is neither 1 nor 2.
+//
+// **The failure is not in the parser, and it is not a YAML error at all.**
+// `process_directives` checks the *major* part only and raises a clean
+// `ParserError` when it is not 1 (`ruamel/yaml/parser.py:296-304`); the minor
+// part is never looked at there. One line later it writes the version onto the
+// loader (`:321`), and the property setter asserts
+// (`ruamel/yaml/main.py:849-851`):
+//
+//	assert sval[1] in [1, 2], f'version minor part can only be 2 or 1, got {val}'
+//
+// Nothing on the path catches `AssertionError`, so upstream exits 1 with a Rich
+// traceback on stderr and an empty stdout — 0 bytes stdout, 12958 bytes stderr
+// for `%YAML 1.3`, measured. That is exactly D-014's class: the exit code and
+// the refusal are matchable, the traceback is not.
+//
+// The port therefore reports the nearest clean error, in D-018's shape rather
+// than the syntax panel's — the document *is* valid YAML, so
+// `This is not a valid YAML file.` would be untrue — carrying upstream's own
+// assertion sentence, which is the one line of that traceback with no machine
+// paths in it.
+type UnsupportedVersionError struct {
+	// Directive is the directive as written, e.g. `%YAML 1.3`.
+	Directive string
+	// Major and Minor are the version's parts, as ruamel's `int()` reads them.
+	Major, Minor int
+	// Line is the 1-based line the directive's `%` sits on.
+	Line int
+}
+
+func (e *UnsupportedVersionError) Error() string {
+	return fmt.Sprintf(
+		"The '%s' directive is not supported: version minor part can only be 2 or 1,"+
+			" got (%d, %d).", e.Directive, e.Major, e.Minor)
+}
+
+// checkYamlDirectiveVersions applies ruamel's version rules to every `%YAML`
+// line of the directive block: its scanner's syntax rule first, then the
+// minor-part assertion its loader makes afterwards.
 //
 // The block is the run of `%`-prefixed lines at the head of the stream, which
 // is where ruamel reads directives and nowhere else: the first line that is not
 // one — the `---` marker, or content — ends it.
+//
+// **The major part is deliberately not checked here.** A major other than 1 is
+// ruamel's `ParserError`, which the port already reproduces from goccy's own
+// `unknown YAML version` (see modelbuilder's ruamelPhrasing table), and it is
+// raised *before* the assertion — so `%YAML 2.0` must reach that path and not
+// this one, even though its minor part is 0.
 func checkYamlDirectiveVersions(src string) error {
 	for i, text := range strings.Split(src, "\n") {
 		if !strings.HasPrefix(text, "%") {
@@ -140,8 +185,50 @@ func checkYamlDirectiveVersions(src string) error {
 		if !isWellFormedVersionValue(rest) {
 			return &MalformedDirectiveError{Line: i + 1}
 		}
+		major, minor := versionParts(rest)
+		if major != 1 || minor == 1 || minor == 2 {
+			continue
+		}
+		// The version as the user wrote it, without the trailing spaces or
+		// comment the scanner allows after it — D-018's framing next door
+		// quotes the directive the same way.
+		written, _, _ := strings.Cut(strings.TrimLeft(rest, " "), " ")
+		return &UnsupportedVersionError{
+			Directive: "%" + yamlVersionDirective + " " + written,
+			Major:     major,
+			Minor:     minor,
+			Line:      i + 1,
+		}
 	}
 	return nil
+}
+
+// versionParts reads the two numbers out of a version value that
+// isWellFormedVersionValue has already accepted.
+//
+// **The numbers are `int()`s of the digit runs, not the digit runs**, which is
+// ruamel's own reading (`ruamel/yaml/scanner.py:936`): `01.2` is (1, 2) and
+// `1.02` is (1, 2), and upstream renders both. A run too long for an `int`
+// cannot be 1 or 2 either way, so it is reported as -1 and lands wherever a
+// number out of range would.
+func versionParts(text string) (major, minor int) {
+	rest := strings.TrimLeft(text, " ")
+	digits := len(rest) - len(strings.TrimLeft(rest, "0123456789"))
+	major = versionNumber(rest[:digits])
+
+	rest = rest[digits+1:] // step over the `.`
+	digits = len(rest) - len(strings.TrimLeft(rest, "0123456789"))
+	return major, versionNumber(rest[:digits])
+}
+
+// versionNumber is `int(digits)`, or -1 when the run overflows a Go int where
+// Python's would carry on.
+func versionNumber(digits string) int {
+	value, err := strconv.Atoi(digits)
+	if err != nil {
+		return -1
+	}
+	return value
 }
 
 // isWellFormedVersionValue reports whether the text after `%YAML` is a version
