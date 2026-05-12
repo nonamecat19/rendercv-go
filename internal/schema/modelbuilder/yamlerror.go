@@ -62,6 +62,24 @@ func ReadYamlWithValidationErrors(
 		}
 	}
 
+	// A named tag handle no `%TAG` directive bound is ruamel's *parser* failure,
+	// which goccy has no counterpart for at all — see
+	// yamlreader.UndefinedTagHandleError. Its marks are ruamel's own context and
+	// problem marks, so the span is taken from the error rather than from a
+	// token.
+	var tagHandleErr *yamlreader.UndefinedTagHandleError
+	if errors.As(err, &tagHandleErr) {
+		return nil, &schemaerr.UserValidationError{
+			Errors: []schemaerr.ValidationError{{
+				SchemaLocation: nil,
+				YamlLocation:   &yamldoc.Span{Start: tagHandleErr.Start, End: tagHandleErr.End},
+				YamlSource:     source,
+				Message:        fmt.Sprintf("This is not a valid YAML file. %s.", tagHandleErr.Error()),
+				Input:          schemaerr.InputEllipsis,
+			}},
+		}
+	}
+
 	// D-018 — a `%YAML 1.1` directive. The port has no 1.1 scalar resolver and
 	// says so, rather than resolving by 1.2 and silently changing values. The
 	// message is the port's own: upstream has no error here at all, so there is

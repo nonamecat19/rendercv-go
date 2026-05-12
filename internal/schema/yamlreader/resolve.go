@@ -97,19 +97,31 @@ func ResolveTagText(written string, handles TagHandles) string {
 // **A handle needs a non-empty suffix**, so `!!` alone is not the `!!` handle:
 // the scanner reads a local tag whose suffix is `!`, which is why `!!` reprs as
 // `!!` and not as `tag:yaml.org,2002:`.
+//
+// **The search for the handle's closing `!` starts *after* the short handle the
+// scanner already consumed** (`ruamel/yaml/scanner.py:1047-1086`): `!!e!x` is
+// the handle `!e!` over the suffix `x`, not the handle `!!` over `e!x`.
+// Measured under `%TAG !e! tag:example.com,2000:`, where upstream reprs it as
+// `Tag('tag:example.com,2000:x')` and this function used to answer
+// `tag:yaml.org,2002:e!x`. Only the *first* `!` after that prefix closes the
+// handle, so a suffix may carry more of them — `!e!x!y` is `!e!` over `x!y`.
 func splitTagHandle(written string) (handle, suffix string, ok bool) {
 	if !strings.HasPrefix(written, "!") {
 		return "", "", false
 	}
-	if end := strings.IndexByte(written[1:], '!'); end >= 0 {
-		handle, suffix = written[:end+2], written[end+2:]
+	short := 1
+	if strings.HasPrefix(written, "!!") {
+		short = 2
+	}
+	if end := strings.IndexByte(written[short:], '!'); end >= 0 {
+		handle, suffix = written[short-1:short+end+1], written[short+end+1:]
 		if suffix != "" {
 			return handle, suffix, true
 		}
 		return "", "", false
 	}
-	if suffix = written[1:]; suffix != "" {
-		return "!", suffix, true
+	if suffix = written[short:]; suffix != "" {
+		return written[:short], suffix, true
 	}
 	return "", "", false
 }
