@@ -756,6 +756,23 @@
       "expect_exit": 1
     },
     {
+      "name": "undefined_tag_handle",
+      "axis": "errors",
+      "inline_files": [
+        {
+          "dst": "cv.yaml",
+          "content": "cv:\n  name: John Doe\n  sections:\n    test_section:\n    - this is a text entry.\nlocale:\n  language: [!e!x v]\n"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ],
+      "expect_exit": 1
+    },
+    {
       "name": "yaml_11_directive",
       "axis": "errors",
       "inline_files": [
