@@ -4390,5 +4390,29 @@
   {
     "In": "*<b>x</b>*",
     "Out": "<p><em><b>x</b></em></p>"
+  },
+  {
+    "In": "<div>a</div>    <div>b</div>",
+    "Out": "<div>a</div>\n<pre><code>\n</code></pre>\n<div>b</div>"
+  },
+  {
+    "In": "<div>a</div>\t<div>b</div>",
+    "Out": "<div>a</div>\n<pre><code>\n</code></pre>\n<div>b</div>"
+  },
+  {
+    "In": "<div>a</div>    ",
+    "Out": "<div>a</div>\n\n<pre><code>\n</code></pre>"
+  },
+  {
+    "In": "<div>a</div>    \nafter",
+    "Out": "<div>a</div>\n<pre><code>\n</code></pre>\n<p>after</p>"
+  },
+  {
+    "In": "<div>a</div>     \n    x",
+    "Out": "<div>a</div>\n<pre><code> \nx\n</code></pre>"
+  },
+  {
+    "In": "<div>a</div>    \n\n    x",
+    "Out": "<div>a</div>\n\n<pre><code>\n\nx\n</code></pre>"
   }
 ]
