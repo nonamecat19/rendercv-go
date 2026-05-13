@@ -175,7 +175,7 @@ func endsTagName(c byte) bool {
 // the block parser everything after the tag, and five spaces of it is an
 // indented code block there as much as anywhere else.
 //
-// **`separator` is the boundary the caller's own block splitter reads**, and the
+// **`style` spells the boundary the caller's own block splitter reads**, and the
 // two paths spell it differently because they split blocks differently. The
 // Typst path has only the text: `convertChunk` divides on a blank line
 // (`markdown.go`'s `splitOnBlank`), so it asks for the `"\n\n"` upstream
@@ -202,14 +202,19 @@ func endsTagName(c byte) bool {
 //     to `cleandoc`, where a whitespace-only line is a block boundary and
 //     nothing else: `<div>block</div>   \nafter` → `<div>block</div>\n<p>after</p>`.
 //
-// Dropping is not quite upstream's mechanism, and one shape shows the gap: four
-// or more columns of that whitespace is an indented code block upstream, an
-// empty one, between the two blocks (`<div>a</div>\t<div>b</div>` →
-// `<div>a</div>\n<pre><code>\n</code></pre>\n<div>b</div>`). Keeping the
-// whitespace on its own line cannot reproduce it either — goldmark reads a
-// whitespace-only line as blank, and a blank line here is read back by
-// `blankLineAfterRawBlock` as one the input never had.
-func splitRawBlockTails(source, separator string) string {
+// **Dropping is only right below four columns.** Four or more of them is an
+// indented code block upstream — an empty one, since the whitespace is all there
+// is — sitting between the two blocks (`<div>a</div>\t<div>b</div>` →
+// `<div>a</div>\n<pre><code>\n</code></pre>\n<div>b</div>`, the tab having become
+// the fourth column in `normalizeWhitespace`). Such a run is therefore kept, with
+// `rawTailMarker` appended so that the line still exists when the block parser
+// reads it: goldmark discards every whitespace-only line in `SkipBlankLines`
+// (`parser/parser.go:1082`) before any block parser is offered it, so a line of
+// nothing but spaces cannot open anything there. The marker comes back off at
+// the other end of each path — `codeBlockText` on the HTML side
+// (`codeblock.go`), `normalizeChunk` on the Typst one (`markdown.go`), where it
+// has just carried the line past the same emptying rule.
+func splitRawBlockTails(source string, style rawTailStyle) string {
 	var out strings.Builder
 	raw := []byte(source)
 	written := 0
@@ -235,6 +240,13 @@ func splitRawBlockTails(source, separator string) string {
 		}
 		if inTail && tag > i {
 			out.Write(raw[written:i])
+			if isCodeIndent(raw[i:tag]) {
+				// The run is an indented code block of its own upstream, and an
+				// empty one — the block that follows starts a line below it.
+				out.Write(raw[i:tag])
+				out.WriteString(rawTailMarker)
+				out.WriteString(style.separator)
+			}
 			written = tag
 		}
 
@@ -247,6 +259,11 @@ func splitRawBlockTails(source, separator string) string {
 		if len(bytes.Trim(raw[end:tailEnd], " \t")) == 0 {
 			if tailEnd > end {
 				out.Write(raw[written:end])
+				if isCodeIndent(raw[end:tailEnd]) {
+					out.WriteString(style.boundary(blankLineAfterTail(raw, end)))
+					out.Write(raw[end:tailEnd])
+					out.WriteString(rawTailMarker)
+				}
 				written = tailEnd
 			}
 			i = tailEnd + 1
@@ -255,7 +272,7 @@ func splitRawBlockTails(source, separator string) string {
 		}
 
 		out.Write(raw[written:end])
-		out.WriteString(separator)
+		out.WriteString(style.separator)
 		written = end
 		// The tail now starts a line of its own, so a raw block that begins in
 		// it is at a line start too — `<div>a</div> <div>b</div>` is two blocks
@@ -268,6 +285,82 @@ func splitRawBlockTails(source, separator string) string {
 	}
 	out.Write(raw[written:])
 	return out.String()
+}
+
+// rawTailMarker is what keeps a whitespace-only tail on the page.
+//
+// `splitRawBlockTails` appends it to a run of four or more columns of whitespace
+// that upstream reads as an empty indented code block, so that goldmark does not
+// read the line as blank and drop it; `codeBlockText` takes it back off
+// (`codeblock.go`).
+//
+// **It is `util.STX`, and that is not an arbitrary control character.** It is the
+// byte python-markdown builds its own stash placeholders from
+// (`markdown/util.py`), and `NormalizeWhitespace` deletes every one the author
+// wrote before anything else runs (`preprocessors.py:71`) — precisely so that
+// nothing downstream can confuse the two. A character the author *can* write is
+// not available for this: `\v` was tried and the corpus caught it, because
+// `"    \v\n    a"` is a code block whose first line upstream keeps as a `\v`.
+const rawTailMarker = "\x02"
+
+// typstBlankBlock is a block that converts to the empty string on the Typst
+// path, which is how `rawTailStyle.blankSeparator` spells the blank line
+// upstream's stash carries.
+//
+// `\v` is Python whitespace, so `ParagraphProcessor`'s lstrip empties it
+// (`blockprocessors.py:612-640`) — a line the author wrote with nothing but a
+// `\v` on it converts to the empty string upstream too, which is why this one
+// cannot be told from an authored one and does not need to be.
+const typstBlankBlock = "\v"
+
+// rawTailStyle is how one of the two paths spells a block boundary.
+type rawTailStyle struct {
+	// separator ends the raw block's line: `"\n"` for the HTML path, whose
+	// block parser has already closed the block, and `"\n\n"` for the Typst
+	// path, whose `splitOnBlank` reads a blank line and nothing else.
+	separator string
+	// blankSeparator is separator plus the blank line upstream's stash carries
+	// when `blank_line_re` matches after the closing tag. The HTML path spells
+	// it as a blank source line, which is what `blankLineAfterRawBlock` reads
+	// back; the Typst path has no such reader, so it spells it as a
+	// `typstBlankBlock`.
+	blankSeparator string
+}
+
+// htmlTailStyle and typstTailStyle are the two callers' spellings.
+var (
+	htmlTailStyle  = rawTailStyle{separator: "\n", blankSeparator: "\n\n"}
+	typstTailStyle = rawTailStyle{separator: "\n\n", blankSeparator: "\n\n" + typstBlankBlock + "\n\n"}
+)
+
+// boundary is separator, or blankSeparator where upstream's stash kept a blank
+// line.
+func (s rawTailStyle) boundary(blank bool) string {
+	if blank {
+		return s.blankSeparator
+	}
+	return s.separator
+}
+
+// isCodeIndent reports whether a whitespace run is `tab_length` columns wide,
+// which is what makes it an indented code block rather than nothing.
+//
+// Counting bytes is counting columns here: `normalizeWhitespace` has already run
+// `expandtabs` over the source (`html.go`, `markdown.go`), so every tab in a tail
+// arrives as the spaces it stood for.
+func isCodeIndent(run []byte) bool {
+	return len(run) >= len(indentWidth)
+}
+
+// blankLineAfterTail is `blank_line_re.match(rawdata[end:])`
+// (`htmlparser.py:246`) read at the closing tag rather than at the raw block's
+// last line, which is where a whitespace-only tail puts it.
+//
+// The `"\n\n"` is `NormalizeWhitespace`'s (`preprocessors.py:73`), for the reason
+// `blankLineAfterRawBlock` supplies it too: a tail at the end of the input is
+// followed by that blank line and matches.
+func blankLineAfterTail(source []byte, end int) bool {
+	return blankLineRe.MatchString(string(source[end:]) + "\n\n")
 }
 
 // rawBlockOnLine is `rawBlockEnd` for a raw block that starts at `tag`, guarded
