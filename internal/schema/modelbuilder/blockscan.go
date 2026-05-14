@@ -3,6 +3,9 @@ package modelbuilder
 import (
 	"strings"
 
+	"github.com/goccy/go-yaml/lexer"
+	"github.com/goccy/go-yaml/token"
+
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
 )
 
@@ -58,7 +61,9 @@ type openBlock struct {
 //     re-read — exactly when it sits at the open construct's own column.
 //
 // The scanner runs ahead of the parser, so a scanner failure at or before
-// goccy's token wins; past it, the parser's token is the answer.
+// goccy's token wins; past it, the parser's token is the answer — **except
+// behind a block scalar**, which is a finished token of its own and so puts the
+// scanner a whole node further on than goccy's. See blockScalarHeaders.
 //
 // Measured over 101,535 shapes across four sweeps: three structured (indent
 // width, key length, nesting depth, mapping versus sequence enclosure, position
@@ -68,16 +73,42 @@ type openBlock struct {
 // random-junk shapes this answers, 19 disagree — documents with several
 // unrelated mistakes at once, where ruamel's own scanner and parser race
 // differently. 19,117 more are declined; see the ok result.
+//
+// **Block scalar headers were a whole class this got wrong**, and are measured
+// separately: 10,192 structured shapes (eight enclosures, seven indentations,
+// thirteen header spellings — `|`, `>`, `|-`, `>+`, `|2`, `>1+`, `|-2`, a
+// trailing comment — bare and behind a key, and seven successors), of which
+// 4,997 reach this scan. 3,529 carried ruamel's phrasing and 3,189 both its
+// marks before the header rule; 4,991 carry both now, and none moved from right
+// to wrong. The 6 left are `a: 1` followed by an indented `| # c`, where goccy's
+// lexer folds the `|` into the plain scalar above and reports no header at all,
+// so the discriminator cannot see one. A second, pseudo-random grid of 7,770
+// multi-mistake documents moved 3,755/3,535 to 4,852/4,542 the same way, with
+// 12 shapes moving from right to wrong — all of them documents carrying two or
+// more block scalars among other unrelated mistakes.
 func blockScan(content string, tok yamldoc.Position) (blockFailure, bool) {
 	lines := strings.Split(content, "\n")
+	headers := blockScalarHeaders(content)
 
 	var stack []openBlock
 	pending := -1  // column of a key still waiting for its value, or -1
 	plainAt := 0   // line an open plain scalar started on, or 0
 	strayLine := 0 // a scalar the parser will reject, unless the scanner beats it
 	strayCol := 0
-	blockAt := -1     // column that bounds an open block scalar's content, or -1
-	blockOpenAt := -1 // column of a key whose block scalar has no content yet
+	strayHeader := false // whether that scalar is a block scalar header
+	blockAt := -1        // column that bounds an open block scalar's content, or -1
+	blockOpenAt := -1    // column of a key whose block scalar has no content yet
+
+	// setStray records a scalar the parser will reject. **A block scalar already
+	// recorded is never replaced**: the parser rejects the first node it is
+	// handed, so a second one further down the document is a mistake the user
+	// never got to make.
+	setStray := func(line, column int, header bool) {
+		if strayHeader && strayLine > 0 {
+			return
+		}
+		strayLine, strayCol, strayHeader = line, column, header
+	}
 
 	// parserVerdict is ruamel's parser failing at (line, column): it names the
 	// innermost level still open there and marks where that level began.
@@ -129,8 +160,14 @@ func blockScan(content string, tok yamldoc.Position) (blockFailure, bool) {
 		}
 
 		if isDocumentMarker(text) {
+			// A block scalar the parser will reject is reported here rather
+			// than forgotten: the marker ends the document, so nothing can
+			// still beat the parser to it.
+			if strayHeader && strayLine > 0 {
+				return parserVerdict(strayLine, strayCol)
+			}
 			stack, pending, plainAt = nil, -1, 0
-			strayLine, strayCol = 0, 0
+			strayLine, strayCol, strayHeader = 0, 0, false
 			blockAt, blockOpenAt = -1, -1
 			continue
 		}
@@ -156,14 +193,18 @@ func blockScan(content string, tok yamldoc.Position) (blockFailure, bool) {
 				return parserVerdict(n, pos+1)
 			case body[0] == '|' || body[0] == '>':
 			default:
-				plainAt, strayLine, strayCol = n, n, pos+1
+				plainAt = n
+				setStray(n, pos+1, false)
 			}
 			continue
 		}
 
 		// Anything at or left of the open level ends a stray scalar, and the
-		// parser reports the scalar rather than this line.
-		if strayLine > 0 {
+		// parser reports the scalar rather than this line — unless the stray is
+		// a block scalar, which the scanner can still be beaten to: see
+		// startsRequiredKey.
+		if strayLine > 0 &&
+			(!strayHeader || !startsRequiredKey(stack, headers, text, n, pos)) {
 			return parserVerdict(strayLine, strayCol)
 		}
 
@@ -247,7 +288,22 @@ func blockScan(content string, tok yamldoc.Position) (blockFailure, bool) {
 		pending = -1
 
 		if pos == col {
-			if n > tok.Line {
+			// **A block scalar header is a node, never a key.** The scanner
+			// reads the header and its content and hands the parser a finished
+			// scalar, so there is no simple key to require here; the parser
+			// rejects the scalar instead, unless a later line raises the
+			// scanner failure first.
+			if headers[n] == pos+1 {
+				setStray(n, pos+1, true)
+				blockOpenAt = pos
+				continue
+			}
+			// **A block scalar puts the scanner past goccy's token.** goccy
+			// blames the header it could not place, and ruamel's scanner has by
+			// then already read the header, its content, and the key candidate
+			// on the line after them — so the usual "past the token, the parser
+			// wins" rule does not apply behind one.
+			if n > tok.Line && !strayHeader {
 				return parserVerdict(tok.Line, tok.Column)
 			}
 			quoted := rest[0] == '"' || rest[0] == '\''
@@ -257,6 +313,19 @@ func blockScan(content string, tok yamldoc.Position) (blockFailure, bool) {
 				problem:  simpleKeyProblem(lines, n, col, quoted),
 			}, true
 		}
+		// A header opens a block scalar rather than a plain one: the lines under
+		// it are its content, and it cannot fold into the line below, so the
+		// scanner's `mapping values are not allowed here` is not reachable
+		// through it. **It is asked before the branch below**, because a header
+		// carrying a trailing comment answers that branch's test too and the
+		// parser does not report it where that branch would.
+		if headers[n] == pos+1 {
+			blockOpenAt = pos
+			if !legal {
+				setStray(n, pos+1, true)
+			}
+			continue
+		}
 		if strings.ContainsRune("\"'[{", rune(rest[0])) ||
 			strings.TrimSpace(stripComment(rest)) != strings.TrimSpace(rest) {
 			if !legal {
@@ -264,9 +333,10 @@ func blockScan(content string, tok yamldoc.Position) (blockFailure, bool) {
 			}
 			continue
 		}
+
 		plainAt = n
 		if !legal {
-			strayLine, strayCol = n, pos+1
+			setStray(n, pos+1, false)
 		}
 	}
 
@@ -274,6 +344,57 @@ func blockScan(content string, tok yamldoc.Position) (blockFailure, bool) {
 		return parserVerdict(strayLine, strayCol)
 	}
 	return parserVerdict(tok.Line, tok.Column)
+}
+
+// blockScalarHeaders is every block scalar header in the source, as a line to
+// the 1-based column it opens at.
+//
+// **goccy's own lexer answers this, rather than a test on the text.** A header
+// is `|` or `>` followed by any order of chomping and indentation indicators
+// and nothing else — `|`, `>-`, `|2`, `>1+`, `|-2`, a trailing comment — while
+// `|x` is not a header at all but an invalid token, and either spelling inside
+// a quoted scalar or a comment is neither. The lexer already draws that line
+// (`token.LiteralType` and `token.FoldedType`), so reading it back is the same
+// division goccy's parser made when it produced the failure being reconstructed.
+func blockScalarHeaders(content string) map[int]int {
+	headers := make(map[int]int)
+	for _, tk := range lexer.Tokenize(content) {
+		if tk.Position == nil {
+			continue
+		}
+		if tk.Type == token.LiteralType || tk.Type == token.FoldedType {
+			headers[tk.Position.Line] = tk.Position.Column
+		}
+	}
+	return headers
+}
+
+// startsRequiredKey reports whether the line (text, n) at indentation pos is
+// itself the scanner failure ruamel raises for a key that has to fit on one
+// line — a plain scalar sitting at the open construct's own column.
+//
+// **It is only asked after a block scalar.** A stray plain scalar is reported
+// by the parser as soon as anything closes it, because the scalar and the line
+// that closed it are one token; a block scalar is a finished token of its own,
+// so the scanner reaches the next line and can fail there first. `cv:\n  name:
+// John\n  |\n  more` is ruamel's `while scanning a simple key` on `more`, not
+// its parser's verdict on the header above.
+func startsRequiredKey(stack []openBlock, headers map[int]int, text string, n, pos int) bool {
+	rest := text[pos:]
+	if rest == "" || isBlockEntry(rest) || hasKeyIndicator(rest) || headers[n] == pos+1 {
+		return false
+	}
+	// **Only a plain scalar beats the parser here.** A quoted one is a finished
+	// token the moment its closing quote is read, so the parser is handed the
+	// block scalar above it and rejects that first; a plain one cannot be
+	// finished until the scanner has hunted for the `:` that never comes.
+	if rest[0] == '"' || rest[0] == '\'' {
+		return false
+	}
+	for len(stack) > 0 && stack[len(stack)-1].col > pos {
+		stack = stack[:len(stack)-1]
+	}
+	return len(stack) > 0 && stack[len(stack)-1].col == pos
 }
 
 // simpleKeyProblem is where ruamel's scanner stands when it gives up on a
