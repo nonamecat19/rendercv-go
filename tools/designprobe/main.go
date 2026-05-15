@@ -515,7 +515,10 @@ func themeOverrides() map[string]map[string]any {
 `)
 	for _, stem := range stems {
 		fmt.Fprintf(&out, "\t\t%q: ", stem)
-		out.WriteString(renderValue(all[stem], 2))
+		// The outer literal already names map[string]any as its element type, so
+		// repeating it here is the redundancy gofumpt strips. Nested values are
+		// typed `any` and keep their type.
+		out.WriteString(strings.TrimPrefix(renderValue(all[stem], 2), "map[string]any"))
 		out.WriteString(",\n")
 	}
 	out.WriteString("\t}\n}\n")

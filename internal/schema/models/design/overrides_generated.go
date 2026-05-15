@@ -14,7 +14,7 @@ package design
 // points back at the base's __1 (plan §4).
 func themeOverrides() map[string]map[string]any {
 	return map[string]map[string]any{
-		"ember": map[string]any{
+		"ember": {
 			"colors": map[string]any{
 				"body":           "rgb(35, 31, 32)",
 				"connections":    "rgb(100, 75, 68)",
@@ -120,7 +120,7 @@ func themeOverrides() map[string]map[string]any {
 				},
 			},
 		},
-		"engineeringclassic": map[string]any{
+		"engineeringclassic": {
 			"entries": map[string]any{
 				"highlights": map[string]any{
 					"space_above":         "0.12cm",
@@ -174,7 +174,7 @@ func themeOverrides() map[string]map[string]any {
 				},
 			},
 		},
-		"engineeringresumes": map[string]any{
+		"engineeringresumes": {
 			"colors": map[string]any{
 				"connections":    "rgb(0,0,0)",
 				"headline":       "rgb(0,0,0)",
@@ -254,7 +254,7 @@ func themeOverrides() map[string]map[string]any {
 				},
 			},
 		},
-		"harvard": map[string]any{
+		"harvard": {
 			"colors": map[string]any{
 				"connections":    "rgb(0,0,0)",
 				"headline":       "rgb(0,0,0)",
@@ -321,7 +321,7 @@ func themeOverrides() map[string]map[string]any {
 				},
 			},
 		},
-		"ink": map[string]any{
+		"ink": {
 			"colors": map[string]any{
 				"connections":    "rgb(70, 50, 110)",
 				"footer":         "rgb(120, 100, 140)",
@@ -425,7 +425,7 @@ func themeOverrides() map[string]map[string]any {
 				},
 			},
 		},
-		"moderncv": map[string]any{
+		"moderncv": {
 			"entries": map[string]any{
 				"highlights": map[string]any{
 					"space_above":                   "0.15cm",
@@ -494,7 +494,7 @@ func themeOverrides() map[string]map[string]any {
 				"line_spacing": "0.6em",
 			},
 		},
-		"opal": map[string]any{
+		"opal": {
 			"colors": map[string]any{
 				"connections":    "rgb(0, 80, 72)",
 				"footer":         "rgb(100, 140, 135)",
@@ -601,7 +601,7 @@ func themeOverrides() map[string]map[string]any {
 				},
 			},
 		},
-		"sb2nov": map[string]any{
+		"sb2nov": {
 			"colors": map[string]any{
 				"connections":    "rgb(0,0,0)",
 				"headline":       "rgb(0,0,0)",
