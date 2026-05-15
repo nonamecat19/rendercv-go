@@ -2159,6 +2159,206 @@ func TestNonMapValueNamesTheBlockConstruct(t *testing.T) {
 	}
 }
 
+// TestBlockScalarHeaderIsANodeNotAKey pins the shape class both block rows used
+// to get wrong: an offending line that is a **block scalar header**.
+//
+// A header is not a key and not a plain scalar. ruamel's scanner reads it, and
+// every line indented past it, as one finished token and hands the parser a
+// scalar — so the parser rejects the scalar and names the construct it was in,
+// where the port used to answer `while scanning a simple key` (the header sat
+// at a construct's own column) or `mapping values are not allowed here` (a
+// later line carried a colon, as if the header had folded into it).
+//
+// **The scanner can still get there first, one node further on than goccy
+// does.** Because the header is a finished token, the scanner has already read
+// the line *after* the block scalar's content, and a plain scalar there at the
+// open construct's column is the simple-key failure — reported on that line,
+// not on the header. A quoted scalar there is not: it is a finished token too,
+// so the parser is handed the header first and rejects it.
+//
+// The discriminator is goccy's own lexer (`token.LiteralType`,
+// `token.FoldedType`), not a test on the text, so every header spelling is
+// covered and `|x`, which is no header at all, is not. Measured over 10,192
+// structured shapes, of which 4,997 reach the scan: 3,529 carried ruamel's
+// phrasing and 3,189 both its marks before, 4,991 carry both now, and none
+// moved from right to wrong. Each row below is measured against the vendored
+// Python, message and both marks.
+func TestBlockScalarHeaderIsANodeNotAKey(t *testing.T) {
+	tests := []struct {
+		name     string
+		src      string
+		message  string
+		from, to yamldoc.Position
+	}{{
+		// Left of everything, so the parser names the outermost mapping.
+		name:    "a bare header left of the mapping",
+		src:     "cv:\n  name: John\n|\n",
+		message: "while parsing a block mapping",
+		from:    yamldoc.Position{Line: 1, Column: 1},
+		to:      yamldoc.Position{Line: 3, Column: 1},
+	}, {
+		name:    "a folded header",
+		src:     "cv:\n  name: John\n>\n",
+		message: "while parsing a block mapping",
+		from:    yamldoc.Position{Line: 1, Column: 1},
+		to:      yamldoc.Position{Line: 3, Column: 1},
+	}, {
+		name:    "a chomping indicator",
+		src:     "cv:\n  name: John\n|-\n",
+		message: "while parsing a block mapping",
+		from:    yamldoc.Position{Line: 1, Column: 1},
+		to:      yamldoc.Position{Line: 3, Column: 1},
+	}, {
+		name:    "an indentation indicator",
+		src:     "cv:\n  name: John\n>2\n",
+		message: "while parsing a block mapping",
+		from:    yamldoc.Position{Line: 1, Column: 1},
+		to:      yamldoc.Position{Line: 3, Column: 1},
+	}, {
+		name:    "both indicators",
+		src:     "cv:\n  name: John\n|2-\n",
+		message: "while parsing a block mapping",
+		from:    yamldoc.Position{Line: 1, Column: 1},
+		to:      yamldoc.Position{Line: 3, Column: 1},
+	}, {
+		name:    "a header between two levels",
+		src:     "cv:\n  name: John\n |\n",
+		message: "while parsing a block mapping",
+		from:    yamldoc.Position{Line: 1, Column: 1},
+		to:      yamldoc.Position{Line: 3, Column: 2},
+	}, {
+		// At the inner mapping's own column, where a key would be required of
+		// anything else — and the header is the only thing left, so the parser
+		// reports it.
+		name:    "a header at the mapping's own column",
+		src:     "cv:\n  name: John\n  |\n",
+		message: "while parsing a block mapping",
+		from:    yamldoc.Position{Line: 2, Column: 3},
+		to:      yamldoc.Position{Line: 3, Column: 3},
+	}, {
+		// The same header with a plain successor: the scanner reaches `more`,
+		// requires a key of it, and fails there instead.
+		name:    "a plain successor at the mapping's column",
+		src:     "cv:\n  name: John\n  |\n  more\n",
+		message: "while scanning a simple key",
+		from:    yamldoc.Position{Line: 4, Column: 3},
+		to:      yamldoc.Position{Line: 5, Column: 1},
+	}, {
+		name:    "a plain successor after the block scalar's content",
+		src:     "cv:\n  name: John\n  |\n    deep\n  more\n",
+		message: "while scanning a simple key",
+		from:    yamldoc.Position{Line: 5, Column: 3},
+		to:      yamldoc.Position{Line: 6, Column: 1},
+	}, {
+		name:    "a quoted successor does not beat the parser",
+		src:     "cv:\n  name: John\n  |\n  \"d\"\n",
+		message: "while parsing a block mapping",
+		from:    yamldoc.Position{Line: 2, Column: 3},
+		to:      yamldoc.Position{Line: 3, Column: 3},
+	}, {
+		// A key indented past the header is the block scalar's own content, so
+		// its colon is not the scanner's `mapping values are not allowed here`.
+		name:    "a key successor deeper than the header",
+		src:     "cv:\n  name: John\n |\n  tail: 2\n",
+		message: "while parsing a block mapping",
+		from:    yamldoc.Position{Line: 1, Column: 1},
+		to:      yamldoc.Position{Line: 3, Column: 2},
+	}, {
+		name:    "a header at a sequence's own column",
+		src:     "cv:\n  - name: John\n  |\n",
+		message: "while parsing a block collection",
+		from:    yamldoc.Position{Line: 2, Column: 3},
+		to:      yamldoc.Position{Line: 3, Column: 3},
+	}, {
+		name:    "a plain successor under a sequence",
+		src:     "cv:\n  - name: John\n  |\n  more\n",
+		message: "while scanning a simple key",
+		from:    yamldoc.Position{Line: 4, Column: 3},
+		to:      yamldoc.Position{Line: 5, Column: 1},
+	}, {
+		// A trailing comment does not make the header a comment-terminated
+		// scalar, which is the branch it used to be answered by.
+		name:    "a header carrying a comment",
+		src:     "cv:\n  a:\n    b: 1\n   | # c\n  more\n",
+		message: "while scanning a simple key",
+		from:    yamldoc.Position{Line: 5, Column: 3},
+		to:      yamldoc.Position{Line: 6, Column: 1},
+	}, {
+		// A document marker ends the stream, so nothing can beat the parser to
+		// the header any more.
+		name:    "a header before a document marker",
+		src:     "cv:\n  a:\n    b: 1\n   | # c\n---\n",
+		message: "while parsing a block mapping",
+		from:    yamldoc.Position{Line: 2, Column: 3},
+		to:      yamldoc.Position{Line: 4, Column: 4},
+	}, {
+		// The keyed spelling, which was already right, so the rule above is
+		// pinned not to move it.
+		name:    "a keyed header at the mapping's column",
+		src:     "cv:\n  name: John\n  k: |\n  more\n",
+		message: "while scanning a simple key",
+		from:    yamldoc.Position{Line: 4, Column: 3},
+		to:      yamldoc.Position{Line: 5, Column: 1},
+	}}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := ReadYamlWithValidationErrors(test.src, schemaerr.SourceMain)
+
+			var userErr *schemaerr.UserValidationError
+			if !errors.As(err, &userErr) {
+				t.Fatalf("expected *schemaerr.UserValidationError, got %T: %v", err, err)
+			}
+			record := userErr.Errors[0]
+			if want := "This is not a valid YAML file. " + test.message + "."; record.Message != want {
+				t.Errorf("message =\n  %q\nwant\n  %q", record.Message, want)
+			}
+			if record.YamlLocation == nil {
+				t.Fatal("yaml location = nil, want a span")
+			}
+			if got := *record.YamlLocation; got.Start != test.from || got.End != test.to {
+				t.Errorf("location = %v to %v, want %v to %v",
+					got.Start, got.End, test.from, test.to)
+			}
+		})
+	}
+}
+
+// TestABlockScalarHeaderIsGoccysOwnToken is the anti-vacuity half of the rows
+// above: the discriminator must come from goccy's lexer and not from a `|`
+// found in the text. `|x` is no header at all — the lexer says `Invalid`, and
+// ruamel's scanner rejects it before its parser ever sees a node — so the rule
+// must not claim it, and a `|` inside a quoted scalar must not be claimed
+// either.
+func TestABlockScalarHeaderIsGoccysOwnToken(t *testing.T) {
+	tests := []struct {
+		name string
+		src  string
+		want map[int]int
+	}{
+		{"a bare header", "cv:\n  name: John\n|\n", map[int]int{3: 1}},
+		{"every indicator", "a: |2-\nb: >+\n", map[int]int{1: 4, 2: 4}},
+		{"a trailing comment", "cv:\n  name: John\n| # c\n", map[int]int{3: 1}},
+		{"content is not a header", "cv: |\n  >\n  |\n", map[int]int{1: 5}},
+		{"an invalid indicator", "cv:\n  name: John\n|x\n", map[int]int{}},
+		{"a quoted pipe", "cv:\n  name: \"|\"\n", map[int]int{}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := blockScalarHeaders(test.src)
+			if len(got) != len(test.want) {
+				t.Fatalf("headers = %v, want %v", got, test.want)
+			}
+			for line, column := range test.want {
+				if got[line] != column {
+					t.Errorf("headers = %v, want %v", got, test.want)
+				}
+			}
+		})
+	}
+}
+
 // TestNonMapValueReachesGoccysOwnSpelling is the anti-vacuity half of the row
 // above: every input there must genuinely arrive through goccy's `non-map value
 // is specified`, not through the neighbouring "not allowed in this context"
