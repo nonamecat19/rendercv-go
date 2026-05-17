@@ -106,7 +106,8 @@ var pythonMarkdownWriter = pythonWriter{inner: html.DefaultWriter}
 // reading the diff rather than reducing it.
 func MarkdownToHTML(markdown string) (string, error) {
 	var out bytes.Buffer
-	source := splitRawBlockTails(flattenShallowLists(normalizeWhitespace(markdown)), "\n")
+	source := splitRawBlockTails(
+		flattenShallowLists(normalizeCharRefs(normalizeWhitespace(markdown))), "\n")
 	if err := converter.Convert([]byte(source), &out); err != nil {
 		return "", err
 	}
