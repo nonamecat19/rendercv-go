@@ -15,6 +15,11 @@ import (
 )
 
 func parse(src string) (*yamldoc.Node, error) {
+	// First, as it is upstream: ruamel's reader checks the whole document
+	// before its scanner sees a token — see printable.go.
+	if err := checkPrintable(src); err != nil {
+		return nil, err
+	}
 	if err := checkTabs(src); err != nil {
 		return nil, err
 	}
