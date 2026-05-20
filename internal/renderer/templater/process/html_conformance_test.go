@@ -62,7 +62,15 @@ import (
 // rows, and the one row of it the Typst fixture reaches, are closed by
 // `blockLevelHTMLParser.Continue` and `splitRawBlockTails`.
 //
-// Measured after that work: 2 rows differ in `knownRemainder` and 4 in
+// A ninth took the last container shape, `- <div>\nmulti\n</div>`, which had
+// been recorded as needing a scanner over the block's whole text and did not:
+// upstream never opens a raw block on a **closing** tag (`htmlparser.py:230-255`
+// against `:215`), so the `</div>` that was leaving the `<li>` had no block to
+// leave into. 63 rows enumerate the rule, and a lone `</div>` reaches
+// `RawHtmlPostprocessor`'s `<p>`-stripping (`postprocessors.py:84-86`), which is
+// `postprocessors.go`.
+//
+// Measured after that work: 2 rows differ in `knownRemainder` and 3 in
 // `containerBlockTag`, checked by running `MarkdownToHTML` over every `In` and
 // diffing against the fixture's `Out` — not read off a commit message.
 //

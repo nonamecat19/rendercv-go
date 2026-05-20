@@ -20,29 +20,31 @@ package process_test
 // item and the *inline* `html` pattern (`inlinepatterns.py:90`) stashes it.
 // goldmark asks after the marker has been consumed, so it sees a line-initial
 // tag and opens a block inside the `<li>`. `htmlblock.go`'s `atLineStart` puts
-// the question back where upstream asks it, and 18 of the 22 close.
+// the question back where upstream asks it, and 18 of the 22 close; the
+// closing-tag rule in the same file closed the 19th.
 
-// containerBlockTag is the four `at_line_start` does **not** close. None of the
-// four is this class, which is why they are still here and not a regression:
+// The multi-line shape `- <div>\nmulti\n</div>` was a fourth, and was recorded
+// here as needing a scanner over the block's whole text — the thing spec 011
+// §9.3 declines for link destinations. **That reading was wrong.** The tag that
+// escaped the `<li>` is the *closing* one, and upstream never opens a raw block
+// on a closing tag at all (`htmlparser.py:230-255` against `:215`), so nothing
+// had to span lines: `htmlblock.go`'s `Open` declines the end tag and the item
+// keeps its text. 63 shapes of that rule are in the fixture.
 //
-//  1. `- <div>\nmulti\n</div>` — a block tag spanning lines inside an item.
-//     Upstream keeps the whole run as the item's text; the port's inline stash
-//     (`inline.go`'s `matchRawHTML`) is single-line, so the `</div>` on its own
-//     line escapes the `<li>`. **This is the one shape in the enumeration that
-//     needs what spec 011 §9.3 declines for link destinations** — a scanner
-//     over the block's whole text — so it is recorded, not attempted.
-//  2. `- <div>a</div>\n  <div>b</div>` — upstream puts a `<br />` between the
+// containerBlockTag is the three left. None of the three is this class, which
+// is why they are still here and not a regression:
+//
+//  1. `- <div>a</div>\n  <div>b</div>` — upstream puts a `<br />` between the
 //     two. That is the **block** stash, not the inline one: the continuation
 //     line *is* at line start, so `handle_starttag` takes it and
 //     `htmlparser.py:216-218` appends a newline to `cleandoc`.
-//  3. and 4. `- outer\n    - <div>x</div>` and `- <div>x</div>\n    - nested`
+//  2. and 3. `- outer\n    - <div>x</div>` and `- <div>x</div>\n    - nested`
 //     differ only by `outer<ul>` against `outer\n<ul>` — the **nested-list
 //     newline**, which reproduces with no HTML in it at all: `- outer\n    -
 //     inner` differs the same way and predates this work.
 //
-// The pins stay inverted, so any of the four that starts matching fails.
+// The pins stay inverted, so any of the three that starts matching fails.
 var containerBlockTag = map[string]bool{
-	"- <div>\nmulti\n</div>":         true,
 	"- <div>a</div>\n  <div>b</div>": true,
 	"- outer\n    - <div>x</div>":    true,
 	"- <div>x</div>\n    - nested":   true,
