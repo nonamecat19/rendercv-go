@@ -1,6 +1,8 @@
 package process
 
 import (
+	"bytes"
+
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/renderer"
@@ -96,15 +98,33 @@ func (linkParser) Parse(_ ast.Node, block text.Reader, pc parser.Context) ast.No
 		return nil
 	}
 
+	// **The scan is the block's text, not the line's** (spec 011 §9.3).
+	// `getLink` is handed `data` — the whole text the tree processor is
+	// walking (`inlinepatterns.py:698, 731`) — and python-markdown's block
+	// text is the block's lines joined by `\n`, so a destination may cross
+	// one: `[t](a\nb)` is `<a href="a\nb">` upstream.
+	tail := readBlockTail(block)
+	if tail.text == nil {
+		return nil
+	}
+
 	// getText's own bracket-balance scan (`inlinepatterns.py:832-850`), run
-	// over the escape-masked line so a `\]` in the label is not a closing
+	// over the escape-masked text so a `\]` in the label is not a closing
 	// bracket: `[a\](b)` is not a link at all upstream.
-	scan := []byte(maskAbove(string(line), prioLink))
+	scan := []byte(maskAbove(string(tail.text), prioLink))
 	_, after := matchBracketed(scan, 1, '[', ']')
 	if after < 0 || after >= len(scan) || scan[after] != '(' {
 		return nil
 	}
-	href, title, hasTitle, parenEnd, ok := getLink(scan, line, after)
+	// **A label that crosses a line is left to goldmark**, which already
+	// agrees with upstream on one and whose parser this one only outranks for
+	// the shapes it adds. `parseEmphasisBody` takes source offsets on the
+	// current line, so claiming a multi-line label here would need the label
+	// side of the same mapping for no measured gain.
+	if after > len(line) {
+		return nil
+	}
+	href, title, hasTitle, parenEnd, ok := getLink(scan, tail.text, after)
 	if !ok {
 		return nil
 	}
@@ -117,9 +137,103 @@ func (linkParser) Parse(_ ast.Node, block text.Reader, pc parser.Context) ast.No
 
 	advanceTo(block, segment.Start+1) // the opening `[`
 	parseEmphasisBody(link, block, pc, segment.Start+after-1, -1, noCutoffDelim, false)
-	advanceTo(block, segment.Start+parenEnd) // the closing `]` through the `)`
+	advanceTo(block, tail.sourceOffset(parenEnd)) // the closing `]` through the `)`
 
 	return link
+}
+
+// blockTail is the block's text from the reader's position to the end of the
+// block, with the mapping back to source offsets that advancing needs.
+//
+// The text is the lines joined as the reader hands them over, which is how
+// python-markdown's block text is built too: a container's prefix is already
+// gone from both, so `> [t](a\n> b)` scans as `[t](a\nb)` on both sides.
+type blockTail struct {
+	text []byte
+	// lines is one entry per line: where it starts in text, and where the same
+	// byte is in the source.
+	lines []tailLine
+}
+
+type tailLine struct{ inText, inSource int }
+
+// readBlockTail reads the rest of the block without moving the reader.
+//
+// It returns a nil `text` for a line the mapping cannot describe — one goldmark
+// has given synthetic padding, which stands in for a tab it expanded. Nothing
+// reaches that here, because `normalizeWhitespace` has already expanded every
+// tab in the document (`html.go`), but a wrong offset would be a silently
+// mangled link rather than a declined one.
+func readBlockTail(block text.Reader) blockTail {
+	line, segment := block.Position()
+	defer block.SetPosition(line, segment)
+
+	source := block.Source()
+	var tail blockTail
+	for first := true; ; first = false {
+		value, current := block.PeekLine()
+		if len(value) == 0 {
+			break
+		}
+		if current.Padding != 0 {
+			return blockTail{}
+		}
+		start := current.Start
+		if !first {
+			start = indentedLineStart(source, current.Start)
+		}
+		tail.lines = append(tail.lines, tailLine{inText: len(tail.text), inSource: start})
+		tail.text = append(tail.text, source[start:current.Start]...)
+		tail.text = append(tail.text, value...)
+		block.AdvanceLine()
+	}
+	return tail
+}
+
+// indentedLineStart gives back the indentation goldmark trimmed off a
+// continuation line, which upstream's block text still has.
+//
+// A paragraph's second and later lines are stored `TrimLeftSpace`d
+// (`parser/paragraph.go`), where python-markdown `lstrip`s the **block**
+// (`blockprocessors.py`, `ParagraphProcessor.run`) and so strips the first line
+// only: `[t](a\n  b)` is `href="a\n  b"` upstream, two spaces and all.
+//
+// What stands between the line head and the segment is the container prefix
+// plus that indentation, and only the second is upstream's to keep. A blockquote
+// marker is `>` and **one** optional space on both sides —
+// `BlockQuoteProcessor.RE` is `(^|\n)[ ]{0,3}>[ ]?` (`blockprocessors.py`), and
+// goldmark's parser consumes the same — so the last `>` on the line, and one
+// space after it, is where upstream's own text begins:
+//
+//	[t](a\n  b)        href="a\n  b"
+//	> [t](a\n>   b)    href="a\n  b"   the `> ` goes, the two spaces stay
+//
+// A list item's continuation line carries no marker of its own, so its whole
+// gap is indentation.
+func indentedLineStart(source []byte, start int) int {
+	head := bytes.LastIndexByte(source[:start], '\n') + 1
+	if marker := bytes.LastIndexByte(source[head:start], '>'); marker >= 0 {
+		head += marker + 1
+		if head < start && source[head] == ' ' {
+			head++
+		}
+	}
+	if len(bytes.Trim(source[head:start], " \t")) != 0 {
+		return start
+	}
+	return head
+}
+
+// sourceOffset is the source position of one offset into the tail's text.
+func (t blockTail) sourceOffset(offset int) int {
+	at := t.lines[0]
+	for _, l := range t.lines {
+		if l.inText > offset {
+			break
+		}
+		at = l
+	}
+	return at.inSource + offset - at.inText
 }
 
 // getLink is `LinkInlineProcessor.getLink` (`inlinepatterns.py:716-830`): the
