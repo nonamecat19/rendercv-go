@@ -35,6 +35,14 @@ var blockLevelElements = map[string]bool{
 // openingTag matches a line that begins with an HTML tag, capturing its name.
 var openingTag = regexp.MustCompile(`^</?([A-Za-z][A-Za-z0-9-]*)`)
 
+// commonMarkCloseTag is goldmark's own closing-tag grammar
+// (`parser/raw_html.go`'s `closeTagRegexp`, CommonMark 0.31 §6.6), which is
+// **narrower than python-markdown's** `HTML_RE` (`inlinepatterns.py:161-168`,
+// `<(\/?[a-zA-Z][^<>]*)>`): no attributes, and the name is
+// `[A-Za-z][A-Za-z0-9-]*`. It is asked here because it decides whether the
+// *inline* parser will take a closing tag this one hands back — see `Open`.
+var commonMarkCloseTag = regexp.MustCompile(`^</[A-Za-z][A-Za-z0-9-]*[ \t]*>`)
+
 // blockLevelHTMLParser narrows goldmark's HTML block parser to the tags
 // python-markdown treats as blocks.
 //
@@ -52,19 +60,54 @@ var openingTag = regexp.MustCompile(`^</?([A-Za-z][A-Za-z0-9-]*)`)
 // declaration and CDATA forms, which carry no tag name to look up.
 //
 // **It also declines a tag that is not at the start of its source line**, which
-// is what a list item or a blockquote makes of one — see `atLineStart`.
+// is what a list item or a blockquote makes of one — see `atLineStart` — and
+// **a closing tag**, which upstream never opens a raw block on at all — see
+// `Open`.
 type blockLevelHTMLParser struct {
 	parser.BlockParser
 }
 
-// Open declines a non-block-level tag and otherwise defers to goldmark, then
-// records where the raw block ends so `Continue` can stop there.
+// Open declines a non-block-level tag and a closing tag, otherwise defers to
+// goldmark, then records where the raw block ends so `Continue` can stop there.
+//
+// # A closing tag never starts a raw block
+//
+// `handle_starttag` has the branch that sets `inraw` (`htmlparser.py:215`);
+// `handle_endtag` has none (`:230-255`). Outside a raw block a closing tag is
+// appended to `cleandoc` as ordinary text, so it is block-parsed as text and the
+// **inline** `html` pattern stashes it (`inlinepatterns.py:90`). goldmark's HTML
+// block types 6 and 7 open on `</div>` exactly as on `<div>`, and the block that
+// opens also *interrupts a paragraph*:
+//
+//	text\n</div>            upstream <p>text\n</div></p>
+//	- <div>\nmulti\n</div>  upstream <ul>\n<li><div>\nmulti\n</div></li>\n</ul>
+//
+// The second is spec 011 §9.5's last container shape — the `</div>` line was
+// leaving the `<li>` and closing the `<ul>` early. It needs no scanner over the
+// block's whole text, which is what the shape was recorded as needing: the tag
+// that escaped the item is the **closing** one, and upstream never gives it a
+// block to escape into.
+//
+// A lone `</div>` then arrives as a paragraph holding one stash entry, which
+// upstream unwraps — `postprocessors.go`.
+//
+// # Why the grammar is asked
+//
+// Declining hands the tag to the inline parser, and goldmark's is CommonMark's:
+// `</div attr>` is not a closing tag to it, so it would come back HTML-escaped
+// where upstream stashes it. That is the same class as `#include <stdio.h>`,
+// python-markdown's much wider `HTML_RE` against CommonMark 0.31 §6.6, which
+// this unit does not own. `commonMarkCloseTag` keeps the decline to the tags the
+// inline parser will actually take, so the class stays exactly as wide as it was.
 func (p blockLevelHTMLParser) Open(
 	parent ast.Node, reader text.Reader, pc parser.Context,
 ) (ast.Node, parser.State) {
 	line, segment := reader.PeekLine()
 	if match := openingTag.FindSubmatch(line); match != nil {
 		if !blockLevelElements[lower(match[1])] {
+			return nil, parser.NoChildren
+		}
+		if match[0][1] == '/' && commonMarkCloseTag.Match(line) {
 			return nil, parser.NoChildren
 		}
 	}
