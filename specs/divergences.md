@@ -777,3 +777,52 @@ The last is the only case in this entry where the port renders and upstream does
   the same "at most one directive" limitation as the class D-017 already tracks, filed together if
   D-017's issue is ever opened. Not filed this pass, for the same reason D-017 gives: it is an action
   on a third-party public tracker, left for explicit confirmation.
+
+---
+
+## D-021 — A `design` mapping with no `theme` key is a panel, not a `KeyError` traceback
+
+**Status:** approved · **Iteration:** 6 (STATE.md's open finding) · **An instance of D-011's
+class**, superseded in scope by D-014 — see both; the reasoning is not restated here.
+
+- **Differs:** upstream prints a Rich traceback on stderr (`KeyError: 'theme'`, 9,611 B) with the
+  progress box alone on stdout (522 B); `rendercv-go` prints its own validation panel on stdout
+  (1,411 B) and nothing on stderr. **Both exit 1** — that is the part this entry closes.
+- **Upstream:** `schema/models/design/design.py:35-57`. `validate_design` tries the discriminated
+  union (`:36`), catches its `ValidationError`, finds `ctx['discriminator'] == "'theme'"` in it
+  (`:38-47`), concludes the block must name a custom theme, and then reads `design["theme"]`
+  unguarded at `:57`. There is no key, so it raises — and `handle_user_errors`
+  (`cli/error_handler.py:38-49`) only catches `RenderCVUserError`, so Typer's excepthook prints
+  the traceback. Measured against the vendored binary, non-tty, `NO_COLOR=1 TERM=dumb COLUMNS=80`:
+
+  | Document | Upstream | `rendercv-go` |
+  |---|---|---|
+  | *(no `design` key)* | renders, exit 0 | renders, exit 0 |
+  | `design: {theme: classic}` | renders, exit 0 | renders, exit 0 |
+  | `design: {page: {size: us-letter}}` | `KeyError`, 522 B out / 9,611 B err, **exit 1** | panel, 1,411 B out, **exit 1** |
+  | `design: {}` | `KeyError`, 522 B / 9,611 B, **exit 1** | panel, 1,411 B, **exit 1** |
+  | `design: {bogus: 1}` | `KeyError`, 522 B / 9,611 B, **exit 1** | panel, 1,411 B, **exit 1** |
+  | `design: {page: {size: bogus}, zzz: 1}` | `KeyError`, 522 B / 9,611 B, **exit 1** | panel, 1,411 B, **exit 1** |
+  | `design: [1]` | `TypeError`, 522 B / 10,600 B, exit 1 | panel, 1,411 B, exit 1 |
+  | `design: null`, `design:` *(no value)*, `design: hello` | panel, exit 1 | **byte-identical** panel, exit 1 |
+
+  Only a `design` **mapping** reaches `:57`; a non-mapping fails the union with
+  `model_attributes_type` instead, which is not a discriminator failure, so `:43`'s re-raise sends
+  it to the ordinary table — those three rows already matched and still do.
+- **Why parity is impossible:** D-011 and D-014. A Go binary has no CPython call stack and cannot
+  print source lines out of `third_party/rendercv`.
+- **Instead:** the port reports `union_tag_not_found` at `design` with pydantic's own message,
+  `Unable to extract tag using discriminator 'theme'`. **The message is not invented**: it is the
+  error `design.py:36` builds, `:38-47` inspects and then discards, verified by calling
+  `built_in_design_adapter.validate_python({})` in the vendored venv; and it is exactly what
+  `locale` — the same construct without a wrap validator in front of it — prints to a user for the
+  same shape, down to the `...` in the Input Value column. This follows D-012's stated precedent
+  for this class: "The port keeps the forced kind and reports an ordinary validation record at
+  exit 1, which is deliberately the closest available behavior."
+- **What changed:** before this entry the port **exited 0 and wrote five artifacts** for all four
+  crashing shapes, silently defaulting the theme — a violation of contract axis 2 (exit codes) on
+  top of the shape difference, and the only remaining case where the port rendered a document
+  upstream refuses outright. Axis 2 is now satisfied for every `design` shape measured; what
+  remains is the traceback text, which is permanent under D-011.
+- **User notices:** a one-row error table naming `design` instead of a Python stack trace with
+  someone else's filesystem paths in it.
