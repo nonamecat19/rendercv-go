@@ -115,9 +115,13 @@ func TestAThemeChangesTheEffectiveValues(t *testing.T) {
 }
 
 // A document's own `design` block merges over the theme's, one key at a time.
+//
+// The block names its theme because a `design` mapping with no `theme` key is a
+// `union_tag_not_found` record now (`validate.go`), matching upstream's exit 1.
 func TestTheDocumentsDesignBlockWins(t *testing.T) {
 	model := bridged(t, minimal+`
 design:
+  theme: classic
   header:
     connections:
       hyperlink: false
@@ -176,7 +180,8 @@ settings:
 // because by the time it runs the value is already a Go `bool`. Found by a
 // fresh-context verifier (iteration 14's seventh re-verification).
 func TestAllCapsBooleanReachesTheDesignTree(t *testing.T) {
-	node, err := yamlreader.ReadString(minimal + "\ndesign:\n  typography:\n    bold:\n      connections: TRUE\n")
+	node, err := yamlreader.ReadString(minimal +
+		"\ndesign:\n  theme: classic\n  typography:\n    bold:\n      connections: TRUE\n")
 	if err != nil {
 		t.Fatalf("reading the document: %v", err)
 	}

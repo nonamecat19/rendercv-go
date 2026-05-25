@@ -241,18 +241,137 @@ func TestDesignBlock(t *testing.T) {
 	}
 }
 
-// A `design` block with no `theme` key **crashes upstream**: validate_design
-// does `str(design["theme"])` unguarded before the union resolves it
-// (design.py:57), so the shape that gives `locale` a union_tag_not_found gives
-// `design` a KeyError.
+// A `design` **mapping** with no `theme` key crashes upstream: `validate_design`
+// catches the discriminated union's own failure, reads the discriminator out of
+// it (`design.py:38-47`), concludes the block names a custom theme, and then does
+// `str(design["theme"])` unguarded (`design.py:57`) — `KeyError: 'theme'`, a Rich
+// traceback on stderr at **exit 1**.
 //
-// The port stays silent rather than inventing a message, which would report
-// where upstream crashes. Iteration 12's unhandled-failure handling owns it, and
-// this test says so rather than leaving the silence unexplained.
-func TestDesignWithoutAThemeIsSilent(t *testing.T) {
-	_, errs := models.Validate(
-		parse(t, "design:\n  page:\n    top_margin: x\n"), nil, schemaerr.SourceMain)
-	if len(errs) != 0 {
-		t.Errorf("errs = %+v, want none until iteration 12 decides what a crash prints", errs)
+// Every row below is measured against the vendored Python with `NO_COLOR=1
+// TERM=dumb COLUMNS=80`, non-tty:
+//
+//	document                        upstream                       code
+//	------------------------------  -----------------------------  ----
+//	(no design key)                 renders                        exit 0
+//	design: {theme: classic}        renders                        exit 0
+//	design: {page: {size: …}}       KeyError, 522 B out / 9611 err  exit 1
+//	design: {}                      KeyError, 522 B out / 9611 err  exit 1
+//	design: {bogus: 1}              KeyError, 522 B out / 9611 err  exit 1
+//	design: {page: …, zzz: 1}       KeyError, 522 B out / 9611 err  exit 1
+//	design: null                    panel, model_attributes_type   exit 1
+//	design: (no value)              panel, model_attributes_type   exit 1
+//	design: hello                   panel, model_attributes_type   exit 1
+//	design: [1]                     TypeError traceback, 10600 B   exit 1
+//
+// The port reports `union_tag_not_found` for the four crashing mapping shapes and
+// exits 1 — D-011/D-014's class, following D-012's stated precedent (a forced
+// kind plus an ordinary record at exit 1). The message is not invented: it is
+// pydantic's own for the union `design.py:36` tries and then discards, and is
+// what `locale` — the same union without a wrap validator in front of it — shows
+// a user for exactly this shape.
+func TestDesignWithoutAThemeKey(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		code     string
+		message  string
+		location string
+	}{
+		{
+			name:  "no design block at all is untouched",
+			input: "cv:\n  name: A\n",
+		},
+		{
+			name:  "a theme key renders",
+			input: "design:\n  theme: classic\n",
+		},
+		{
+			name:     "a page block and no theme",
+			input:    "design:\n  page:\n    size: us-letter\n",
+			code:     "union_tag_not_found",
+			message:  "Unable to extract tag using discriminator 'theme'",
+			location: "design",
+		},
+		{
+			name:     "an empty mapping",
+			input:    "design: {}\n",
+			code:     "union_tag_not_found",
+			message:  "Unable to extract tag using discriminator 'theme'",
+			location: "design",
+		},
+		{
+			name:     "an unknown key alone",
+			input:    "design:\n  bogus: 1\n",
+			code:     "union_tag_not_found",
+			message:  "Unable to extract tag using discriminator 'theme'",
+			location: "design",
+		},
+		{
+			// The union fails before any option is judged, so the bad `size`
+			// and the unknown key are never reported: one record, not three.
+			name:     "a bad option and an unknown key, still one record",
+			input:    "design:\n  page:\n    size: bogus\n  zzz: 1\n",
+			code:     "union_tag_not_found",
+			message:  "Unable to extract tag using discriminator 'theme'",
+			location: "design",
+		},
+		{
+			// Not a mapping, so it never reaches the missing-key branch —
+			// upstream prints this exact panel rather than crashing.
+			name:     "an explicit null is the mapping shape failure",
+			input:    "design: null\n",
+			code:     "model_attributes_type",
+			message:  "Input should be a valid dictionary or object to extract fields from",
+			location: "design",
+		},
+		{
+			name:     "a key with no value is the same",
+			input:    "design:\n",
+			code:     "model_attributes_type",
+			message:  "Input should be a valid dictionary or object to extract fields from",
+			location: "design",
+		},
+		{
+			name:     "a scalar is the same",
+			input:    "design: hello\n",
+			code:     "model_attributes_type",
+			message:  "Input should be a valid dictionary or object to extract fields from",
+			location: "design",
+		},
+		{
+			// Upstream's `design["theme"]` raises `TypeError` here rather than
+			// `KeyError`; the port keeps the shape record it already had, and the
+			// exit code is 1 on both sides either way.
+			name:     "a sequence is the same",
+			input:    "design: [1]\n",
+			code:     "model_attributes_type",
+			message:  "Input should be a valid dictionary or object to extract fields from",
+			location: "design",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, errs := models.Validate(parse(t, tc.input), nil, schemaerr.SourceMain)
+
+			if tc.code == "" {
+				if len(errs) != 0 {
+					t.Fatalf("errs = %+v, want none", errs)
+				}
+				return
+			}
+			if len(errs) != 1 {
+				t.Fatalf("errs = %+v, want exactly one", errs)
+			}
+			if string(errs[0].Code) != tc.code {
+				t.Errorf("code = %q, want %q", errs[0].Code, tc.code)
+			}
+			if !strings.Contains(errs[0].Message, tc.message) {
+				t.Errorf("message = %q, want it to contain %q", errs[0].Message, tc.message)
+			}
+			if got := strings.Join(errs[0].SchemaLocation, "."); got != tc.location {
+				t.Errorf("location = %q, want %q", got, tc.location)
+			}
+		})
 	}
 }
