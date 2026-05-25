@@ -211,7 +211,20 @@ func sectionError(
 		SchemaLocation: append([]string(nil), location...),
 		YamlSource:     source,
 		Message:        message,
-		Input:          schemaerr.InputEllipsis,
+		// **The echo is the section value's own `str()`, not an unconditional
+		// ellipsis.** Upstream builds every record's column the same way —
+		// `str(plain_error["input"])` unless the input is a `dict` or a `list`
+		// (`pydantic_error_handling.py:122-126`) — and a section validator's
+		// input is the section value. So `a: null` reads `None`, `a: hello`
+		// reads `hello` and `a: 1.50` reads `1.5`, while a mapping keeps the
+		// `...`.
+		//
+		// The ellipsis was right for three of the four section errors and only
+		// those were measured: §4.10-§4.12 can only fire on a sequence, which
+		// RenderInput renders as `...` anyway. §4.8 — not a list — is the one
+		// that fires on a scalar, and it is also the commonest section failure
+		// there is. Measured on ten shapes through the vendored Python.
+		Input: schemaerr.RenderInput(node),
 	}
 	if node != nil {
 		span := node.Span
