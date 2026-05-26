@@ -7,6 +7,7 @@ import (
 	"github.com/nonamecat19/rendercv-go/internal/schema/httpurl"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv"
 	"github.com/nonamecat19/rendercv-go/internal/schema/phonenum"
+	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
 )
 
@@ -27,9 +28,12 @@ type ConnectionDesign struct {
 // contributes nothing here.
 //
 // It returns an error where upstream raises `RenderCVInternalError`: a key in
-// the order whose value is missing. That is unreachable from a validated
-// document — the order drops null-valued keys as it is recorded — and it is an
-// error rather than a panic because the renderer's caller can report it.
+// the order whose value is missing. For `phone`, `social_networks` and
+// `custom_connections` that is unreachable from a validated document — the
+// order drops null-valued keys as it is recorded. **For `website` it is
+// reachable**, because upstream tests that one for falsiness rather than for
+// null; see websiteIsFalsy. It is an error rather than a panic because the
+// renderer's caller reports it as a validation record.
 func Connections(model *cv.Cv, design ConnectionDesign) ([]process.Connection, error) {
 	if model == nil {
 		return nil, nil
@@ -68,8 +72,15 @@ func Connections(model *cv.Cv, design ConnectionDesign) ([]process.Connection, e
 			}
 
 		case "website":
-			if model.Website == nil {
-				return nil, fmt.Errorf("website key present but value is None")
+			// **`if not websites`, not `if websites is None`** (`:117`).
+			// `website` is the one connection key upstream tests for
+			// *falsiness*, and the difference is reachable: `cv.website: []`
+			// passes every validator, stays in `_key_order` — `cv.py:173`
+			// drops only the keys whose value **is None** — and then trips
+			// this check. Upstream exits 1 there; the port rendered it at exit
+			// 0, which is an exit-code divergence, not a message one. D-012.
+			if websiteIsFalsy(model.Website) {
+				return nil, websiteIsFalsyError(model.Website)
 			}
 			for _, website := range scalars(model.Website) {
 				// `str(website)` is `pydantic.HttpUrl`'s serialization, which is
@@ -109,6 +120,42 @@ func Connections(model *cv.Cv, design ConnectionDesign) ([]process.Connection, e
 		}
 	}
 	return out, nil
+}
+
+// websiteIsFalsy is the `not websites` of `:117`, over the two values that can
+// reach it.
+//
+// A validated `cv.website` is `HttpUrl | list[HttpUrl] | None`, and a
+// `pydantic.HttpUrl` is always truthy — so the only falsy shapes are the null
+// (which never enters the key order) and the **empty sequence**. A sequence
+// with a null element is not one of them: `[null]` fails the list validator
+// long before the renderer sees it.
+func websiteIsFalsy(node *yamldoc.Node) bool {
+	if node == nil || node.Kind == yamldoc.KindNull {
+		return true
+	}
+	return node.Kind == yamldoc.KindSequence && len(node.Elems) == 0
+}
+
+// codeWebsiteIsFalsy is the record's discriminator. It is not rendered — the
+// table shows location, input and message — but a record with no code is a
+// record nothing downstream can dispatch on.
+const codeWebsiteIsFalsy schemaerr.Code = "rendercv_other_error"
+
+// websiteIsFalsyError is D-012's stated remedy for an upstream
+// `RenderCVInternalError`: **an ordinary validation record at exit 1**, the
+// closest available behavior to a Rich traceback the port cannot produce
+// (D-011's class). The message is upstream's exception text character for
+// character, so the two sides say the same sentence in different boxes.
+func websiteIsFalsyError(node *yamldoc.Node) error {
+	return &schemaerr.UserValidationError{Errors: []schemaerr.ValidationError{{
+		Code:            codeWebsiteIsFalsy,
+		SchemaLocation:  []string{"cv", "website"},
+		YamlSource:      schemaerr.SourceMain,
+		Message:         "website key present but value is None",
+		Input:           schemaerr.RenderInput(node),
+		LocationIsFinal: true,
+	}}}
 }
 
 // socialConnections is `:141-165`. The body is one of three things: the URL when
