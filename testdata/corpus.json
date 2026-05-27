@@ -771,6 +771,53 @@
         "2025-03-05"
       ],
       "expect_exit": 1
+    },
+    {
+      "$comment": [
+        "A valid document with no `cv:` key at all. Upstream's `default_factory=Cv`",
+        "(schema/models/rendercv_model.py:19-23) fills in an empty CV, so this renders at",
+        "exit 0; the absent `cv.name` leaves the NAME_IN_SNAKE_CASE placeholder unsubstituted",
+        "(renderer/path_resolver.py:77-79, :104-106), which is why the artifact is named",
+        "NAME_IN_SNAKE_CASE_CV.typ. The port used to dereference nil here and exit 2."
+      ],
+      "name": "absent_cv",
+      "axis": "artifacts",
+      "inline_files": [
+        {
+          "dst": "cv.yaml",
+          "content": "locale:\n  language: english\n"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "-nopdf",
+        "-nopng",
+        "--settings.current_date",
+        "2025-03-05"
+      ]
+    },
+    {
+      "$comment": [
+        "The same absent-`cv` default reached with a `design:` block present instead, so the",
+        "case does not depend on `locale` being the key that happens to be there."
+      ],
+      "name": "absent_cv_with_design",
+      "axis": "artifacts",
+      "inline_files": [
+        {
+          "dst": "cv.yaml",
+          "content": "design:\n  theme: classic\n"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "-nopdf",
+        "-nopng",
+        "--settings.current_date",
+        "2025-03-05"
+      ]
     }
   ]
 }

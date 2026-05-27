@@ -1,0 +1,8 @@
+╭─ Your CV is ready ───────────────────────────────────────────────────────────╮
+│ ✓ <duration> Generated Typst:                                                  │
+│ ./rendercv_output/NAME_IN_SNAKE_CASE_CV.typ                                  │
+│ ✓ <duration> Generated Markdown:                                               │
+│ ./rendercv_output/NAME_IN_SNAKE_CASE_CV.md                                   │
+│ ✓ <duration> Generated HTML:                                                   │
+│ ./rendercv_output/NAME_IN_SNAKE_CASE_CV.html                                 │
+╰──────────────────────────────────────────────────────────────────────────────╯
