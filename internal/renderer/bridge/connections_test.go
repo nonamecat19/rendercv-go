@@ -1,10 +1,13 @@
 package bridge_test
 
 import (
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/nonamecat19/rendercv-go/internal/renderer/bridge"
 	"github.com/nonamecat19/rendercv-go/internal/renderer/templater/process"
+	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 )
 
 func connectionsOf(t *testing.T, document string, design bridge.ConnectionDesign) []process.Connection {
@@ -203,5 +206,67 @@ func TestLocationHasNoURL(t *testing.T) {
 	got := connectionsOf(t, "location: Berlin\n", bridge.ConnectionDesign{})
 	if len(got) != 1 || got[0].URL != "" {
 		t.Fatalf("got %+v, want an unlinked location", got)
+	}
+}
+
+// TestWebsiteFalsinessIsARecordNotARender pins the `website` key's falsiness
+// check (`connections.py:117-118`). Upstream raises `RenderCVInternalError`
+// there; D-012 says the port reports an ordinary validation record at exit 1
+// instead, and the record's location, message and input are what the panel
+// shows.
+func TestWebsiteFalsinessIsARecordNotARender(t *testing.T) {
+	for _, testCase := range []struct {
+		name     string
+		document string
+	}{
+		{"an empty sequence", "website: []\n"},
+		{"an empty sequence with a space", "website: [ ]\n"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			_, err := bridge.Connections(validCv(t, testCase.document), bridge.ConnectionDesign{})
+
+			var validation *schemaerr.UserValidationError
+			if !errors.As(err, &validation) {
+				t.Fatalf("Connections error = %v, want a UserValidationError", err)
+			}
+			if len(validation.Errors) != 1 {
+				t.Fatalf("got %d records, want 1", len(validation.Errors))
+			}
+
+			record := validation.Errors[0]
+			if got, want := strings.Join(record.SchemaLocation, "."), "cv.website"; got != want {
+				t.Errorf("location = %q, want %q", got, want)
+			}
+			if want := "website key present but value is None"; record.Message != want {
+				t.Errorf("message = %q, want upstream's exception text %q", record.Message, want)
+			}
+			if record.Input != schemaerr.InputEllipsis {
+				t.Errorf("input = %q, want %q", record.Input, schemaerr.InputEllipsis)
+			}
+		})
+	}
+}
+
+// A `website` the falsiness check lets through still renders. The null forms
+// are the ones that matter: they never enter the key order, so they reach
+// neither the check nor the connection list.
+func TestATruthyWebsiteStillRenders(t *testing.T) {
+	for _, testCase := range []struct {
+		name     string
+		document string
+		want     int
+	}{
+		{"a scalar URL", "website: https://example.com\n", 1},
+		{"a one-element list", "website:\n  - https://example.com\n", 1},
+		{"an explicit null", "website: null\n", 0},
+		{"an empty value", "website:\n", 0},
+		{"an absent key", "name: John Doe\n", 0},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			got := connectionsOf(t, testCase.document, bridge.ConnectionDesign{})
+			if len(got) != testCase.want {
+				t.Fatalf("got %d connections (%+v), want %d", len(got), got, testCase.want)
+			}
+		})
 	}
 }
