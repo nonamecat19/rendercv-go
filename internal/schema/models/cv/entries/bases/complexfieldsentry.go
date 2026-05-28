@@ -163,6 +163,22 @@ func BindEntryWithComplexFields(
 		}
 	}
 
+	// `check_and_adjust_dates` is a `mode="after"` model validator
+	// (entry_with_complex_fields.py:134-135), which pydantic runs only once
+	// **every** field of the entry has validated. One failed field — a missing
+	// required one, a mistyped `summary`, a `highlights` that is not a list —
+	// short-circuits it, so neither the three rewrites nor the start-after-end row
+	// happen (spec 002 §3.16 behavior 77a). Gating on an error-free bind is the
+	// same shape `ValidatePublicationEntry` already uses for publication.py's two
+	// after-validators.
+	//
+	// Suppression is per entry, not per section: a sibling entry that binds
+	// cleanly still reports its own ordering failure. That falls out of this being
+	// one entry's bind.
+	if len(errs) != 0 {
+		return entry, errs
+	}
+
 	if err := entry.adjustDates(location, source, reference); err != nil {
 		errs = append(errs, *err)
 	}
