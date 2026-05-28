@@ -472,6 +472,27 @@ settings_yaml_file
     4. If, after the above, both `start_date` and `end_date` are set, they are converted to date
        objects using the context's current date as the reference for `present`, and
        `start_date` after `end_date` fails with the ordering message (§4.16) (`:155-169`).
+77a. All four steps are a **`mode="after"` model validator**
+    (`schema/models/cv/entries/bases/entry_with_complex_fields.py:134-135`), so pydantic runs
+    them only once every field of that entry has validated. A single field-level failure on the
+    entry short-circuits the whole validator: neither the rewrites of steps 1–3 nor the ordering
+    row of step 4 happens. Measured against upstream, `COLUMNS=80`, `render -nopdf -nopng -nomd
+    -nohtml`:
+
+    | Entry | Upstream rows |
+    |---|---|
+    | `{company: X, start_date: '3000-01'}` | `cv.sections.a`, `cv.sections.a.0.position` — **no** ordering row |
+    | `{company: X, position: P, start_date: '3000-01'}` | `cv.sections.a`, `cv.sections.a.0` ordering row |
+    | `{company: X, position: P, highlights: 5, start_date: '3000-01'}` | `cv.sections.a`, `cv.sections.a.0.highlights` — **no** ordering row |
+    | `{company: X, position: P, summary: {a: b}, start_date: '3000-01'}` | `cv.sections.a`, `cv.sections.a.0.summary` — **no** ordering row |
+    | `{company: X, position: P, highlights: [{a: b}], start_date: '3000-01'}` | `cv.sections.a`, `cv.sections.a.0.highlights.0` — **no** ordering row |
+    | `{company: X, position: P, start_date: '3000-01', end_date: nonsense}` | `cv.sections.a`, `cv.sections.a.0.end_date` — **no** ordering row |
+    | `{company: X, position: P, unknown_key: Z, start_date: '3000-01'}` | `cv.sections.a`, `cv.sections.a.0` ordering row — an extra key is not a failure (`schema/models/base.py:9`, `extra="allow"`) |
+
+    The suppression is scoped to the one entry model. In a section whose entry 0 is missing
+    `position` and whose entry 1 has `start_date: '3000-01'`, upstream reports
+    `cv.sections.a`, `cv.sections.a.0.position` and `cv.sections.a.1`'s ordering row: entry 1 is
+    unaffected by entry 0's field failure.
 78. The ordering check is the only one of the four that can fail. Steps 1–3 are silent
     rewrites.
 79. Fields of an entry with complex fields, in declaration order after the inherited `date`:
