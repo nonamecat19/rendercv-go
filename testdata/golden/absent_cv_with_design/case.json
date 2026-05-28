@@ -1,0 +1,12 @@
+{
+  "args": [
+    "render",
+    "cv.yaml",
+    "-nopdf",
+    "-nopng",
+    "--settings.current_date",
+    "2025-03-05"
+  ],
+  "axis": "artifacts",
+  "name": "absent_cv_with_design"
+}

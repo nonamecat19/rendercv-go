@@ -211,16 +211,45 @@ func TestValidateExposesTheBoundCv(t *testing.T) {
 	}
 }
 
-// An absent `cv` leaves the bound model nil rather than an empty one, so a caller
-// can tell "not supplied" from "supplied and empty".
-func TestValidateLeavesAnAbsentCvNil(t *testing.T) {
-	model, errs := models.Validate(
-		parse(t, "design:\n  theme: classic\n"), &valctx.ValidationContext{}, schemaerr.SourceMain,
-	)
-	if len(errs) != 0 {
-		t.Fatalf("errs = %+v, want none", errs)
+// An absent `cv` binds the default empty model rather than nil — spec §3.28's
+// "an empty `cv`", upstream's `default_factory=Cv` (rendercv_model.py:19-23).
+//
+// The distinction the nil used to carry is kept where it belongs: the raw `Cv`
+// node stays nil, because it records what the document said.
+func TestValidateDefaultsAnAbsentCv(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{name: "only locale", input: "locale:\n  language: english\n"},
+		{name: "only design", input: "design:\n  theme: classic\n"},
+		{name: "only settings", input: "settings:\n  bold_keywords: []\n"},
+		{name: "empty mapping", input: "{}\n"},
 	}
-	if model.CvModel != nil {
-		t.Errorf("CvModel = %+v, want nil", model.CvModel)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			model, errs := models.Validate(
+				parse(t, test.input), &valctx.ValidationContext{}, schemaerr.SourceMain,
+			)
+			if len(errs) != 0 {
+				t.Fatalf("errs = %+v, want none", errs)
+			}
+			if model.CvModel == nil {
+				t.Fatal("CvModel is nil, want the default empty cv")
+			}
+			if model.CvModel.Name != nil {
+				t.Errorf("CvModel.Name = %+v, want nil", model.CvModel.Name)
+			}
+			if model.CvModel.Sections != nil {
+				t.Errorf("CvModel.Sections = %+v, want nil", model.CvModel.Sections)
+			}
+			if len(model.CvModel.KeyOrder()) != 0 {
+				t.Errorf("KeyOrder = %v, want empty", model.CvModel.KeyOrder())
+			}
+			if model.Cv != nil {
+				t.Errorf("Cv = %+v, want nil: the raw node records the absent key", model.Cv)
+			}
+		})
 	}
 }

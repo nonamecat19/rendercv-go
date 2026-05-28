@@ -1,0 +1,3 @@
+rendercv_output/NAME_IN_SNAKE_CASE_CV.html
+rendercv_output/NAME_IN_SNAKE_CASE_CV.md
+rendercv_output/NAME_IN_SNAKE_CASE_CV.typ
