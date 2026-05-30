@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nonamecat19/rendercv-go/internal/readtext"
 	"github.com/nonamecat19/rendercv-go/internal/renderer/bridge"
 	"github.com/nonamecat19/rendercv-go/internal/renderer/generate"
 	"github.com/nonamecat19/rendercv-go/internal/schema/modelbuilder"
@@ -110,7 +111,10 @@ func renderOnce(options RenderOptions, stdout, stderr io.Writer) int {
 		liveOut = io.Discard
 	}
 
-	raw, err := os.ReadFile(options.InputPath)
+	// `read_text`, not a byte read: upstream's `run_rendercv.py:140` translates
+	// the document's line endings before the parser sees them (see
+	// `internal/readtext`).
+	raw, err := readtext.File(options.InputPath)
 	if err != nil {
 		// The trailing `!` is upstream's own message text, not this port's
 		// punctuation choice, so `ST1005` is suppressed rather than obeyed —
@@ -532,7 +536,11 @@ func overlayFile(path string) (string, error) {
 	if path == "" {
 		return "", nil
 	}
-	content, err := os.ReadFile(path)
+	// The three overlays go through the same `read_text`
+	// (`render_command.py:212-215`), so they get the same newline translation:
+	// measured, a lone `\r` in a `--settings` file moves upstream's reported
+	// span from line 1-to-3 to line 3-to-4 exactly as it does in the main file.
+	content, err := readtext.File(path)
 	if err != nil {
 		return "", errMissingFile(path)
 	}

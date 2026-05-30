@@ -9,6 +9,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 
+	"github.com/nonamecat19/rendercv-go/internal/readtext"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/design"
 )
 
@@ -205,7 +206,10 @@ func watchLoop(ctx context.Context, set []string, render func() int) {
 // so nothing here may generalise to "a failing render stops the watch".
 func watch(options RenderOptions, stdout, stderr io.Writer) int {
 	resolved := options
-	raw, err := os.ReadFile(options.InputPath)
+	// `collect_input_file_paths` reads the input with `read_text` as well
+	// (`run_rendercv.py:115`), so the overlay names a CRLF document gives are
+	// read out of the same translated text `renderOnce` will parse.
+	raw, err := readtext.File(options.InputPath)
 	if err != nil {
 		// `renderOnce` reports it, once, in the panel it would have printed
 		// without `--watch`, and returns the same code.
