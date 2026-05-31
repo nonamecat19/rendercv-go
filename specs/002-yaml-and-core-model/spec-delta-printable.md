@@ -119,7 +119,7 @@ in a fresh temporary directory.
 | `U+FFFE` | 1 | `unacceptable character #xfffe` | 0, five artifacts |
 | `U+1F600` 😀 | 0 | renders | 0, renders — agrees |
 | `U+0009` TAB | 1 | `while scanning for the next token.`, line 2 | identical panel — the tab rule, not this one |
-| `U+000D` CR | 1 | `while scanning a simple key.`, line 3 to line 4 | exit 1, **different** message and span — unrelated open defect, §6 |
+| `U+000D` CR | 1 | `while scanning a simple key.`, line 3 to line 4 | exit 1, **different** message and span — separate defect, §6, closed by 002-N |
 | `U+000A` LF | 1 | `while scanning a simple key.`, line 3 to line 4 | identical panel |
 
 The three permitted characters are as much a part of the rule as the eight forbidden ones: a check
@@ -142,6 +142,10 @@ subprocess.run([binary, "render", "CV.yaml"], cwd=d,
   `cv:\n  name: \rA\n` upstream says `while scanning a simple key.` at line 3 to line 4 and the
   port says `while parsing a block mapping.` at line 1 to line 3. That is a newline-translation
   defect, not a printable-set one, and it is untouched here.
+
+  **Closed by [`spec-delta-newline.md`](spec-delta-newline.md) (002-N)**, which applies the
+  translation at the port's read boundary. CR remains printable to both sides; what changed is that
+  neither parser ever meets one in a document read from disk.
 - **Invalid UTF-8.** Python raises `UnicodeDecodeError` out of `read_text` before `read_yaml` is
   reached, which is the unhandled-traceback class D-011 already covers. The port decodes such bytes
   to `U+FFFD`, which §1.1 permits, so this delta invents no message for them.
