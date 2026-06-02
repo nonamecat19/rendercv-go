@@ -2686,5 +2686,41 @@
  {
   "in": "[t](a&#35 b)",
   "want": "#link(\"a&#35; b\")[t]"
+ },
+ {
+  "in": "[ref][a1]\n\n[a1]: https://example.com",
+  "want": "\\[ref\\]\\[a1\\]\n\n"
+ },
+ {
+  "in": "[t][a2]",
+  "want": "\\[t\\]\\[a2\\]"
+ },
+ {
+  "in": "[a3]: https://example.com\n[t][a3]",
+  "want": "\n#link(\"https://example.com\")[t]"
+ },
+ {
+  "in": "[a4]: https://example.com\n[a4][]",
+  "want": "\n#link(\"https://example.com\")[a4]"
+ },
+ {
+  "in": "[a5]: https://example.com\n[a5]",
+  "want": "\n#link(\"https://example.com\")[a5]"
+ },
+ {
+  "in": "[A6]: https://example.com\n[t][a6]",
+  "want": "\n#link(\"https://example.com\")[t]"
+ },
+ {
+  "in": "[a7]: https://example.com \"Title\"\n[t][a7]",
+  "want": "\n#link(\"https://example.com\")[t]"
+ },
+ {
+  "in": "[a8]: https://example.com\n![alt][a8] tail",
+  "want": "\ntail"
+ },
+ {
+  "in": "[a9]: https://example.com",
+  "want": ""
  }
 ]
