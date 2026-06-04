@@ -634,6 +634,32 @@ Pinned by `TestWebsiteShapesMatchUpstreamExitCodes` (`internal/cli/websitefalsin
   | Collection tags on a scalar | `!!merge`, `!!seq`, `!!map`, `!!set`, `!!omap` | node exists | refused at parse |
   | Sequence keys | a sequence used as a mapping key | loads, then RenderCV raises | refused at parse |
 
+  **Reach, measured 2026-08-14 — the block-folded row is reachable from an ordinary typo.** A
+  randomised differential fuzzer over mutations of a real generated CV hit this class on its own,
+  and it reduces to seven lines:
+
+  ```yaml
+  cv:
+    name: A
+    sections:
+      s:
+        - one
+            - two
+          - three
+  ```
+
+  Upstream renders it at **exit 0**; the port refuses at exit 1 with `while parsing a block
+  collection.` The trigger is a **mis-indented nested bullet** — a plain scalar followed by a
+  more-indented dash — which is a normal thing to typo in a CV, not a synthetic shape. Note the
+  same document with `- bullet: one` instead of `- one` is exit 1 on **both** sides, so the class
+  needs the entry to be a bare string.
+
+  This does not change the costing spec's recommendation, which stands: option **(b)**, an upstream
+  issue against goccy plus a pin here, **not** a local workaround. §6's fifth point is exactly this
+  trade — the port fails loudly at exit 1, while an imperfect fold would corrupt values silently at
+  exit 0. It does raise the priority of the upstream report, which is the one action still
+  outstanding on this entry.
+
   **The sequence-key row is not an axis-1 loss, re-measured 2026-08-14.** ruamel *loads* a container
   key — `{[1]: a}` becomes `{(1,): 'a'}` — but nothing downstream can consume it, so upstream exits 1
   with an unhandled traceback. Measured on five shapes (`{[1]: a}`, `? [1]`, `? []`, `? {a: 1}`,
