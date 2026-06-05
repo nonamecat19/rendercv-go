@@ -251,3 +251,71 @@ func TestEntryLevelCodesBeyondBehavior43(t *testing.T) {
 		})
 	}
 }
+
+// Spec 003 §3.14, spec 002 §3.61 — a `TextEntry` is a bare `str`, and "no model"
+// is not "no check": the section model declares `entries: list[str]`
+// (`section.py:106-118`), so every element that is not a string reports
+// `string_type` at its own location with the ordinary Input Value rendering.
+//
+// The dispatcher used to return no errors for every node kind here, which is how
+// a section written `[<string>, {institution: Princeton}]` rendered at exit 0
+// where upstream exits 1.
+func TestValidateTypeChecksATextEntry(t *testing.T) {
+	tests := []struct {
+		name      string
+		src       string
+		mapping   bool
+		wantInput string
+	}{
+		{name: "a string is valid", src: "just text"},
+		{name: "a quoted number is a string", src: "'2020'"},
+		{name: "a mapping", src: "institution: Princeton\n", mapping: true, wantInput: "..."},
+		{name: "a sequence", src: "[a, b]", wantInput: "..."},
+		{name: "null", src: "~", wantInput: "None"},
+		{name: "an integer", src: "2020", wantInput: "2020"},
+		{name: "a float", src: "1.5", wantInput: "1.5"},
+		{name: "a boolean", src: "true", wantInput: "True"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var node *yamldoc.Node
+			if test.mapping {
+				node = parseNode(t, test.src)
+			} else {
+				node = parseValue(t, test.src)
+			}
+
+			errs, err := entries.Validate(
+				node, entries.TextEntryName, []string{"entries", "1"},
+				schemaerr.SourceMain, dispatchReference,
+			)
+			if err != nil {
+				t.Fatalf("internal error: %v", err)
+			}
+
+			if test.wantInput == "" {
+				if len(errs) != 0 {
+					t.Fatalf("errs = %+v, want none", errs)
+				}
+				return
+			}
+
+			if len(errs) != 1 {
+				t.Fatalf("errs = %+v, want exactly one", errs)
+			}
+			if errs[0].Code != "string_type" {
+				t.Errorf("code = %q, want %q", errs[0].Code, "string_type")
+			}
+			if errs[0].Message != "Input should be a valid string" {
+				t.Errorf("message = %q, want pydantic's string_type text", errs[0].Message)
+			}
+			if got := strings.Join(errs[0].SchemaLocation, "."); got != "entries.1" {
+				t.Errorf("location = %q, want %q", got, "entries.1")
+			}
+			if errs[0].Input != test.wantInput {
+				t.Errorf("input = %q, want %q", errs[0].Input, test.wantInput)
+			}
+		})
+	}
+}
