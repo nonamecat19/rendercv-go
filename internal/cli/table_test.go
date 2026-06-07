@@ -155,3 +155,107 @@ func TestNoWrapCellsAreTruncatedWithAnEllipsis(t *testing.T) {
 			strings.Count(table, "\n"), table)
 	}
 }
+
+// A newline inside a no-wrap cell starts a new line, and `no_wrap` does not
+// change that.
+//
+// `Text.wrap` iterates `self.split(allow_blank=True)` and only *then* branches
+// on the flag, replacing the fold with `Lines([line])`
+// (`rich/text.py:1230-1237`). So `no_wrap` suppresses folding one long line; it
+// never joins two source lines. `allow_blank=True` keeps the empty line a
+// trailing separator produces (`rich/text.py:1101-1102`), which is why a value
+// ending in a newline is one line taller than its content.
+//
+// The port collapsed the cell to a single line instead, which was two bugs at
+// once: a long multi-line value lost everything after the first line, and a
+// *short* one escaped the truncation altogether and emitted its newline raw
+// into the frame, tearing the row open. Found by a fuzzer on a `highlights:`
+// block scalar.
+//
+// Every want below was measured against the vendored Python at COLUMNS=100 with
+// `highlights:` given the quoted scalar named, reading the cell verbatim.
+func TestNoWrapCellsSplitOnNewlines(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  []string
+	}{
+		{name: "no newline", input: "AAA", want: []string{"AAA"}},
+		{name: "empty", input: "", want: []string{""}},
+		{name: "one newline", input: "AAA\nBBB", want: []string{"AAA", "BBB"}},
+		{
+			name:  "several newlines",
+			input: "AAA\nBBB\nCCC\nDDD",
+			want:  []string{"AAA", "BBB", "CCC", "DDD"},
+		},
+		// allow_blank=True: the trailing separator keeps its empty line.
+		{name: "trailing newline", input: "AAA\n", want: []string{"AAA", ""}},
+		{
+			name:  "trailing newline after several",
+			input: "AAA\nBBB\nCCC\n",
+			want:  []string{"AAA", "BBB", "CCC", ""},
+		},
+		{name: "leading newline", input: "\nAAA\nBBB", want: []string{"", "AAA", "BBB"}},
+		{name: "only a newline", input: "\n", want: []string{"", ""}},
+		{name: "blank line between", input: "AAA\n\nBBB", want: []string{"AAA", "", "BBB"}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := noWrapCellLines(t, tc.input)
+			if len(got) != len(tc.want) {
+				t.Fatalf("cell = %q, want %q", got, tc.want)
+			}
+			for i := range tc.want {
+				if got[i] != tc.want[i] {
+					t.Fatalf("cell = %q, want %q", got, tc.want)
+				}
+			}
+		})
+	}
+}
+
+// A long line inside a multi-line no-wrap cell is truncated on its own, not
+// merged with its neighbours — the two rules meet on the case the fuzzer found,
+// where the first line fits and the second does not.
+func TestNoWrapCellsTruncateEachLineSeparately(t *testing.T) {
+	long := strings.Repeat("b", 200)
+	got := noWrapCellLines(t, "AAA\n"+long)
+	if len(got) != 2 {
+		t.Fatalf("cell = %q, want two lines", got)
+	}
+	if got[0] != "AAA" {
+		t.Errorf("first line = %q, want %q — a short line must not be cut", got[0], "AAA")
+	}
+	if !strings.HasSuffix(got[1], ellipsisRune) || !strings.HasPrefix(got[1], "bb") {
+		t.Errorf("second line = %q, want the long line truncated with an ellipsis", got[1])
+	}
+}
+
+// ellipsisRune is what Rich appends when it truncates a cell.
+const ellipsisRune = "…"
+
+// noWrapCellLines renders one row and returns the Input Value column's lines,
+// trimmed of the padding the frame adds.
+func noWrapCellLines(t *testing.T, input string) []string {
+	t.Helper()
+	table := cli.Table(errorColumns, [][]string{{"a.b", input, "x"}}, cli.PanelWidth-4)
+
+	all := strings.Split(strings.TrimSuffix(table, "\n"), "\n")
+	// A table is a top border, a header, a header rule, the body, and a bottom
+	// border; only the body carries cells.
+	if len(all) < 5 {
+		t.Fatalf("table has too few lines to hold a body:\n%s", table)
+	}
+	body := all[3 : len(all)-1]
+
+	lines := make([]string, 0, len(body))
+	for _, line := range body {
+		cells := strings.Split(line, "│")
+		if len(cells) < 3 {
+			t.Fatalf("body line %q has no second column", line)
+		}
+		lines = append(lines, strings.TrimSpace(cells[2]))
+	}
+	return lines
+}

@@ -132,6 +132,55 @@ func TestOrderingViolation(t *testing.T) {
 	}
 }
 
+// The ordering record's Input Value column is the three dots, and stays them.
+//
+// `pydantic_error_handling.py:122-126` renders `str(input)` for everything that
+// is not a `dict` or a `list`, so an ellipsis hard-coded into a record is only
+// right where the input is provably a container. Here it is: upstream raises
+// this from a `model_validator(mode="after")`
+// (`entry_with_complex_fields.py:134-169`), whose input is the entry mapping the
+// model was built from, and an entry that is not a mapping fails the type check
+// long before the date logic runs. So the column reads `...` whatever the dates
+// say.
+//
+// This is the pin the site was missing. Three sibling sites had a hard-coded
+// ellipsis silently turn wrong when their input stopped being a container; this
+// one is correct, and the table is what will notice if someone "fixes" it to
+// echo a date or if the entry ever reaches here as a scalar.
+//
+// Measured against the vendored Python: an ExperienceEntry with
+// `start_date: 2020-01-01` and `end_date: 2015-01-01` prints `...` in this
+// column.
+func TestOrderingViolationInputIsAlwaysTheEllipsis(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{name: "iso days", input: "start_date: 2023-01-01\nend_date: 2021-01-01\n"},
+		{name: "iso months", input: "start_date: 2023-05\nend_date: 2021-05\n"},
+		{name: "years", input: "start_date: 2022\nend_date: 2021\n"},
+		{name: "mixed precision", input: "start_date: 2023-01-01\nend_date: 2021\n"},
+		{name: "with a location", input: "start_date: 2023\nend_date: 2021\nlocation: Istanbul\n"},
+		{name: "with a summary", input: "start_date: 2023\nend_date: 2021\nsummary: Did things\n"},
+		{
+			name:  "with highlights",
+			input: "start_date: 2023\nend_date: 2021\nhighlights:\n  - One\n",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, errs := bind(t, tc.input)
+			if len(errs) != 1 {
+				t.Fatalf("errs = %+v, want exactly one", errs)
+			}
+			if errs[0].Input != schemaerr.InputEllipsis {
+				t.Errorf("input = %q, want %q", errs[0].Input, schemaerr.InputEllipsis)
+			}
+		})
+	}
+}
+
 // A start date equal to the end date is accepted.
 func TestEqualDatesAccepted(t *testing.T) {
 	_, errs := bind(t, "start_date: 2021-01-01\nend_date: 2021-01-01\n")
