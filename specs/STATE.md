@@ -113,6 +113,43 @@ Two measured facts the spec has to preserve, both counter-intuitive: `dont_gener
 overwrite the value before validation — so "all `dont_generate_*` fields behave alike" is wrong. And
 F is a crash, not a refusal.
 
+### The panel's own renderer tore a table open, and no golden could see it
+
+Chasing an Input Value difference the fuzzer surfaced led somewhere better than the column: the
+panel's `renderCell` `noWrap` branch (`internal/cli/table.go`) returned **one line for the whole
+cell**, `truncate(expandTabs(text), width)`. Rich does the opposite (`rich/text.py:1230-1237`) — it
+splits on newlines *first* and only then applies `no_wrap`, which suppresses folding one long line
+and never joins two source lines.
+
+Two failures, not one, and the second is the serious one: a value long enough that the cut landed
+before the newline merely truncated, but a **short** multi-line value emitted its newline raw and
+**tore the table frame open mid-row**:
+
+```
+│ cv.sections.experience.0.highlights │ AAA                                                      │
+│ BBB      │ This field should contain a list of      │
+```
+
+It affects `Location` as well — both no-wrap columns share the branch — and it is reachable from any
+CV whose YAML folds a value across lines, which `highlights:` does routinely. Fixed in `b971a1a`,
+nine shapes measured at COLUMNS=100 and 120, all byte-matching.
+
+**Why nothing caught it:** every golden is captured at one width with corpus values that happen to be
+single-line, so the fold never occurred in a golden. It took a fuzzer-mutated document to produce a
+multi-line value in an error cell.
+
+### A process finding against the merge owner, recorded so it is not repeated
+
+I briefed the porter for this unit with a list of four "instances" of the Input Value class. **Two of
+them were the same commit seen twice**: agent worktrees branch from an older base, so a site that
+`main` had already fixed 33 commits earlier still read as broken in the worktree, and my brief
+inherited that. The porter implemented the duplicate fix, found the collision, and dropped it —
+correctly, and at the cost of most of its run.
+
+**The rule for the next pass: brief a porter against `main`'s tip and tell it to merge `main` before
+measuring.** Several porters this pass independently reported "3 pre-existing lint issues" that do
+not exist on `main` for the same reason.
+
 ### A randomised fuzzer found what the hand-written sweeps did not
 
 150 rounds of line-level mutation over a real `new`-generated document, comparing exit codes. Three
