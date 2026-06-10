@@ -835,6 +835,195 @@
         "--settings.current_date",
         "2025-03-05"
       ]
+    },
+    {
+      "name": "err_settings_pdf_title_list",
+      "axis": "errors",
+      "inline_files": [
+        {
+          "dst": "cv.yaml",
+          "content": "cv:\n  name: John Doe\n  sections:\n    s:\n    - text\nsettings:\n  pdf_title: [a, b]\n"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ],
+      "expect_exit": 1
+    },
+    {
+      "name": "err_settings_pdf_title_int",
+      "axis": "errors",
+      "inline_files": [
+        {
+          "dst": "cv.yaml",
+          "content": "cv:\n  name: John Doe\n  sections:\n    s:\n    - text\nsettings:\n  pdf_title: 42\n"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ],
+      "expect_exit": 1
+    },
+    {
+      "name": "err_settings_output_folder_map",
+      "axis": "errors",
+      "inline_files": [
+        {
+          "dst": "cv.yaml",
+          "content": "cv:\n  name: John Doe\n  sections:\n    s:\n    - text\nsettings:\n  render_command:\n    output_folder: {a: 1}\n"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ],
+      "expect_exit": 1
+    },
+    {
+      "name": "err_settings_png_path_null",
+      "axis": "errors",
+      "inline_files": [
+        {
+          "dst": "cv.yaml",
+          "content": "cv:\n  name: John Doe\n  sections:\n    s:\n    - text\nsettings:\n  render_command:\n    png_path: null\n"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ],
+      "expect_exit": 1
+    },
+    {
+      "name": "err_settings_design_list",
+      "axis": "errors",
+      "inline_files": [
+        {
+          "dst": "cv.yaml",
+          "content": "cv:\n  name: John Doe\n  sections:\n    s:\n    - text\nsettings:\n  render_command:\n    design: [a]\n"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ],
+      "expect_exit": 1
+    },
+    {
+      "name": "err_settings_dont_generate_typst_map",
+      "axis": "errors",
+      "inline_files": [
+        {
+          "dst": "cv.yaml",
+          "content": "cv:\n  name: John Doe\n  sections:\n    s:\n    - text\nsettings:\n  render_command:\n    dont_generate_typst: {a: 1}\n"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ],
+      "expect_exit": 1
+    },
+    {
+      "name": "err_settings_dont_generate_html_str",
+      "axis": "errors",
+      "inline_files": [
+        {
+          "dst": "cv.yaml",
+          "content": "cv:\n  name: John Doe\n  sections:\n    s:\n    - text\nsettings:\n  render_command:\n    dont_generate_html: abc\n"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ],
+      "expect_exit": 1
+    },
+    {
+      "name": "err_settings_not_a_mapping",
+      "axis": "errors",
+      "inline_files": [
+        {
+          "dst": "cv.yaml",
+          "content": "cv:\n  name: John Doe\n  sections:\n    s:\n    - text\nsettings: abc\n"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ],
+      "expect_exit": 1
+    },
+    {
+      "name": "err_settings_render_command_null",
+      "axis": "errors",
+      "inline_files": [
+        {
+          "dst": "cv.yaml",
+          "content": "cv:\n  name: John Doe\n  sections:\n    s:\n    - text\nsettings:\n  render_command: null\n"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ],
+      "expect_exit": 1
+    },
+    {
+      "name": "set_bool_words",
+      "axis": "render",
+      "inline_files": [
+        {
+          "dst": "cv.yaml",
+          "content": "cv:\n  name: John Doe\n  sections:\n    s:\n    - text\nsettings:\n  render_command:\n    dont_generate_html: \"yes\"\n"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ],
+      "expect_exit": 0
+    },
+    {
+      "name": "set_nopdf_mapping",
+      "axis": "render",
+      "inline_files": [
+        {
+          "dst": "cv.yaml",
+          "content": "cv:\n  name: John Doe\n  sections:\n    s:\n    - text\nsettings:\n  render_command:\n    dont_generate_pdf: {a: 1}\n"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05",
+        "-nopdf",
+        "-nopng"
+      ],
+      "expect_exit": 0
     }
   ]
 }
