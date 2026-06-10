@@ -77,6 +77,12 @@ Both are upstream inconsistencies, reproduced because Axis 3 is a byte contract.
 output-path placeholders, the precedence of CLI arguments over settings, and `current_date`'s
 effect on filenames and time spans all belong with the CLI.
 
+**The *validation* of these fields is no longer deferred**, and is not iteration 12's:
+[`spec-delta-settings-validation.md`](spec-delta-settings-validation.md) specifies the type of every
+field in the tree and the exact record each wrong type produces, measured. A 126-vector sweep found
+the whole tree unvalidated — upstream exits 1, the port renders at exit 0 — which is an Axis 2 and
+Axis 4 defect, not a missing CLI feature. Placeholders and flag *effects* stay here in §4.1.
+
 **4.2 `current_date`'s validation is already ported**, thinly: spec 004 §7.9 pulled a shape check
 forward so the 25-record differential could reach twenty-five. Its message is deliberately the
 pipeline's override rather than a pre-substituted one.
@@ -90,10 +96,13 @@ pipeline's override rather than a pre-substituted one.
 - [x] All three `$defs` byte-identical: `Settings`, `RenderCommand`, `PlannedPathRelativeToInput`.
       Landed with iteration 6's T15 and gated by the per-`$defs` differential.
 - [x] `just schema-diff` exits 0 — these were the last three entries.
-- [ ] Unknown keys rejected in both models, with spec 004 §4.10's message. **Not implemented**:
-      `settings` is still the thin slice of §4.2, so a stray key under `settings` is not reported.
-      Iteration 12 owns it, together with the behavior.
-- [ ] The full `RenderCommand` model and its precedence against CLI flags — iteration 12.
+- [x] Unknown keys rejected in both models, with spec 004 §4.10's message. Landed since
+      (`internal/schema/models/settings/settings.go:84-111`); measured byte-identical to upstream
+      for `settings.no_such_key` and `settings.render_command.no_such_key`.
+- [ ] The full `RenderCommand` model — its **types** are specified and measured in
+      [`spec-delta-settings-validation.md`](spec-delta-settings-validation.md) §2, with the five
+      open mechanisms in §3 and the unit breakdown in §12. Its **precedence** against CLI flags is
+      iteration 12's; that delta's §9 records what is already correct and what is not.
 
 ---
 
