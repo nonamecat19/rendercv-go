@@ -142,25 +142,7 @@ func Validate(
 	// reachable. Without it the extra-key and month-length rules exist and no
 	// document can reach them.
 	errs = append(errs, locale.Validate(model.Locale, []string{"locale"}, source)...)
-	if model.Settings != nil {
-		if current, ok := mappingValue(model.Settings, "current_date"); ok {
-			errs = append(errs, settings.ValidateCurrentDate(current, []string{"settings"}, source)...)
-		}
-		// `bold_keywords` is `list[str]`, and a wrong-typed value for it used to
-		// render at exit 0 where upstream refuses the document. It sits after
-		// `current_date` because pydantic reports in declaration order
-		// (settings.py:11-31).
-		if keywords, ok := mappingValue(model.Settings, "bold_keywords"); ok {
-			errs = append(errs,
-				settings.ValidateBoldKeywords(keywords, []string{"settings"}, source)...)
-		}
-		// **Unknown keys under `settings` were accepted by nobody's decision**:
-		// two specs each recorded the settings model as the other's work. An
-		// audit measured `settings: {bogus: 1}` rendering at exit 0 where
-		// upstream reports an unknown key.
-		errs = append(errs,
-			settings.ValidateUnknownKeys(model.Settings, []string{"settings"}, source)...)
-	}
+	errs = append(errs, settings.Validate(model.Settings, []string{"settings"}, source)...)
 
 	// Spec §3.31: the input file path comes from the context, after validation,
 	// and is held out-of-band.
@@ -170,17 +152,4 @@ func Validate(
 
 	// Unknown keys last, after `cv` and everything under it has reported.
 	return model, append(errs, result.ExtraErrors...)
-}
-
-// mappingValue reads one key of a mapping node, reporting whether it was there.
-func mappingValue(node *yamldoc.Node, key string) (*yamldoc.Node, bool) {
-	if node == nil || node.Kind != yamldoc.KindMapping {
-		return nil, false
-	}
-	for _, item := range node.Items {
-		if item.Key == key {
-			return item.Value, true
-		}
-	}
-	return nil, false
 }
