@@ -7,6 +7,6 @@
     "-nopdf",
     "-nopng"
   ],
-  "axis": "render",
+  "axis": "artifacts",
   "name": "set_nopdf_mapping"
 }

@@ -991,7 +991,7 @@
     },
     {
       "name": "set_bool_words",
-      "axis": "render",
+      "axis": "artifacts",
       "inline_files": [
         {
           "dst": "cv.yaml",
@@ -1008,7 +1008,7 @@
     },
     {
       "name": "set_nopdf_mapping",
-      "axis": "render",
+      "axis": "artifacts",
       "inline_files": [
         {
           "dst": "cv.yaml",

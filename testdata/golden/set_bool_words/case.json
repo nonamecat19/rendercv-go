@@ -5,6 +5,6 @@
     "--settings.current_date",
     "2025-03-05"
   ],
-  "axis": "render",
+  "axis": "artifacts",
   "name": "set_bool_words"
 }
