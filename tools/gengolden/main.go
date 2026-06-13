@@ -77,6 +77,17 @@ type Case struct {
 	Args []string `json:"args"`
 	// ExpectExit is the required exit code, or nil to accept whatever upstream returns.
 	ExpectExit *int `json:"expect_exit"`
+	// NoCurrentDatePin opts a case out of pinCurrentDate's auto-injected
+	// `--settings.current_date`. It exists for the one class of case where that
+	// injection is wrong rather than merely redundant: a case whose whole point
+	// is `settings.current_date` itself. The CLI override is written into the
+	// document before validation runs (spec 006 delta §9), so silently adding
+	// it would overwrite the very value the case means to exercise — the
+	// golden would capture a pinned, unrelated render instead of the
+	// validation record `TestParity` actually needs to compare against, since
+	// `TestParity` runs the args exactly as `corpus.json` declares them, not as
+	// this tool's own pinning mutates them.
+	NoCurrentDatePin bool `json:"no_current_date_pin,omitempty"`
 }
 
 // FileRef copies src (relative to the upstream submodule) to dst (relative to the case dir).
@@ -231,7 +242,9 @@ func generateCase(upstream, bin string, env map[string]string, c Case, scratch s
 	}
 
 	var stdout, stderr strings.Builder
-	c.Args = pinCurrentDate(c.Args)
+	if !c.NoCurrentDatePin {
+		c.Args = pinCurrentDate(c.Args)
+	}
 	cmd := exec.Command(bin, c.Args...)
 	cmd.Dir = caseWork
 	cmd.Stdout = &stdout
