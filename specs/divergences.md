@@ -560,6 +560,21 @@ Pinned by `TestWebsiteShapesMatchUpstreamExitCodes` (`internal/cli/websitefalsin
   (`internal/schema/yamlreader/directive.go`'s `UnsupportedVersionError`). Same stream inversion as
   `create-theme`'s. A *major* part other than 1 is **not** in this class: it is ruamel's
   `ParserError`, reached first, and the port matches its panel byte for byte.
+- **Also in this class, measured against the `settings` tree** (spec 006
+  `spec-delta-settings-validation.md` §3.6): a non-mapping `settings` or
+  `settings.render_command` (`err_settings_not_a_mapping`, `err_settings_render_command_null`)
+  crashes upstream's CLI with `AttributeError`/`TypeError` at `render_command.py:205` →
+  `run_rendercv.py:118-122`, before any validation runs. `rendercv-go` reports the record
+  upstream's own model would have produced had the CLI reached it — `Input should be a valid
+  dictionary or instance of Settings.` / `...or instance of RenderCommand.` — at the same
+  location and the same exit code. Unlike `create-theme`'s pair there is no stream inversion:
+  both sides use exit 1, and the port uses the validation panel it uses for every other record.
+  **Mechanism F3 is in the same class**: a list-valued `render_command.design` (`err_settings_design_list`)
+  crashes at the identical call site (`render_command.py:205` → `run_rendercv.py:120`) before
+  validation runs, so its CLI-captured golden is also a non-reproducible traceback. Only *measured
+  through the model layer directly* — spec 006 delta §3.3's footnote, not the CLI — does `design:
+  [a]` give mechanism C's clean `path_type` record at `settings.render_command.design`; the port
+  emits exactly that record, which is what a unit test pins instead of the CLI-level byte comparison.
 
 ---
 
