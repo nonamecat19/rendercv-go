@@ -45,10 +45,12 @@ func TestResolveRenderCommand(t *testing.T) {
 			},
 		},
 		{
-			// Upstream's truthiness rule for this block: only the boolean true
-			// switches a format off.
-			name: "false and a non-boolean leave it on",
+			// `false` leaves the switch on; a lax-boolean string ("yes") is
+			// accepted and takes effect, same as the literal `true`
+			// (spec 006 delta §3.4, §9 — `set_bool_words`).
+			name: "false leaves it on, a lax-boolean word takes effect",
 			yaml: "settings:\n  render_command:\n    dont_generate_pdf: false\n    dont_generate_png: \"yes\"\n",
+			want: settings.RenderCommand{DontGeneratePNG: true},
 		},
 	}
 
