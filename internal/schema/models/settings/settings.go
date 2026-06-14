@@ -20,6 +20,20 @@ import (
 // pydantic accepts in `YYYY-MM-DD` form.
 var isoDatePattern = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 
+// isMidnightEpoch is spec 006 delta §5.4's rule for an integer `current_date`:
+// pydantic accepts a Unix timestamp on the `date` branch only when it lands
+// exactly on a day boundary — `datetime.fromtimestamp(n).time() == midnight`.
+// A remainder of zero is sign-agnostic: it is the same test whether Go's `%`
+// truncates toward zero or Python's floors, because a multiple of 86400 stays
+// a multiple either way.
+func isMidnightEpoch(raw string) bool {
+	n, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		return false
+	}
+	return n%86400 == 0
+}
+
 // CodeCurrentDate is the code a bad `current_date` carries. It is pydantic's
 // union failure, and the message is irrelevant: the pipeline's step 6 override
 // replaces whatever arrives (spec 004 §3.5 behavior 18).
@@ -33,15 +47,28 @@ const CodeCurrentDate schemaerr.Code = "value_error"
 // on the strength of the location alone, so a validator that pre-substituted
 // §4.13 would take the message out of the override's reach and hide whether the
 // override runs at all. What matters here is the location.
+//
+// **`null` is not exempted.** The union has no null arm (`settings.py:11`), so
+// `current_date: null` fails both branches upstream and refuses at exit 1
+// (spec 006 delta §3.5, mechanism E) — a node with no value is not "absent",
+// which is the only case that skips this field.
+//
+// **An integer is a Unix timestamp, accepted only at exact midnight UTC**
+// (spec 006 delta §5.4, mechanism E2): `0` and `86400` render; `42` and `-1`
+// refuse with the same message, because their `date` branch fails
+// `date_from_datetime_inexact`, which the location override also replaces.
 func ValidateCurrentDate(
 	node *yamldoc.Node,
 	location []string,
 	source schemaerr.YamlSource,
 ) []schemaerr.ValidationError {
-	if node == nil || node.Kind == yamldoc.KindNull {
+	if node == nil {
 		return nil
 	}
 
+	if node.Kind == yamldoc.KindInt && isMidnightEpoch(node.Raw) {
+		return nil
+	}
 	value := node.Raw
 	if value == "today" || isoDatePattern.MatchString(value) {
 		return nil

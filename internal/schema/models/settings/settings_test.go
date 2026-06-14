@@ -36,6 +36,17 @@ func TestValidateCurrentDate(t *testing.T) {
 		{name: "upstream's typo", value: "todady", rejected: true},
 		{name: "a partial date", value: "2025-01", rejected: true},
 		{name: "prose", value: "the first of January", rejected: true},
+		// Mechanism E (spec 006 delta §3.5): the union has no null arm, so an
+		// explicit null fails both branches — unlike an *absent* key, which
+		// `ValidateCurrentDate` never sees (the caller's `mappingValue` guard).
+		{name: "an explicit null", value: "null", rejected: true},
+		// Mechanism E2 (spec 006 delta §5.4): an integer is a Unix timestamp,
+		// accepted only at exact midnight UTC.
+		{name: "epoch zero", value: "0", rejected: false},
+		{name: "epoch one day", value: "86400", rejected: false},
+		{name: "a negative multiple of a day", value: "-86400", rejected: false},
+		{name: "an inexact positive timestamp", value: "42", rejected: true},
+		{name: "an inexact negative timestamp", value: "-1", rejected: true},
 	}
 
 	for _, test := range tests {

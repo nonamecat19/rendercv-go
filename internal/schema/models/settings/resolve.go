@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"strconv"
 	"time"
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
@@ -84,6 +85,15 @@ func Resolve(node *yamldoc.Node, now time.Time) Resolved {
 			out.RenderCommand = resolveRenderCommand(item.Value)
 		case "current_date":
 			if item.Value.Raw == "today" {
+				continue
+			}
+			if item.Value.Kind == yamldoc.KindInt {
+				// A validated document only reaches here with a midnight-exact
+				// timestamp (spec 006 delta §5.4, mechanism E2); `datetime.
+				// fromtimestamp` is what upstream reads it with.
+				if n, err := strconv.ParseInt(item.Value.Raw, 10, 64); err == nil {
+					out.CurrentDate = time.Unix(n, 0).UTC()
+				}
 				continue
 			}
 			if parsed, err := time.Parse("2006-01-02", item.Value.Raw); err == nil {
