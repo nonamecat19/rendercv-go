@@ -189,16 +189,50 @@ Each entry: what differs · upstream citation · why parity is impossible or und
   | Vendored | Size | Source |
   |---|---|---|
   | `typst.wasm` | 29 MB | `just typst-wasm`, `tools/typstwasm` pinned to typst 0.14.2 by `Cargo.lock` |
-  | `fonts/` | 59 MB, 62 files in 15 folders | the `rendercv-fonts` package the submodule locks |
+  | `fonts/` | 59 MB, 62 font files across 15 folders (77 files total with licences) | the `rendercv-fonts` package the submodule locks |
   | `packages/preview/rendercv/0.3.0/` | 8 KB | the submodule's `rendercv_typst/` |
   | `packages/preview/fontawesome/0.6.0/` | 428 KB | Typst Universe — **the file upstream does not ship** |
 
-- **User notices:** a ~90 MB binary instead of a ~15 MB one, and `render` works offline with no
+- **User notices:** a 111 MB binary instead of a ~15 MB one, and `render` works offline with no
   `typst`, no `rendercv-fonts` and no package cache installed. Font metrics are reproducible
-  because they cannot be shadowed by whatever the host happens to have.
-- **Not licensed by this:** vendoring does not change *font resolution order*. A `fonts/`
-  directory beside the input file still wins a name tie, matching typst-cli's `FontSearcher`
-  and upstream's `get_typst_compiler` (`pdf_png.py:154-186`).
+  because they cannot be shadowed by whatever the host happens to have — **except that this cuts
+  both ways; see below.**
+- **Font resolution order, corrected 2026-08-14 (measured by a fresh-context verify of iteration
+  10):** the previous text here claimed "a `fonts/` directory beside the input file still wins a
+  name tie" as if the vendored set could be shadowed on this port too. Measured with a renamed
+  font whose internal family collides with a vendored one (`Lato`, distinct PostScript name, in
+  `./fonts/`): **both sides render the vendored face**, because `rendercv_fonts.paths_to_font_folders`
+  is listed ahead of the input's own `fonts/` directory on both sides (`pdf_png.py:174-185`, and
+  `Compile`'s `argv` appends `--font-dir fontsMount` before any caller-supplied `FontDirs`). Parity
+  holds; the sentence describing it had the winner backwards.
+- **A real, previously undeclared consequence: the host's system fonts are invisible to this
+  port, and upstream's are not.** `get_typst_compiler` builds a `typst.Compiler` with no
+  `sandbox_dir`, so `typst-py`'s Rust core searches the **host's installed fonts** in addition to
+  `rendercv_fonts` and the input's `fonts/` directory. The WASI sandbox this port runs in has no
+  such access — `run` mounts only `/work`, `/out`, `/fonts` and `/pkg` (see
+  `internal/renderer/typstc/typstc.go`) — so two document shapes measurably diverge:
+  - `design.typography.font_family` is typed as `SkipJsonSchema[str] | Literal[<vendored names>]`
+    (`design/typography/font_family.py:30`), so upstream accepts **any** family name and falls
+    back to a host-installed face if one matches; this port falls back to its own default face
+    instead, changing line breaks and page count. Measured: `--design.typography.font_family
+    "Adwaita Sans"` (present on the verifying machine, not vendored) gives upstream a 3-page PDF
+    using `AdwaitaSans`/`AdwaitaSansItalic` and this port a 2-page PDF using
+    `LibertinusSerif-{Regular,Bold,Italic}`.
+  - **Any glyph the vendored fonts do not cover diverges with no unusual configuration at all** —
+    the practical case is emoji. A CV field containing `🚀` renders through a host emoji font
+    (e.g. `NotoColorEmoji`) upstream and renders empty/missing here. Confirmed as the sole cause:
+    removing the emoji from the same document makes the two PDFs byte-identical.
+  - **Scope:** host-dependent by nature — on a container with no extra fonts installed, upstream
+    and the port would agree, because both would fall back to the vendored set (or Typst's own
+    lack of a face). It is real on any host that has fonts the vendored set lacks, which is most
+    development and CI machines.
+  - **Why not fixed:** giving the WASI guest access to the host's font directories would mean
+    mounting an arbitrary, host-specific, unbounded set of paths into the sandbox — the opposite
+    of D-006/D-007's whole premise (reproducible metrics, no host dependency, no CGO). No attempt
+    was made to shadow-search the host's system font directories from inside wazero; doing so
+    would reproduce upstream's platform-specific search order (fontconfig on Linux, CoreText on
+    macOS, DirectWrite on Windows) exactly to stay in parity, which is out of scope for a
+    sandboxed, pure-Go compiler.
 
 ---
 
