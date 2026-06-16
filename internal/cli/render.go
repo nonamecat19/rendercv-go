@@ -12,6 +12,7 @@ import (
 	"github.com/nonamecat19/rendercv-go/internal/readtext"
 	"github.com/nonamecat19/rendercv-go/internal/renderer/bridge"
 	"github.com/nonamecat19/rendercv-go/internal/renderer/generate"
+	"github.com/nonamecat19/rendercv-go/internal/renderer/typstc"
 	"github.com/nonamecat19/rendercv-go/internal/schema/modelbuilder"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/design"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/valctx"
@@ -219,8 +220,7 @@ func renderOnce(options RenderOptions, stdout, stderr io.Writer) int {
 		stepStart := time.Now()
 		path, err := generate.PDF(doc, typstPath, genOptions)
 		if err != nil {
-			failPanel(liveOut, err)
-			return exitValidationError
+			return failStep(liveOut, err, rows)
 		}
 		rows = append(rows, PanelRow{Mark: "✓", Timing: timing(stepStart), Label: "Generated PDF:", Value: display(path)})
 	}
@@ -229,8 +229,7 @@ func renderOnce(options RenderOptions, stdout, stderr io.Writer) int {
 		stepStart := time.Now()
 		paths, err := generate.PNG(doc, typstPath, genOptions)
 		if err != nil {
-			failPanel(liveOut, err)
-			return exitValidationError
+			return failStep(liveOut, err, rows)
 		}
 		if len(paths) > 0 {
 			// **The label is pluralised only for a multi-page document**
@@ -573,6 +572,32 @@ func errMissingFile(path string) error {
 // `There are validation errors!` box wrapping a three-column table
 // (`:138-169`). Rendering every failure as the first is what the port did, and
 // it could not match a single validation golden.
+// failStep is `failPanel`'s twin for a Typst compiler failure. `typstc.Error`
+// carries `typst.TypstError`, which is neither `RenderCVUserError` nor
+// `OSError` (`exception.py:30`, `run_rendercv.py:184-196`): upstream's
+// `except` chain does not catch it, so it propagates past the `with
+// ProgressPanel(...)` block unhandled and `Live` never calls `clear()` — the
+// last frame drawn stays on the terminal, which is whatever steps had
+// completed, titled "Rendering your CV...", not the red `Error` box.
+// D-014 already covers the traceback that follows on stderr; this covers the
+// one thing it does not: stdout is not empty and not an `Error` panel.
+//
+// Measured: a photo file with corrupt image bytes gives upstream a 609-byte
+// stdout — the progress panel with one completed row, "Generated Typst:" —
+// and a `TypstError` traceback on stderr.
+func failStep(stdout io.Writer, err error, rows []PanelRow) int {
+	var compileErr *typstc.Error
+	if errors.As(err, &compileErr) {
+		if len(rows) == 0 {
+			rows = []PanelRow{{Text: "Rendering..."}}
+		}
+		writeLivePanel(stdout, progressPanel("Rendering your CV...", rows, stdout))
+		return exitValidationError
+	}
+	failPanel(stdout, err)
+	return exitValidationError
+}
+
 func failPanel(stdout io.Writer, err error) {
 	var validation *schemaerr.UserValidationError
 	if errors.As(err, &validation) && len(validation.Errors) > 0 {
