@@ -25,6 +25,11 @@ type PDFFacts struct {
 	// Geometry is the page size of every page, `WIDTHxHEIGHT` in points,
 	// one entry per page.
 	Geometry []string
+	// Fonts is every embedded font's base family name, in `pdffonts`' own
+	// order, with the six-letter subset tag (`XXXXXX+`) stripped: the tag is
+	// typst's own subsetting id and is not a property of the document upstream
+	// and the port share.
+	Fonts []string
 }
 
 // AssertPDF checks the two PDFs on the three facts axis 1 names.
@@ -47,6 +52,14 @@ func AssertPDF(t *testing.T, name string, want, got []byte) {
 
 	if wantFacts.Pages != gotFacts.Pages {
 		t.Errorf("%s: page count: golden %d, got %d", name, wantFacts.Pages, gotFacts.Pages)
+	}
+
+	// spec §1.2's fourth criterion: embedded font names, as a set. Order does
+	// not carry meaning — poppler lists fonts by PDF object id, which typst
+	// assigns independently on each side — so the comparison is set equality,
+	// not sequence equality.
+	if !sameStringSet(wantFacts.Fonts, gotFacts.Fonts) {
+		t.Errorf("%s: embedded fonts: golden %v, got %v", name, wantFacts.Fonts, gotFacts.Fonts)
 	}
 
 	for i, w := range wantFacts.Geometry {
@@ -73,7 +86,11 @@ func ReadPDF(raw []byte) (PDFFacts, error) {
 	if err != nil {
 		return PDFFacts{}, err
 	}
-	return PDFFacts{Text: text, Pages: pages, Geometry: geometry}, nil
+	fonts, err := pdffonts(raw)
+	if err != nil {
+		return PDFFacts{}, err
+	}
+	return PDFFacts{Text: text, Pages: pages, Geometry: geometry, Fonts: fonts}, nil
 }
 
 func pdftotext(raw []byte) (string, error) {
@@ -120,6 +137,68 @@ func pdfinfo(raw []byte) (int, []string, error) {
 		return 0, nil, fmt.Errorf("pdfinfo reported %d pages but %d size lines", pages, len(geometry))
 	}
 	return pages, geometry, nil
+}
+
+// pdffonts lists every font `pdffonts` reports, with typst's own six-letter
+// subset tag (`XXXXXX+`, e.g. `GRREMH+SourceSans3-Italic`) stripped from the
+// front. The tag is assigned per compile and is not stable even between two
+// runs of the same document on the same binary, so leaving it in would make
+// the comparison fail on font subsetting rather than on a font difference.
+func pdffonts(raw []byte) ([]string, error) {
+	out, err := run("pdffonts", raw, "-")
+	if err != nil {
+		return nil, err
+	}
+
+	var fonts []string
+	lines := strings.Split(string(out), "\n")
+	// The first two lines are the header and its `---` underline.
+	for _, line := range lines[min(2, len(lines)):] {
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+		fonts = append(fonts, stripSubsetTag(fields[0]))
+	}
+	return fonts, nil
+}
+
+// stripSubsetTag removes a leading `XXXXXX+` subset tag: exactly six
+// uppercase ASCII letters followed by `+`, the shape every subsetter in this
+// pipeline (both typst builds) uses.
+func stripSubsetTag(name string) string {
+	plus := strings.IndexByte(name, '+')
+	if plus != 6 {
+		return name
+	}
+	for _, r := range name[:6] {
+		if r < 'A' || r > 'Z' {
+			return name
+		}
+	}
+	return name[7:]
+}
+
+// sameStringSet compares two slices as sets — spec §1.2 names embedded fonts
+// "as a set", so neither order nor duplicate count carries meaning.
+func sameStringSet(a, b []string) bool {
+	toSet := func(items []string) map[string]bool {
+		set := make(map[string]bool, len(items))
+		for _, s := range items {
+			set[s] = true
+		}
+		return set
+	}
+	wantSet, gotSet := toSet(a), toSet(b)
+	if len(wantSet) != len(gotSet) {
+		return false
+	}
+	for s := range wantSet {
+		if !gotSet[s] {
+			return false
+		}
+	}
+	return true
 }
 
 // normalizeSize turns pdfinfo's `595.28 x 841.89 pts (A4)` into `595.28x841.89`.
