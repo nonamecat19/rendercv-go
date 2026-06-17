@@ -1,0 +1,56 @@
+╭───────────────────── Traceback (most recent call last) ──────────────────────╮
+│ /home/nnc/Projects/rendercv-go/third_party/rendercv/src/rendercv/cli/error_h │
+│ andler.py:38 in wrapper                                                      │
+│                                                                              │
+│   35 │   @functools.wraps(function)                                          │
+│   36 │   def wrapper(*args: P.args, **kwargs: P.kwargs) -> None:             │
+│   37 │   │   try:                                                            │
+│ ❱ 38 │   │   │   return function(*args, **kwargs)                            │
+│   39 │   │   except RenderCVUserError as e:                                  │
+│   40 │   │   │   if e.message:                                               │
+│   41 │   │   │   │   print(                                                  │
+│                                                                              │
+│ /home/nnc/Projects/rendercv-go/third_party/rendercv/src/rendercv/cli/render_ │
+│ command/render_command.py:238 in cli_command_render                          │
+│                                                                              │
+│   235 │   │   │   │   lambda: run_rendercv(input_file_path, progress_panel,  │
+│   236 │   │   │   )                                                          │
+│   237 │   │   else:                                                          │
+│ ❱ 238 │   │   │   run_rendercv(input_file_path, progress_panel, **arguments) │
+│   239                                                                        │
+│                                                                              │
+│ /home/nnc/Projects/rendercv-go/third_party/rendercv/src/rendercv/cli/render_ │
+│ command/run_rendercv.py:156 in run_rendercv                                  │
+│                                                                              │
+│   153 │   │   │   generate_typst,                                            │
+│   154 │   │   │   rendercv_model,                                            │
+│   155 │   │   )                                                              │
+│ ❱ 156 │   │   timed_step(                                                    │
+│   157 │   │   │   "Generated PDF",                                           │
+│   158 │   │   │   progress,                                                  │
+│   159 │   │   │   generate_pdf,                                              │
+│                                                                              │
+│ /home/nnc/Projects/rendercv-go/third_party/rendercv/src/rendercv/cli/render_ │
+│ command/run_rendercv.py:55 in timed_step                                     │
+│                                                                              │
+│    52 │   │   Function result.                                               │
+│    53 │   """                                                                │
+│    54 │   start = time.perf_counter()                                        │
+│ ❱  55 │   result = func(*args, **kwargs)                                     │
+│    56 │   end = time.perf_counter()                                          │
+│    57 │   timing_ms = f"{(end - start) * 1000:.0f}"                          │
+│    58                                                                        │
+│                                                                              │
+│ /home/nnc/Projects/rendercv-go/third_party/rendercv/src/rendercv/renderer/pd │
+│ f_png.py:42 in generate_pdf                                                  │
+│                                                                              │
+│    39 │   │   rendercv_model._input_file_path, typst_path.parent             │
+│    40 │   )                                                                  │
+│    41 │   copy_photo_next_to_typst_file(rendercv_model, typst_path)          │
+│ ❱  42 │   typst_compiler.compile(input=typst_path, format="pdf", output=pdf_ │
+│    43 │                                                                      │
+│    44 │   return pdf_path                                                    │
+│    45                                                                        │
+╰──────────────────────────────────────────────────────────────────────────────╯
+TypstError: failed to decode image (Format error decoding Jpeg: Error parsing 
+image. Illegal start bytes:6E6F)

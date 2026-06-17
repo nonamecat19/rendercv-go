@@ -1,0 +1,2 @@
+rendercv_output/John_Doe_CV.typ
+rendercv_output/photo.jpg
