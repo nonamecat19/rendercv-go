@@ -38,7 +38,7 @@
 //
 // # Stability
 //
-// This surface is not frozen. AGENTS.md §3 calls it semver'd, but freezing it
-// is a release decision that has not been taken, and several of the internal
-// types it exposes are still moving.
+// Frozen as of v1.0.0. This package follows semantic versioning: a breaking
+// change to any exported symbol's signature or behavior requires a new major
+// version. See CHANGELOG.md at the module root for the version history.
 package rendercv
