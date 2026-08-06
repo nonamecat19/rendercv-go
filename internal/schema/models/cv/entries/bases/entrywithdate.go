@@ -112,13 +112,36 @@ func isLeapYear(year int) bool {
 
 // BindEntryWithDate binds an entry mapping that carries a `date`, validating it
 // per spec §3.69 and retaining unknown keys per spec §3.67.
+//
+// The own fields come **first**, then `date`. That is upstream's field order for
+// every type built as `class X(BaseEntryWithDate, BaseX)`, because pydantic emits
+// the last-listed base's own fields first (spec 003 §3.2). Iteration 3 composed
+// this the other way round, which put every base-field error ahead of every
+// own-field error and is item 1 of its cut scope.
 func BindEntryWithDate(
 	node *yamldoc.Node,
 	extraFields []binder.Field,
 	location []string,
 	source schemaerr.YamlSource,
 ) (*BaseEntryWithDate, []schemaerr.ValidationError) {
-	fields := append(append([]binder.Field(nil), dateFields...), extraFields...)
+	return bindEntryWithDateFields(
+		node,
+		append(append([]binder.Field(nil), extraFields...), dateFields...),
+		location,
+		source,
+	)
+}
+
+// bindEntryWithDateFields binds an already-ordered field list. It exists so that
+// BaseEntryWithComplexFields can place `date` between the own fields and the five
+// complex ones — the order upstream produces — instead of having it forced to one
+// end (spec 004 §3.9a behavior 33a).
+func bindEntryWithDateFields(
+	node *yamldoc.Node,
+	fields []binder.Field,
+	location []string,
+	source schemaerr.YamlSource,
+) (*BaseEntryWithDate, []schemaerr.ValidationError) {
 	base, errs := BindEntry(node, fields, location, source)
 
 	entry := &BaseEntryWithDate{BaseEntry: *base}

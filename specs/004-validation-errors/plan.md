@@ -291,7 +291,24 @@ func parseOne(
 Notes per step where the Go shape is not obvious:
 
 **Step 1 (strip).** `strings.ReplaceAll`, twice, in the order of `pydantic_error_handling.py:23`.
-Not `TrimPrefix` — `spec.md` §3.2 behavior 4 and §6.6 require every occurrence.
+Not `TrimPrefix` — `spec.md` §3.2 behavior 4 and §6.6 require every occurrence. The condition is the
+**message text**, never the error code (`spec.md` §3.2 behavior 4b).
+
+The two prefixes are asymmetric in the port and the decision is `spec.md` §3.2 behavior 4a:
+
+- `value is not a valid email address: ` is an explicit template in pydantic's source, so
+  `emailaddr`'s **caller** builds the prefixed message (§5.3) and this half of the strip runs on
+  production data — gated by records 1 and 2 of the differential.
+- `Value error, ` is pydantic-core wrapping an exception that escaped a validator. The port has no
+  such mechanism, so it does not fabricate the prefix, and
+  `internal/schema/models/cv/entries/bases/entrywithdate.go` keeps storing `month must be in 1..12`
+  unprefixed. This half of the strip is implemented, tested on synthetic records, and inert.
+
+The inert half needs a **second** test to be worth anything: one asserting no message under
+`internal/schema/models/**` contains `Value error, `. Without it the synthetic test is unfalsifiable
+by any real regression, which is the standard `spec.md` §8 now states explicitly. A doc comment on
+step 1 carries the asymmetry, or a later reader will either delete the second `ReplaceAll` as dead
+or add the prefix to `entrywithdate.go` to "make it used".
 
 **Step 2 (discriminator skip).** Guard the index: `len(loc) > 0 && (loc[0] == "design" || loc[0] ==
 "locale")`, then `append(loc[:1:1], loc[2:]...)` on a **copy**. Aliasing the caller's slice here
@@ -450,6 +467,13 @@ trim, then the syntax checks in the order that reproduces behavior 55's table, t
 lowercasing. The table **is** the specification of the order: `a@` must report "something after"
 and not "no period", `.a@b.com` must report "cannot start with a period" and not "invalid
 characters".
+
+`Validate` returns the **bare reason**, matching the `{reason}` slot of pydantic's template. The
+**caller** — the `elementValidators["email"]` registration — builds the raw message as
+`"value is not a valid email address: " + reason`, citing that template. That split is deliberate:
+`emailaddr` stays a reusable address validator, and the one place that knows about the pipeline's
+prefix contract is the one place that feeds the pipeline. `spec.md` §3.2 behavior 4a is why the
+prefix is reproduced at all.
 
 Registration replaces `elementValidators["email"]`.
 

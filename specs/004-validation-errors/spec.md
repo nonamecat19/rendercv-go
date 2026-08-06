@@ -136,6 +136,36 @@ That whole file — 25 records for that one input — is the normative fixture f
    address must have an @-sign.` becomes `An email address must have an @-sign.`, and
    `Value error, month must be in 1..12` becomes `month must be in 1..12`.
 
+4a. **The two prefixes have different provenance, and the port reproduces one and not the other.**
+   This is a scoping decision, recorded here because §8's criteria depend on it.
+
+   | Prefix | Where it comes from | In the port's raw records? |
+   |---|---|---|
+   | `value is not a valid email address: ` | an explicit message **template** in pydantic's source, `'value is not a valid email address: {reason}'`, used at two sites in `validate_email` | **yes** — reproduced verbatim |
+   | `Value error, ` | pydantic-core wrapping a bare exception that **escaped** a validator | **no** — the port has no such mechanism |
+
+   The first is source text the port can cite and reproduce; the second is a framework artifact of a
+   framework the port does not have. Reproducing the second would mean fabricating a prefix purely
+   so the strip could remove it. So `emailaddr`'s caller builds the prefixed message and the strip
+   is **exercised by production data** — records 1 and 2 of the 25-record fixture are email failures
+   whose final text is `An email address must have an @-sign.` (`expected_errors.yaml:3`, `:9`), so
+   the email half of the strip is gated by the strongest test in the iteration. The
+   `Value error, ` half is implemented, verified on synthetic records, and **inert** for every
+   message the port itself produces. §8 says so rather than asserting a criterion that cannot fail.
+
+4b. **The prefix is not a function of the error code.** Measured, three failures all coded
+   `value_error`, only one of which carries it:
+
+   | Failure | Code | Carries `Value error, `? |
+   |---|---|---|
+   | `email: bad` | `value_error` | no — it is a `PydanticCustomError` with the template of behavior 4a |
+   | `phone: bad` | `value_error` | no — a `PydanticCustomError` with a fixed message |
+   | `date: 2020-13-01` | `value_error` | **yes** — `Date.fromisoformat`'s `ValueError` escapes `validate_arbitrary_date` uncaught (`models/cv/entries/bases/entry_with_date.py:26-29`) |
+
+   A `PydanticCustomError` is never wrapped, whatever code it declares. Only two upstream sites
+   produce a bare exception that escapes a validator: `entry_with_date.py:26-29` and
+   `models/design/design.py:132`. Both are inert for the port per behavior 4a.
+
 ### 3.3 The location builder
 
 5. `location` is built by stringifying every element of the raw location and **dropping** any
@@ -439,7 +469,10 @@ observable result correct, which is why neither may be simplified away.
     pair in the declared order and lets §3.3 and §3.8 run gets both right for free. This is the
     argument for implementing both mechanisms faithfully rather than short-cutting to "one error
     per field".
-33g. `date: true` is **accepted** (§5.11): a bool satisfies the `int` arm.
+33g. `date: true` is **accepted** and **coerced to `1`**; `date: false` becomes `0` (measured). A
+    bool satisfies the `int` arm and pydantic's lax mode converts it. The stored value is an
+    integer, not a bool, which matters downstream: iteration 9 renders `date` and would print
+    `1`, not `true`. Iteration 5 also sees `int | str`, never `bool`.
 
 ### 3.9c Error codes, corrected
 
@@ -460,9 +493,12 @@ observable result correct, which is why neither may be simplified away.
 33i. Only the wrapper's code triggers §3.7's unpacking, and it is the **one** section failure raised
     with a different type than the other four. Only the literal code `missing` triggers §3.10's
     path truncation (§3.10 behavior 36).
-33j. `value_error` is the code that carries the `Value error, ` prefix §3.2 step 1 strips; a
-    `rendercv_other_error` never has it, because `PydanticCustomError` messages are not wrapped.
-    Getting the two confused makes the strip a no-op or a double-strip.
+33j. **The code does not tell you whether a message carries a §3.2 prefix.** §3.2 behaviors 4a
+    and 4b hold the rule and the measurements. The arbitrary-date row of behavior 33h is the one
+    `value_error` in the tree whose message *is* wrapped, and it is wrapped because
+    `Date.fromisoformat`'s exception escapes uncaught, not because of its code. A porter who infers
+    "code `value_error` ⇒ strip" would double-strip the email and phone messages, both of which are
+    `value_error` and neither of which is wrapped.
 
 ### 3.10 Coordinate resolution
 
@@ -1077,6 +1113,12 @@ This is not a valid date! Please use either YYYY-MM-DD, YYYY-MM, or YYYY format.
     filtered away by §3.3, they dedup to one, and the surviving message matches no dictionary row
     (row 2's key is longer than the message, and containment runs the other way). `date: true`
     is **accepted**.
+10a. **The email prefix reaches the pipeline; the `Value error, ` prefix does not.** §3.2
+    behaviors 4a and 4b. `email: not_a_valid_email` produces a raw message of
+    `value is not a valid email address: An email address must have an @-sign.` and a final message
+    of `An email address must have an @-sign.` — so the strip is gated by `expected_errors.yaml:3`
+    and `:9`. No message the port produces contains `Value error, `, because the port never wraps an
+    escaping exception. Both halves are implemented; only one is exercised by production data.
 11a. **A non-scalar `date` and a non-scalar `start_date` produce different surviving messages.**
     §3.9b behaviors 33d–33f. `date: {a: 1}` reports `Input should be a valid integer.` and
     `start_date: {a: 1}` reports `Input should be a valid string.`, from a two-record collapse in
@@ -1153,7 +1195,10 @@ This is not a valid date! Please use either YYYY-MM-DD, YYYY-MM, or YYYY format.
    pair is disjoint on every measured message, so file order is currently unobservable too — but
    it is contractual, because a future upstream row could overlap.
 6. **The strip of §3.2 step 1 removes every occurrence, not the first.** A message containing
-   `Value error, ` twice loses both.
+   either prefix twice loses both copies. Per §3.2 behavior 4a only the email prefix reaches this
+   rule from the port's own records; the `Value error, ` half is exercised only by synthetic input,
+   and §8's criterion says that in as many words rather than implying coverage the port does not
+   have.
 7. **Messages carry exactly one trailing period, unless the pre-period text already ended in
    punctuation**, in which case the period is appended after it: `!.`, `.".`, `)".`. §3.6.
 8. **Whitespace inside a message is never normalized.** The literals of §4 are emitted byte for
@@ -1330,8 +1375,21 @@ differential; everything else is a unit test.
       number`), skip-before-context-override (using `design.theme`), filter-before-special-case
       (using `end_date` with a synthetic branch element), override-before-dictionary (using
       `end_date`), dictionary-before-period (using the color message).
-- [ ] Both prefixes of §3.2 behavior 4 are stripped, including a second occurrence in the same
-      message.
+- [ ] **The email prefix is stripped on production data.** `email: not_a_valid_email` yields a raw
+      message carrying `value is not a valid email address: ` and a final message of
+      `An email address must have an @-sign.` This half of §3.2 step 1 is additionally gated by the
+      **[diff]** criterion, whose first two records are exactly this (§3.2 behavior 4a, §5.10a).
+- [ ] **The `Value error, ` prefix is stripped on synthetic records, and is inert on production
+      data.** Two tests, and the second is as important as the first: one feeding `parseOne` a
+      hand-built record whose message contains the prefix **twice** and asserting both copies go
+      (§6.6), and one asserting that **no** message produced anywhere under
+      `internal/schema/models/**` contains the substring `Value error, `. Without the second test
+      the first proves nothing about the port, because the port never emits the prefix — §3.2
+      behavior 4a records why it does not fabricate one, and this criterion is written to be
+      falsifiable rather than to imply coverage that does not exist.
+- [ ] Neither prefix is stripped twice, and the strip is not conditioned on the error code: the
+      `value_error`-coded email and phone messages are handled correctly and the `value_error`-coded
+      arbitrary-date message is the only wrapped one (§3.2 behavior 4b, §3.9c behavior 33j).
 - [ ] Each of the seven filter substrings of §3.3 behavior 5 removes an element, as a table test
       over the five measured synthetic elements of behavior 6.
 - [ ] §3.3 behavior 7's five-row section-key table, end to end: four sections collapse to one
@@ -1403,8 +1461,9 @@ differential; everything else is a unit test.
       from the existing Go tests.
 - [ ] Only `rendercv_entry_validation_error` triggers §3.7's unpacking, and only the literal
       `missing` triggers §3.10's truncation (behavior 33i).
-- [ ] `value_error` messages lose the `Value error, ` prefix and `rendercv_other_error` messages
-      are unchanged by §3.2 step 1 (behavior 33j).
+- [ ] The prefix rule is not keyed on the code (behavior 33j) — covered by the third criterion of
+      *The transform* above, and cross-listed here because that is the mistake this table's codes
+      invite.
 
 **Coordinates and input**
 
