@@ -60,6 +60,8 @@ jobs:
           enable-cache: true
       - name: Sync vendored upstream
         run: cd third_party/rendercv && uv sync --frozen --all-extras
+      - name: Build rendercv-go
+        run: go build -o bin/rendercv-go ./cmd/rendercv-go
       - name: Run the parity suite
         run: go test -tags conformance ./...
 
