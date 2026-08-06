@@ -12,12 +12,21 @@ import (
 // complexFields is the declaration order of spec §3.79, after the inherited
 // `date` (entry_with_complex_fields.py:93-132). All are optional and default to
 // absent.
+//
+// The declared shapes are upstream's: `location: str | None` and
+// `summary: str | None` (entry_with_complex_fields.py:106-119), and
+// `highlights: list[str] | None` (:120-132). Iteration 2 bound all three as raw
+// nodes with no check; spec 003 §3.13 behavior 25 closes that.
+//
+// `start_date` and `end_date` stay ValueAny because their own validators own
+// them: they are `str | int` upstream, so an int is legal and the date checks of
+// spec §3.71 report the failures.
 var complexFields = []binder.Field{
 	{Name: "start_date"},
 	{Name: "end_date"},
-	{Name: "location"},
-	{Name: "summary"},
-	{Name: "highlights"},
+	{Name: "location", Value: binder.ValueString},
+	{Name: "summary", Value: binder.ValueString},
+	{Name: "highlights", Value: binder.ValueStringList},
 }
 
 // ComplexFieldNames returns the five field names in declaration order
