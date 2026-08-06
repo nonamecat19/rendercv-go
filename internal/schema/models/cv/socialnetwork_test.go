@@ -4,7 +4,10 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/nonamecat19/rendercv-go/internal/schema/binder"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv"
+	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
+	"github.com/nonamecat19/rendercv-go/internal/schema/yamlreader"
 )
 
 func TestSocialNetworkNamesOrder(t *testing.T) {
@@ -105,5 +108,64 @@ func TestSocialNetworkFieldsRejectsExtraKeys(t *testing.T) {
 				t.Errorf("allowed[%q] = %v, want %v", tt.key, allowed[tt.key], tt.allow)
 			}
 		})
+	}
+}
+
+// Spec §3.80 — both fields are required and unknown keys are rejected.
+func TestValidateSocialNetwork(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		wantCodes []schemaerr.Code
+	}{
+		{name: "both fields", input: "network: GitHub\nusername: johndoe\n"},
+		{name: "missing username", input: "network: GitHub\n", wantCodes: []schemaerr.Code{binder.CodeMissing}},
+		{name: "missing network", input: "username: johndoe\n", wantCodes: []schemaerr.Code{binder.CodeMissing}},
+		{name: "both missing", input: "{}\n", wantCodes: []schemaerr.Code{binder.CodeMissing, binder.CodeMissing}},
+		{
+			name:      "unknown key",
+			input:     "network: GitHub\nusername: johndoe\nextra: 1\n",
+			wantCodes: []schemaerr.Code{binder.CodeExtraForbidden},
+		},
+		{
+			name:      "unsupported network",
+			input:     "network: Friendster\nusername: johndoe\n",
+			wantCodes: []schemaerr.Code{cv.CodeLiteral},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			node, err := yamlreader.ReadString(tc.input)
+			if err != nil {
+				t.Fatalf("ReadString: %v", err)
+			}
+			_, errs := cv.ValidateSocialNetwork(node, []string{"cv", "social_networks", "0"}, schemaerr.SourceMain)
+			if len(errs) != len(tc.wantCodes) {
+				t.Fatalf("errs = %+v, want %d", errs, len(tc.wantCodes))
+			}
+			for i, code := range tc.wantCodes {
+				if errs[i].Code != code {
+					t.Errorf("errs[%d].Code = %q, want %q", i, errs[i].Code, code)
+				}
+			}
+		})
+	}
+}
+
+// Every one of the seventeen names is accepted.
+func TestAllSocialNetworkNamesAccepted(t *testing.T) {
+	for _, name := range cv.SocialNetworkNames {
+		node, err := yamlreader.ReadString("network: \"" + string(name) + "\"\nusername: johndoe\n")
+		if err != nil {
+			t.Fatalf("ReadString: %v", err)
+		}
+		model, errs := cv.ValidateSocialNetwork(node, nil, schemaerr.SourceMain)
+		if len(errs) != 0 {
+			t.Errorf("%s: errs = %+v, want none", name, errs)
+		}
+		if model.Network != name {
+			t.Errorf("network = %q, want %q", model.Network, name)
+		}
 	}
 }
