@@ -39,9 +39,12 @@ the vendored Python, and correct any Go test that asserted the port's code rathe
 Three of iteration 3's tests did (`9ddd896` fixed the production side but the tests are the record
 that failed to catch it), so **every** code assertion in `internal/schema/models/**` is re-checked
 here, not just the three.
-Spec §3.9c behaviors 33h–33j. Plan §7 hazard 1a.
-Tests: the six-row table; `value_error` messages lose the `Value error, ` prefix and
-`rendercv_other_error` messages do not.
+Also record, as a test, that the prefix rule of spec §3.2 behaviors 4a–4b is **not** keyed on the
+code: the `value_error`-coded email and phone messages carry no `Value error, ` prefix and only the
+arbitrary-date message does. The "no production change" line above still holds — the email prefix
+decision is T25's, not A1's, and `entrywithdate.go` keeps its unprefixed message.
+Spec §3.2 behaviors 4a–4b, §3.9c behaviors 33h–33j. Plan §7 hazard 1a.
+Tests: the six-row code table; the three-row prefix table of spec §3.2 behavior 4b.
 
 ### A2 — feed the binder the descriptor's field order · `[sequential]`
 `internal/schema/models/cv/entries/*.go` and the three base binders: stop composing
@@ -145,9 +148,14 @@ No behavior change; existing tests unchanged.
 step 1 (both prefixes, `ReplaceAll`, in upstream's order) and step 8 (the period), and nothing
 between them yet. The doc comment on `parseOne` names the three artifact endings `!.`, `.".`,
 `)".` with their §4 references, and states that the period statement is last.
-Spec §3.2 behavior 4, §3.6, §6.6, §6.7. Plan §4.
-Tests: a second occurrence of `Value error, ` in one message is also removed; §3.6's four-row
-table for the cases reachable without the other steps.
+The doc comment also carries the prefix asymmetry of spec §3.2 behavior 4a, so nobody later either
+deletes the second `ReplaceAll` as dead or adds the prefix to `entrywithdate.go` to "make it used".
+Spec §3.2 behaviors 4, 4a, 4b, §3.6, §6.6, §6.7, §5.10a. Plan §4 step 1.
+Tests: §3.6's four-row table for the cases reachable without the other steps; a synthetic record
+whose message contains `Value error, ` **twice** loses both copies; and — the criterion that makes
+the previous one falsifiable — an assertion that **no** message produced under
+`internal/schema/models/**` contains `Value error, `, so the inert half of the strip is documented
+as inert rather than implied to be covered. The email half is not tested here; it lands with T25.
 
 ### T9 — step 2: the `design` / `locale` discriminator skip · `[sequential]`
 `internal/schema/errorpipeline/location.go`. Slice on a **copy**, guarded for a short location.
@@ -290,8 +298,15 @@ Spec §3.14. Plan §5.1.
 Tests: a list-valued `phone` produces one record per bad element at the element's index.
 
 ### T25 — register the email validator · `[sequential]` (reads T23)
-Replace `elementValidators["email"]`'s pass-through.
-Spec §3.15. Partially closes the `TODO(iteration-4)` at `.../scalarorlist.go:14`.
+Replace `elementValidators["email"]`'s pass-through. The registration builds the raw message as
+`"value is not a valid email address: " + reason`, reproducing pydantic's own template so that step
+1's email strip runs on production data (spec §3.2 behavior 4a, plan §5.3). `emailaddr.Validate`
+returns the bare reason; only this call site knows about the prefix.
+Spec §3.15, §3.2 behavior 4a, §5.10a. Partially closes the `TODO(iteration-4)` at
+`.../scalarorlist.go:14`.
+Tests: `email: not_a_valid_email` produces a raw message carrying the prefix and a final message of
+`An email address must have an @-sign.` — the one production path that exercises step 1, and the
+same text as records 1 and 2 of T50's differential.
 
 ### T26 — register the website validator · `[sequential]` (reads T22)
 Replace `elementValidators["website"]`'s pass-through. Closes `.../scalarorlist.go:14`.
@@ -375,7 +390,10 @@ decision spec 002 §7.3 deferred. The three range messages are reproducible verb
 already implemented; this task removes the two `TODO(iteration-4)` markers (`entrywithdate.go:61`,
 `entrywithcomplexfields.go:100`) and adds §4.33 for a year outside four digits, replacing the
 not-a-valid-date fallback.
-Spec §3.19 behavior 71, §4.33, §4.34, and spec 002 §4.13, §5.11.
+The three range messages stay **unprefixed** in the Go record — spec §3.2 behavior 4a decides that
+the port does not fabricate `Value error, ` — and the dictionary matches them by substring either
+way, so output is unaffected.
+Spec §3.19 behavior 71, §3.2 behavior 4a, §4.33, §4.34, and spec 002 §4.13, §5.11.
 Tests: `year 0 is out of range`, `month must be in 1..12`, `day is out of range for month` and
 `Invalid isoformat string: '10000-01-01'` all reachable and verbatim; the first three then map
 through the dictionary to their §4 replacements and the fourth does not.
