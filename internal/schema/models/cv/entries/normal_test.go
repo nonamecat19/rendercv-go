@@ -7,7 +7,6 @@ import (
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/binder"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv/entries"
-	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv/entries/bases"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamlreader"
@@ -150,6 +149,11 @@ func TestNormalNullNameIsStringType(t *testing.T) {
 // Spec §5.21 — spec 002 §5.23's rejection table reached through this concrete
 // type rather than through a bare BaseEntryWithComplexFields.
 func TestNormalDateRejections(t *testing.T) {
+	// The codes are written as upstream's literal strings rather than as the Go
+	// constants, deliberately: asserting `bases.CodeDateOther` here would stay green
+	// if that constant were changed to the wrong value, which is exactly how the
+	// wrong codes survived the first round of this iteration.
+	//
 	// The codes differ per row and that is upstream's doing, not an accident:
 	// `start_date`/`end_date` failures are raised as
 	// PydanticCustomError(CustomPydanticErrorTypes.other)
@@ -167,7 +171,7 @@ func TestNormalDateRejections(t *testing.T) {
 			name:     "start_date aaa",
 			input:    "name: n\nstart_date: aaa\n",
 			location: append(normalLocation(), "start_date"),
-			code:     bases.CodeDateOther,
+			code:     "rendercv_other_error",
 			message: "This is not a valid date! Please use either YYYY-MM-DD, YYYY-MM," +
 				" or YYYY format.",
 		},
@@ -175,7 +179,7 @@ func TestNormalDateRejections(t *testing.T) {
 			name:     "start_date after end_date",
 			input:    "name: n\nstart_date: 2023-01-01\nend_date: 2021-01-01\n",
 			location: normalLocation(),
-			code:     bases.CodeDateOther,
+			code:     "rendercv_other_error",
 			message: "`start_date` cannot be after `end_date`. The `start_date` is 2023-01-01" +
 				" and the `end_date` is 2021-01-01.",
 		},
@@ -183,7 +187,7 @@ func TestNormalDateRejections(t *testing.T) {
 			name:     "date 2020-20-20",
 			input:    "name: n\ndate: 2020-20-20\n",
 			location: append(normalLocation(), "date"),
-			code:     bases.CodeDateValue,
+			code:     "value_error",
 			message:  "month must be in 1..12",
 		},
 	}

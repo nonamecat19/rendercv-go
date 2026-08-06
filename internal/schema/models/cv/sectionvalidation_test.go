@@ -134,8 +134,24 @@ func TestFirstResolvableEntryWins(t *testing.T) {
 	if errs[0].Message == messageNullEntryText {
 		t.Errorf("errs[0] is the null-entry error, which inference must have skipped")
 	}
-	if len(errs[0].Children) == 0 {
-		t.Errorf("wrapper carries no children, want the per-entry failures")
+
+	// Upstream gives exactly two children for this input, measured: the skipped
+	// null fails as a non-mapping at index 0, and the MIT entry is missing `area`
+	// at index 1. Asserted positionally with literal codes — a bare
+	// "len(children) != 0" would pass with either child alone, or with both codes
+	// wrong.
+	var got []string
+	for _, child := range errs[0].Children {
+		got = append(got, strings.Join(child.SchemaLocation, ".")+" "+string(child.Code))
+	}
+	want := []string{"0 model_type", "1.area missing"}
+	if len(got) != len(want) {
+		t.Fatalf("children = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("children = %v, want %v", got, want)
+		}
 	}
 }
 
@@ -321,16 +337,23 @@ func TestProductionPathRejectsABadEntry(t *testing.T) {
 	}
 }
 
-// Spec §8 — the seven `(entry_type_name, section_model_name)` pairs asserted from
-// an **already-constructed entry**, not only from a raw mapping. Upstream tests
-// both halves (tests/schema/models/cv/test_section.py:19-60) and its
-// already-a-model branch is a distinct code path: `entry.__class__.__name__`
-// rather than characteristic-field discrimination (section.py:173-176).
+// Spec §8, partially — the seven `(entry_type_name, section_model_name)` pairs,
+// asserted from a **raw mapping**. Upstream asserts them twice, once from a dict
+// and once from a constructed model instance
+// (tests/schema/models/cv/test_section.py:19-60).
 //
-// Go has no single "constructed entry" interface to switch on, so the equivalent
-// is to validate the entry first and then re-discriminate the same node: a
-// successfully validated entry must resolve to the type it was validated as.
-func TestConstructedEntryResolvesToItsOwnType(t *testing.T) {
+// **The constructed-entry half is deliberately not covered here, and is cut to
+// iteration 4.** An earlier version of this test validated a node and then
+// re-resolved the same node, which is a tautology: both calls take the identical
+// KindMapping branch, so the second could only fail if Discriminate were
+// nondeterministic. Upstream's already-a-model branch is a genuinely different
+// path — `entry.__class__.__name__` at section.py:173-176 — and Go has no
+// equivalent, because a non-mapping, non-string, non-null node falls through to
+// the `messageNoType` branch under the TODO(iteration-4) at
+// sectionvalidation.go. Reproducing it depends on iteration 4's §5.14
+// already-a-model decision, so it is recorded in specs/STATE.md rather than
+// approximated with a test that cannot fail.
+func TestEntryTypeAndSectionModelPairs(t *testing.T) {
 	tests := []struct {
 		name string
 		src  string
@@ -361,13 +384,23 @@ func TestConstructedEntryResolvesToItsOwnType(t *testing.T) {
 		{name: "bullet", src: "  - bullet: A point\n", want: "BulletEntry"},
 	}
 
+	// Upstream's own pairs, as literals rather than recomputed from the type name,
+	// so this cannot agree with a wrong implementation of the name transform.
+	wantModel := map[entries.TypeName]string{
+		"PublicationEntry": "SectionWithPublicationEntries",
+		"ExperienceEntry":  "SectionWithExperienceEntries",
+		"EducationEntry":   "SectionWithEducationEntries",
+		"NormalEntry":      "SectionWithNormalEntries",
+		"OneLineEntry":     "SectionWithOneLineEntries",
+		cv.TextEntry:       "SectionWithTextEntries",
+		"BulletEntry":      "SectionWithBulletEntries",
+	}
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			node := section(t, test.src)
-
-			// First pass: the section validates cleanly as the expected type.
 			entryType, errs := cv.ValidateSection(
-				node, fixtureRegistry(), nil, schemaerr.SourceMain, sectionReference,
+				section(t, test.src), fixtureRegistry(), nil, schemaerr.SourceMain,
+				sectionReference,
 			)
 			if len(errs) != 0 {
 				t.Fatalf("errs = %+v, want none", errs)
@@ -375,21 +408,8 @@ func TestConstructedEntryResolvesToItsOwnType(t *testing.T) {
 			if entryType != test.want {
 				t.Fatalf("entry type = %q, want %q", entryType, test.want)
 			}
-
-			// Second pass over the same, now-validated node: the decision is stable.
-			// Upstream's already-a-model branch returns the instance's own class name,
-			// so re-resolving must not drift to a different type.
-			again, err := cv.InferEntryType(node.Elems[0], fixtureRegistry())
-			if err != nil {
-				t.Fatalf("re-resolving a validated entry: %v", err)
-			}
-			if again != test.want {
-				t.Errorf("re-resolved to %q, want %q", again, test.want)
-			}
-
-			if got := sectionModelName(string(test.want)); got != "SectionWith"+
-				strings.Replace(string(test.want), "Entry", "Entries", 1) {
-				t.Errorf("section model name = %q, unexpected", got)
+			if got := sectionModelName(string(entryType)); got != wantModel[test.want] {
+				t.Errorf("section model = %q, want %q", got, wantModel[test.want])
 			}
 		})
 	}
