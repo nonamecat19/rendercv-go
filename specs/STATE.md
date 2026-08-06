@@ -17,8 +17,8 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 0 | Bootstrap (layout, AGENTS.md, submodule, agents, skills, CI) | — | green | n/a |
 | 1 | Conformance harness (corpus, gengolden, helpers) | [001](001-conformance-harness/spec.md) | green | n/a (42 cases red by design) |
 | 2 | YAML reader + core model (RenderCVModel, CV, Section) | [002](002-yaml-and-core-model/spec.md) | green (with cut scope, see below) | n/a (gated on unit tests, spec §7.2) |
-| 3 | Entry types (9) | — | spec | 0 / 9 |
-| 4 | Validation-error parity | — | — | 0 |
+| 3 | Entry types (9) | [003](003-entry-types/spec.md) | green (with cut scope, see below) | n/a (gated on unit tests, spec §7.1) |
+| 4 | Validation-error parity | — | spec | 0 |
 | 5 | JSON Schema generator | — | — | 0 / 1 |
 | 6 | Design & themes (9) + Lua-scripted custom themes (D-002) | — | — | 0 / 9 |
 | 7 | Locale (English + 21 catalogs) + date formatting | — | — | 0 / 22 |
@@ -91,6 +91,69 @@ Two process failures in this iteration's history, recorded rather than rewritten
 - T8's coordinate test landed in `65aaa49`, *after* the T9 implementation it was supposed to
   precede, inverting the red-before-green rule of `AGENTS.md` §4.
 
+### Iteration 3
+
+Verified by `rendercv-parity-verifier` in a fresh context, which returned **FAIL** with three
+blockers. Two were fixed inside the iteration (commit `9ddd896`); the rest is cut here. Nothing
+below is a silent divergence, and none of it belongs in `divergences.md` — every item is an
+ordinary bug reproducible in Go, not a place where parity is impossible.
+
+**Fixed rather than cut** (recorded because the failure mode matters): three tests I wrote
+asserted the *port's* error codes instead of upstream's, which is why the suite was green while
+the codes were wrong. One test stated the correct upstream code in a comment and asserted a
+different one on the next line. The diamond caught what self-report would not have.
+
+1. **Entry error ordering does not interleave base and own fields.** The composed binder spec is
+   `[base fields] ++ [own fields]`, the reverse of what `class X(BaseWithDates, BaseX)` produces,
+   and the `date`/`start_date` validation errors are appended after all bind errors rather than
+   emitted at their declared position. Measured against upstream:
+
+   | input | upstream | Go |
+   |---|---|---|
+   | `ExperienceEntry{company, summary: {a: 1}}` | `position` missing, `summary` string_type | `summary` string_type, `position` missing |
+   | `ExperienceEntry{position, highlights: "x"}` | `company` missing, `highlights` list_type | `highlights` list_type, `company` missing |
+   | `ExperienceEntry{company, date: 2020-13-01, location: {a: 1}}` | `position`, `date`, `location` | `location`, `position`, `date` |
+   | `PublicationEntry{title, authors, doi: bad, journal: {a: 1}}` | `doi` string_pattern_mismatch, `journal` string_type | `journal` string_type, `doi` string_pattern_mismatch |
+
+   The descriptors already carry the right order, so part of the fix is feeding the binder the
+   descriptor order. But the date errors must also be *interleaved* at their declared position
+   rather than appended, which touches all three base binders plus `publication.go`. Spec 003 §6.3
+   already carries a `TODO(iteration-4)` on entry error ordering, and iteration 4 owns error
+   ordering, deduplication and message rewriting as its whole subject — so this lands there rather
+   than as a rushed refactor at the tail of iteration 3. **Iteration 4 must not build its rewrite
+   pipeline before fixing this**, because dedup by `schema_location` is order-sensitive.
+
+2. **A non-scalar `date` or `start_date` produces no error at all.** Upstream produces two union-branch
+   errors: `{date: {a: 1}}` on an `ExperienceEntry` gives `('date','int') int_type` and
+   `('date','str') string_type`; `start_date` likewise. Go is silent. Reachable through real types
+   for the first time in this iteration.
+
+   Iteration 4 detail that makes this cheaper there than here: `unwanted_locations`
+   (`pydantic_error_handling.py:24-32`) filters `"int"` and `"str"` out of the location, collapsing
+   both rows to `('date',)`, and dedup by `schema_location` (`:167-176`) then merges them into
+   **one** user-visible error. So the correct fix is one error at the field, and it needs iteration
+   4's filtering and dedup to be expressed faithfully.
+
+3. **Two `specs/003-entry-types/spec.md` §8 claims were inaccurate and are corrected in the record,
+   not the code.** (a) §3.18 behavior 42 says iteration 2 "already emits both" custom error types —
+   it emitted only `rendercv_other_error`; fixed in `9ddd896`. (b) §8's "every section test iteration 2
+   wrote passes against the real registry with no edit to the test" is false: three tests changed
+   (`sectionlist_test.go:20-24`, `:81-88`; `sectionvalidation_test.go`'s
+   `TestFirstResolvableEntryWins`). The changes are correct — each fixture was one the
+   accept-everything stub let pass and that upstream genuinely rejects, and each new expectation was
+   measured against the vendored Python first — but the criterion as written cannot be checked, and
+   the stale comment claiming otherwise has been corrected.
+
+4. **`Registry.Discriminate` rebuilds the characteristic table on every call**
+   (`entries/registry.go:70`). Not a parity issue; performance only. Left as is.
+
+Verifier items closed inside the iteration: the behavior-43 code table (it had substituted the date
+code and `model_type` for `string_pattern_mismatch` and `url_too_long`, so two of the five were
+never exercised), discrimination from an already-constructed entry, and the summary-only entry
+matching no type end to end.
+
+Not verifiable yet, and not claimed: PDF/PNG, artifact and CLI parity (iterations 10 and 12).
+
 ## Log
 
 | Date | Event |
@@ -100,3 +163,6 @@ Two process failures in this iteration's history, recorded rather than rewritten
 | 2026-08-06 | Iteration 2 green with cut scope: reader, binder, overlay merge, cv, entry bases, sections. Conformance suite unchanged (42 red by design). Six items carried to iteration 3. |
 | 2026-08-06 | Parity bug found and fixed: section-title capitalization used `unicode.ToTitle`, which is rune-to-rune and cannot express Python's `str.capitalize()` (`ßeta` → `Sseta`, `ﬁle` → `File`). The failing rows had been dropped from the test table rather than reported. |
 | 2026-08-06 | Iteration 3 (entry types) started: spec investigation kicked off. |
+| 2026-08-06 | Iteration 3 green with cut scope: nine entry types, registry in union order, dispatcher, real entry validator, `models.Validate` -> `cv.Validate`. Iteration 2 carried items 2 and 6 closed. Conformance unchanged at 42 red by design. |
+| 2026-08-06 | Verifier returned FAIL on iteration 3 with three blockers: the entry-problems wrapper carried `rendercv_other_error` instead of `rendercv_entry_validation_error`, exact-date failures carried `value_error` instead of `rendercv_other_error`, and entry error ordering did not interleave base and own fields. The first two were fixed (`9ddd896`); the third is cut to iteration 4. Three tests had asserted the port's codes rather than upstream's, which is why the suite was green -- the reason the verifier is never the agent that wrote the code. |
+| 2026-08-06 | Iteration 4 (validation-error parity) started. Findings: the trailing period at `pydantic_error_handling.py:94-95` is unconditional, so every message iteration 3 emits is one character short; dictionary lookup is substring-with-break, not equality; `end_date` errors end in `!.` because upstream's literal ends in `!` and the period rule appends anyway, which also makes `error_dictionary.yaml`'s own `end_date` row dead code. Coordinate columns are never user-visible (`progress_panel.py:14-36` discards them in both code paths and no machine-readable error mode exists), which resolves iteration 2 carried item 1 as internal-only. Validation errors go to stdout with an empty stderr, which our Go side currently reverses -- an iteration-12 bug with a golden already pinning it. |
