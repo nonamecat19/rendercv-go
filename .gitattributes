@@ -1,0 +1,11 @@
+# Golden fixtures are byte-exact contracts. Git must never rewrite their bytes.
+testdata/golden/** -text
+testdata/golden/**/*.pdf binary
+testdata/golden/**/*.png binary
+
+# Upstream Typst/Jinja templates copied verbatim keep their original bytes.
+*.j2.typ -text
+*.j2.md -text
+*.typ -text
+
+go.sum linguist-generated=true
