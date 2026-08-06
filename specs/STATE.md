@@ -147,6 +147,34 @@ different one on the next line. The diamond caught what self-report would not ha
 4. **`Registry.Discriminate` rebuilds the characteristic table on every call**
    (`entries/registry.go:70`). Not a parity issue; performance only. Left as is.
 
+5. **The constructed-entry half of §8's discrimination criterion is not tested.** Upstream asserts
+   the seven `(entry_type_name, section_model_name)` pairs twice — once from a raw dict and once
+   from a constructed model instance (`tests/schema/models/cv/test_section.py:19-60`). Only the
+   raw-mapping half is covered. The first attempt at the second half was a tautology: it validated
+   a node and then re-resolved the same node, and both calls take the identical mapping branch, so
+   it could not fail unless `Discriminate` were nondeterministic. It was removed rather than left
+   as false coverage.
+
+   Upstream's already-a-model branch (`section.py:173-176`) returns `entry.__class__.__name__` and
+   has no Go equivalent — a non-mapping, non-string, non-null node falls through to the
+   `messageNoType` branch under the `TODO(iteration-4)` in `sectionvalidation.go`. Reproducing it
+   depends on iteration 4's §5.14 already-a-model decision, so it lands there.
+
+6. **`messageModelType` is missing the entry type name.** Ours is `Input should be a valid
+   dictionary`; upstream's is `Input should be a valid dictionary or instance of EducationEntry` —
+   the concrete type is interpolated, and no `error_dictionary.yaml` row rewrites it, so it reaches
+   the user raw. Measured on `[{institution, area}, null]`. Reachable from an ordinary document (a
+   stray blank list item). Iteration 4 owns it, and it needs the entry type threaded into the
+   binder's message rather than a table lookup.
+
+Two process failures in this iteration, recorded rather than rewritten:
+
+- `9ddd896` bundles the wrapper fix, the date-code split, the test corrections and two new
+  criterion tests in one commit, against `AGENTS.md` §7. It should have been four.
+- `8d131da` is labelled `test:` but ships 17 lines of production `default.go`. The production line
+  was the deliberately-empty `Default()` that made the conformance test red, so the red-before-green
+  intent held, but the type prefix is wrong.
+
 Verifier items closed inside the iteration: the behavior-43 code table (it had substituted the date
 code and `model_type` for `string_pattern_mismatch` and `url_too_long`, so two of the five were
 never exercised), discrimination from an already-constructed entry, and the summary-only entry
@@ -165,4 +193,5 @@ Not verifiable yet, and not claimed: PDF/PNG, artifact and CLI parity (iteration
 | 2026-08-06 | Iteration 3 (entry types) started: spec investigation kicked off. |
 | 2026-08-06 | Iteration 3 green with cut scope: nine entry types, registry in union order, dispatcher, real entry validator, `models.Validate` -> `cv.Validate`. Iteration 2 carried items 2 and 6 closed. Conformance unchanged at 42 red by design. |
 | 2026-08-06 | Verifier returned FAIL on iteration 3 with three blockers: the entry-problems wrapper carried `rendercv_other_error` instead of `rendercv_entry_validation_error`, exact-date failures carried `value_error` instead of `rendercv_other_error`, and entry error ordering did not interleave base and own fields. The first two were fixed (`9ddd896`); the third is cut to iteration 4. Three tests had asserted the port's codes rather than upstream's, which is why the suite was green -- the reason the verifier is never the agent that wrote the code. |
+| 2026-08-06 | Iteration 3 re-verified by a second fresh verifier: both code fixes confirmed correct and complete against the vendored Python and mutation-tested, no blockers. Seven findings cleared or cut (`c911d27`) — three tests were still asserting Go constants or bare non-emptiness where a literal upstream value was needed, one §8 criterion was a tautology and is now cut, and two stale claims in spec 003 are corrected in the spec text itself rather than only in this ledger. |
 | 2026-08-06 | Iteration 4 (validation-error parity) started. Findings: the trailing period at `pydantic_error_handling.py:94-95` is unconditional, so every message iteration 3 emits is one character short; dictionary lookup is substring-with-break, not equality; `end_date` errors end in `!.` because upstream's literal ends in `!` and the period rule appends anyway, which also makes `error_dictionary.yaml`'s own `end_date` row dead code. Coordinate columns are never user-visible (`progress_panel.py:14-36` discards them in both code paths and no machine-readable error mode exists), which resolves iteration 2 carried item 1 as internal-only. Validation errors go to stdout with an empty stderr, which our Go side currently reverses -- an iteration-12 bug with a golden already pinning it. |

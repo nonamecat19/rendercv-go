@@ -381,7 +381,7 @@ This subsection exists because iteration 3 shipped the order backwards
 (`specs/STATE.md` → *Cut scope* → *Iteration 3*, item 1). It is not new upstream behavior; it is
 behavior 32 part 2 applied to the eight entry types, and the port currently violates it.
 
-34. **An entry's failures come in its own declared field order**, which is the order spec 003 §3.2
+33a. **An entry's failures come in its own declared field order**, which is the order spec 003 §3.2
     fixed: own fields first, then the base's, because upstream declares
     `class X(BaseWithDates, BaseX)` and pydantic emits the last-listed base's fields first
     (`models/cv/entries/education.py:25-26`). Measured, four cases:
@@ -396,10 +396,10 @@ behavior 32 part 2 applied to the eight entry types, and the port currently viol
     All four are the declared orders of spec 003 §3.8 and §3.10 —
     `company, position, date, start_date, end_date, location, summary, highlights` and
     `title, authors, summary, doi, url, journal, date`.
-35. **A date-field failure is emitted at the date field's declared position, not appended.** Row 3
+33b. **A date-field failure is emitted at the date field's declared position, not appended.** Row 3
     is the load-bearing one: `date` sits between `position` and `location` in
     `ExperienceEntry`, and its failure appears there.
-36. **Order here is a correctness prerequisite for §3.8, not a cosmetic property.** Deduplication
+33c. **Order here is a correctness prerequisite for §3.8, not a cosmetic property.** Deduplication
     keeps the **first** record at a location (§3.8 behavior 27), so a wrongly-ordered list makes
     dedup keep the wrong row. Every mechanism downstream of the raw list assumes the list is
     already in upstream's order.
@@ -411,7 +411,7 @@ Iteration 3 produced **no** error at all for these inputs
 §3.3's filter and §3.8's dedup then reduce to exactly one. The pair of mechanisms is what makes the
 observable result correct, which is why neither may be simplified away.
 
-37. `date` is declared `int | str` (`models/cv/entries/bases/entry_with_date.py:35`) and
+33d. `date` is declared `int | str` (`models/cv/entries/bases/entry_with_date.py:35`) and
     `start_date` is declared `str | int`
     (`models/cv/entries/bases/entry_with_complex_fields.py:40`). **The union arms are in the
     opposite order**, and it is observable. Measured raw failures for a mapping value:
@@ -422,8 +422,8 @@ observable result correct, which is why neither may be simplified away.
     | `start_date` | `("start_date", "str")` string_type, then `("start_date", "int")` int_type |
     | `end_date` | `("end_date", "function-after[…]", "str")` string_type, then `(…, "int")` int_type, then `("end_date", "literal['present']")` literal_error |
 
-38. §3.3's filter drops `int`, `str`, `function-` and `literal` elements, so every row of
-    behavior 37 collapses onto the bare field location. §3.8's dedup then keeps the first. The
+33e. §3.3's filter drops `int`, `str`, `function-` and `literal` elements, so every row of
+    behavior 33d collapses onto the bare field location. §3.8's dedup then keeps the first. The
     single surviving record, **measured end to end**:
 
     | Input | Records | Surviving message |
@@ -433,17 +433,17 @@ observable result correct, which is why neither may be simplified away.
     | `start_date: {a: 1}` | 1 | `Input should be a valid string.` |
     | `end_date: {a: 1}` | 1 | §4.12, because §3.5's override fires regardless of the message |
 
-39. The `date` and `start_date` rows differ **only** in which message survives, and the difference
-    comes entirely from the declared union order of behavior 37. A port that emits one record per
+33f. The `date` and `start_date` rows differ **only** in which message survives, and the difference
+    comes entirely from the declared union order of behavior 33d. A port that emits one record per
     field with a hand-chosen message will get one of the two wrong; a port that emits the branch
     pair in the declared order and lets §3.3 and §3.8 run gets both right for free. This is the
     argument for implementing both mechanisms faithfully rather than short-cutting to "one error
     per field".
-40. `date: true` is **accepted** (§5.11): a bool satisfies the `int` arm.
+33g. `date: true` is **accepted** (§5.11): a bool satisfies the `int` arm.
 
 ### 3.9c Error codes, corrected
 
-41. Codes are the pipeline's dispatch key — §3.7 unpacks on one of them and §3.10 truncates on
+33h. Codes are the pipeline's dispatch key — §3.7 unpacks on one of them and §3.10 truncates on
     another — so they are load-bearing here even though they are not user-visible. Iteration 3
     shipped three wrong and fixed them in `9ddd896`; **any code asserted in the existing Go tests
     is suspect until measured.** The measured values this iteration depends on:
@@ -457,10 +457,10 @@ observable result correct, which is why neither may be simplified away.
     | The arbitrary `date` out of range (`entry_with_date.py:26-29`, a bare `ValueError`) | `value_error` |
     | A required key absent | `missing` |
 
-42. Only the wrapper's code triggers §3.7's unpacking, and it is the **one** section failure raised
+33i. Only the wrapper's code triggers §3.7's unpacking, and it is the **one** section failure raised
     with a different type than the other four. Only the literal code `missing` triggers §3.10's
-    path truncation (behavior 36 of §3.10).
-43. `value_error` is the code that carries the `Value error, ` prefix §3.2 step 1 strips; a
+    path truncation (§3.10 behavior 36).
+33j. `value_error` is the code that carries the `Value error, ` prefix §3.2 step 1 strips; a
     `rendercv_other_error` never has it, because `PydanticCustomError` messages are not wrapped.
     Getting the two confused makes the strip a no-op or a double-strip.
 
