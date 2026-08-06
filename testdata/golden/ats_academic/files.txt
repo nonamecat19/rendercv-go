@@ -1,0 +1,6 @@
+rendercv_output/Dr._Zhen_Wei_CV.html
+rendercv_output/Dr._Zhen_Wei_CV.md
+rendercv_output/Dr._Zhen_Wei_CV.pdf
+rendercv_output/Dr._Zhen_Wei_CV.typ
+rendercv_output/Dr._Zhen_Wei_CV_1.png
+rendercv_output/Dr._Zhen_Wei_CV_2.png

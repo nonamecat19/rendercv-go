@@ -1,0 +1,59 @@
+╭───────────────────── Traceback (most recent call last) ──────────────────────╮
+│ /home/nnc/Projects/rendercv-go/third_party/rendercv/src/rendercv/cli/error_h │
+│ andler.py:38 in wrapper                                                      │
+│                                                                              │
+│   35 │   @functools.wraps(function)                                          │
+│   36 │   def wrapper(*args: P.args, **kwargs: P.kwargs) -> None:             │
+│   37 │   │   try:                                                            │
+│ ❱ 38 │   │   │   return function(*args, **kwargs)                            │
+│   39 │   │   except RenderCVUserError as e:                                  │
+│   40 │   │   │   if e.message:                                               │
+│   41 │   │   │   │   print(                                                  │
+│                                                                              │
+│ /home/nnc/Projects/rendercv-go/third_party/rendercv/src/rendercv/cli/render_ │
+│ command/render_command.py:205 in cli_command_render                          │
+│                                                                              │
+│   202 │   # Resolve design/locale overlay files from YAML settings when not  │
+│   203 │   # provided via CLI flags. collect_input_file_paths already handles │
+│   204 │   # parsing the YAML and resolving paths relative to the input file. │
+│ ❱ 205 │   resolved_files = collect_input_file_paths(input_file_path, design, │
+│   206 │   if design is None and "design" in resolved_files:                  │
+│   207 │   │   design = resolved_files["design"]                              │
+│   208 │   if locale is None and "locale" in resolved_files:                  │
+│                                                                              │
+│ /home/nnc/Projects/rendercv-go/third_party/rendercv/src/rendercv/cli/render_ │
+│ command/run_rendercv.py:115 in collect_input_file_paths                      │
+│                                                                              │
+│   112 │   # If YAML is invalid, watch mode should still start by watching th │
+│   113 │   with contextlib.suppress(RenderCVUserValidationError):             │
+│   114 │   │   main_dict = read_yaml_with_validation_errors(                  │
+│ ❱ 115 │   │   │   input_file_path.read_text(encoding="utf-8"),               │
+│   116 │   │   │   "main_yaml_file",                                          │
+│   117 │   │   )                                                              │
+│   118 │   │   rc = main_dict.get("settings", {}).get("render_command", {})   │
+│                                                                              │
+│ /home/nnc/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/lib/python │
+│ 3.12/pathlib.py:1027 in read_text                                            │
+│                                                                              │
+│   1024 │   │   Open the file in text mode, read it, and close the file.      │
+│   1025 │   │   """                                                           │
+│   1026 │   │   encoding = io.text_encoding(encoding)                         │
+│ ❱ 1027 │   │   with self.open(mode='r', encoding=encoding, errors=errors) as │
+│   1028 │   │   │   return f.read()                                           │
+│   1029 │                                                                     │
+│   1030 │   def write_bytes(self, data):                                      │
+│                                                                              │
+│ /home/nnc/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/lib/python │
+│ 3.12/pathlib.py:1013 in open                                                 │
+│                                                                              │
+│   1010 │   │   """                                                           │
+│   1011 │   │   if "b" not in mode:                                           │
+│   1012 │   │   │   encoding = io.text_encoding(encoding)                     │
+│ ❱ 1013 │   │   return io.open(self, mode, buffering, encoding, errors, newli │
+│   1014 │                                                                     │
+│   1015 │   def read_bytes(self):                                             │
+│   1016 │   │   """                                                           │
+╰──────────────────────────────────────────────────────────────────────────────╯
+FileNotFoundError: [Errno 2] No such file or directory: 
+'/home/nnc/Projects/rendercv-go/testdata/.work/run/err_missing_file/does_not_exi
+st.yaml'

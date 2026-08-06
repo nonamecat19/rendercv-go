@@ -1,0 +1,8 @@
+{
+  "args": [
+    "render",
+    "--help"
+  ],
+  "axis": "cli",
+  "name": "cli_render_help"
+}

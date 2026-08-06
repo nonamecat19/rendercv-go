@@ -1,0 +1,14 @@
+{
+  "args": [
+    "render",
+    "cv.yaml",
+    "--cv.phone",
+    "+1-555-555-5555",
+    "-nopdf",
+    "-nopng",
+    "-nohtml",
+    "-nomd"
+  ],
+  "axis": "cli",
+  "name": "render_override_scalar"
+}

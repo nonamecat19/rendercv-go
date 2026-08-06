@@ -1,0 +1,22 @@
+
+Welcome to RenderCV v2.8!
+
+╭─ Useful Links ───────────────────────────────────────────────────────────────╮
+│ RenderCV App:   https://rendercv.com                                         │
+│ Documentation:  https://docs.rendercv.com                                    │
+│ Source code:    https://github.com/rendercv/rendercv/                        │
+│ Bug reports:    https://github.com/rendercv/rendercv/issues/                 │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Get started ────────────────────────────────────────────────────────────────╮
+│ ✓ Created your YAML input file: ./John_Doe_CV.yaml                           │
+│                                                                              │
+│ Next steps:                                                                  │
+│   1. Edit the YAML input file with your information                          │
+│   2. Run: rendercv render John_Doe_CV.yaml                                   │
+│                                                                              │
+│ Also created:                                                                │
+│   ○ Typst templates: ./classic                                               │
+│                                                                              │
+│ Templates are for advanced design customization. You can ignore or delete    │
+│ them.                                                                        │
+╰──────────────────────────────────────────────────────────────────────────────╯

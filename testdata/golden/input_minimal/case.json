@@ -1,0 +1,8 @@
+{
+  "args": [
+    "render",
+    "cv.yaml"
+  ],
+  "axis": "artifacts",
+  "name": "input_minimal"
+}

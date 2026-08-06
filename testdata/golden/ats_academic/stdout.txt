@@ -1,0 +1,9 @@
+╭─ Your CV is ready ───────────────────────────────────────────────────────────╮
+│ ✓ <duration> Generated Typst:           ./rendercv_output/Dr._Zhen_Wei_CV.typ  │
+│ ✓ <duration> Generated PDF:             ./rendercv_output/Dr._Zhen_Wei_CV.pdf  │
+│ ✓ <duration> Generated PNGs:                                                   │
+│ ./rendercv_output/Dr._Zhen_Wei_CV_1.png;                                     │
+│ ./rendercv_output/Dr._Zhen_Wei_CV_2.png                                      │
+│ ✓ <duration> Generated Markdown:        ./rendercv_output/Dr._Zhen_Wei_CV.md   │
+│ ✓ <duration> Generated HTML:            ./rendercv_output/Dr._Zhen_Wei_CV.html │
+╰──────────────────────────────────────────────────────────────────────────────╯

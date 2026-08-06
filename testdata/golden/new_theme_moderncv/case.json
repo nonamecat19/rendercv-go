@@ -1,0 +1,10 @@
+{
+  "args": [
+    "new",
+    "John Doe",
+    "--theme",
+    "moderncv"
+  ],
+  "axis": "cli",
+  "name": "new_theme_moderncv"
+}

@@ -1,0 +1,12 @@
+{
+  "args": [
+    "render",
+    "cv.yaml",
+    "-nopdf",
+    "-nopng",
+    "-nomd",
+    "-nohtml"
+  ],
+  "axis": "cli",
+  "name": "render_typst_only"
+}

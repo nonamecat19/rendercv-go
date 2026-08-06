@@ -1,0 +1,14 @@
+John_Doe_CV.yaml
+classic/Header.j2.typ
+classic/Preamble.j2.typ
+classic/SectionBeginning.j2.typ
+classic/SectionEnding.j2.typ
+classic/entries/BulletEntry.j2.typ
+classic/entries/EducationEntry.j2.typ
+classic/entries/ExperienceEntry.j2.typ
+classic/entries/NormalEntry.j2.typ
+classic/entries/NumberedEntry.j2.typ
+classic/entries/OneLineEntry.j2.typ
+classic/entries/PublicationEntry.j2.typ
+classic/entries/ReversedNumberedEntry.j2.typ
+classic/entries/TextEntry.j2.typ

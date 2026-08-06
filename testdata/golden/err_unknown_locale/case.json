@@ -1,0 +1,10 @@
+{
+  "args": [
+    "new",
+    "John Doe",
+    "--locale",
+    "klingon"
+  ],
+  "axis": "errors",
+  "name": "err_unknown_locale"
+}

@@ -1,0 +1,11 @@
+{
+  "args": [
+    "render",
+    "cv.yaml",
+    "--quiet",
+    "-nopdf",
+    "-nopng"
+  ],
+  "axis": "cli",
+  "name": "render_quiet"
+}

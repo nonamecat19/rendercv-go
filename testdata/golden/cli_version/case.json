@@ -1,0 +1,7 @@
+{
+  "args": [
+    "--version"
+  ],
+  "axis": "cli",
+  "name": "cli_version"
+}

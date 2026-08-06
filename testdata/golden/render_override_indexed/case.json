@@ -1,0 +1,14 @@
+{
+  "args": [
+    "render",
+    "cv.yaml",
+    "--cv.sections.education.0.institution",
+    "MIT",
+    "-nopdf",
+    "-nopng",
+    "-nohtml",
+    "-nomd"
+  ],
+  "axis": "cli",
+  "name": "render_override_indexed"
+}

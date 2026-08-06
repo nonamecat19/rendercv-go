@@ -1,0 +1,14 @@
+╭─ Theme created ──────────────────────────────────────────────────────────────╮
+│ ✓ Created your custom theme: ./mytheme                                       │
+│                                                                              │
+│ What you can do with this theme:                                             │
+│ 1. Modify the Typst templates in ./mytheme/                                  │
+│ 2. Edit ./mytheme/__init__.py to:                                            │
+│     - Add your own design options to use in the YAML input file              │
+│     - Change the default values of existing options                          │
+│     - Or simply delete it if you only want to customize templates            │
+│                                                                              │
+│ To use your theme, set in your YAML input file:                              │
+│   design:                                                                    │
+│     theme: mytheme                                                           │
+╰──────────────────────────────────────────────────────────────────────────────╯

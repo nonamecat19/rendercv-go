@@ -1,0 +1,7 @@
+╭─ Error ──────────────────────────────────────────────────────────────────────╮
+│ Locale klingon is not available. Available locales are: english, arabic,     │
+│ danish, dutch, french, german, hebrew, hindi, hungarian, indonesian,         │
+│ italian, japanese, korean, mandarin_chinese, norwegian_bokmål,               │
+│ norwegian_nynorsk, persian, portuguese, russian, spanish, turkish,           │
+│ vietnamese                                                                   │
+╰──────────────────────────────────────────────────────────────────────────────╯

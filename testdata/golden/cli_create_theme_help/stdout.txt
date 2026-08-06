@@ -1,0 +1,13 @@
+                                                                                
+ Usage: rendercv create-theme [OPTIONS] THEME_NAME                              
+                                                                                
+ Create a custom theme folder with Typst templates to customize. Example:       
+ rendercv create-theme customtheme. Details: rendercv create-theme --help       
+                                                                                
+╭─ Arguments ──────────────────────────────────────────────────────────────────╮
+│ *    theme_name      TEXT  The name of the new theme [required]              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ --help  -h        Show this message and exit.                                │
+╰──────────────────────────────────────────────────────────────────────────────╯
+

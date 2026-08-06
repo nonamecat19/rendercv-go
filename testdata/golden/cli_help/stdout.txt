@@ -1,0 +1,23 @@
+                                                                                
+ Usage: rendercv [OPTIONS] COMMAND [ARGS]...                                    
+                                                                                
+ RenderCV is a command-line tool for rendering CVs from YAML input files. For   
+ more information, see https://docs.rendercv.com.                               
+                                                                                
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ --version             -v        Show the version                             │
+│ --install-completion            Install completion for the current shell.    │
+│ --show-completion               Show completion for the current shell, to    │
+│                                 copy it or customize the installation.       │
+│ --help                -h        Show this message and exit.                  │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Commands ───────────────────────────────────────────────────────────────────╮
+│ create-theme  Create a custom theme folder with Typst templates to           │
+│               customize. Example: rendercv create-theme customtheme.         │
+│               Details: rendercv create-theme --help                          │
+│ new           Generate a YAML input file to get started. Example: rendercv   │
+│               new "John Doe". Details: rendercv new --help                   │
+│ render        Render a YAML input file. Example: rendercv render             │
+│               John_Doe_CV.yaml. Details: rendercv render --help              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+

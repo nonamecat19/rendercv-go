@@ -1,0 +1,7 @@
+╭─ Your CV is ready ───────────────────────────────────────────────────────────╮
+│ ✓ <duration> Generated Typst:           ./rendercv_output/Bob_Smith_CV.typ     │
+│ ✓ <duration> Generated PDF:             ./rendercv_output/Bob_Smith_CV.pdf     │
+│ ✓ <duration> Generated PNG:             ./rendercv_output/Bob_Smith_CV_1.png   │
+│ ✓ <duration> Generated Markdown:        ./rendercv_output/Bob_Smith_CV.md      │
+│ ✓ <duration> Generated HTML:            ./rendercv_output/Bob_Smith_CV.html    │
+╰──────────────────────────────────────────────────────────────────────────────╯

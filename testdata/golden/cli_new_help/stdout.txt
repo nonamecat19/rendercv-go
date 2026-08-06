@@ -1,0 +1,35 @@
+                                                                                
+ Usage: rendercv new [OPTIONS] FULL_NAME                                        
+                                                                                
+ Generate a YAML input file to get started. Example: rendercv new "John Doe".   
+ Details: rendercv new --help                                                   
+                                                                                
+╭─ Arguments ──────────────────────────────────────────────────────────────────╮
+│ *    full_name      TEXT  Your full name [required]                          │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ --theme                              TEXT  The name of the theme (available  │
+│                                            themes are: classic, ember,       │
+│                                            engineeringclassic,               │
+│                                            engineeringresumes, harvard, ink, │
+│                                            moderncv, opal, sb2nov)           │
+│                                            [default: classic]                │
+│ --locale                             TEXT  The name of the locale (available │
+│                                            locales are: english, arabic,     │
+│                                            danish, dutch, french, german,    │
+│                                            hebrew, hindi, hungarian,         │
+│                                            indonesian, italian, japanese,    │
+│                                            korean, mandarin_chinese,         │
+│                                            norwegian_bokmål,                 │
+│                                            norwegian_nynorsk, persian,       │
+│                                            portuguese, russian, spanish,     │
+│                                            turkish, vietnamese). You can     │
+│                                            also continue with `English`, and │
+│                                            then write your own `locale`      │
+│                                            field for your own language.      │
+│                                            [default: english]                │
+│ --create-typst-templates                   Create Typst templates            │
+│ --create-markdown-templates                Create Markdown templates         │
+│ --help                       -h            Show this message and exit.       │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
