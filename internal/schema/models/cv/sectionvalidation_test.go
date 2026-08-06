@@ -9,24 +9,12 @@ import (
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
 )
 
-// fixtureRegistry reproduces upstream's eight field sets (spec §3.56, §7.1).
-// Iteration 3 replaces it with the real registry and these tests must still
-// pass unchanged.
+// fixtureRegistry is the real registry (spec §3.56, §7.1). Iteration 2 stood in
+// a hand-written one here because the concrete entry types did not exist yet;
+// iteration 3 T17 replaced it with entries.Default(), and every test below
+// passes unchanged — which is the point of the swap.
 func fixtureRegistry() *entries.Registry {
-	common := []string{"date", "start_date", "end_date", "location", "summary", "highlights"}
-	with := func(fields ...string) []string {
-		return append(append([]string(nil), common...), fields...)
-	}
-	return entries.NewRegistry(
-		entries.Descriptor{Name: "OneLineEntry", Fields: with("details", "label")},
-		entries.Descriptor{Name: "NormalEntry", Fields: with("name")},
-		entries.Descriptor{Name: "ExperienceEntry", Fields: with("company", "position")},
-		entries.Descriptor{Name: "EducationEntry", Fields: with("area", "degree", "institution")},
-		entries.Descriptor{Name: "PublicationEntry", Fields: with("authors", "doi", "journal", "title", "url")},
-		entries.Descriptor{Name: "BulletEntry", Fields: with("bullet")},
-		entries.Descriptor{Name: "NumberedEntry", Fields: with("number")},
-		entries.Descriptor{Name: "ReversedNumberedEntry", Fields: with("reversed_number")},
-	)
+	return entries.Default()
 }
 
 func section(t *testing.T, src string) *yamldoc.Node {

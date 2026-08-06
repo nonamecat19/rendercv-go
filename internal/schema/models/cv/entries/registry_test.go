@@ -6,65 +6,12 @@ import (
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv/entries"
 )
 
+// fixtureRegistry is the real registry. Iteration 2 hand-wrote eight descriptors
+// here because the concrete types did not exist; iteration 3 T17 deleted them in
+// favor of entries.Default(), whose field sets are pinned against the generated
+// upstream fixture by default_conformance_test.go.
 func fixtureRegistry() *entries.Registry {
-	return entries.NewRegistry(
-		entries.Descriptor{
-			Name: "OneLineEntry",
-			Fields: []string{
-				"date", "start_date", "end_date", "location", "summary", "highlights",
-				"details", "label",
-			},
-		},
-		entries.Descriptor{
-			Name: "NormalEntry",
-			Fields: []string{
-				"date", "start_date", "end_date", "location", "summary", "highlights",
-				"name",
-			},
-		},
-		entries.Descriptor{
-			Name: "ExperienceEntry",
-			Fields: []string{
-				"date", "start_date", "end_date", "location", "summary", "highlights",
-				"company", "position",
-			},
-		},
-		entries.Descriptor{
-			Name: "EducationEntry",
-			Fields: []string{
-				"date", "start_date", "end_date", "location", "summary", "highlights",
-				"area", "degree", "institution",
-			},
-		},
-		entries.Descriptor{
-			Name: "PublicationEntry",
-			Fields: []string{
-				"date", "start_date", "end_date", "location", "summary", "highlights",
-				"authors", "doi", "journal", "title", "url",
-			},
-		},
-		entries.Descriptor{
-			Name: "BulletEntry",
-			Fields: []string{
-				"date", "start_date", "end_date", "location", "summary", "highlights",
-				"bullet",
-			},
-		},
-		entries.Descriptor{
-			Name: "NumberedEntry",
-			Fields: []string{
-				"date", "start_date", "end_date", "location", "summary", "highlights",
-				"number",
-			},
-		},
-		entries.Descriptor{
-			Name: "ReversedNumberedEntry",
-			Fields: []string{
-				"date", "start_date", "end_date", "location", "summary", "highlights",
-				"reversed_number",
-			},
-		},
-	)
+	return entries.Default()
 }
 
 func TestCharacteristicFields(t *testing.T) {
