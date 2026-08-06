@@ -337,6 +337,19 @@ Three rules, in upstream's order (`publication.py:46-96`), run after field bindi
 `email`/`phone`/`website` (`internal/schema/models/cv/scalarorlist.go`'s `elementValidators`) is
 the model: iteration 4 registers one HTTP-URL validator and all four fields get it at once.
 
+**The hook must be a real seam, not a placeholder comment.** `spec.md` §5.24 establishes that no
+golden case sets `PublicationEntry.url` at all, so Axis 1 will never fail on a wrong URL decision —
+the conformance suite is blind here. Two consequences for this design:
+
+1. The hook is registered by name and swappable, exactly like `elementValidators`, so iteration 4
+   changes one registration rather than four call sites. A `TODO` comment with no seam would push
+   the work back into `publication.go`.
+2. Rules 1–3 above must be tested independently of any URL parsing, because they are the only
+   things about `url` this iteration can assert and the only things any suite will ever assert about
+   the doi/url interaction. `spec.md` §8's four-state table is the gate, and its two literal values
+   are lifted from upstream's own dead fixture (`tests/renderer/conftest.py:282-283`) so the port
+   is not inventing inputs upstream never chose.
+
 ---
 
 ## 7. Known hazards (`AGENTS.md` §6)
@@ -376,7 +389,15 @@ Iteration-local hazards, in descending severity:
    the interaction with iteration 2's `resolve.go` classification is new. Mitigated by a
    four-scalar-kind test and by edge case 17's requirement that every conftest fixture validate
    clean.
-5. **The stub's blast radius.** Iteration 2's accept-everything validator means no existing test
+5. **Axis 1 is blind to four of this iteration's behaviors.** `spec.md` §5.1 lists the
+   optional-field combinations no YAML file in the submodule contains — omitted `degree`, a real
+   bare `date` on Education/Experience, a non-blank `summary` on three types, and any
+   `PublicationEntry.url` at all. `ignore_url_if_doi_is_given` and `validate_doi_url` are exercised
+   by **zero** golden cases. Nothing in `just test-parity` will ever catch a defect in them.
+   Mitigated only by the differential unit tests of `spec.md` §7.4 and the criteria of `spec.md`
+   §8; a porter who treats those criteria as optional leaves the behavior untested for the life of
+   the project.
+6. **The stub's blast radius.** Iteration 2's accept-everything validator means no existing test
    exercises entry errors. Turning it on can only *add* errors, so it can break iteration 2's
    green suite in ways that look like regressions. Mitigated by ordering: the real dispatcher is
    wired (T13) after all nine types exist and pass their own tests.
