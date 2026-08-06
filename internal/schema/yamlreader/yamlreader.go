@@ -17,6 +17,8 @@ var acceptedExtensions = map[string]bool{
 	".json5": true,
 }
 
+// ReadFile reads and parses a YAML input file, checking existence, extension
+// and emptiness in upstream's order (yaml_reader.py:34-60).
 func ReadFile(path string) (*yamldoc.Node, error) {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return nil, &schemaerr.UserError{
@@ -43,6 +45,7 @@ func ReadFile(path string) (*yamldoc.Node, error) {
 	return ReadString(string(raw))
 }
 
+// ReadString parses YAML content that is already in memory.
 func ReadString(input string) (*yamldoc.Node, error) {
 	doc, err := parse(input)
 	if err != nil {

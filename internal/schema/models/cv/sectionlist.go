@@ -20,7 +20,7 @@ func (r SectionRecord) SnakeCaseTitle() string {
 	return SnakeCaseTitle(r.Title)
 }
 
-// Sections derives the typed section list from the `sections` mapping, in input
+// SectionRecords derives the typed section list from the `sections` mapping, in input
 // order (spec §3.65, §6.1, §6.2). Upstream computes it on demand and caches it
 // (spec §3.52, cv.py:128-140); here the caller holds the result.
 //

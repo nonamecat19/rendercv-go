@@ -6,6 +6,8 @@ import (
 	"github.com/goccy/go-yaml/token"
 )
 
+// Dealias rewrites alias tokens into plain strings so a `*` that a user meant
+// literally is never resolved as an anchor reference (spec §3.10).
 func Dealias(tokens token.Tokens) token.Tokens {
 	if len(tokens) == 0 {
 		return tokens
