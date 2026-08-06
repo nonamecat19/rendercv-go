@@ -10,7 +10,7 @@ import (
 
 func records(t *testing.T, sections string) []cv.SectionRecord {
 	t.Helper()
-	model, errs := cv.Validate(parse(t, "sections:\n"+sections), []string{"cv"}, schemaerr.SourceMain)
+	model, errs := cv.Validate(parse(t, "sections:\n"+sections), []string{"cv"}, schemaerr.SourceMain, testOptions())
 	if len(errs) != 0 {
 		t.Fatalf("errs = %+v, want none", errs)
 	}
@@ -82,7 +82,7 @@ func TestTypeComesFromFirstEntry(t *testing.T) {
 
 // A cv with no sections has no records.
 func TestNoSections(t *testing.T) {
-	model, _ := cv.Validate(parse(t, "name: John\n"), []string{"cv"}, schemaerr.SourceMain)
+	model, _ := cv.Validate(parse(t, "name: John\n"), []string{"cv"}, schemaerr.SourceMain, testOptions())
 	if got := model.SectionRecords(fixtureRegistry()); got != nil {
 		t.Errorf("records = %+v, want none", got)
 	}
