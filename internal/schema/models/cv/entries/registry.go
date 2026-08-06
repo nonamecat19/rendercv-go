@@ -33,7 +33,7 @@ func (r *Registry) Names() []TypeName {
 	for i, d := range r.descriptors {
 		names[i] = d.Name
 	}
-	return append(names, "TextEntry")
+	return append(names, TextEntryName)
 }
 
 // Characteristic computes each type's characteristic fields: those declared by
