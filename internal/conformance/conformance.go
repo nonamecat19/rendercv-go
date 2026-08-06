@@ -295,7 +295,7 @@ func pngGeometry(t *testing.T, path string) string {
 	if err != nil {
 		t.Fatalf("opening %s: %v", path, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	cfg, err := png.DecodeConfig(f)
 	if err != nil {
