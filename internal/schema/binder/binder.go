@@ -9,6 +9,8 @@
 package binder
 
 import (
+	"strconv"
+
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
 )
@@ -34,12 +36,19 @@ const (
 	CodeMissing        schemaerr.Code = "missing"
 	CodeExtraForbidden schemaerr.Code = "extra_forbidden"
 	CodeModelType      schemaerr.Code = "model_type"
+	CodeStringType     schemaerr.Code = "string_type"
+	CodeListType       schemaerr.Code = "list_type"
 )
 
 const (
 	messageMissing        = "Field required"
 	messageExtraForbidden = "Extra inputs are not permitted"
 	messageModelType      = "Input should be a valid dictionary"
+
+	// TODO(iteration-4): spec 003 §4.4 and §4.5 — these two are pydantic's own
+	// text as well, and belong with the borrowed strings of spec 002 §7.3.
+	messageStringType = "Input should be a valid string"
+	messageListType   = "Input should be a valid list"
 )
 
 // Field is one declared model field. Spec §3.34: there are no aliases, so the
@@ -51,7 +60,26 @@ const (
 type Field struct {
 	Name     string
 	Required bool
+
+	// Value is the field's declared shape. The zero value, ValueAny, means the
+	// value is bound as a raw node and never checked, which is what every field
+	// declared before spec 003 §3.13 did.
+	Value ValueType
 }
+
+// ValueType is the declared shape of a field's value. It is deliberately not a
+// general type system: upstream's entry models declare exactly three shapes
+// (spec 003 §3.13, plan §4).
+type ValueType uint8
+
+const (
+	// ValueAny performs no check — the field is bound as a raw node.
+	ValueAny ValueType = iota
+	// ValueString is Python's `str`.
+	ValueString
+	// ValueStringList is Python's `list[str]`.
+	ValueStringList
+)
 
 // Spec is a model's field set plus its extra-key policy.
 type Spec struct {
@@ -135,30 +163,121 @@ func Bind(
 		}
 	}
 
-	// Missing required fields are reported in declaration order, after the
-	// extra-key errors that the input order produced.
+	// One pass in declaration order, emitting per field either its absence or
+	// its shape failure. Pydantic interleaves the two rather than reporting all
+	// absences first — verified against the vendored Python, where
+	// `PublicationEntry(summary=5, authors="x")` reports `title` missing, then
+	// `authors` list_type, then `summary` string_type, which is exactly the
+	// declared order of those three fields (spec 003 §5.10).
+	//
+	// A present field is never also reported as missing, so the two branches are
+	// mutually exclusive: a required field written as null reports its type
+	// failure, not its absence (spec 003 §5.7).
 	//
 	// TODO(iteration-4): spec §6.6 makes error order contractual, but no
-	// upstream test pins the relative order of extra-key and missing-field
-	// errors. Confirm against upstream output when Axis 4 lands.
+	// upstream test pins the relative order of extra-key and field errors.
+	// Confirm against upstream output when Axis 4 lands.
 	for _, field := range spec.Fields {
-		if !field.Required {
+		value, present := result.Values[field.Name]
+		if !present {
+			if field.Required {
+				errs = append(errs, schemaerr.ValidationError{
+					Code:           CodeMissing,
+					SchemaLocation: locationWith(location, field.Name),
+					YamlLocation:   spanOf(node),
+					YamlSource:     source,
+					Message:        messageMissing,
+					Input:          inputOf(node),
+				})
+			}
 			continue
 		}
-		if _, ok := result.Values[field.Name]; ok {
-			continue
-		}
-		errs = append(errs, schemaerr.ValidationError{
-			Code:           CodeMissing,
-			SchemaLocation: locationWith(location, field.Name),
-			YamlLocation:   spanOf(node),
-			YamlSource:     source,
-			Message:        messageMissing,
-			Input:          inputOf(node),
-		})
+		errs = append(errs, checkValue(field, value, location, source)...)
 	}
 
 	return result, errs
+}
+
+// checkValue applies a field's declared shape to a present value, per the table
+// of plan §4.
+//
+// Null is the asymmetric case: pydantic declares these fields `str | None` and
+// `list[str] | None`, so a null in an optional field is the default and passes.
+// A null in a *required* field is a type failure rather than an absence, because
+// the key is there (spec 003 §5.7).
+func checkValue(
+	field Field,
+	value *yamldoc.Node,
+	location []string,
+	source schemaerr.YamlSource,
+) []schemaerr.ValidationError {
+	if field.Value == ValueAny {
+		return nil
+	}
+
+	isNull := value == nil || value.Kind == yamldoc.KindNull
+	if isNull && !field.Required {
+		return nil
+	}
+
+	switch field.Value {
+	case ValueString:
+		if isNull || !isTextKind(value.Kind) {
+			return []schemaerr.ValidationError{
+				valueError(CodeStringType, messageStringType, locationWith(location, field.Name), value, source),
+			}
+		}
+	case ValueStringList:
+		if isNull || value.Kind != yamldoc.KindSequence {
+			return []schemaerr.ValidationError{
+				valueError(CodeListType, messageListType, locationWith(location, field.Name), value, source),
+			}
+		}
+		// Element errors are located at the element's own index, rendered as a
+		// decimal string — the shape upstream's own fixture uses for an entry
+		// index (expected_errors.yaml:56-57).
+		var errs []schemaerr.ValidationError
+		for i, element := range value.Elems {
+			if element != nil && isTextKind(element.Kind) {
+				continue
+			}
+			elementLocation := locationWith(locationWith(location, field.Name), strconv.Itoa(i))
+			errs = append(errs, valueError(CodeStringType, messageStringType, elementLocation, element, source))
+		}
+		return errs
+	case ValueAny:
+		// Handled above; listed so the switch stays exhaustive.
+	}
+
+	return nil
+}
+
+// isTextKind reports whether a node's kind binds to a Python `str`.
+//
+// Only KindString does. Pydantic rejects `int`, `float` and `bool` for a `str`
+// field even with strict mode off — verified against the vendored Python for
+// `summary: 5`, which reports `string_type`. This matters because the YAML
+// reader classifies `2020` as KindInt (spec 002 plan §3), so `location: 2020`
+// must fail rather than coerce (plan §4).
+func isTextKind(kind yamldoc.Kind) bool {
+	return kind == yamldoc.KindString
+}
+
+func valueError(
+	code schemaerr.Code,
+	message string,
+	location []string,
+	value *yamldoc.Node,
+	source schemaerr.YamlSource,
+) schemaerr.ValidationError {
+	return schemaerr.ValidationError{
+		Code:           code,
+		SchemaLocation: location,
+		YamlLocation:   spanOf(value),
+		YamlSource:     source,
+		Message:        message,
+		Input:          inputOf(value),
+	}
 }
 
 // Value reports a declared field's node and whether the key was present at all.
