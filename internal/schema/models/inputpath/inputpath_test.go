@@ -1,4 +1,4 @@
-package models_test
+package inputpath_test
 
 import (
 	"errors"
@@ -6,14 +6,14 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/nonamecat19/rendercv-go/internal/schema/models"
+	"github.com/nonamecat19/rendercv-go/internal/schema/models/inputpath"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/valctx"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 )
 
 func TestResolutionBaseWithInputFile(t *testing.T) {
 	ctx := &valctx.ValidationContext{InputFilePath: "/tmp/somewhere/input.yaml"}
-	base, err := models.ResolutionBase(ctx)
+	base, err := inputpath.ResolutionBase(ctx)
 	if err != nil {
 		t.Fatalf("ResolutionBase() error = %v", err)
 	}
@@ -28,7 +28,7 @@ func TestResolutionBaseWithoutInputFile(t *testing.T) {
 		t.Fatalf("os.Getwd() error = %v", err)
 	}
 
-	base, err := models.ResolutionBase(nil)
+	base, err := inputpath.ResolutionBase(nil)
 	if err != nil {
 		t.Fatalf("ResolutionBase() error = %v", err)
 	}
@@ -64,7 +64,7 @@ func TestExistingPathVariousRelativeFormats(t *testing.T) {
 				t.Fatalf("WriteFile() error = %v", err)
 			}
 
-			got, err := models.ResolveExistingPath(tc.relative, ctx)
+			got, err := inputpath.ResolveExistingPath(tc.relative, ctx)
 			if err != nil {
 				t.Fatalf("ResolveExistingPath(%q) error = %v", tc.relative, err)
 			}
@@ -87,7 +87,7 @@ func TestPlannedPathVariousRelativeFormats(t *testing.T) {
 	cases := []string{"output/result.pdf", "../build/output.html", "./generated/doc.md"}
 	for _, relative := range cases {
 		t.Run(relative, func(t *testing.T) {
-			got, err := models.ResolvePlannedPath(relative, ctx)
+			got, err := inputpath.ResolvePlannedPath(relative, ctx)
 			if err != nil {
 				t.Fatalf("ResolvePlannedPath(%q) error = %v", relative, err)
 			}
@@ -106,7 +106,7 @@ func TestExistingAndPlannedResolveAgainstCwdWithoutInputFile(t *testing.T) {
 		t.Fatalf("os.Getwd() error = %v", err)
 	}
 
-	got, err := models.ResolvePlannedPath("planned/output.pdf", nil)
+	got, err := inputpath.ResolvePlannedPath("planned/output.pdf", nil)
 	if err != nil {
 		t.Fatalf("ResolvePlannedPath() error = %v", err)
 	}
@@ -125,7 +125,7 @@ func TestAbsolutePathLeftUnchanged(t *testing.T) {
 
 	ctx := &valctx.ValidationContext{InputFilePath: filepath.Join(tmp, "input.yaml")}
 
-	gotExisting, err := models.ResolveExistingPath(existing, ctx)
+	gotExisting, err := inputpath.ResolveExistingPath(existing, ctx)
 	if err != nil {
 		t.Fatalf("ResolveExistingPath() error = %v", err)
 	}
@@ -133,7 +133,7 @@ func TestAbsolutePathLeftUnchanged(t *testing.T) {
 		t.Errorf("ResolveExistingPath() = %q, want %q (spec §3.37)", gotExisting.Value, existing)
 	}
 
-	gotPlanned, err := models.ResolvePlannedPath(existing, ctx)
+	gotPlanned, err := inputpath.ResolvePlannedPath(existing, ctx)
 	if err != nil {
 		t.Fatalf("ResolvePlannedPath() error = %v", err)
 	}
@@ -145,7 +145,7 @@ func TestAbsolutePathLeftUnchanged(t *testing.T) {
 func TestEmptyPathShortCircuits(t *testing.T) {
 	ctx := &valctx.ValidationContext{InputFilePath: "/nonexistent/root/input.yaml"}
 
-	got, err := models.ResolveExistingPath("", ctx)
+	got, err := inputpath.ResolveExistingPath("", ctx)
 	if err != nil {
 		t.Fatalf("ResolveExistingPath(\"\") error = %v, want nil (spec §3.38)", err)
 	}
@@ -153,7 +153,7 @@ func TestEmptyPathShortCircuits(t *testing.T) {
 		t.Errorf("ResolveExistingPath(\"\") = %q, want empty", got.Value)
 	}
 
-	gotPlanned, err := models.ResolvePlannedPath("", ctx)
+	gotPlanned, err := inputpath.ResolvePlannedPath("", ctx)
 	if err != nil {
 		t.Fatalf("ResolvePlannedPath(\"\") error = %v, want nil", err)
 	}
@@ -168,7 +168,7 @@ func TestExistingPathMissingFile(t *testing.T) {
 	tmp := t.TempDir()
 	ctx := &valctx.ValidationContext{InputFilePath: filepath.Join(tmp, "input.yaml")}
 
-	_, err := models.ResolveExistingPath("nonexistent.txt", ctx)
+	_, err := inputpath.ResolveExistingPath("nonexistent.txt", ctx)
 	if err == nil {
 		t.Fatal("ResolveExistingPath() error = nil, want an error")
 	}
@@ -192,7 +192,7 @@ func TestExistingPathNotAFile(t *testing.T) {
 	}
 	ctx := &valctx.ValidationContext{InputFilePath: filepath.Join(tmp, "input.yaml")}
 
-	_, err := models.ResolveExistingPath("new_dir", ctx)
+	_, err := inputpath.ResolveExistingPath("new_dir", ctx)
 	if err == nil {
 		t.Fatal("ResolveExistingPath() error = nil, want an error")
 	}
@@ -213,7 +213,7 @@ func TestPlannedPathAcceptsNonexistent(t *testing.T) {
 	tmp := t.TempDir()
 	ctx := &valctx.ValidationContext{InputFilePath: filepath.Join(tmp, "input.yaml")}
 
-	got, err := models.ResolvePlannedPath("does_not_exist.txt", ctx)
+	got, err := inputpath.ResolvePlannedPath("does_not_exist.txt", ctx)
 	if err != nil {
 		t.Fatalf("ResolvePlannedPath() error = %v, want nil", err)
 	}
@@ -230,7 +230,7 @@ func TestPlannedPathSerializeRelativeToCwd(t *testing.T) {
 		t.Fatalf("os.Getwd() error = %v", err)
 	}
 
-	p := models.PlannedPathRelativeToInput{Value: filepath.Join(cwd, "build", "output.pdf")}
+	p := inputpath.PlannedPathRelativeToInput{Value: filepath.Join(cwd, "build", "output.pdf")}
 	got := p.Serialize()
 	want := "build/output.pdf"
 	if got != want {
@@ -245,7 +245,7 @@ func TestPlannedPathSerializeAbsoluteFallback(t *testing.T) {
 	tmp := t.TempDir()
 	outside := filepath.Join(tmp, "build", "output.pdf")
 
-	p := models.PlannedPathRelativeToInput{Value: outside}
+	p := inputpath.PlannedPathRelativeToInput{Value: outside}
 	got := p.Serialize()
 	if got != outside {
 		t.Errorf("Serialize() = %q, want %q (absolute fallback)", got, outside)
@@ -253,7 +253,7 @@ func TestPlannedPathSerializeAbsoluteFallback(t *testing.T) {
 }
 
 func TestPlannedPathSerializeEmpty(t *testing.T) {
-	p := models.PlannedPathRelativeToInput{}
+	p := inputpath.PlannedPathRelativeToInput{}
 	if got := p.Serialize(); got != "" {
 		t.Errorf("Serialize() = %q, want empty", got)
 	}
