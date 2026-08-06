@@ -1,6 +1,7 @@
 package cv_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -190,22 +191,16 @@ func TestEntryProblemsAreNested(t *testing.T) {
 	}
 }
 
-// Spec §5.8 — a section whose first entry does not resolve takes its type from
-// the next one that does, and the bad entry is then reported against that type.
+// Spec 003 §5.13, §8 — a section whose first entry does not resolve takes its
+// type from the next one that does, and the bad entry is reported against that
+// type. Iteration 2 asserted this through an injected stub validator because the
+// concrete types did not exist; T21 re-asserts it against the real ones, closing
+// carried item 6 of iteration 2.
+//
+// Verified upstream: `[{x: 1}, {bullet: "A point"}]` reports one
+// rendercv_entry_validation_error whose single child is `missing` at
+// ('entries', 0, 'bullet').
 func TestTypeNamedIsTheResolvedOne(t *testing.T) {
-	restore := cv.SetEntryValidatorForTest(func(
-		node *yamldoc.Node, _ entries.TypeName, location []string,
-		source schemaerr.YamlSource, _ time.Time,
-	) []schemaerr.ValidationError {
-		if _, ok := cv.MappingKey(node, "bullet"); ok {
-			return nil
-		}
-		return []schemaerr.ValidationError{{
-			Code: "missing", SchemaLocation: location, YamlSource: source, Message: "Field required",
-		}}
-	})
-	defer restore()
-
 	entryType, errs := cv.ValidateSection(
 		section(t, "  - x: 1\n  - bullet: A point\n"),
 		fixtureRegistry(), nil, schemaerr.SourceMain, sectionReference,
@@ -213,48 +208,78 @@ func TestTypeNamedIsTheResolvedOne(t *testing.T) {
 	if entryType != "BulletEntry" {
 		t.Fatalf("entry type = %q, want BulletEntry", entryType)
 	}
-	if len(errs) != 1 || len(errs[0].Children) != 1 {
-		t.Fatalf("errs = %+v, want one error with one child", errs)
+	if len(errs) != 1 {
+		t.Fatalf("errs = %+v, want exactly one", errs)
+	}
+	if len(errs[0].Children) != 1 {
+		t.Fatalf("children = %+v, want exactly one", errs[0].Children)
+	}
+
+	child := errs[0].Children[0]
+	if child.Code != "missing" {
+		t.Errorf("child code = %q, want missing", child.Code)
+	}
+	if got := strings.Join(child.SchemaLocation, "."); got != "0.bullet" {
+		t.Errorf("child location = %q, want %q", got, "0.bullet")
 	}
 }
 
-// Spec §5.7 — a mixed education/experience section resolves to the first
-// entry's type and reports the other entries against it.
+// Spec 003 §5.12, §5.13, §8 — a mixed education/experience section resolves to
+// the first entry's type and reports the others against it. The other half of
+// carried item 6: iteration 2 used a stub here too.
+//
+// Verified upstream with the conftest fixture values: the wrapper names
+// EducationEntry and its children are `missing` on `institution` then `area`, at
+// entry index 1 — and nothing at all about `company` or `position`, because the
+// experience entry is being judged as an EducationEntry.
 func TestMixedSectionNamesFirstResolvedType(t *testing.T) {
-	restore := cv.SetEntryValidatorForTest(func(
-		node *yamldoc.Node, entryType entries.TypeName, location []string,
-		source schemaerr.YamlSource, _ time.Time,
-	) []schemaerr.ValidationError {
-		// Stand-in for the concrete types of iteration 3: an entry belongs to
-		// the decided type only if it carries that type's characteristic field.
-		field := map[entries.TypeName]string{
-			"EducationEntry":  "institution",
-			"ExperienceEntry": "company",
-		}[entryType]
-		if _, ok := cv.MappingKey(node, field); ok {
-			return nil
-		}
-		return []schemaerr.ValidationError{{
-			Code: "missing", SchemaLocation: location, YamlSource: source, Message: "Field required",
-		}}
-	})
-	defer restore()
-
 	entryType, errs := cv.ValidateSection(
-		section(t, "  - institution: MIT\n    degree: BS\n  - company: Acme\n    position: Engineer\n"),
-		fixtureRegistry(), []string{"cv", "sections", "mixed"}, schemaerr.SourceMain, sectionReference,
+		section(t, ""+
+			"  - institution: Boğaziçi University\n"+
+			"    area: Mechanical Engineering\n"+
+			"    degree: BS\n"+
+			"  - company: Acme\n"+
+			"    position: Engineer\n"),
+		fixtureRegistry(), []string{"cv", "sections", "mixed"}, schemaerr.SourceMain,
+		sectionReference,
 	)
-
 	if entryType != "EducationEntry" {
-		t.Fatalf("entry type = %q, want EducationEntry", entryType)
+		t.Fatalf("entry type = %q, want EducationEntry — the first entry decides", entryType)
 	}
+	if len(errs) != 1 {
+		t.Fatalf("errs = %+v, want exactly one", errs)
+	}
+
 	want := "There are problems with the entries. RenderCV detected the entry type of this" +
 		" section to be EducationEntry. The problems are shown below."
-	if len(errs) != 1 || errs[0].Message != want {
-		t.Fatalf("errs = %+v, want one §4.12 naming EducationEntry", errs)
+	if errs[0].Message != want {
+		t.Errorf("message = %q, want %q", errs[0].Message, want)
 	}
-	if len(errs[0].Children) != 1 {
-		t.Errorf("children = %+v, want the experience entry's failure nested", errs[0].Children)
+
+	var got []string
+	for _, child := range errs[0].Children {
+		got = append(got, strings.Join(child.SchemaLocation, ".")+" "+string(child.Code))
+	}
+	expected := []string{
+		"cv.sections.mixed.1.institution missing",
+		"cv.sections.mixed.1.area missing",
+	}
+	if len(got) != len(expected) {
+		t.Fatalf("children = %v, want %v", got, expected)
+	}
+	for i := range expected {
+		if got[i] != expected[i] {
+			t.Fatalf("children = %v, want %v", got, expected)
+		}
+	}
+
+	// The experience entry is judged as an EducationEntry, so its own fields are
+	// unknown keys there and must not be reported.
+	for _, child := range errs[0].Children {
+		last := child.SchemaLocation[len(child.SchemaLocation)-1]
+		if last == "company" || last == "position" {
+			t.Errorf("child reports %q, but the section is not an ExperienceEntry section", last)
+		}
 	}
 }
 
