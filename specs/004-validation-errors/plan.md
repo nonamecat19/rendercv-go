@@ -112,8 +112,9 @@ distinction is documented on `Parse` and enforced by the single call site (§2.4
 
 ### 2.2 What the Go raw records look like, and where they differ from pydantic's
 
-Go has **no pydantic-core**, so it emits **no synthetic branch elements**. That has three
-consequences, and getting them wrong is the most likely way this iteration silently breaks parity:
+Go has **no pydantic-core**, so it emits **no synthetic branch elements** — with one deliberate
+exception (consequence 2a). That has four consequences, and getting them wrong is the most likely
+way this iteration silently breaks parity:
 
 1. **The location filter still runs, and it is not dead code.** Its only surviving effect is on
    *real* user keys — `interests`, `my_list`, `strengths` (`spec.md` §3.3 behavior 7). A porter who
@@ -132,6 +133,18 @@ consequences, and getting them wrong is the most likely way this iteration silen
    `expected_errors.yaml:14-18`. `cv.ResolvePhoto` already has the left-to-right shape
    (`internal/schema/models/cv/customconnection.go:88-108`); this iteration makes its URL branch
    emit no record when the path branch already failed.
+2a. **The one place the port *must* emit the branch pair rather than the survivor.** Consequence 2's
+   rule — "emit the record that survives" — does **not** extend to a non-scalar `date` /
+   `start_date` / `end_date` (`spec.md` §3.9b). There the surviving *message* depends on the
+   declared union arm order, which differs between `date` (`int | str`) and `start_date`
+   (`str | int`), so the two fields survive with different messages:
+   `Input should be a valid integer.` versus `Input should be a valid string.` Hand-picking one
+   message per field gets one of them wrong. The port therefore emits both branch failures, in
+   declared arm order, with locations `("date", "int")` and `("date", "str")` — the **only** place
+   in the port that constructs a synthetic location element, and it does so precisely because
+   §3.3's filter and §3.8's dedup then produce the right answer for free. `spec.md` §3.9b
+   behavior 33f is the argument; a comment at the construction site must carry it, or a later
+   reader will delete the elements as pointless.
 3. **Dedup is still implemented.** It is reachable independently of branch tags — §3.3 behavior 7's
    collapsed section keys prove it — and leaving it out would report four records where upstream
    reports one.
@@ -192,6 +205,37 @@ double-apply the period rule and the dictionary.
 
 `models.Validate`'s signature does not change. What changes is that its records are documented as
 raw, and the three places that currently pre-format a message stop doing so (§4).
+
+### 2.5 The entry-order fix, which lands before everything else
+
+`spec.md` §3.9a. Iteration 3 left two defects that together make an entry's raw list the wrong
+order, and `spec.md` §3.9a behavior 33c makes that a correctness prerequisite for §4.1's dedup, not
+a follow-up. Two independent changes, two commits:
+
+**Composition order.** Each concrete type builds its binder spec as
+`append(baseFields, ownFields...)`. Upstream's order is the reverse — own fields first, then the
+base's (`models/cv/entries/education.py:25-26`, spec 003 §3.2). The fix is not to swap the literal
+in eight files: `Descriptor().Fields` already holds the correct order (spec 003 plan §3.1 built it
+that way and a positional test asserts it), so the binder is fed **the descriptor's order** and the
+two can no longer disagree. A test asserts `Spec.Fields` equals `Descriptor().Fields` for all eight
+types, which is the invariant that was missing.
+
+**Date-failure position.** The three base binders currently run their date validation after
+`binder.Bind` returns and append the results. That is what puts `date` last regardless of where it
+is declared. The fix is to make the date fields ordinary `binder.Field` entries with a fourth
+`ValueType` — `ValueArbitraryDate`, `ValueExactDate`, `ValueExactDateOrPresent` — so `Bind`'s single
+declaration-order pass (`internal/schema/binder/binder.go:177`) emits them in place, exactly as it
+already does for `ValueString` and `ValueStringList`.
+
+That fourth-value-type route is preferred over threading a position index through the base binders:
+it reuses the one pass that already establishes the order, it removes the post-hoc append entirely,
+and it is where the non-scalar branch pair of §2.2 consequence 2a naturally lives — `Bind` knows
+the declared arm order because the `ValueType` names it.
+
+Cross-model rules that are **not** field failures stay where they are: the start-after-end check
+(`entry_with_complex_fields.py:161-169`) and `PublicationEntry`'s three model-level rules run after
+the field pass, because upstream runs them in a model validator and their locations are the entry,
+not a field (`spec.md` §3.7 behavior 24).
 
 ---
 
@@ -445,35 +489,47 @@ iteration 10's.
 
 Iteration-local hazards, in descending severity:
 
-1. **Deleting the location filter as dead code.** Plan §2.2 consequence 1. The port emits no
+1. **Building the pipeline on a wrongly-ordered raw list.** §2.5. Dedup keeps the first record at a
+   location, so every ordering defect becomes a *wrong message* somewhere downstream, and the
+   symptom appears far from the cause. Mitigated by sequencing: §2.5's two commits are the first
+   two production commits of the iteration, ahead of `errorpipeline` existing at all, and the
+   `Spec.Fields == Descriptor().Fields` invariant test makes a regression impossible to reintroduce
+   silently.
+1a. **Trusting a code asserted in an existing Go test.** `spec.md` §3.9c. Three of iteration 3's
+   codes were wrong and its tests asserted the port's values, so the suite was green and wrong. The
+   pipeline dispatches on two codes (`rendercv_entry_validation_error` for §4.1's splice, `missing`
+   for §4's truncation), so a wrong code is a silently dropped child list or a coordinate one level
+   off. Mitigated by re-measuring every code in `spec.md` §3.9c behavior 33h against the vendored
+   Python as its own task, before the pipeline reads any of them.
+3. **Deleting the location filter as dead code.** Plan §2.2 consequence 1. The port emits no
    synthetic tags, so the filter looks vestigial, and removing it silently loses `spec.md` §3.3
    behavior 7's whole table — including `interests`, which real users write. Mitigated by making
    that table a required test and by the comment on `unwantedLocations`.
-2. **Emitting the wrong survivor at a multi-branch site.** Plan §2.2 consequence 2. The `photo`
+3. **Emitting the wrong survivor at a multi-branch site.** Plan §2.2 consequence 2. The `photo`
    row is the only one where the message differs, it is pinned by `expected_errors.yaml:14-18`,
    and the failure mode is a single wrong sentence in a 25-record diff. Mitigated by making the
    three-row table a test and by the differential.
-3. **Pre-formatting a message in a validator.** Any validator that emits §4.8 instead of the
+4. **Pre-formatting a message in a validator.** Any validator that emits §4.8 instead of the
    dictionary key, or that appends its own period, produces text that is *nearly* right. Mitigated
    by: raw-record documentation on `Parse`, a lint-style test asserting no `schemaerr` message in
    `models/**` equals a dictionary *value*, and by §4's rule that the period statement is the last
    one in `parseOne`.
-4. **Backslash escaping in dictionary rows 3 and 4.** Plan §3. The natural Go literal is *wrong*,
+5. **Backslash escaping in dictionary rows 3 and 4.** Plan §3. The natural Go literal is *wrong*,
    and wrong in the direction that makes a dead row live. Mitigated by the submodule-diff test
    landing first.
-5. **Ordering.** `spec.md` §3.9 behavior 32's six parts, of which step 3 (declared fields before
+6. **Ordering.** `spec.md` §3.9 behavior 32's six parts, of which step 3 (declared fields before
    extra keys) is newly measured and contradicts nothing but is easy to get backwards. Mitigated
    by the seven-record table test and by the differential's equal-length assertion.
-6. **Go map iteration in the dictionary.** A `map[string]string` would pass most tests and fail
+7. **Go map iteration in the dictionary.** A `map[string]string` would pass most tests and fail
    nondeterministically. Mitigated by the type being an array (§3) and by a test asserting the
    thirteen rows' order.
-7. **Coordinate columns.** `spec.md` §7.2 makes the differential compare all five members, so the
+8. **Coordinate columns.** `spec.md` §7.2 makes the differential compare all five members, so the
    two column shapes of iteration 2's cut-scope item 1 must be fixed *before* the differential
    widens, or the widened test lands red for a reason unrelated to messages. `tasks.md` orders
    them accordingly.
-8. **Metadata skew in `phonenumbers`.** §1.1. Bounded, tested, and the two golden numbers are the
+9. **Metadata skew in `phonenumbers`.** §1.1. Bounded, tested, and the two golden numbers are the
    stable ones.
-9. **The email tail.** §1.3, `spec.md` §7.4. Known-incomplete by decision, with an owner. The
+10. **The email tail.** §1.3, `spec.md` §7.4. Known-incomplete by decision, with an owner. The
    hazard is not the incompleteness but a porter treating the twelve-row table as exhaustive and
    writing a catch-all message for everything else — which would produce *wrong* text where
    upstream produces *specific* text. The wrapper returns a distinguishable "unclassified" error

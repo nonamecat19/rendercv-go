@@ -1,8 +1,13 @@
 # Tasks 004 — Validation-error parity
 
-53 commits. Each leaves `go build ./... && go test ./...` green (`AGENTS.md` §7). The two tasks
-that must land red do so behind `//go:build conformance`, so the untagged suite stays green while
-`go test -tags conformance ./...` shows the red (as in tasks 002 T8 and tasks 003 T6).
+58 commits: **A1–A5** then **T1–T53**. Each leaves `go build ./... && go test ./...` green
+(`AGENTS.md` §7). The two tasks that must land red do so behind `//go:build conformance`, so the
+untagged suite stays green while `go test -tags conformance ./...` shows the red (as in tasks 002 T8
+and tasks 003 T6).
+
+**Wave A0 is the two items cut from iteration 3, and it comes before everything.** The `T`
+numbering is unchanged from the first draft so that existing cross-references still resolve; the
+five new tasks carry `A` numbers rather than renumbering fifty-three rows.
 
 **No golden refresh.** There is deliberately no `just golden` task and no human gate for one
 (spec §7.3, §9). Nothing here writes to `testdata/golden/`. The two submodule fixtures of spec §9
@@ -18,6 +23,58 @@ and stay with one owner (`AGENTS.md` §5, the stop rule). Waves are strictly ord
 
 Every task cites the spec section it implements. A task is done when its spec sections' acceptance
 criteria (spec §8) pass.
+
+---
+
+## Wave A0 — the two items cut from iteration 3 · all `[sequential]`
+
+These come **first**, ahead of `errorpipeline` existing at all. `spec.md` §3.9a behavior 33c is the
+reason: deduplication keeps the first record at a location, so a wrongly-ordered raw list makes the
+pipeline keep the wrong row, and the symptom shows up far from the cause (plan §7 hazard 1). One
+owner; every task reads the previous one's output.
+
+### A1 — re-measure every error code · `[sequential]`
+No production change beyond corrections. Assert each row of `spec.md` §3.9c behavior 33h against
+the vendored Python, and correct any Go test that asserted the port's code rather than upstream's.
+Three of iteration 3's tests did (`9ddd896` fixed the production side but the tests are the record
+that failed to catch it), so **every** code assertion in `internal/schema/models/**` is re-checked
+here, not just the three.
+Spec §3.9c behaviors 33h–33j. Plan §7 hazard 1a.
+Tests: the six-row table; `value_error` messages lose the `Value error, ` prefix and
+`rendercv_other_error` messages do not.
+
+### A2 — feed the binder the descriptor's field order · `[sequential]`
+`internal/schema/models/cv/entries/*.go` and the three base binders: stop composing
+`append(baseFields, ownFields...)` and derive `binder.Spec.Fields` from `Descriptor().Fields`, which
+already holds upstream's order (spec 003 §3.2).
+Spec §3.9a behaviors 33a, 33c. Plan §2.5.
+Tests: `Spec.Fields` equals `Descriptor().Fields` for all eight types — the invariant that was
+missing; rows 1, 2 and 4 of spec §3.9a behavior 33a's table.
+
+### A3 — emit date failures at their declared position · `[sequential]`
+`internal/schema/binder/binder.go` gains `ValueArbitraryDate`, `ValueExactDate` and
+`ValueExactDateOrPresent`; the three base binders declare their date fields as ordinary
+`binder.Field` entries and drop the post-hoc append. Cross-model rules (start-after-end,
+`PublicationEntry`'s three) stay after the field pass.
+Spec §3.9a behaviors 33a, 33b. Plan §2.5.
+Tests: row 3 of spec §3.9a behavior 33a's table — `position`, then `date`, then `location`; all
+eight types report in the declared order of spec 003 §3.3–§3.10 as one table test.
+
+### A4 — a non-scalar date field emits its union-branch pair · `[sequential]`
+The three new value types emit **two** raw failures for a mapping or a sequence value, in the
+declared arm order, at locations `(field, "int")` / `(field, "str")` — `int` first for `date`, `str`
+first for `start_date` — and three for `end_date`. This is the port's only synthetic location
+element and the comment at the construction site must say why (plan §2.2 consequence 2a).
+Spec §3.9b behaviors 33d–33g, §5.11a, §5.11b. Plan §2.2 consequence 2a.
+Tests: spec §3.9b behavior 33d's three-row raw table; `date: true` accepted. The end-to-end
+collapse to one record is asserted in T18, once dedup exists.
+
+### A5 — the entry-order regression fixture · `[sequential]`
+A table test over spec §3.9a behavior 33a's four rows plus spec §3.9b behavior 33d's three, run on
+the **raw** list, so any future change to field composition or date handling fails here rather than
+in a 25-record diff.
+Spec §3.9a, §3.9b, §6.3a, §6.3b, §8 (*Entry-internal ordering…*).
+No production change.
 
 ---
 
@@ -162,7 +219,10 @@ wrapper is **not** recursed into.
 `errorpipeline.go`. Ordered set keyed by the location joined with `\x00`, first occurrence wins.
 Spec §3.8 behaviors 27–29, §6.4. Plan §4.1.
 Tests: spec §3.8 behavior 28's three-row table; three records at two locations preserve order and
-keep the first; a section key containing `.` does not collide with a nested path.
+keep the first; a section key containing `.` does not collide with a nested path. Plus spec §3.9b
+behavior 33e's four-row end-to-end table, which A4 set up and only becomes assertable here:
+`date: {a: 1}` → one record, `Input should be a valid integer.`; `start_date: {a: 1}` → one record,
+`Input should be a valid string.`; `end_date: {a: 1}` → one record, §4.12.
 
 ### T19 — the two coordinate-walk internal failures · `[sequential]`
 `coordinates.go`: §4.17 for an out-of-range sequence index, §4.18 for an unknown key, both as
@@ -427,12 +487,21 @@ None is orphaned.
 | `models/cv/entries/bases/entrywithcomplexfields.go:100` — the isoformat text | T43 |
 | `models/cv/entries/bases/entrywithdate.go:61` — the CPython date texts | T43 |
 
+And the two items cut from iteration 3 (`specs/STATE.md` → *Cut scope* → *Iteration 3*):
+
+| Cut item | Task |
+|---|---|
+| 1 — entry error ordering (composition + date position) | A2, A3, A5 |
+| 2 — a non-scalar `date` / `start_date` produces no error | A4, and T18 for the end-to-end collapse |
+| the three corrected error codes, and the tests that hid them | A1 |
+
 ---
 
 ## Fan-out summary
 
 | Wave | Parallel tasks | Owner |
 |---|---|---|
+| A0 | none — ordering is the spine's foundation | spine owner |
 | A | T5, T6 alongside the T1–T2–T3–T4 spine | one porter for the spine, two for T5/T6 |
 | B | none — the eleven steps are the spine | spine owner |
 | C | T21, T22, T23 · T27, T28, T29 · T30–T37 · T39, T43, T44, T45, T46, T47, T48 | up to eight porters |
@@ -444,7 +513,9 @@ leaves. T22 is the largest and most parity-critical of the three wrappers and sh
 capable porter. T24–T26 and T38, T41, T42 share a file with a sibling and are sequential within
 their groups.
 
-All of Waves B and D are the spine and must not be split across agents.
+All of Waves A0, B and D are the spine and must not be split across agents. Wave A0 in particular
+must not be fanned out: A2, A3 and A4 all touch the binder and the three base binders, and A5 reads
+all three.
 
 ## Exit
 
@@ -457,7 +528,8 @@ Iteration 4 is done when:
    no new failures — and that T1's dictionary fixture test is green (spec §7.3). A red T1 means the
    dictionary drifted, not that the corpus is missing.
 4. `specs/STATE.md` moves iteration 4 to `green`, records cut-scope items 1, 3, 4 and 5 of
-   iteration 2 as closed, records iteration 3's `PublicationEntry.url` open item as closed by
+   iteration 2 as closed, records **both** iteration-3 cut items as closed (item 1 by A2/A3/A5,
+   item 2 by A4/T18) along with iteration 3's `PublicationEntry.url` open item as closed by
    T22/T27, and carries forward: the email message tail (spec §7.4, iteration 13), the
    `err_unknown_theme` absolute-path golden (spec §7.7, iteration 12), the stdout/stderr inversion
    (spec §7.6, iteration 12), and the two upstream crashes (spec §7.8, iteration 12).
