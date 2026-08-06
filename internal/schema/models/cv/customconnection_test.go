@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/binder"
-	"github.com/nonamecat19/rendercv-go/internal/schema/models"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv"
+	"github.com/nonamecat19/rendercv-go/internal/schema/models/valctx"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 )
 
@@ -110,7 +110,7 @@ func TestResolvePhotoTriesPathBeforeURL(t *testing.T) {
 	}
 	inputFile := filepath.Join(dir, "input.yaml")
 
-	ctx := &models.ValidationContext{InputFilePath: inputFile}
+	ctx := &valctx.ValidationContext{InputFilePath: inputFile}
 
 	photo := cv.ResolvePhoto("photo.jpg", ctx)
 	if photo.Kind != cv.PhotoKindPath {
@@ -124,7 +124,7 @@ func TestResolvePhotoTriesPathBeforeURL(t *testing.T) {
 func TestResolvePhotoFallsBackToURL(t *testing.T) {
 	dir := t.TempDir()
 	inputFile := filepath.Join(dir, "input.yaml")
-	ctx := &models.ValidationContext{InputFilePath: inputFile}
+	ctx := &valctx.ValidationContext{InputFilePath: inputFile}
 
 	photo := cv.ResolvePhoto("https://example.com/photo.jpg", ctx)
 	if photo.Kind != cv.PhotoKindURL {

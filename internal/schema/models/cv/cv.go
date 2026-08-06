@@ -2,8 +2,8 @@ package cv
 
 import (
 	"github.com/nonamecat19/rendercv-go/internal/schema/binder"
-	"github.com/nonamecat19/rendercv-go/internal/schema/models"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv/entries"
+	"github.com/nonamecat19/rendercv-go/internal/schema/models/valctx"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
 )
@@ -107,7 +107,7 @@ func Validate(
 // context path resolution uses.
 type Options struct {
 	Registry *entries.Registry
-	Context  *models.ValidationContext
+	Context  *valctx.ValidationContext
 }
 
 // validateFields runs the per-field validators the model owns. `design`,

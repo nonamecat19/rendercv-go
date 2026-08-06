@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/nonamecat19/rendercv-go/internal/schema/models/valctx"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 )
 
@@ -19,7 +20,7 @@ const pathOtherErrorCode schemaerr.Code = "rendercv_other_error"
 // ResolutionBase returns the directory a relative path is resolved against:
 // the input file's parent directory when the context carries one, otherwise
 // the process working directory (schema/models/path.py:38-39, spec §3.36).
-func ResolutionBase(ctx *ValidationContext) (string, error) {
+func ResolutionBase(ctx *valctx.ValidationContext) (string, error) {
 	if p, ok := ctx.InputPath(); ok {
 		return filepath.Dir(p), nil
 	}
@@ -36,7 +37,7 @@ func ResolutionBase(ctx *ValidationContext) (string, error) {
 // (spec §3.37). When mustExist is true, the resolved path must exist
 // (§4.5) and must be a regular file (§4.6); both messages interpolate the
 // path relative to the resolution base (spec §3.39).
-func resolveRelativePath(path string, ctx *ValidationContext, mustExist bool) (string, error) {
+func resolveRelativePath(path string, ctx *valctx.ValidationContext, mustExist bool) (string, error) {
 	if path == "" {
 		return "", nil
 	}
@@ -98,7 +99,7 @@ type ExistingPathRelativeToInput struct {
 
 // ResolveExistingPath validates and resolves raw as an
 // ExistingPathRelativeToInput.
-func ResolveExistingPath(raw string, ctx *ValidationContext) (ExistingPathRelativeToInput, error) {
+func ResolveExistingPath(raw string, ctx *valctx.ValidationContext) (ExistingPathRelativeToInput, error) {
 	resolved, err := resolveRelativePath(raw, ctx, true)
 	if err != nil {
 		return ExistingPathRelativeToInput{}, err
@@ -116,7 +117,7 @@ type PlannedPathRelativeToInput struct {
 
 // ResolvePlannedPath resolves raw as a PlannedPathRelativeToInput. It never
 // fails on a nonexistent path (spec §3.40).
-func ResolvePlannedPath(raw string, ctx *ValidationContext) (PlannedPathRelativeToInput, error) {
+func ResolvePlannedPath(raw string, ctx *valctx.ValidationContext) (PlannedPathRelativeToInput, error) {
 	resolved, err := resolveRelativePath(raw, ctx, false)
 	if err != nil {
 		return PlannedPathRelativeToInput{}, err

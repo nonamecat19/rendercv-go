@@ -1,4 +1,6 @@
-package models
+// Package valctx holds the validation context threaded to validators. It is a
+// leaf package so that every model package can depend on it without a cycle.
+package valctx
 
 import "time"
 
