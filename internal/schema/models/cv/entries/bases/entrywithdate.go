@@ -16,7 +16,11 @@ var (
 
 // dateFields is the one field BaseEntryWithDate adds
 // (entry_with_date.py:42-50). It defaults to absent (spec §3.70).
-var dateFields = []binder.Field{{Name: "date"}}
+var dateFields = []binder.Field{{
+	Name:   "date",
+	Value:  binder.ValueArbitraryDate,
+	Scalar: func(raw string, _ bool) error { return ValidateArbitraryDate(raw) },
+}}
 
 // BaseEntryWithDate mirrors BaseEntryWithDate
 // (schema/models/cv/entries/bases/entry_with_date.py:39-50).
@@ -150,16 +154,9 @@ func bindEntryWithDateFields(
 		return entry, errs
 	}
 
+	// The `date` failure itself is emitted by the binder at the field's declared
+	// position (spec 004 §3.9a behavior 33a). Appending it here, as iteration 3
+	// did, put it after every other field's error.
 	entry.Date = date
-	if err := ValidateArbitraryDate(date.Raw); err != nil {
-		errs = append(errs, schemaerr.ValidationError{
-			Code:           CodeDateValue,
-			SchemaLocation: fieldLocation(location, "date"),
-			YamlLocation:   spanOf(date),
-			YamlSource:     source,
-			Message:        err.Error(),
-			Input:          date.Raw,
-		})
-	}
 	return entry, errs
 }

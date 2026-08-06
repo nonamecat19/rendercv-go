@@ -1,6 +1,7 @@
 package entries
 
 import (
+	"errors"
 	"time"
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/binder"
@@ -46,6 +47,15 @@ const (
 	messageDOIPatternMismatch = "String should match pattern '" + doiPatternSource + "'"
 	messageURLTooLong         = "URL should have at most 2083 characters"
 )
+
+// errDOIPattern is the `doi` pattern failure, carried through the binder's Scalar
+// hook so the error lands at `doi`'s declared position.
+//
+// message text, reproduced verbatim as part of the parity contract, not a Go
+// error string we are free to style.
+//
+//nolint:staticcheck // ST1005: the capital is upstream's. This is pydantic's own
+var errDOIPattern = errors.New(messageDOIPatternMismatch)
 
 // HTTPURLValidator validates one field declared `pydantic.HttpUrl`. The node is
 // the value as written; location is its schema location.
@@ -113,7 +123,21 @@ var publicationOwnFields = []binder.Field{
 	{Name: "title", Required: true, Value: binder.ValueString},
 	{Name: "authors", Required: true, Value: binder.ValueStringList},
 	{Name: "summary", Value: binder.ValueString},
-	{Name: "doi", Value: binder.ValueString},
+	{
+		Name:  "doi",
+		Value: binder.ValueString,
+		// Upstream's `pattern=r"\b10\..*"` is an enforced field constraint
+		// (publication.py:34), so it is reported at `doi`'s declared position --
+		// before `journal` and `date`, not after every other field (spec 004
+		// §3.9a behavior 33a row 4).
+		Scalar: func(raw string, _ bool) error {
+			if matchDOIPattern(raw) {
+				return nil
+			}
+			return errDOIPattern
+		},
+		ScalarCode: CodeStringPatternMismatch,
+	},
 	{Name: "url", Value: binder.ValueAny},
 	{Name: "journal", Value: binder.ValueString},
 }
@@ -157,22 +181,6 @@ func ValidatePublicationEntry(
 		if ok && value != nil && value.Kind != yamldoc.KindNull {
 			*field.value = value
 		}
-	}
-
-	// Spec §3.11: the `doi` pattern is an enforced constraint, applied with search
-	// semantics against a Unicode word class (matchDOIPattern, doipattern.go).
-	//
-	// The relative order of this failure and a `date` failure is not pinned by any
-	// upstream fixture; the base reports `date` first because it binds it first.
-	if entry.DOI != nil && !matchDOIPattern(entry.DOI.Raw) {
-		errs = append(errs, schemaerr.ValidationError{
-			Code:           CodeStringPatternMismatch,
-			SchemaLocation: publicationFieldLocation(location, "doi"),
-			YamlLocation:   publicationSpan(entry.DOI),
-			YamlSource:     source,
-			Message:        messageDOIPatternMismatch,
-			Input:          entry.DOI.Raw,
-		})
 	}
 
 	// The `url` field type itself, ahead of the model-level rules: upstream parses
