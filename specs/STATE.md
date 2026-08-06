@@ -17,7 +17,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 0 | Bootstrap (layout, AGENTS.md, submodule, agents, skills, CI) | — | green | n/a |
 | 1 | Conformance harness (corpus, gengolden, helpers) | [001](001-conformance-harness/spec.md) | green | n/a (42 cases red by design) |
 | 2 | YAML reader + core model (RenderCVModel, CV, Section) | [002](002-yaml-and-core-model/spec.md) | green (with cut scope, see below) | n/a (gated on unit tests, spec §7.2) |
-| 3 | Entry types (9) | — | — | 0 / 9 |
+| 3 | Entry types (9) | — | spec | 0 / 9 |
 | 4 | Validation-error parity | — | — | 0 |
 | 5 | JSON Schema generator | — | — | 0 / 1 |
 | 6 | Design & themes (9) + Lua-scripted custom themes (D-002) | — | — | 0 / 9 |
@@ -99,3 +99,4 @@ Two process failures in this iteration's history, recorded rather than rewritten
 | 2026-08-06 | Iteration 1 green: 42-case corpus, gengolden, 351 golden files, red parity suite. |
 | 2026-08-06 | Iteration 2 green with cut scope: reader, binder, overlay merge, cv, entry bases, sections. Conformance suite unchanged (42 red by design). Six items carried to iteration 3. |
 | 2026-08-06 | Parity bug found and fixed: section-title capitalization used `unicode.ToTitle`, which is rune-to-rune and cannot express Python's `str.capitalize()` (`ßeta` → `Sseta`, `ﬁle` → `File`). The failing rows had been dropped from the test table rather than reported. |
+| 2026-08-06 | Iteration 3 (entry types) started: spec investigation kicked off. |
