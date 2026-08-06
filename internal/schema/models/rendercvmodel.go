@@ -2,6 +2,8 @@ package models
 
 import (
 	"github.com/nonamecat19/rendercv-go/internal/schema/binder"
+	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv"
+	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv/entries"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/valctx"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
@@ -44,6 +46,11 @@ type RenderCVModel struct {
 	Design   *yamldoc.Node
 	Locale   *yamldoc.Node
 	Settings *yamldoc.Node
+
+	// CvModel is the bound `cv`, nil when the key is absent. The raw node stays
+	// beside it because later iterations read spans and unnormalized text from it
+	// (spec 003 §6.5).
+	CvModel *cv.Cv
 
 	// inputFilePath is recorded out-of-band after validation, not as a document
 	// field, for later path resolution (spec §3.31, rendercv_model.py:44-62).
@@ -88,6 +95,27 @@ func Validate(
 	model.Design, _ = result.Value("design")
 	model.Locale, _ = result.Value("locale")
 	model.Settings, _ = result.Value("settings")
+
+	// Spec 003 §3.19 behavior 44: `cv` is validated here, which iteration 2 could
+	// not do — models/cv imported models for the context and path types, so the
+	// call would have closed an import cycle. Those types moved to models/valctx
+	// and models/inputpath (tasks 003 T1, T2), and the edge is now guarded by a
+	// test in models/cv.
+	//
+	// An absent `cv` is not an error: every field has a default (spec §3.28), and
+	// the JSON-schema `required` list deliberately omits `cv` (spec §3.30) so that
+	// a standalone design, locale or settings file validates. A present-but-null
+	// `cv` is a non-mapping, and the binder's own model-type branch reports it.
+	if model.Cv != nil {
+		cvModel, cvErrs := cv.Validate(
+			model.Cv,
+			[]string{"cv"},
+			source,
+			cv.Options{Registry: entries.Default(), Context: ctx},
+		)
+		model.CvModel = cvModel
+		errs = append(errs, cvErrs...)
+	}
 
 	// Spec §3.31: the input file path comes from the context, after validation,
 	// and is held out-of-band.
