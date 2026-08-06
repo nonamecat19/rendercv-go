@@ -3,6 +3,9 @@ package cv
 import (
 	"strings"
 	"unicode"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 var stopWords = map[string]bool{
@@ -49,12 +52,20 @@ func containsUpper(s string) bool {
 	return false
 }
 
+// firstRuneTitler applies Unicode's full Titlecase_Mapping, including the
+// special cases where one rune maps to several — `ß` → `Ss`, `ﬁ` → `Fi`,
+// `ŉ` → `ʼN`. Go's unicode.ToTitle is rune-to-rune and silently leaves those
+// unchanged, so it cannot stand in for Python's str.capitalize().
+var firstRuneTitler = cases.Title(language.Und, cases.NoLower)
+
+// capitalize is Python's str.capitalize() (section.py:315): titlecase the first
+// character and lowercase the rest (spec §3.64, §5.10).
 func capitalize(s string) string {
 	if s == "" {
 		return s
 	}
 	runes := []rune(s)
-	first := string(unicode.ToTitle(runes[0]))
+	first := firstRuneTitler.String(string(runes[0]))
 	var rest strings.Builder
 	for i := 1; i < len(runes); i++ {
 		rest.WriteRune(unicode.ToLower(runes[i]))
