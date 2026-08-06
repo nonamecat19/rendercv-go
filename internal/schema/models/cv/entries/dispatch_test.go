@@ -2,6 +2,7 @@ package entries_test
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -97,9 +98,15 @@ func TestValidateRejectsAnUnregisteredName(t *testing.T) {
 	}
 }
 
-// Spec §3.18 behavior 43 — the entry-level codes are reachable through the
-// dispatcher and distinguishable from each other. Matched on code, never on
-// message text, because the texts are iteration 4's (spec §7.3).
+// Spec §3.18 behavior 43 — the five codes that behavior lists are each reachable
+// through the dispatcher and distinguishable from each other. Matched on code,
+// never on message text, because the texts are iteration 4's (spec §7.3).
+//
+// The five are exactly behavior 43's: `missing`, `string_type`, `list_type`,
+// `string_pattern_mismatch` and `url_too_long`. An earlier version of this table
+// silently substituted the date code and `model_type` for the last two, which
+// meant the criterion was reported as met while two of the five were never
+// exercised.
 func TestValidateReachesEachEntryLevelCode(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -127,17 +134,16 @@ func TestValidateReachesEachEntryLevelCode(t *testing.T) {
 			wantCode: "list_type",
 		},
 		{
-			name:     "an exact date is unparseable",
-			typeName: "EducationEntry",
-			src:      "institution: MIT\narea: CS\nstart_date: aaa\n",
-			wantCode: "value_error",
+			name:     "a doi fails its pattern",
+			typeName: "PublicationEntry",
+			src:      "title: T\nauthors:\n  - J\ndoi: notadoi\n",
+			wantCode: "string_pattern_mismatch",
 		},
 		{
-			name:     "the entry is not a mapping",
-			typeName: "BulletEntry",
-			src:      "just text",
-			scalar:   true,
-			wantCode: "model_type",
+			name:     "a generated doi url is too long",
+			typeName: "PublicationEntry",
+			src:      "title: T\nauthors:\n  - J\ndoi: 10." + strings.Repeat("a", 2100) + "\n",
+			wantCode: "url_too_long",
 		},
 	}
 
@@ -178,5 +184,70 @@ func TestValidateReachesEachEntryLevelCode(t *testing.T) {
 
 	if len(seen) != len(tests) {
 		t.Errorf("reached %d distinct codes, want %d — two rows share a code", len(seen), len(tests))
+	}
+}
+
+// Codes reachable at entry level that behavior 43 does not list. Recorded because
+// iteration 4 keys its rewrite table off the code, so an unlisted one would go
+// unmapped — `model_type` in particular is what a bare string in a
+// mapping-entry section produces, verified upstream as a child `model_type` at
+// the entry index.
+func TestEntryLevelCodesBeyondBehavior43(t *testing.T) {
+	tests := []struct {
+		name     string
+		typeName entries.TypeName
+		src      string
+		scalar   bool
+		wantCode schemaerr.Code
+	}{
+		{
+			name:     "the entry is not a mapping",
+			typeName: "BulletEntry",
+			src:      "just text",
+			scalar:   true,
+			wantCode: "model_type",
+		},
+		{
+			name:     "an exact date is unparseable",
+			typeName: "EducationEntry",
+			src:      "institution: MIT\narea: CS\nstart_date: aaa\n",
+			wantCode: "rendercv_other_error",
+		},
+		{
+			name:     "an arbitrary date is out of range",
+			typeName: "EducationEntry",
+			src:      "institution: MIT\narea: CS\ndate: 2020-20-20\n",
+			wantCode: "value_error",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var node *yamldoc.Node
+			if test.scalar {
+				node = parseValue(t, test.src)
+			} else {
+				node = parseNode(t, test.src)
+			}
+
+			errs, err := entries.Validate(
+				node, test.typeName, []string{"cv"},
+				schemaerr.SourceMain, dispatchReference,
+			)
+			if err != nil {
+				t.Fatalf("internal error: %v", err)
+			}
+
+			var found bool
+			for _, e := range errs {
+				if e.Code == test.wantCode {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("errs = %+v, want one with code %q", errs, test.wantCode)
+			}
+		})
 	}
 }

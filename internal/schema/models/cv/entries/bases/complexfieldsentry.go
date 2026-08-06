@@ -100,7 +100,7 @@ func BindEntryWithComplexFields(
 
 		if err := ValidateExactDate(node.Raw, *field.isInteger, reference); err != nil {
 			errs = append(errs, schemaerr.ValidationError{
-				Code:           CodeDateValue,
+				Code:           CodeDateOther,
 				SchemaLocation: fieldLocation(location, field.name),
 				YamlLocation:   spanOf(node),
 				YamlSource:     source,
@@ -163,7 +163,7 @@ func (e *BaseEntryWithComplexFields) adjustDates(
 	}
 
 	return &schemaerr.ValidationError{
-		Code:           CodeDateValue,
+		Code:           CodeDateOther,
 		SchemaLocation: append([]string(nil), location...),
 		YamlSource:     source,
 		Message: fmt.Sprintf(

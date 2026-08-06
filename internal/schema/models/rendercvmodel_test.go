@@ -165,7 +165,7 @@ func TestValidateValidatesCv(t *testing.T) {
 			// ('cv', 'sections', 'education').
 			name:      "a bad section reports through the top level",
 			src:       "cv:\n  sections:\n    education:\n      - institution: MIT\n",
-			wantCodes: []schemaerr.Code{"rendercv_other_error"},
+			wantCodes: []schemaerr.Code{"rendercv_entry_validation_error"},
 			wantPath:  "cv.sections.education",
 		},
 	}

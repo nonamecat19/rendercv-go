@@ -18,8 +18,14 @@ var sectionReference = time.Date(2025, 11, 3, 0, 0, 0, 0, time.UTC)
 
 // fixtureRegistry is the real registry (spec §3.56, §7.1). Iteration 2 stood in
 // a hand-written one here because the concrete entry types did not exist yet;
-// iteration 3 T17 replaced it with entries.Default(), and every test below
-// passes unchanged — which is the point of the swap.
+// iteration 3 T17 replaced it with entries.Default().
+//
+// Most tests below passed the swap untouched, but three did not and the earlier
+// claim that all of them did was wrong: TestFirstResolvableEntryWins here, plus
+// TestSectionRecordsInInputOrder and TestTypeComesFromFirstEntry in
+// sectionlist_test.go, all asserted "no errors" over fixtures that the
+// accept-everything stub let pass and that upstream genuinely rejects. Their
+// expectations were corrected against the vendored Python, not relaxed.
 func fixtureRegistry() *entries.Registry {
 	return entries.Default()
 }
@@ -312,5 +318,107 @@ func TestProductionPathRejectsABadEntry(t *testing.T) {
 	}
 	if !sawMissingArea {
 		t.Errorf("errs = %+v, want a nested `missing` on `area`", errs)
+	}
+}
+
+// Spec §8 — the seven `(entry_type_name, section_model_name)` pairs asserted from
+// an **already-constructed entry**, not only from a raw mapping. Upstream tests
+// both halves (tests/schema/models/cv/test_section.py:19-60) and its
+// already-a-model branch is a distinct code path: `entry.__class__.__name__`
+// rather than characteristic-field discrimination (section.py:173-176).
+//
+// Go has no single "constructed entry" interface to switch on, so the equivalent
+// is to validate the entry first and then re-discriminate the same node: a
+// successfully validated entry must resolve to the type it was validated as.
+func TestConstructedEntryResolvesToItsOwnType(t *testing.T) {
+	tests := []struct {
+		name string
+		src  string
+		want entries.TypeName
+	}{
+		{
+			name: "publication",
+			src:  "  - title: A Paper\n    authors:\n      - J. Doe\n",
+			want: "PublicationEntry",
+		},
+		{
+			name: "experience",
+			src:  "  - company: Acme\n    position: Engineer\n",
+			want: "ExperienceEntry",
+		},
+		{
+			name: "education",
+			src:  "  - institution: MIT\n    area: Computer Science\n",
+			want: "EducationEntry",
+		},
+		{name: "normal", src: "  - name: Some Project\n", want: "NormalEntry"},
+		{
+			name: "one line",
+			src:  "  - label: Languages\n    details: English\n",
+			want: "OneLineEntry",
+		},
+		{name: "text", src: "  - just text\n", want: cv.TextEntry},
+		{name: "bullet", src: "  - bullet: A point\n", want: "BulletEntry"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			node := section(t, test.src)
+
+			// First pass: the section validates cleanly as the expected type.
+			entryType, errs := cv.ValidateSection(
+				node, fixtureRegistry(), nil, schemaerr.SourceMain, sectionReference,
+			)
+			if len(errs) != 0 {
+				t.Fatalf("errs = %+v, want none", errs)
+			}
+			if entryType != test.want {
+				t.Fatalf("entry type = %q, want %q", entryType, test.want)
+			}
+
+			// Second pass over the same, now-validated node: the decision is stable.
+			// Upstream's already-a-model branch returns the instance's own class name,
+			// so re-resolving must not drift to a different type.
+			again, err := cv.InferEntryType(node.Elems[0], fixtureRegistry())
+			if err != nil {
+				t.Fatalf("re-resolving a validated entry: %v", err)
+			}
+			if again != test.want {
+				t.Errorf("re-resolved to %q, want %q", again, test.want)
+			}
+
+			if got := sectionModelName(string(test.want)); got != "SectionWith"+
+				strings.Replace(string(test.want), "Entry", "Entries", 1) {
+				t.Errorf("section model name = %q, unexpected", got)
+			}
+		})
+	}
+}
+
+// Spec §8, spec 002 §4.9 — `{summary: "only a summary"}` end to end. `summary` is
+// characteristic of nothing (both BaseEntryWithComplexFields and
+// BasePublicationEntry declare it), so it cannot discriminate and the section
+// resolves to no type at all. Asserted here through ValidateSection rather than
+// only at registry level.
+func TestSummaryOnlyEntryMatchesNoType(t *testing.T) {
+	entryType, errs := cv.ValidateSection(
+		section(t, "  - summary: only a summary\n"),
+		fixtureRegistry(), []string{"cv", "sections", "x"}, schemaerr.SourceMain,
+		sectionReference,
+	)
+	if entryType != "" {
+		t.Errorf("entry type = %q, want none inferred", entryType)
+	}
+	if len(errs) != 1 {
+		t.Fatalf("errs = %+v, want exactly one", errs)
+	}
+
+	want := "RenderCV couldn't match this section with any entry types." +
+		" Please check the entries and make sure they are provided correctly."
+	if errs[0].Message != want {
+		t.Errorf("message = %q, want %q", errs[0].Message, want)
+	}
+	if errs[0].Code != cv.CodeSection {
+		t.Errorf("code = %q, want %q", errs[0].Code, cv.CodeSection)
 	}
 }

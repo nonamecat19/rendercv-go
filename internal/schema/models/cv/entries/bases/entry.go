@@ -9,9 +9,24 @@ import (
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
 )
 
-// CodeDateValue marks a date that is structurally well-formed but out of range
-// (spec §4.13) or otherwise rejected by a date validator.
-const CodeDateValue schemaerr.Code = "value_error"
+// The two codes a rejected date can carry. They differ because upstream raises
+// them through different mechanisms, and iteration 4's rewrite table keys off the
+// code, so collapsing them would build the message rewriter on a wrong key.
+const (
+	// CodeDateValue is the arbitrary `date` field's code. `validate_arbitrary_date`
+	// lets `Date.fromisoformat` raise a bare Python ValueError
+	// (entry_with_date.py:26-29), which pydantic reports as `value_error`.
+	// Verified: `NormalEntry(name="n", date="2020-20-20")` → `value_error`.
+	CodeDateValue schemaerr.Code = "value_error"
+
+	// CodeDateOther is the code for `start_date`/`end_date`. Both
+	// `validate_exact_date` (entry_with_complex_fields.py:31-36) and the
+	// start-after-end check (:161-169) raise
+	// `PydanticCustomError(CustomPydanticErrorTypes.other, …)` instead of letting a
+	// ValueError through. Verified: `NormalEntry(name="n", start_date="notadate")`
+	// → `rendercv_other_error`, and so does the start-after-end case.
+	CodeDateOther schemaerr.Code = "rendercv_other_error"
+)
 
 // BaseEntry mirrors BaseEntry (entries/bases/entry.py:11-18). It inherits the
 // extra-keys base (base.py:9), which is the arbitrary-keys feature of spec
