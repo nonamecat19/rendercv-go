@@ -14,8 +14,8 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 
 | # | Subsystem | Spec | Status | Conformance cases passing |
 |---|---|---|---|---|
-| 0 | Bootstrap (layout, AGENTS.md, submodule, agents, skills, CI) | — | wip | n/a |
-| 1 | Conformance harness (corpus, gengolden, helpers) | — | — | n/a |
+| 0 | Bootstrap (layout, AGENTS.md, submodule, agents, skills, CI) | — | green | n/a |
+| 1 | Conformance harness (corpus, gengolden, helpers) | [001](001-conformance-harness/spec.md) | green | n/a (42 cases red by design) |
 | 2 | YAML reader + core model (RenderCVModel, CV, Section) | — | — | 0 |
 | 3 | Entry types (9) | — | — | 0 / 9 |
 | 4 | Validation-error parity | — | — | 0 |
@@ -33,10 +33,12 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 
 | Axis | Gate command | Status |
 |---|---|---|
-| 1 — artifacts byte-identical | `just test-parity` | not yet measurable |
-| 2 — CLI surface | `just test-parity` | not yet measurable |
-| 3 — JSON Schema | `just schema-diff` | not yet measurable |
-| 4 — validation errors | `just test-parity` | not yet measurable |
+| 1 — artifacts byte-identical | `just test-parity` | measurable, 0/15 cases passing |
+| 2 — CLI surface | `just test-parity` | measurable, 0/20 cases passing |
+| 3 — JSON Schema | `just test-parity`, `just schema-diff` | measurable, failing |
+| 4 — validation errors | `just test-parity` | measurable, 0/7 cases passing |
+
+PDF content comparison (spec §1.2) is not yet measurable — it lands with iteration 10.
 
 ## Stretch goals (not gates)
 
@@ -54,3 +56,4 @@ Nothing cut yet. Anything dropped from an iteration is recorded here with the re
 | Date | Event |
 |---|---|
 | 2026-08-06 | Repo bootstrapped; upstream pinned at v2.8; parity contract written. |
+| 2026-08-06 | Iteration 1 green: 42-case corpus, gengolden, 351 golden files, red parity suite. |
