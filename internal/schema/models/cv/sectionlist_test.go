@@ -17,11 +17,22 @@ func records(t *testing.T, sections string) []cv.SectionRecord {
 	return model.SectionRecords(fixtureRegistry())
 }
 
+// recordsIgnoringValidity is records for a section that legitimately fails
+// validation. Record building does not re-validate entries — upstream builds them
+// through BaseRenderCVSection precisely so that "entries are not validated again"
+// (section.py:351) — so a section whose entries are invalid still produces a
+// record, and that is what the caller is asserting.
+func recordsIgnoringValidity(t *testing.T, sections string) []cv.SectionRecord {
+	t.Helper()
+	model, _ := cv.Validate(parse(t, "sections:\n"+sections), []string{"cv"}, schemaerr.SourceMain, testOptions())
+	return model.SectionRecords(fixtureRegistry())
+}
+
 // Spec §3.65 — one record per section, in input order, with the title formatted.
 func TestSectionRecordsInInputOrder(t *testing.T) {
 	got := records(t, ""+
-		"  education_and_training:\n    - institution: MIT\n"+
-		"  experience:\n    - company: Acme\n"+
+		"  education_and_training:\n    - institution: MIT\n      area: Computer Science\n"+
+		"  experience:\n    - company: Acme\n      position: Engineer\n"+
 		"  a_section:\n    - just text\n")
 
 	want := []struct {
@@ -67,8 +78,14 @@ func TestEmptySectionForcesTextEntry(t *testing.T) {
 }
 
 // Spec §3.65 — the type comes from the first entry only.
+//
+// A heterogeneous section is invalid: every entry is validated against the one
+// decided type, so the education entry here fails as an ExperienceEntry
+// (verified upstream — this exact section reports
+// rendercv_entry_validation_error). Record building is a separate step that does
+// not re-validate, which is what this test is about.
 func TestTypeComesFromFirstEntry(t *testing.T) {
-	got := records(t, "  mixed:\n    - company: Acme\n    - institution: MIT\n")
+	got := recordsIgnoringValidity(t, "  mixed:\n    - company: Acme\n    - institution: MIT\n")
 	if len(got) != 1 {
 		t.Fatalf("records = %+v, want exactly one", got)
 	}
