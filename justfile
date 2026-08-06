@@ -82,6 +82,11 @@ schema-diff: build
 upstream *args:
     cd {{upstream_dir}} && uv run --frozen --all-extras rendercv {{args}}
 
+# Regenerate the entry-model field-order fixture from the vendored Python.
+# Generated, never hand-edited (AGENTS.md §10.1). Not a golden: no human gate.
+entryprobe:
+    go run ./tools/entryprobe
+
 # Render the same input with both and diff every artifact.
 diff-render input:
     go run ./tools/gengolden -diff {{input}}
