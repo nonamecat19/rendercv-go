@@ -31,10 +31,10 @@ var probeDate = time.Date(2025, 3, 5, 0, 0, 0, 0, time.UTC)
 // catch a wrong entry template, a wrong separator or a missing newline in a
 // whole document; those all passed while this was unwritten.
 func TestCorpusTypstIsByteIdentical(t *testing.T) {
-	root := filepath.Join("testdata", "typ")
+	root := filepath.Join("testdata", "documents")
 	cases, err := os.ReadDir(root)
 	if err != nil {
-		t.Fatalf("reading %s: %v — regenerate it with `just typprobe`", root, err)
+		t.Fatalf("reading %s: %v — regenerate it with `just docprobe`", root, err)
 	}
 	if len(cases) == 0 {
 		t.Fatalf("%s is empty; the fixture is not measuring anything", root)
