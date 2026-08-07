@@ -1,7 +1,11 @@
 package cv
 
 import (
+	"errors"
+	"strings"
+
 	"github.com/nonamecat19/rendercv-go/internal/schema/binder"
+	"github.com/nonamecat19/rendercv-go/internal/schema/httpurl"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
 )
@@ -66,9 +70,8 @@ var SocialNetworkFields = []string{"network", "username"}
 // SocialNetwork model: both fields are required, with no default
 // (social_network.py:54-57, spec §3.80).
 //
-// TODO(iteration-4): per-network username pattern validation and the
-// generated profile URL are out of scope for this shell
-// (social_network.py:59-184, spec §7).
+// TODO(spec 004 T30-T37): the eight per-network username rules
+// (social_network.py:59-151).
 type SocialNetwork struct {
 	Network  SocialNetworkName
 	Username string
@@ -81,12 +84,87 @@ var socialNetworkFields = []binder.Field{
 	{Name: "username", Required: true},
 }
 
-// CodeLiteral marks a value outside a fixed set of literals.
-//
-// TODO(iteration-4): spec §7.3 — the text of this failure is pydantic's
-// `literal_error`, not RenderCV's, and is pinned with the other borrowed
-// strings in iteration 4.
+// CodeLiteral marks a value outside a fixed set of literals. The text is
+// pydantic's, not RenderCV's.
 const CodeLiteral schemaerr.Code = "literal_error"
+
+// urlPrefixes is `url_dictionary` (social_network.py:33-50): the profile-URL
+// prefix each network's username is appended to.
+//
+// Mastodon is absent on purpose — its URL is built by splitting the handle, not
+// by concatenation (social_network.py:178-180).
+var urlPrefixes = map[SocialNetworkName]string{
+	SocialNetworkLinkedIn:      "https://linkedin.com/in/",
+	SocialNetworkGitHub:        "https://github.com/",
+	SocialNetworkGitLab:        "https://gitlab.com/",
+	SocialNetworkIMDB:          "https://imdb.com/name/",
+	SocialNetworkInstagram:     "https://instagram.com/",
+	SocialNetworkORCID:         "https://orcid.org/",
+	SocialNetworkStackOverflow: "https://stackoverflow.com/users/",
+	SocialNetworkResearchGate:  "https://researchgate.net/profile/",
+	SocialNetworkYouTube:       "https://youtube.com/@",
+	SocialNetworkGoogleScholar: "https://scholar.google.com/citations?user=",
+	SocialNetworkTelegram:      "https://t.me/",
+	SocialNetworkWhatsApp:      "https://wa.me/",
+	SocialNetworkLeetcode:      "https://leetcode.com/u/",
+	SocialNetworkX:             "https://x.com/",
+	SocialNetworkBluesky:       "https://bsky.app/profile/",
+	SocialNetworkReddit:        "https://reddit.com/user/",
+}
+
+// URL is the generated profile URL (social_network.py:170-184).
+//
+// A Mastodon handle is `@user@domain`, so splitting on `@` gives three parts and
+// the URL is built from the last two. Every other network is prefix plus
+// username.
+func (s *SocialNetwork) URL() string {
+	if s.Network == SocialNetworkMastodon {
+		parts := strings.Split(s.Username, "@")
+		if len(parts) != 3 {
+			// Upstream unpacks into exactly three names and raises otherwise;
+			// the username rule of spec 004 §4.1 rejects such a handle before
+			// this is reached, so there is nothing to report here.
+			return ""
+		}
+		return "https://" + parts[2] + "/@" + parts[1]
+	}
+	return urlPrefixes[s.Network] + s.Username
+}
+
+// validateGeneratedURL mirrors validate_generated_url
+// (social_network.py:153-165).
+//
+// **It validates and discards.** Upstream calls the URL adapter for its side
+// effect and throws the normalized value away, so the raw concatenation is what
+// renders. Measured: a LinkedIn username of `not a valid %%^&*()` produces no
+// error — the generated URL parses — and the spaces survive into output.
+// `wrong_input.yaml:11-12` writes exactly that username and the expected-errors
+// fixture has no record for `cv.social_networks.0` (spec 004 §3.13 behavior 44).
+//
+// So this is the one URL site whose *normalization* must not be kept. Assigning
+// the return value here would silently rewrite users' profile links.
+func validateGeneratedURL(
+	model *SocialNetwork,
+	location []string,
+	source schemaerr.YamlSource,
+) []schemaerr.ValidationError {
+	url := model.URL()
+	if url == "" {
+		return nil
+	}
+
+	var urlErr *httpurl.Error
+	if _, err := httpurl.Validate(url); errors.As(err, &urlErr) {
+		return []schemaerr.ValidationError{{
+			Code:           urlErr.Code,
+			SchemaLocation: append([]string(nil), location...),
+			YamlSource:     source,
+			Message:        urlErr.Message,
+			Input:          url,
+		}}
+	}
+	return nil
+}
 
 // ValidateSocialNetwork binds a social-network record: two required fields, no
 // unknown keys, and a `network` drawn from the seventeen names (spec §3.80).
@@ -127,6 +205,9 @@ func ValidateSocialNetwork(
 	}
 
 	model.Network = name
+
+	// The generated URL is checked last, as a model-level validator upstream.
+	errs = append(errs, validateGeneratedURL(model, location, source)...)
 	return model, errs
 }
 
