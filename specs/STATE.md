@@ -17,7 +17,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 0 | Bootstrap (layout, AGENTS.md, submodule, agents, skills, CI) | — | green | n/a |
 | 1 | Conformance harness (corpus, gengolden, helpers) | [001](001-conformance-harness/spec.md) | **audited — FAIL, demoted.** Comparison path sound (6/6 mutations caught); the goldens bake absolute paths and the generation month | n/a (42 cases red by design) |
 | 2 | YAML reader + core model (RenderCVModel, CV, Section) | [002](002-yaml-and-core-model/spec.md) | green (with cut scope, see below) | n/a (gated on unit tests, spec §7.2) |
-| 3 | Entry types (9) | [003](003-entry-types/spec.md) | green (with cut scope, see below) | n/a (gated on unit tests, spec §7.1) |
+| 3 | Entry types (9) | [003](003-entry-types/spec.md) | **audited — FAIL, all five findings now closed; re-audit pending** | n/a (gated on unit tests, spec §7.1) |
 | 4 | Validation-error parity | [004](004-validation-errors/spec.md) | green | n/a (gated on the 25-record differential, spec §7.3) |
 | 5 | JSON Schema generator | [005](005-json-schema/spec.md) | **verified green** — audited and passed, the only iteration besides 9 to do so | n/a (gated on the 18 owned `$defs`, spec §7.1) |
 | 6 | Design & themes (9) + the settings schema | [006](006-design-and-themes/spec.md) | **audited — FAIL, demoted.** Font families were a closed enum where upstream accepts any string (fixed); three findings open | n/a (gated on the 164 `$defs` differential and the override diff, spec §5) |
@@ -788,7 +788,19 @@ axis, and two holes sit outside it.
 **The ownership gap in finding 1 is the lesson.** Two specs each recorded the work as the other's,
 and the ledger agreed with both. Nothing was hidden; the cross-reference was just never followed.
 
-## Iteration 3 was audited and it failed — seven for seven
+## Iteration 3 was audited and it failed — seven for seven — and every finding is now closed
+
+**All five are resolved**: three fixed with byte-identical differentials against upstream
+(the date rewrites, `start_date: present`, integer-year dates), one fixture gap closed and
+mutation-checked from **0 catches to 4**, and one — the "dropped" DOI record — resolved as a
+**misdiagnosis**: upstream emits a single record there, exactly as the port does.
+
+**It is not green.** The audit that found these was a fresh context; the repairs were not. Calling
+it green would need a re-audit, which is the same standard every other row here is held to.
+
+The DOI case is worth reading in full below: four plausible fixes were tried and each was
+disproved by a different existing test or measurement. What settled it was dumping upstream's raw
+`ValidationError.errors()` rather than reasoning about the port's pipeline.
 
 | # | Finding | Status |
 |---|---|---|
