@@ -19,16 +19,33 @@ import (
 // verifier measured both. The input is the user's own CV, which the port
 // already renders verbatim into Typst, so passing it through is what the rest of
 // the pipeline does too.
-var converter = goldmark.New(goldmark.WithRendererOptions(html.WithUnsafe()))
-
-// listMarker is a list item's indentation and bullet, which is the only place
-// python-markdown and CommonMark disagree on the documents this port produces.
+// listMarker is a list item's indentation and bullet.
 var listMarker = regexp.MustCompile(`^( +)([-*+] |\d+\. )`)
 
 // pythonMarkdownTabLength is `markdown.Markdown`'s `tab_length` default, which
-// is what decides whether an indented list item is a **child or a sibling**
+// decides whether an indented list item is a **child or a sibling**
 // (`markdown/blockprocessors.py`, `ListIndentProcessor.tab_length`).
 const pythonMarkdownTabLength = 4
+
+// converter is goldmark configured to match python-markdown where it can.
+//
+// **`WithUnsafe` is a parity decision, not a security one.** python-markdown
+// passes raw HTML through; goldmark replaces it with `<!-- raw HTML omitted -->`
+// otherwise, so a `<b>` in a summary vanished and a `<tag>` in prose took its
+// surrounding text with it. The input is the user's own CV, which the port
+// already renders verbatim into Typst.
+var converter = goldmark.New(goldmark.WithRendererOptions(html.WithUnsafe()))
+
+// **A custom writer was tried here and reverted**, and the reason is worth
+// keeping. goldmark escapes `"` in text where python-markdown does not, so a
+// quote in any CV produces a differing `.html`. Overriding the renderer's text
+// `Write` fixed exactly that case — and broke image alt text, which goldmark
+// renders through the *same* text path into an **attribute**:
+// `alt="alt "q""`, unparseable HTML. Worse than the mismatch it fixed.
+//
+// The extended differential in `html_conformance_test.go` is what caught it,
+// after the four-case version had passed. A real fix has to distinguish text
+// from attribute context inside goldmark's renderer, not wrap its writer.
 
 // MarkdownToHTML is `markdown_to_html` (markdown_parser.py:193-202), which is
 // `markdown.markdown(string)` with no extensions and no configuration.
