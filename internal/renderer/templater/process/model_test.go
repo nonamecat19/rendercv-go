@@ -232,3 +232,41 @@ func TestRunPassesThroughAnUntemplatedEntryType(t *testing.T) {
 			got.Sections[0].Entries[0].Text)
 	}
 }
+
+// A bare-integer date belongs to the entry that wrote it.
+//
+// `YearOnly` used to sit on the Model, one set for the whole CV, so the first
+// entry that wrote `start_date: 2000` made **every** entry's start date format
+// as a year — `2000-01` rendering as `2000` in an entry whose own YAML says
+// nothing of the kind. The two entries below differ only in how they wrote the
+// same two dates, and that is the whole assertion.
+func TestRunKeepsIntegerDatesPerEntry(t *testing.T) {
+	model := baseModel()
+	model.EntryTemplates = map[string]map[string]string{
+		"education_entry": {"main_column": "DATE"},
+	}
+	model.Sections = []process.Section{{
+		Title:     "Education",
+		EntryType: "EducationEntry",
+		Entries: []process.Entry{
+			{
+				Fields:   map[string]any{"start_date": 2000, "end_date": 2005},
+				YearOnly: map[string]bool{"start_date": true, "end_date": true},
+			},
+			{
+				Fields: map[string]any{"start_date": "2000-01", "end_date": "2005-06"},
+			},
+		},
+	}}
+
+	got := process.Run(model, process.FormatTypst)
+	years := got.Sections[0].Entries[0].Fields["main_column"]
+	months := got.Sections[0].Entries[1].Fields["main_column"]
+
+	if !strings.Contains(months.(string), "Jan") {
+		t.Errorf("the second entry's date = %#v, want a month in it", months)
+	}
+	if strings.ContainsAny(years.(string), "JFMASOND") {
+		t.Errorf("the first entry's date = %#v, want years only", years)
+	}
+}
