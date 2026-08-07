@@ -40,6 +40,16 @@ func EffectiveWithScript(theme string, script, document map[string]any) map[stri
 	values = deepMerge(values, script)
 	values = deepMerge(values, document)
 
+	// **A partial `font_family` mapping is not a deep merge**, and neither
+	// widening-per-layer nor widening-at-the-end reproduces it. Measured on
+	// `theme: opal` (whose own font is Lato) plus `font_family.body: Charter`:
+	// upstream emits Charter for `body` and **`Source Sans 3`** — the *base*
+	// `FontFamily` default — for the other four, not Lato. pydantic builds a new
+	// `FontFamily` from the document's mapping, so the theme's value is replaced
+	// wholesale rather than merged into. Recorded as an open finding in
+	// `STATE.md`; two attempts to fix it by moving the widening both produced a
+	// different wrong answer.
+
 	// The discriminator is the theme's own name, not the base's.
 	values["theme"] = theme
 
@@ -49,15 +59,7 @@ func EffectiveWithScript(theme string, script, document map[string]any) map[stri
 	// putting them any later would make every consumer repeat them, and putting
 	// them in `deepMerge` would make it lossy for a document that overrides one
 	// element on top of a theme's bare string.
-	if typography, ok := values["typography"].(map[string]any); ok {
-		if name, isString := typography["font_family"].(string); isString {
-			widened := make(map[string]any, len(FontFamilyElements))
-			for element, value := range WidenFontFamily(name) {
-				widened[element] = value
-			}
-			typography["font_family"] = widened
-		}
-	}
+	widenFontFamilyIn(values)
 	if sections, ok := values["sections"].(map[string]any); ok {
 		sections["show_time_spans_in"] = SnakeCaseSectionTitles(
 			EffectiveStrings(values, "sections", "show_time_spans_in"))
@@ -132,6 +134,24 @@ func normalizeColors(tree Tree, model string, values map[string]any) {
 		default:
 		}
 	}
+}
+
+// widenFontFamilyIn turns a bare `font_family` string into the five-element
+// mapping (spec 006 §3.2 behavior 14), in place.
+func widenFontFamilyIn(values map[string]any) {
+	typography, ok := values["typography"].(map[string]any)
+	if !ok {
+		return
+	}
+	name, isString := typography["font_family"].(string)
+	if !isString {
+		return
+	}
+	widened := make(map[string]any, len(FontFamilyElements))
+	for element, value := range WidenFontFamily(name) {
+		widened[element] = value
+	}
+	typography["font_family"] = widened
 }
 
 // defaultsOf reads one model's declared defaults, recursing into nested models.
