@@ -151,7 +151,7 @@ func TestDeadDictionaryRowsStayDead(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			got := Parse([]schemaerr.ValidationError{{
 				SchemaLocation: test.location, Message: test.message,
-			}})[0]
+			}}, nil, nil)[0]
 
 			if got.Message != test.want {
 				t.Errorf("row %d:\n  got  %q\n  want %q", test.row, got.Message, test.want)
@@ -168,7 +168,7 @@ func TestDeadDictionaryRowsStayDead(t *testing.T) {
 func TestALiveDictionaryRowFiresThroughParse(t *testing.T) {
 	got := Parse([]schemaerr.ValidationError{{
 		SchemaLocation: []string{"cv", "name"}, Message: "Field required",
-	}})[0]
+	}}, nil, nil)[0]
 
 	if got.Message != "This field is required." {
 		t.Errorf("message = %q, want row 6's replacement", got.Message)

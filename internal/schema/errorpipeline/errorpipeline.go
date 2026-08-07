@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
+	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
 )
 
 // The two prefixes step 1 removes, both with a trailing space
@@ -41,8 +42,11 @@ const (
 // anywhere in the message, and spec 004 §6 rule 6 makes that contractual — a
 // message carrying either prefix twice loses both copies.
 //
-// It runs before the dictionary, or `value is not a valid phone number` would
-// never match its row.
+// It runs before the dictionary because upstream orders it that way. On every
+// measured message the order is unobservable — substitution matches by
+// containment and replaces the whole message, so a prefix can only add a match,
+// and neither prefix contains a key. TestPrefixStripDoesNotChangeWhichRowMatches
+// asserts that, so if a future row makes the order matter, it fails.
 func stripPrefixes(message string) string {
 	message = strings.ReplaceAll(message, emailPrefix, "")
 	return strings.ReplaceAll(message, valueErrorPrefix, "")
@@ -80,13 +84,49 @@ func appendPeriod(message string) string {
 // Record order is the raw order, unsorted (spec 004 §6 rule 1). Any sort, stable
 // or not, is a defect.
 //
-// TODO(spec 004 T18-T19): the entry-problems splice and the deduplication.
-func Parse(raw []schemaerr.ValidationError) []schemaerr.ValidationError {
+// doc is the main document and overlays are the design/locale/settings
+// documents, if any were supplied. Both are needed for steps 9, 10 and 12: a
+// record rooted at an overlay key resolves its coordinates against that
+// overlay's document, not the main one.
+//
+// TODO(spec 004 T17-T19): the entry-problems splice and the deduplication.
+func Parse(
+	raw []schemaerr.ValidationError,
+	doc *yamldoc.Node,
+	overlays map[schemaerr.OverlayKey]*yamldoc.Node,
+) []schemaerr.ValidationError {
 	final := make([]schemaerr.ValidationError, 0, len(raw))
 	for _, record := range raw {
-		final = append(final, parseOne(record))
+		final = append(final, parseOne(record, doc, overlays))
 	}
 	return final
+}
+
+// selectSource is steps 9 and 12 (pydantic_error_handling.py:97-104).
+//
+// The source starts as the main file and the coordinate document as the main
+// document. All three conditions must hold to replace them: overlays were
+// supplied, the location is non-empty, and its first element names an overlay.
+// A record rooted anywhere else — `cv`, or a location the filter emptied —
+// keeps the main document.
+//
+// It reads location[0], so it has to follow step 4.
+func selectSource(
+	location []string,
+	doc *yamldoc.Node,
+	overlays map[schemaerr.OverlayKey]*yamldoc.Node,
+) (schemaerr.YamlSource, *yamldoc.Node) {
+	if len(overlays) == 0 || len(location) == 0 {
+		return schemaerr.SourceMain, doc
+	}
+
+	key := schemaerr.OverlayKey(location[0])
+	overlay, supplied := overlays[key]
+	source, known := schemaerr.OverlayToSource[key]
+	if !supplied || !known {
+		return schemaerr.SourceMain, doc
+	}
+	return source, overlay
 }
 
 // parseOne applies the eleven steps of spec 004 §3.2 to one raw record.
@@ -95,9 +135,12 @@ func Parse(raw []schemaerr.ValidationError) []schemaerr.ValidationError {
 // **the order is the contract**: reordering any two changes observable output,
 // and a reader has to be able to see the sequence at a glance.
 //
-// TODO(spec 004 T10-T20): steps 3 through 7 and 9 through 11. Only steps 1, 2
-// and 8 are here, which is why this cannot yet be called from the model builder.
-func parseOne(raw schemaerr.ValidationError) schemaerr.ValidationError {
+// TODO(spec 004 T15-T16): steps 10 and 11. Everything else is here.
+func parseOne(
+	raw schemaerr.ValidationError,
+	doc *yamldoc.Node,
+	overlays map[schemaerr.OverlayKey]*yamldoc.Node,
+) schemaerr.ValidationError {
 	final := raw
 
 	// Step 1: strip the unwanted message prefixes.
@@ -136,6 +179,10 @@ func parseOne(raw schemaerr.ValidationError) schemaerr.ValidationError {
 
 	// Step 8: the trailing period. Last, always.
 	final.Message = appendPeriod(final.Message)
+
+	// Steps 9 and 12: the source literal and the document coordinates resolve
+	// against. The document is not stored on the record; step 10 consumes it.
+	final.YamlSource, _ = selectSource(final.SchemaLocation, doc, overlays)
 
 	return final
 }
