@@ -7,7 +7,7 @@
 package typstdoc
 
 import (
-	"strings"
+	"unicode/utf8"
 
 	"github.com/flosch/pongo2/v6"
 
@@ -145,16 +145,71 @@ func entryContext(entry process.Entry) any {
 	return out
 }
 
-// splitLines is Python's `str.splitlines()` for the shapes a column takes.
+// lineBoundaries is every character Python's `str.splitlines()` breaks on
+// (CPython's `STRINGLIB(splitlines)`), beyond the `\r\n` pair it treats as one.
+//
+// **Splitting on `\n` alone is not the same function.** A `summary` written with
+// Windows line endings leaves a bare carriage return inside the rendered Typst —
+// `#summary[one\rtwo]` — and a ` ` produces one line where upstream
+// produces two. Both were measured; neither is in the corpus, which is why the
+// byte differential could not find them.
+var lineBoundaries = []rune{
+	'\n', '\v', '\f', '\r',
+	'', '', '', // file, group and record separators
+	'',      // next line
+	' ', ' ', // line and paragraph separators
+}
+
+// splitLines is Python's `str.splitlines()`.
 //
 // **The empty string splits to nothing**, not to one empty line, and
-// `EducationEntry` branches on that length being zero — so `strings.Split`'s
+// `EducationEntry` branches on that length being zero — so a split that returned
 // `[""]` would take the wrong branch and produce a first row of one blank line.
+//
+// A trailing boundary produces no final empty element, which is the same rule:
+// `"a\n"` is one line, not two.
 func splitLines(text string) []string {
-	if text == "" {
-		return []string{}
+	out := []string{}
+	start := 0
+
+	for index := 0; index < len(text); {
+		width := 1
+		boundary := false
+		for _, candidate := range lineBoundaries {
+			if size := runeAt(text, index, candidate); size > 0 {
+				width, boundary = size, true
+				break
+			}
+		}
+		if !boundary {
+			_, size := utf8.DecodeRuneInString(text[index:])
+			index += size
+			continue
+		}
+
+		// `\r\n` is **one** boundary, not two — otherwise every Windows line
+		// gains an empty line after it.
+		if text[index] == '\r' && index+1 < len(text) && text[index+1] == '\n' {
+			width = 2
+		}
+		out = append(out, text[start:index])
+		index += width
+		start = index
 	}
-	return strings.Split(strings.TrimSuffix(text, "\n"), "\n")
+
+	if start < len(text) {
+		out = append(out, text[start:])
+	}
+	return out
+}
+
+// runeAt reports the width of `candidate` at `index`, or 0 when it is not there.
+func runeAt(text string, index int, candidate rune) int {
+	decoded, size := utf8.DecodeRuneInString(text[index:])
+	if decoded != candidate {
+		return 0
+	}
+	return size
 }
 
 // contextOf is the four names `render_single_template` always passes
