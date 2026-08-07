@@ -41,7 +41,9 @@ const ellipsis = "…"
 // A table that got any one of these wrong would still look plausible and would
 // differ from upstream on every row.
 func Table(columns []TableColumn, rows [][]string, maxWidth int) string {
-	widths := columnWidths(columns, rows, maxWidth)
+	// `box=ROUNDED` with the default edges: one divider per column plus the
+	// closing one.
+	widths := columnWidths(columns, rows, maxWidth, len(columns)+1)
 
 	var out strings.Builder
 	out.WriteString(rule(widths, "╭", "┬", "╮"))
@@ -69,10 +71,7 @@ func headerCells(columns []TableColumn) []string {
 
 // columnWidths is Rich's `Table._calculate_column_widths`. The widths it returns
 // include each column's padding; the box's own dividers are the extra on top.
-func columnWidths(columns []TableColumn, rows [][]string, maxWidth int) []int {
-	// `extra_width`: one vertical divider per column, plus the closing edge.
-	extra := len(columns) + 1
-
+func columnWidths(columns []TableColumn, rows [][]string, maxWidth, extra int) []int {
 	widths := make([]int, len(columns))
 	for i, column := range columns {
 		widest := utf8.RuneCountInString(column.Header)
