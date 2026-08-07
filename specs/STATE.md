@@ -37,7 +37,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 1 — artifacts byte-identical | `just test-parity` | **72 passing comparisons on the corpus, and the corpus is narrower than that number suggests** — 8 of the 24 cases share one byte-identical `.md`, so there are 14 distinct Markdown documents, and a verifier broke the HTML with a double quote. Every text artifact — 24/24 `.typ`, `.md` and `.html` — byte-identical against the vendored Python (`TestCorpusTypstIsByteIdentical`), over the 21 corpus inputs plus three the corpus cannot express. PDF and PNG are iteration 10's. The 15 CLI-driven artifact cases stay red until iteration 12: they shell `rendercv-go render`, which does not exist. |
 | 2 — CLI surface | `just test-parity` | **6/21 passing** — `cli_version`, the first green case in the whole parity suite. It is the only CLI output carrying no `rendercv` token, which is why it is reachable before the binary-name question below is answered. |
 | 3 — JSON Schema | `just schema-diff` | **green.** All 227 `$defs` byte-identical; the command exits 0. The oracle is `tools/genschema`, not the parity suite — `TestSchemaParity` shells `rendercv-go schema` and stays red until iteration 12. |
-| 4 — validation errors | `just test-parity` | **verified — FAIL.** The 25-record differential is real and mutation-discriminating, but it gates far less than the axis: 6 of 13 dictionary rows, 2 of 8 username rules. Two blockers open (below). 0/7 corpus cases. |
+| 4 — validation errors | `just test-parity` | **1/7 passing** (`err_empty_yaml`). **verified — FAIL.** The 25-record differential is real and mutation-discriminating, but it gates far less than the axis: 6 of 13 dictionary rows, 2 of 8 username rules. Two blockers open (below). 0/7 corpus cases. |
 
 PDF content comparison (spec §1.2) is not yet measurable — it lands with iteration 10.
 
@@ -605,8 +605,15 @@ the generator and not the replay. Pinning the 27 `render` cases in `corpus.json`
 read the same source; the goldens did not change at all, which is the proof the two were already
 consistent.
 
-**Parity: 41 red → 36.** Six cases now pass — `render_typst_only`, `render_quiet`,
-`render_custom_paths`, `render_override_indexed`, `render_override_theme` and `cli_version`. Axis 1
+**Errors are a Rich panel on stdout, not text on stderr** — every `err_*` golden has an empty
+`stderr.txt` and a `╭─ Error ─…╮` box on stdout, exit 1. `cli.failPanel` now does that, and
+`err_empty_yaml` passes. **The panel does not wrap**: a message longer than the box runs past the
+right border, where upstream wraps to the inner width. That blocks the longer error cases and is
+the next piece of the panel renderer.
+
+**Parity: 41 red → 35.** Seven cases now pass — `render_typst_only`, `render_quiet`,
+`render_custom_paths`, `render_override_indexed`, `render_override_theme`, `cli_version` and
+`err_empty_yaml`. Axis 1
 and axis 2 both have real passing cases through the binary for the first time.
 
 That is why `--settings.current_date` has no effect, and it means `render_override_scalar`,

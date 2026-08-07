@@ -65,20 +65,20 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 		// The trailing `!` is upstream's own message text, not this port's
 		// punctuation choice, so `ST1005` is suppressed rather than obeyed —
 		// obeying it would be a validation-error divergence (axis 4).
-		fail(stderr, errMissingFile(options.InputPath))
+		failPanel(stdout, errMissingFile(options.InputPath))
 		return exitValidationError
 	}
 
 	built, err := modelbuilder.BuildDictionary(string(raw), buildArguments(options))
 	if err != nil {
-		fail(stderr, err)
+		failPanel(stdout, err)
 		return exitValidationError
 	}
 
 	context := &valctx.ValidationContext{InputFilePath: options.InputPath}
 	model, err := modelbuilder.BuildModel(built, context)
 	if err != nil {
-		fail(stderr, err)
+		failPanel(stdout, err)
 		return exitValidationError
 	}
 
@@ -91,7 +91,7 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 	// not exist, which a verifier measured. The two messages are upstream's own.
 	if theme := themeOf(doc); !design.IsBuiltinTheme(theme) {
 		if err := design.ValidateCustomThemeFolder(theme, inputDir); err != nil {
-			fail(stderr, err)
+			failPanel(stdout, err)
 			return exitValidationError
 		}
 	}
@@ -115,12 +115,12 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 	if !options.NoTypst {
 		out, err := document.Render(doc, templater.FormatTypst, document.Options{InputDir: inputDir})
 		if err != nil {
-			fail(stderr, err)
+			failPanel(stdout, err)
 			return exitValidationError
 		}
 		path, err := writeArtifact(orDefault(options.TypstPath, DefaultTypstPath), pathInput, out)
 		if err != nil {
-			fail(stderr, err)
+			failPanel(stdout, err)
 			return exitValidationError
 		}
 		rows = append(rows, PanelRow{Mark: "✓", Timing: timing(started), Label: "Generated Typst:", Value: display(path)})
@@ -129,13 +129,13 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 	if !options.NoMarkdown {
 		out, err := document.Render(doc, templater.FormatMarkdown, document.Options{InputDir: inputDir})
 		if err != nil {
-			fail(stderr, err)
+			failPanel(stdout, err)
 			return exitValidationError
 		}
 		markdown = out
 		path, err := writeArtifact(orDefault(options.MarkdownPath, DefaultMarkdownPath), pathInput, out)
 		if err != nil {
-			fail(stderr, err)
+			failPanel(stdout, err)
 			return exitValidationError
 		}
 		rows = append(rows, PanelRow{Mark: "✓", Timing: timing(started), Label: "Generated Markdown:", Value: display(path)})
@@ -150,12 +150,12 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 		}
 		out, err := document.RenderHTML(doc, markdown, document.Options{InputDir: inputDir})
 		if err != nil {
-			fail(stderr, err)
+			failPanel(stdout, err)
 			return exitValidationError
 		}
 		path, err := writeArtifact(orDefault(options.HTMLPath, DefaultHTMLPath), pathInput, out)
 		if err != nil {
-			fail(stderr, err)
+			failPanel(stdout, err)
 			return exitValidationError
 		}
 		rows = append(rows, PanelRow{Mark: "✓", Timing: timing(started), Label: "Generated HTML:", Value: display(path)})
@@ -247,6 +247,31 @@ func errMissingFile(path string) error {
 //
 // The *shape* here is not upstream's — that is a Rich table, and rendering it is
 // iteration 12's remaining work. What this fixes is the information loss.
+//
+// **Errors are a Rich panel on stdout, not text on stderr.** Every `err_*`
+// golden has an empty `stderr.txt` and a `╭─ Error ─…╮` box on stdout, exit 1.
+// Writing to stderr meant those cases could never match no matter how right the
+// message was.
+func failPanel(stdout io.Writer, err error) {
+	var rows []PanelRow
+
+	var validation *schemaerr.UserValidationError
+	if errors.As(err, &validation) && len(validation.Errors) > 0 {
+		for _, record := range validation.Errors {
+			location := strings.Join(record.SchemaLocation, ".")
+			if location == "" {
+				rows = append(rows, PanelRow{Text: record.Message})
+				continue
+			}
+			rows = append(rows, PanelRow{Text: location + ": " + record.Message})
+		}
+	} else {
+		rows = append(rows, PanelRow{Text: err.Error()})
+	}
+
+	_, _ = fmt.Fprint(stdout, Panel("Error", rows))
+}
+
 func fail(stderr io.Writer, err error) {
 	var validation *schemaerr.UserValidationError
 	if errors.As(err, &validation) && len(validation.Errors) > 0 {

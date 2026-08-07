@@ -30,11 +30,14 @@ func TestRenderReportsAMissingThemeFolder(t *testing.T) {
 	if code == 0 {
 		t.Errorf("exit code = 0, want a failure")
 	}
-	if !strings.Contains(stderr.String(), "does not exist") {
-		t.Errorf("stderr = %q, want upstream's folder message", stderr.String())
+	// **Errors are a panel on stdout**, and stderr stays empty — every `err_*`
+	// golden is shaped that way. This test asserted the reverse until the
+	// goldens were read.
+	if !strings.Contains(stdout.String(), "does not exist") {
+		t.Errorf("stdout = %q, want upstream's folder message", stdout.String())
 	}
-	if stdout.Len() != 0 {
-		t.Errorf("stdout = %q, want nothing written", stdout.String())
+	if stderr.Len() != 0 {
+		t.Errorf("stderr = %q, want nothing written", stderr.String())
 	}
 	if entries, _ := os.ReadDir(filepath.Join(dir, "out")); len(entries) != 0 {
 		t.Errorf("artifacts were written despite the error")
