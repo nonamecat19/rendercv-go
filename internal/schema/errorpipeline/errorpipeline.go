@@ -103,11 +103,15 @@ func parseOne(raw schemaerr.ValidationError) schemaerr.ValidationError {
 	// Step 1: strip the unwanted message prefixes.
 	final.Message = stripPrefixes(final.Message)
 
-	// Step 2: drop the discriminated union's branch element. Skipped for a
-	// record whose validator pinned its own location — that is what step 3's
-	// `ctx["loc"]` override means, and re-deriving would undo it.
+	// Step 2: drop the discriminated union's branch element.
+	// Step 4: drop the synthetic elements — and, as it happens, any real key
+	//         containing one of the seven substrings. See unwantedLocations.
+	//
+	// Both are skipped for a record whose validator pinned its own location —
+	// that is what step 3's `ctx["loc"]` override means, and re-deriving would
+	// undo it.
 	if !final.LocationIsFinal {
-		final.SchemaLocation = skipDiscriminator(final.SchemaLocation)
+		final.SchemaLocation = filterLocation(skipDiscriminator(final.SchemaLocation))
 	}
 
 	// Step 8: the trailing period. Last, always.
