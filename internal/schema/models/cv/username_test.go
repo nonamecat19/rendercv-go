@@ -186,3 +186,26 @@ func TestORCIDUsername(t *testing.T) {
 		{"ORCID", "", want},
 	})
 }
+
+// Spec 004 §4.5. Full match of `nm\d{7}`.
+//
+// The message says "IMDB name", not "IMDB username" — upstream's wording for
+// this one row, and the kind of thing a porter smooths out without noticing.
+func TestIMDBUsername(t *testing.T) {
+	const want = "IMDB name should be in the format 'nmXXXXXXX'."
+
+	runUsernameCases(t, []usernameCase{
+		{"IMDB", "nm0000001", ""},
+		{"IMDB", "nm1234567", ""},
+		{"IMDB", "nm123456", want},
+		{"IMDB", "nm12345678", want},
+		{"IMDB", "NM0000001", want},
+		{"IMDB", "0000001", want},
+		{"IMDB", "johndoe", want},
+		{"IMDB", "", want},
+	})
+
+	if strings.Contains(want, "username") {
+		t.Errorf("the message says username; upstream says name: %q", want)
+	}
+}
