@@ -164,8 +164,34 @@ func buildSequence(n *ast.SequenceNode) *yamldoc.Node {
 }
 
 func sequenceEntryPosition(seq *ast.SequenceNode, idx int, entry ast.Node) yamldoc.Position {
+	// An element that is itself a flow collection starts at its opening bracket,
+	// not at its first value. `yaml_location: [[4, 3], [4, 11]]` puts element 1
+	// at the second `[` (measured: column 29, 0-indexed 28), where reading
+	// through to the first value would give the `4` one column later.
+	//
+	// A block element has no bracket, so it keeps starting at its first token —
+	// which for a mapping is its first key, the position ruamel reports there.
+	if open := flowOpenToken(entry); open != nil {
+		return yamldoc.Position{Line: open.Position.Line, Column: open.Position.Column}
+	}
 	first := firstToken(entry)
 	return yamldoc.Position{Line: first.Position.Line, Column: first.Position.Column}
+}
+
+// flowOpenToken returns the `[` or `{` a flow collection opens with, or nil if
+// the node is not a flow collection.
+func flowOpenToken(n ast.Node) *token.Token {
+	switch v := n.(type) {
+	case *ast.SequenceNode:
+		if v.IsFlowStyle {
+			return v.Start
+		}
+	case *ast.MappingNode:
+		if v.IsFlowStyle {
+			return v.Start
+		}
+	}
+	return nil
 }
 
 func firstToken(n ast.Node) *token.Token {
