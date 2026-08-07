@@ -129,21 +129,23 @@ work rather than inside it.
 
 ---
 
-## Wave C — the corpus, one case at a time
+## Wave C — moved to iteration 9
 
-### T15 — the first golden green · `[sequential]`
-The simplest corpus CV: one section, one entry type, the classic theme. This is the commit that
-first proves `trim_blocks`, `lstrip_blocks` and `indent` together, and no earlier task can.
+**T15–T24 cannot run here.** The corpus's artifact cases are whole `rendercv render` runs, so
+turning one green needs a validated model bridged into a renderer model — sections, entries, the
+connection list in the input file's key order, and a theme's *effective* option values.
 
-### T16–T23 — the remaining eight entry types · `[parallel]`
-One commit each, per `AGENTS.md` §7's table. They fan out because each is one template and one
-golden and they never read each other.
+That bridge is iteration 9's by two decisions that predate this file: `STATE.md` assigns the `.typ`
+emission there, and iteration 6 cut its own T10 — the effective per-theme option tree — to
+iteration 9 because the renderer is its first consumer. This wave was misordered when it was
+written.
 
-### T24 — the remaining themes · `[parallel]`
-Eight commits, one per theme, once every entry type is green.
+It moves intact. What it takes with it is spec §7's two whitespace criteria, which only rendered
+bytes can check, and the verification of `plan.md` §2's transform — see spec §8.
 
 ### T25 — close the ledger · `[sequential]`
-`specs/STATE.md`, with the artifact-parity count Axis 1 actually reaches.
+`specs/STATE.md`: iteration 8 green on its own gates, with Wave C recorded as moved rather than
+cut, and the transform recorded as unverified until iteration 9's first golden.
 
 ---
 
