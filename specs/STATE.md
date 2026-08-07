@@ -22,7 +22,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 5 | JSON Schema generator | [005](005-json-schema/spec.md) | green (Axis 3 now closed by 6) | n/a (gated on the 18 owned `$defs`, spec §7.1) |
 | 6 | Design & themes (9) + the settings schema | [006](006-design-and-themes/spec.md) | green (with cut scope, see below) | n/a (gated on the 164 `$defs` differential and the override diff, spec §5) |
 | 7 | Locale (English + 21 catalogs) | [007](007-locale/spec.md) | green | n/a (gated on the 45 `$defs` differential and the submodule catalog diff, spec §5) |
-| 8 | Templater (pongo2 env, filters, markdown→typst, processors) | [008](008-templater/spec.md) | green (with cut scope, see below) | n/a (gated on the 52-fragment Jinja differential and 240 unit cases, spec §7) |
+| 8 | Templater (pongo2 env, filters, markdown→typst, processors) | [008](008-templater/spec.md) | **audited — FAIL, demoted.** Four `markdown_to_typst` divergences still live and unrecorded; one produced uncompilable Typst and is fixed | n/a (gated on the 52-fragment Jinja differential and 240 unit cases, spec §7) |
 | 9 | Typst renderer (`.typ` emission) + iteration 6's T10 + iteration 8's Wave C | [009](009-typst-renderer/spec.md) | **green** — verified by a fresh context, which returned FAIL on four items; all four fixed and pinned | 24 / 24 |
 | 10 | wazero + WASI typst → PDF, then PNG | [010](010-typst-compilation/spec.md) | **specced, measured, unblocked** — the route is D-006, approved since iteration 6; implementation is the next real work in the port | 0 / 14 |
 | 11 | Markdown + HTML renderers | [011](011-markdown-and-html/spec.md) | **verified — FAIL, demoted from green.** 24/24 on the corpus, but a `"` in any CV breaks the HTML and raw HTML is dropped. Not green | 24 / 24 corpus, blockers open |
@@ -781,6 +781,16 @@ Mutation probes all passed: field reordering, a dropped `Required`, and a change
 
 **Also observed, outside the audit's scope:** `rendercv-go render` writes `rendercv_output/` relative to the **working directory**, where upstream resolves it relative to the **input file**. Not yet recorded as a finding anywhere else.
 
+## Iteration 8 was audited and it failed — eight for eight, and it should not have been green
+
+| # | Finding | Status |
+|---|---|---|
+| 1 | **All five `markdown_to_typst` divergences measured back in iteration 8 are still live end-to-end** — dropped image, raw HTML escaped, autolink, link title, doubled backtick — and none is in `divergences.md`. | 1 of 5 fixed (below); 4 open |
+| 2 | **The link-title case emits uncompilable Typst**, not merely a byte diff: `[t](u "ti")` produced `#link("u "ti"")[t]`, an unbalanced string literal, and `typst.compile()` on the artifact fails with `expected comma`. Upstream's compiles. | **fixed.** `linkTitlePattern` strips the title as python-markdown does; the comment claiming titles "do not appear in RenderCV's templates or its measured corpus" was the assumption that hid it. |
+| 3 | **Iteration 8 was marked green while this very file recorded the five as "Open for the human gate"** — §10.2 (no green with a failing case) and §10.5 (no silent divergence) both. | **the row is wrong and this section is the correction** |
+
+Parity **held** on everything else probed: `MakeKeywordsBold` with regex metacharacters, overlapping keywords, keywords inside URLs and inside `**bold**`; and minimal-required-field entries across all eight types with one-item highlights and blank-line summaries — both differentials empty.
+
 ## Two measured behaviors awaiting the human gate
 
 Neither is written into `specs/divergences.md`; that file is human-gated (`AGENTS.md` §5) and this
@@ -836,6 +846,7 @@ whether to reproduce the crash, record the divergence, or leave it.
 | 2026-08-07 | **`new` wired.** `tools/sampleprobe` captures the starter CV per theme and locale from the vendored CLI; all seven variants are byte-identical against their goldens, as are both panels and the greeting. The eight cases still fail on one line — the `rendercv render …` instruction, which must name this binary and so changes a fixed-width panel row's padding. Recorded for the human gate. |
 | 2026-08-07 | **Iteration 12 started.** `render` is wired end to end: overlays, dotted overrides, path placeholders, the five negative and five path flags, and Rich's result panel — whose geometry was recovered from the goldens, including a duration column the harness erases. `render_typst_only` matches on exit code, stdout, stderr and file list, and differs only on the baked generation date. |
 | 2026-08-07 | **Corpus defect found: the goldens expire daily.** 18 `.typ` goldens embed the day they were generated because `gengolden` never pinned `settings.current_date`. Recorded for the human gate; it blocks those cases independently of the port. |
+| 2026-08-07 | **Iteration 8 audited — FAIL, eight for eight, and demoted.** A Markdown link title reached the Typst as an unbalanced string literal, so the document **would not compile** — the code comment asserted titles never appear. Fixed. The other four measured divergences are still live and still unrecorded, which means the iteration was green against §10.2 and §10.5 the whole time. |
 | 2026-08-07 | **Iteration 3 audited — FAIL, seven for seven.** The date-adjustment rewrites were computed into the typed model and thrown away, because `Dump` reads the node; a lone `start_date` blanked the whole entry. Fixed and differentially byte-identical. Four findings remain open, including `start_date: present` being accepted where upstream rejects it. |
 | 2026-08-07 | **Iteration 4 verified — FAIL.** Axis 4's green was resting on a differential that gates 6 of 13 dictionary rows. Two blockers found: `settings` is entirely unvalidated beyond `current_date` (each of two specs recorded it as the other's work), and only the *first* validation record ever reaches the user, so error locations are never user-visible. Exit code 4→1 fixed. |
 | 2026-08-07 | **Block scalars fixed** (iteration 2). `buildLiteral` read the `\|` indicator instead of the block body, so every block scalar in every CV was replaced by `\|` in all three artifacts. All four forms now match ruamel and a block-scalar CV renders byte-identical. The existing test fed a literal block and asserted only its Kind, so it passed on garbage. |
