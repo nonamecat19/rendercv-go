@@ -1,4 +1,4 @@
-# Iteration 8 — settings
+# Iteration 6, addendum — the settings schema
 
 Behavior of the `settings` block, extracted from the vendored Python. No Go design here.
 
@@ -19,8 +19,10 @@ and the thirteen `RenderCommand` ones. It does **not** cover their behavior — 
 `dont_generate_*` flag, resolves an output path, or interprets a placeholder — and §4 says which
 iteration does.
 
-Renumbering was rejected: the iteration numbers are cited from `STATE.md`, from four other specs
-and from `TODO` markers in the tree, and `008` was free.
+**It lives here rather than under a number of its own.** `008` is the templater's and `012` is the
+CLI's, both already cited from `STATE.md` and from `TODO` markers in the tree; taking either would
+mean renumbering an iteration that other files point at. The work shipped as iteration 6's T15, so
+it is documented as iteration 6's addendum, and `spec.md` §5 links here.
 
 ---
 

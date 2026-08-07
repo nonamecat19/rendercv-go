@@ -208,6 +208,13 @@ value is not a valid color: string not recognised as a valid color
 
 ---
 
+## 5A. Addendum
+
+The three `settings` `$defs` shipped with this iteration's T15 and are specified in
+[`settings.md`](settings.md), written after the fact — a verifier finding, recorded there.
+
+---
+
 ## 6. Status
 
 **Complete for behavior; `plan.md` and `tasks.md` still to write.** The owed pass is done and is
