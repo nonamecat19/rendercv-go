@@ -48,7 +48,49 @@ func Dump(node *yamldoc.Node, name TypeName) (map[string]any, map[string]bool) {
 	}
 
 	applyModelValidators(fields, name)
+	adjustDates(fields, yearOnly)
 	return fields, yearOnly
+}
+
+// adjustDates is `check_and_adjust_dates`' three silent rewrites
+// (entry_with_complex_fields.py:133-171), which decide what a date column
+// contains before any formatting runs.
+//
+// **They were computed and then thrown away.** `bases.adjustDates` applies them
+// to the typed model, `Dump` reads the *node*, and nothing carried the result
+// across — so an audit measured three artifact defects at once: a `date`
+// alongside a range rendered the range, a lone `end_date` vanished, and a lone
+// `start_date` **blanked the entire entry**, company and position included,
+// because `EntryDate` failed and the whole expansion was skipped. A lone
+// `start_date` is one of the most ordinary shapes a CV has.
+//
+// Step 4 — the ordering check — is not here: it is the one step that can *fail*,
+// and failing belongs to validation, which already reports it.
+func adjustDates(fields map[string]any, yearOnly map[string]bool) {
+	_, hasDate := fields["date"]
+	_, hasStart := fields["start_date"]
+	_, hasEnd := fields["end_date"]
+
+	switch {
+	case hasDate:
+		// Step 1: `date` silently wins.
+		delete(fields, "start_date")
+		delete(fields, "end_date")
+		delete(yearOnly, "start_date")
+		delete(yearOnly, "end_date")
+	case !hasStart && hasEnd:
+		// Step 2: a lone `end_date` migrates to `date`, carrying its int-ness.
+		fields["date"] = fields["end_date"]
+		if yearOnly["end_date"] {
+			yearOnly["date"] = true
+		}
+		delete(fields, "end_date")
+		delete(yearOnly, "end_date")
+	case hasStart && !hasEnd:
+		// Step 3: a lone `start_date` implies an ongoing event.
+		fields["end_date"] = "present"
+		delete(yearOnly, "end_date")
+	}
 }
 
 // applyModelValidators reproduces the two `mode="after"` validators that change

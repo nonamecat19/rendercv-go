@@ -767,6 +767,20 @@ axis, and two holes sit outside it.
 **The ownership gap in finding 1 is the lesson.** Two specs each recorded the work as the other's,
 and the ledger agreed with both. Nothing was hidden; the cross-reference was just never followed.
 
+## Iteration 3 was audited and it failed — seven for seven
+
+| # | Finding | Status |
+|---|---|---|
+| 1 | **`check_and_adjust_dates`' three rewrites were computed and discarded.** `bases.adjustDates` applies them to the typed model; `Dump` reads the *node* and nothing carried the result across. Three artifact defects at once: a `date` beside a range rendered the range, a lone `end_date` vanished, and **a lone `start_date` blanked the entire entry** — company and position included — because `EntryDate` failed and the whole expansion was skipped. A lone `start_date` is one of the most ordinary shapes a CV has. | **fixed.** `entries.adjustDates`; all three rules now render **byte-identical** to upstream. |
+| 2 | `start_date: present` is accepted and rendered; upstream rejects it, because `validate_exact_date` passes **no** `current_date` and only `end_date` has the `Literal["present"]` arm. | **open** |
+| 3 | Integer-year `start_date`/`end_date` render an **empty** date column — independent of finding 1, and `dumps.json` shows `Dump` itself is right, so the loss is downstream. | **open** |
+| 4 | The DOI-URL-too-long record carries an empty schema location and is **dropped** by the error renderer: the user is told a section has problems and never told what. | **open** |
+| 5 | The `Dump` oracle fixture has **zero** cases exercising `check_and_adjust_dates` — which is why finding 1 shipped green. Spec 003 §8's criteria are all still `- [ ]` while the ledger calls the iteration green. | **open** |
+
+Mutation probes all passed: field reordering, a dropped `Required`, and a changed message each turned tests red. The entry suite **is** discriminating for what it covers; finding 5 is that it does not cover the rewrites.
+
+**Also observed, outside the audit's scope:** `rendercv-go render` writes `rendercv_output/` relative to the **working directory**, where upstream resolves it relative to the **input file**. Not yet recorded as a finding anywhere else.
+
 ## Two measured behaviors awaiting the human gate
 
 Neither is written into `specs/divergences.md`; that file is human-gated (`AGENTS.md` §5) and this
@@ -822,6 +836,7 @@ whether to reproduce the crash, record the divergence, or leave it.
 | 2026-08-07 | **`new` wired.** `tools/sampleprobe` captures the starter CV per theme and locale from the vendored CLI; all seven variants are byte-identical against their goldens, as are both panels and the greeting. The eight cases still fail on one line — the `rendercv render …` instruction, which must name this binary and so changes a fixed-width panel row's padding. Recorded for the human gate. |
 | 2026-08-07 | **Iteration 12 started.** `render` is wired end to end: overlays, dotted overrides, path placeholders, the five negative and five path flags, and Rich's result panel — whose geometry was recovered from the goldens, including a duration column the harness erases. `render_typst_only` matches on exit code, stdout, stderr and file list, and differs only on the baked generation date. |
 | 2026-08-07 | **Corpus defect found: the goldens expire daily.** 18 `.typ` goldens embed the day they were generated because `gengolden` never pinned `settings.current_date`. Recorded for the human gate; it blocks those cases independently of the port. |
+| 2026-08-07 | **Iteration 3 audited — FAIL, seven for seven.** The date-adjustment rewrites were computed into the typed model and thrown away, because `Dump` reads the node; a lone `start_date` blanked the whole entry. Fixed and differentially byte-identical. Four findings remain open, including `start_date: present` being accepted where upstream rejects it. |
 | 2026-08-07 | **Iteration 4 verified — FAIL.** Axis 4's green was resting on a differential that gates 6 of 13 dictionary rows. Two blockers found: `settings` is entirely unvalidated beyond `current_date` (each of two specs recorded it as the other's work), and only the *first* validation record ever reaches the user, so error locations are never user-visible. Exit code 4→1 fixed. |
 | 2026-08-07 | **Block scalars fixed** (iteration 2). `buildLiteral` read the `\|` indicator instead of the block body, so every block scalar in every CV was replaced by `\|` in all three artifacts. All four forms now match ruamel and a block-scalar CV renders byte-identical. The existing test fed a literal block and asserted only its Kind, so it passed on garbage. |
 | 2026-08-07 | **Iteration 11 verified — FAIL, demoted.** A `"` anywhere in a CV breaks the HTML (goldmark escapes it, python-markdown does not); raw HTML is dropped; and YAML block scalars turn out not to be parsed at all, which is iteration 2's reader and affects all three artifacts. The 24-case corpus could see none of it — 8 of those cases share one identical `.md`. |
