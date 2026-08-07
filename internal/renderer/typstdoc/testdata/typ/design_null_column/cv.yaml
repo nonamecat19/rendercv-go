@@ -1,0 +1,12 @@
+cv:
+  name: John Doe
+  sections:
+    education:
+      - institution: MIT
+        area: CS
+        degree: BS
+design:
+  theme: classic
+  templates:
+    education_entry:
+      degree_column:
