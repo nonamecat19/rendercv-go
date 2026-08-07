@@ -286,7 +286,7 @@ func parseOne(
 	// synthetic elements — and, as it happens, any real key containing one of
 	// the seven substrings. See unwantedLocations.
 	if !final.LocationIsFinal {
-		final.SchemaLocation = filterLocation(skipDiscriminator(final.SchemaLocation))
+		final.SchemaLocation = filterLocation(final.SchemaLocation)
 	}
 
 	// Step 5: the `end_date` override, before the dictionary.
