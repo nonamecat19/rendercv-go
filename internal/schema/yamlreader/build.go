@@ -100,8 +100,46 @@ func buildMapping(n *ast.MappingNode) *yamldoc.Node {
 	return node
 }
 
+// isImplicitNull reports whether a null node came from a key written with no
+// value, as opposed to an explicit `null` or `~`. The parser marks the two
+// differently, which matters because only the implicit one lacks a token to
+// end the key's span at.
+func isImplicitNull(null *ast.NullNode) bool {
+	tok := null.GetToken()
+	return tok != nil && tok.Type == token.ImplicitNullType
+}
+
+// tokenAfterKey returns the first real token following a key, or nil at the end
+// of the document.
+//
+// Two token types are skipped because neither is content the user wrote: the
+// key's own `:`, and the synthetic implicit-null the parser appends when a
+// valueless key is the last thing in the document.
+func tokenAfterKey(keyTok *token.Token) *token.Token {
+	next := keyTok.Next
+	for next != nil &&
+		(next.Type == token.MappingValueType || next.Type == token.ImplicitNullType) {
+		next = next.Next
+	}
+	return next
+}
+
 func valueEndPosition(val ast.Node, keyTok *token.Token) yamldoc.Position {
-	if _, ok := val.(*ast.NullNode); ok {
+	if null, ok := val.(*ast.NullNode); ok && isImplicitNull(null) {
+		// A key written with **no value at all** has no value token to point at,
+		// so ruamel ends its span at the start of the next token in the document,
+		// wherever that is — the same indent when the next key is a sibling, a
+		// different one when it dedents, and skipping blank lines either way.
+		// Measured: `a:\n  b:\nc: 1` gives `a.b` the end `[2, 0]`, and
+		// `a:\n  b:\n\n\n  d: 1` gives it `[4, 2]`.
+		//
+		// This is only for the implicit case. An explicit `null` or `~` has a
+		// token of its own and ends at that token, like any other value
+		// (measured: `b: null` ends at `[1, 3]`), so it falls through below.
+		if next := tokenAfterKey(keyTok); next != nil {
+			return yamldoc.Position{Line: next.Position.Line, Column: next.Position.Column}
+		}
+		// Nothing follows: the span ends at the start of the line after the key.
 		return yamldoc.Position{Line: keyTok.Position.Line + 1, Column: 1}
 	}
 	if seq, ok := val.(*ast.SequenceNode); ok && seq.Start != nil {

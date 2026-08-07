@@ -1,0 +1,6 @@
+outer:
+  inner:
+  after: 1
+nested:
+  deep:
+    leaf:
