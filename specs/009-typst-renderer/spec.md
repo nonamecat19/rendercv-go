@@ -99,17 +99,26 @@ through `rendercv-go render`.
 
 ## 6. Acceptance criteria
 
-- [ ] §1's section conversion, including the empty section's `TextEntry` and the title round trip
+- [x] §1's section conversion, including the empty section's `TextEntry` and the title round trip
       that is not the identity.
-- [ ] §2's connection order, driven by a document whose keys are deliberately not in field order.
-- [ ] §3's deep merge, proven by a theme that overrides one nested key and keeps its siblings.
-- [ ] The first corpus case's `.typ` **byte-identical**, which is Axis 1's first passing case.
-- [ ] Each remaining entry type, one case at a time.
+- [x] §2's connection order, driven by a document whose keys are deliberately not in field order.
+- [x] §3's deep merge, proven by a theme that overrides one nested key and keeps its siblings.
+- [x] The first corpus case's `.typ` **byte-identical**, which is Axis 1's first passing case.
+- [x] Each remaining entry type, one case at a time. All nine appear across the 21 corpus cases;
+      `tools/typprobe` adds four more for shapes the corpus has none of.
 
 ---
 
 ## 7. Status
 
-**Behavior complete for the bridge.** §4 behavior 15's network access needs a decision before it is
-ported — the corpus has no photo case, and a renderer that reaches the network in a test is worse
-than one that does not.
+**Behavior complete for the bridge**, and every §6 criterion met.
+
+§4 behavior 15's network access is **decided and half-ported**. A *local* photo needs no download
+and renders; a *URL* photo returns `typstdoc.ErrPhotoDownloadUnsupported` rather than a document.
+Hardcoding the photo as falsy — which the first pass did, on the reasoning that the corpus has none
+— produced a header silently missing its whole `#grid`, at exit 0. That is the shape of failure
+this spec exists to prevent, and a fresh-context verifier found it, not the corpus.
+
+**One upstream behavior measured and not reproduced**, needing a human decision (see `STATE.md`):
+a `design` block that omits `theme` makes upstream die with an uncaught `KeyError: 'theme'`
+(ruamel `comments.py:854`). The port defaults to `classic` and renders.
