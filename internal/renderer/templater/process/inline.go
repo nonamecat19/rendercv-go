@@ -28,9 +28,18 @@ var (
 	// ESCAPE_RE `\\(.)`.
 	escapePattern = regexp.MustCompile(`(?s)^\\(.)`)
 
-	// LINK_RE, again reduced: `[text](url)`. Titles and angle-bracketed URLs do
-	// not appear in RenderCV's templates or its measured corpus.
+	// LINK_RE, reduced to `[text](url)` plus python-markdown's optional title.
+	//
+	// **The title is stripped, and an earlier comment here said it never
+	// appeared.** It does: `[t](u "ti")` is ordinary Markdown a user writes in a
+	// summary, upstream renders `#link("u")[t]`, and passing the title through
+	// emitted `#link("u "ti"")[t]` — an unbalanced Typst string literal, so the
+	// document **did not compile at all**. An audit measured that; the corpus has
+	// no link title, which is why it shipped.
 	linkPattern = regexp.MustCompile(`(?s)^\[([^\]]*)\]\(([^)]*)\)`)
+
+	// linkTitlePattern is the trailing `"title"` python-markdown splits off.
+	linkTitlePattern = regexp.MustCompile(`(?s)^(.*?)\s+["'][^"']*["']\s*$`)
 
 	// NOT_STRONG_RE — a lone `*` or `_` surrounded by whitespace is literal
 	// text, which is why `a * b` survives unchanged.
@@ -150,6 +159,9 @@ func (p *inlineParser) matchPrefix(data string, pos int) (int, string, bool) {
 			// `child.get("href") if child.get("href") else "https://example.com"`
 			// (`:46-47`) — an empty URL becomes the example, not an empty link.
 			href = "https://example.com"
+		}
+		if title := linkTitlePattern.FindStringSubmatch(href); title != nil {
+			href = title[1]
 		}
 		return pos + match[1], `#link("` + href + `")[` + p.parseFrom(text, -1, 0) + `]`, true
 	}
