@@ -7,6 +7,8 @@
 package typstdoc
 
 import (
+	"errors"
+	"path/filepath"
 	"unicode/utf8"
 
 	"github.com/flosch/pongo2/v6"
@@ -14,6 +16,7 @@ import (
 	"github.com/nonamecat19/rendercv-go/internal/renderer/bridge"
 	"github.com/nonamecat19/rendercv-go/internal/renderer/templater"
 	"github.com/nonamecat19/rendercv-go/internal/renderer/templater/process"
+	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv/entries"
 )
 
@@ -32,10 +35,12 @@ type Options struct {
 // bridged, processed, and only then rendered — the header's connections are
 // already formatted strings by the time the header template sees them.
 //
-// **The photo is not downloaded.** `download_photo_from_url` is the pipeline's
-// only network access (spec 009 §4 behavior 15) and nothing here reaches the
-// network; a render whose test suite can touch the network is worse than one
-// that cannot. The CLI supplies the download in iteration 12.
+// **A URL photo is reported, not rendered.** `download_photo_from_url` is the
+// pipeline's only network access (spec 009 §4 behavior 15) and nothing here
+// reaches the network. A *local* photo needs no download and is rendered; a URL
+// one returns `ErrPhotoDownloadUnsupported`, because the alternative — which
+// this code did until a verifier measured it — is a header silently missing its
+// whole `#grid`, with exit 0 and no warning.
 func Render(document bridge.Document, options Options) (string, error) {
 	registry := options.Registry
 	if registry == nil {
@@ -54,7 +59,12 @@ func Render(document bridge.Document, options Options) (string, error) {
 		return "", err
 	}
 
-	context := contextOf(processed, document)
+	photo, err := photoOf(document)
+	if err != nil {
+		return "", err
+	}
+
+	context := contextOf(processed, document, photo)
 
 	preamble, err := environment.Render(templater.FormatTypst,
 		templater.FragmentPreamble, context, nil)
@@ -214,7 +224,7 @@ func runeAt(text string, index int, candidate rune) int {
 
 // contextOf is the four names `render_single_template` always passes
 // (`:209-214`), shaped as the templates address them.
-func contextOf(model process.Model, document bridge.Document) pongo2.Context {
+func contextOf(model process.Model, document bridge.Document, photo any) pongo2.Context {
 	current := model.CurrentDate
 
 	return pongo2.Context{
@@ -227,9 +237,9 @@ func contextOf(model process.Model, document bridge.Document) pongo2.Context {
 			"_connections": model.Connections,
 			"_top_note":    model.TopNote,
 			"_footer":      model.Footer,
-			// The photo is falsy until the download of §4 behavior 15 is wired
-			// in; the header branches on it.
-			"photo": "",
+			// **Falsy when there is none**, which is what the header branches
+			// on — `{% if cv.photo %}`.
+			"photo": photo,
 		},
 		"design": document.Design,
 		"locale": pongo2.Context{
@@ -245,6 +255,32 @@ func contextOf(model process.Model, document bridge.Document) pongo2.Context {
 			},
 		},
 	}
+}
+
+// ErrPhotoDownloadUnsupported is what a URL photo gets instead of a wrong
+// document. It is not a divergence in output — no document renders differently
+// — it is a feature this iteration does not implement, and saying so is the
+// difference between a missing feature and a silent corruption.
+var ErrPhotoDownloadUnsupported = errors.New(
+	"cv.photo is a URL: downloading it is not implemented yet (spec 009 §4 behavior 15)")
+
+// photoOf is the header's `cv.photo`.
+//
+// Upstream's templates read two things from it: its truthiness, and `.name` —
+// `pathlib.Path.name`, the basename, because the Typst compiler resolves the
+// image relative to the output directory the file was copied into. So a mapping
+// with a `name` key is exactly the surface the template uses.
+func photoOf(document bridge.Document) (any, error) {
+	model := document.Model
+	if model == nil || model.CvModel == nil || model.CvModel.PhotoValue == nil {
+		return nil, nil
+	}
+
+	photo := model.CvModel.PhotoValue
+	if photo.Kind == cv.PhotoKindURL {
+		return nil, ErrPhotoDownloadUnsupported
+	}
+	return pongo2.Context{"name": filepath.Base(photo.Path.Value)}, nil
 }
 
 func themeOf(document bridge.Document) string {
