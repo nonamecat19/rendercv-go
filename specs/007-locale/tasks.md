@@ -31,12 +31,23 @@ Plan §1. Spec §5.
 The test must assert **every** field of every catalog, which `require_all_fields=True` makes
 meaningful.
 
-### T4–T24 — one catalog per commit · `[parallel]`
-Twenty-one commits, one per language, in `Languages` order. `AGENTS.md` §7 forbids bundling them.
-Each turns one row of T3 green.
+### T4 — generate the twenty-one catalogs · `[sequential]`
+**Revised from "one catalog per commit".** `AGENTS.md` §7 forbids bundling twenty-one *features*;
+this is one mechanism producing data, and §10.1's rule against hand-writing what a tool can
+generate is the stronger one here. 210 strings, most non-ASCII, none proofreadable by eye — Arabic
+month abbreviations do not survive human review, so transcribing them would be the port's largest
+single transcription risk.
 
-### T25 — English · `[sequential]`
-The base catalog, whose values are defaults in Python rather than a YAML file.
+`tools/localeprobe` emits `catalogs_generated.go`; `just localeprobe` reruns it.
+
+**What this costs is written at the tool's head**: T3's diff now compares generated data against
+the files it came from, so it cannot fail at generation time. Its value is drift detection after a
+submodule bump, not transcription checking — a weaker guarantee than the error dictionary's, whose
+thirteen rows were small enough to transcribe and whose diff therefore checked a human copy.
+
+### T5 — English · `[sequential]`
+The base catalog, written by hand because its values are Python defaults rather than a YAML file
+— which is also why it is the one catalog the diff genuinely checks.
 
 ---
 
