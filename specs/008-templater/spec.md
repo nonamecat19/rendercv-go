@@ -318,6 +318,41 @@ Measured from `connections.py`.
 
 ---
 
+## 4F. What the twenty-five templates actually use
+
+An inventory, because `AGENTS.md` §6.1 sizes the pongo2 transform from `EducationEntry.j2.typ`
+alone and the real vocabulary is both smaller and worse than that suggests.
+
+52. **Tags**: `if` (31, five of them `{%- if`), `endif` (36), `for`/`endfor` (22 each), `set` (13),
+    `else` (10), `macro` (**1**). No `extends`, no `include`, no `elif`, no `raw`. The single macro
+    is `{% macro image() %}`.
+53. **Filters, five of them**: `lower` (18), `indent` (14 — thirteen `indent(4)` and one
+    `indent(8)`), `replace` (8), `length` (8), `string` (1). Only `indent` and `length` are Jinja
+    builtins whose behavior has to be matched exactly; `lower`, `replace` and `string` are
+    unambiguous. **Neither of the two custom filters of §1 behavior 4 appears in a template** —
+    `clean_url` and `strip` are called from Python, so the environment declares filters the
+    templates do not use.
+54. **Python method calls, two**: `.splitlines()` (32) and `.as_rgb()` (8). Both are the
+    `AGENTS.md` §6.1 problem, and eight of the thirty-two are the pre-split fields that section
+    proposes.
+55. **Slices, four distinct forms**, each appearing four times:
+    `splitlines()[0]`, `splitlines()[1:]`, `splitlines()[:first_row_lines]`,
+    `splitlines()[first_row_lines:]`. Two are constant and two have a **computed** bound, which is
+    the case a pre-split `…Lines []string` field does not by itself solve.
+56. **`{%- if` appears five times and `-%}` never**, so whitespace control is left-trimming only,
+    on top of the `lstrip_blocks` of §1 behavior 3. A transform that ignored the five would differ
+    by five leading newlines.
+57. `|replace` is called with six distinct argument pairs, four of them `("    ", "")` — undoing
+    an `indent(4)`. `|indent`'s Jinja default does **not** indent the first line, which is why the
+    pairs cancel; pongo2's `indent` differs here and it is the single most likely silent
+    whitespace difference.
+
+**What this settles**: the transform is small in kind and large in count. Five filters, seven tags,
+two methods and four slice forms — but 32 `splitlines()` call sites and 13 `indent(4)`s, so it has
+to be mechanical rather than hand-done, and `plan.md` owes the mechanism.
+
+---
+
 ## 5. Out of scope
 
 **5.1 The HTML wrapper is iteration 11's** (behavior 14), as is `markdown_to_html`.
@@ -334,7 +369,6 @@ been read closely enough to write behavior from.
 | Module | Lines | What it owes |
 |---|---:|---|
 | `entry_templates_from_input.py` | 514 | The largest single unknown. How a theme's template strings become the `main_column` / `date_and_location_column` an entry template reads, and what the UPPERCASE placeholder substitution does with an arbitrary user key. |
-| `templates/**` | 384 | All 25 files, and for each the Jinja constructs it uses — this is what decides how much of `AGENTS.md` §6.1's mechanical transform is actually needed. `EducationEntry.j2.typ` alone uses `splitlines()`, a slice with a computed bound, `|length` and `|indent`. |
 
 ---
 
@@ -369,3 +403,6 @@ Provisional, and they will grow as §6 empties.
       lowercased network name.
 - [ ] The four Typst connection shapes from the two independent flags, and Markdown having
       neither icons nor Typst conversion.
+- [ ] `indent`'s first-line behavior matching Jinja's, proven by one of the four
+      `|replace("    ", "")` sites cancelling exactly.
+- [ ] The five `{%- if` sites, whose left-trim is on top of `lstrip_blocks`.
