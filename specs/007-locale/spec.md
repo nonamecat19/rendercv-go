@@ -87,6 +87,21 @@ Primary sources: `src/rendercv/schema/models/locale/` — `english_locale.py` (1
     Both interpolate the actual count, and neither matches a dictionary row, so the pipeline only
     appends a period.
 
+### 3.3 Two things about the 45 `$defs` that are not guessable
+
+11. **A non-ASCII language name is mangled into its class name.** `norwegian_bokmål` becomes
+    `NorwegianBokm_lLocale` — the `å` is replaced by a single `_`, not transliterated to `a` and
+    not dropped. Measured. Every other variant is straight `<Titlecase>Locale`.
+12. **Each variant's field descriptions interpolate its own default value.** `DanishLocale`'s
+    `last_updated` reads ``Translation of "Last updated in". The default value is `Senest
+    opdateret`.`` — the English text of the description with the *Danish* value spliced in. So the
+    45 `$defs` are not the English schema repeated: each is the description templates of
+    `english_locale.py` applied to that catalog's data, and there are 22 × 10 such splices.
+
+    This is what makes the locale `$defs` cheap despite their number — they are generated from the
+    catalog data plus ten templates, not written per language — and it is also why a port that
+    reused English's rendered descriptions would produce 44 wrong strings that look right.
+
 ---
 
 ## 4. Out of scope
@@ -108,7 +123,9 @@ Primary sources: `src/rendercv/schema/models/locale/` — `english_locale.py` (1
 - [ ] The English defaults of §2 behaviors 5 and 7 verbatim, `June`/`July`/`Sept` included.
 - [ ] Both twelve-element lists rejected at eleven and thirteen, with §3 behavior 10's two
       distinct messages and their interpolated counts.
-- [ ] All 45 locale `$defs` byte-identical, taking `just schema-diff` to the design remainder.
+- [ ] All 45 locale `$defs` byte-identical, taking `just schema-diff` to the design remainder —
+      including §3.3's two: `NorwegianBokm_lLocale`'s mangled name, and each variant's descriptions
+      carrying **its own** default rather than English's.
 - [ ] Non-ASCII survives: `måned`, `nuværende`, `norwegian_bokmål` (spec 005 §3.4).
 
 ---
