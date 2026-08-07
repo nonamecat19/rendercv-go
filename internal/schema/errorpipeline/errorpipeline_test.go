@@ -166,3 +166,25 @@ func messagesOf(records []schemaerr.ValidationError) []string {
 	}
 	return out
 }
+
+// A record whose validator pinned its own location keeps it: the pipeline must
+// not re-derive what the override already decided (spec 004 §3.2 step 3).
+func TestParseSkipsTheDiscriminatorForAPinnedLocation(t *testing.T) {
+	pinned := schemaerr.ValidationError{
+		Message:         "nope",
+		SchemaLocation:  []string{"design", "theme"},
+		LocationIsFinal: true,
+	}
+	if got := Parse([]schemaerr.ValidationError{pinned})[0]; len(got.SchemaLocation) != 2 ||
+		got.SchemaLocation[1] != "theme" {
+		t.Errorf("location = %v, want it left alone", got.SchemaLocation)
+	}
+
+	// The same location without the flag loses its second element, which is what
+	// makes the assertion above mean something.
+	unpinned := pinned
+	unpinned.LocationIsFinal = false
+	if got := Parse([]schemaerr.ValidationError{unpinned})[0]; len(got.SchemaLocation) != 1 {
+		t.Errorf("location = %v, want the branch element dropped", got.SchemaLocation)
+	}
+}
