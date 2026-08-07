@@ -171,6 +171,13 @@ func ValidateScalarOrList(
 
 // SerializePhone mirrors serialize_phone (cv.py:231-250): the phone library's
 // `tel:` URI scheme is stripped for rendering.
+//
+// TODO(iteration-12): spec 004 §3.14 behavior 51 and §7.8. A **list-valued**
+// `phone` crashes upstream here: `serialize_phone` is typed for a single value
+// and calls `.replace` on it, so a list raises an AttributeError wrapped in a
+// PydanticSerializationError. Validation succeeds; only serialization fails.
+// Like the non-mapping entry above, there is no message to match, so the
+// decision belongs with the CLI's unhandled-failure handling.
 func SerializePhone(phone string) string {
 	return phonenum.Serialize(phone)
 }
