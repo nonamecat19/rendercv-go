@@ -24,7 +24,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 7 | Locale (English + 21 catalogs) | [007](007-locale/spec.md) | green | n/a (gated on the 45 `$defs` differential and the submodule catalog diff, spec §5) |
 | 8 | Templater (pongo2 env, filters, markdown→typst, processors) | [008](008-templater/spec.md) | green (with cut scope, see below) | n/a (gated on the 52-fragment Jinja differential and 240 unit cases, spec §7) |
 | 9 | Typst renderer (`.typ` emission) + iteration 6's T10 + iteration 8's Wave C | [009](009-typst-renderer/spec.md) | **green** — verified by a fresh context, which returned FAIL on four items; all four fixed and pinned | 24 / 24 |
-| 10 | wazero + WASI typst → PDF, then PNG | [010](010-typst-compilation/spec.md) | **specced and measured** — `plan.md` reports the counts; the route is a human call because both options need a `divergences.md` entry | 0 / 14 |
+| 10 | wazero + WASI typst → PDF, then PNG | [010](010-typst-compilation/spec.md) | **specced, measured, unblocked** — the route is D-006, approved since iteration 6; implementation is the next real work in the port | 0 / 14 |
 | 11 | Markdown + HTML renderers | [011](011-markdown-and-html/spec.md) | **green** — both documents byte-identical on all 24 cases | 24 / 24 md, 24 / 24 html |
 | 12 | CLI (`new`, `render`, `create-theme`, overrides, watcher) | [012](012-cli/spec.md) | **started** — `render` and `new` are wired; `new`'s seven starter CVs are byte-identical against their goldens. `create-theme` and the six help panels are not written. Every parity number is blocked on one of the three gates below | 0 (see below) |
 | 13 | Parity closeout (sample generator, version, error handler, packaging) | — | — | 0 |
@@ -629,7 +629,7 @@ Measured while scoping iteration 12's remaining commands. `create-theme` writes 
 `create_theme` golden compares source, so the case is unreachable by construction rather than by
 omission. It needs a `divergences.md` entry naming both files. Recorded, not written.
 
-## Iteration 10's route is a human call — HUMAN GATE
+## Iteration 10 is measured and **unblocked** — a gate I claimed that does not exist
 
 `plan.md` reports the measurements `spec.md` demanded before any design:
 
@@ -640,22 +640,19 @@ omission. It needs a `divergences.md` entry naming both files. Recorded, not wri
 | Fonts | **77 files across 15 folders**, shipped in the `rendercv-fonts` Python package |
 | `wasm32-wasip1` target | not installed locally; one `rustup target add` away |
 
-**Both routes need a `divergences.md` entry, so the choice is human by construction** (§5):
+**I then claimed the WASI-versus-subprocess route needed a human decision. It does not.**
+`divergences.md` **D-006 is `approved`** and has settled it since iteration 6: typst built for
+`wasm32-wasip1`, embedded, executed via wazero. Its `Watch` line even names the font risk and
+assigns it here.
 
-- **WASI on wazero** — pure Go and self-contained, at the cost of embedding tens of megabytes in
-  the binary and owning a cross-compilation of a large Rust project. The entry would record what
-  the binary *contains*.
-- **A `typst` subprocess** — identical output, far smaller binary. The entry would record what the
-  user must *install*.
+The mistake is worth more than the correction: **a claimed gate is a claim like any other, and
+checking it costs one `grep`.** It is the same shape as spec 008 §8's "only a corpus `.typ` can
+check this" and the HTML renderer's first cut — an estimate stated as a conclusion, which this
+port has now produced three times and disproved three times.
 
-**The fonts are the parity risk either way**, and they are not in this repo. A Go binary cannot
-import a Python package, so the 77 files must be vendored, fetched, or found on the system. The
-failure mode is silent: the PDF renders and every line breaks in the wrong place
-(`AGENTS.md` §6.6).
-
-Whichever route wins, the first unit is the same and small: compile one of the 24 byte-identical
-`.typ` documents and diff its extracted text against upstream's PDF. That fails loudly on the font
-question before anything else is built.
+So iteration 10 is **implementable now**, and its first unit is small: build typst for
+`wasm32-wasip1`, compile one of the 24 byte-identical `.typ` documents, and diff its extracted text
+against upstream's PDF for the same case. The fonts fail loudly there or not at all.
 
 ## Two measured behaviors awaiting the human gate
 
@@ -699,6 +696,7 @@ whether to reproduce the crash, record the divergence, or leave it.
 | 2026-08-07 | Verifier returned FAIL on iteration 8 with three blockers, all fixed. The one that matters: I had argued in spec §8 that the transform could only be checked by a corpus `.typ`, which is false for fragments — and that argument is what hid a trailing-newline bug adding a blank line to every entry and section of every artifact. |
 | 2026-08-07 | Open for the human gate: five measured `markdown_to_typst` divergences — a dropped image, raw HTML, an autolink, a link title and a doubled backtick — all reachable from ordinary CV text. Unlike the parser-choice gate I invented and withdrew, these are user-visible. |
 | 2026-08-07 | Iteration 9 opened by closing iteration 8's debt: `process_date` and `render_entry_templates`, both measured against upstream on a validated `EducationEntry`. The orchestrator is what made the other nine processors reachable — before it, nothing expanded a theme template. |
+| 2026-08-07 | **Correction: iteration 10 was never gate-blocked.** The route is D-006, `approved` — I asserted a human gate without reading `divergences.md`. Third instance in this port of an estimate stated as a conclusion, and the cheapest one to have avoided. |
 | 2026-08-07 | **Iteration 10 measured.** Target compiler 0.14.x, a 64.8 MB native compiler, 77 font files in a Python package, and no `wasm32-wasip1` target installed. Both routes — WASI on wazero and a subprocess — require a divergence entry, so the choice is human by construction and the plan stops rather than picking one. |
 | 2026-08-07 | **Iteration 10 specced.** The behavior is small — three inputs decide whether a PDF matches: the font set, the vendored Typst package, and the compiler root. The spec refuses to assume the WASI route works and names the three counts that must precede any design, because two iterations in a row have had an estimate stated as a conclusion. |
 | 2026-08-07 | **The parity suite has its first green case: `cli_version`.** 41 red, down from the 42 that iteration 1 established as the baseline. `--version` prints upstream's version and no binary name, so it is the one CLI output the sanctioned divergence does not touch. |

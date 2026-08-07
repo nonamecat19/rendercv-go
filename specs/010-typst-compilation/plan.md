@@ -40,21 +40,27 @@ failure is silent: a PDF renders fine and every line breaks in the wrong place
 blocker — but it does mean nobody has built this yet, and the build has not been attempted here
 because attempting it is the *implementation*, not the measurement.
 
-## 3. What this plan deliberately does not decide
+## 3. The route is already decided — D-006, and this plan was wrong to reopen it
 
-The route — WASI on wazero versus shelling out to a `typst` binary — **stays open**, and the
-measurements above sharpen rather than settle it:
+**An earlier draft of this section claimed the WASI-versus-subprocess choice was an open human
+gate. It is not: `specs/divergences.md` D-006 is `approved` and settles it.**
 
-- WASI keeps the port pure Go and self-contained, at the cost of embedding a large artifact and
-  owning a cross-compilation of a large Rust project.
-- A subprocess is a divergence in what the user must install, with identical output.
+> **D-006 — Typst compiled to WASI, executed on wazero.** Status: approved. […] typst built for
+> `wasm32-wasip1`, embedded in the binary, executed via wazero. […] **Watch:** the WASI build must
+> carry the same font set as `rendercv-fonts`, or PDF metrics drift and Axis 1 §1.2 fails. Tracked
+> in iteration 10.
 
-`AGENTS.md` §5 routes "any change to `specs/divergences.md`" through a human, and both routes need
-one — the WASI route for what the binary contains, the subprocess route for what the user must
-have. **So the choice is a human call by construction, and this plan stops here rather than
-picking one and building it.**
+The error was asserting a gate without reading the file that records them — the same failure mode
+as spec 008 §8's "only a corpus `.typ` can check this" and this port's first cut of the HTML
+renderer. **A gate claimed is as much a claim as a parity result, and it is checkable in one
+command.** Recorded here rather than quietly deleted, because the next person tempted to declare
+something blocked should see how this went.
 
-## 4. The first task once the route is chosen
+D-006 also **pre-answers the font question**: its `Watch` line names exactly the risk §2 measured,
+and assigns it to this iteration. So the 77 files are not an open design question either — they
+are a stated acceptance condition.
+
+## 4. The first task, now that nothing blocks it
 
 Whichever route wins, the first unit is the same and is small: compile one of the 24 `.typ`
 documents this port already produces byte-identically, and compare the extracted text against
