@@ -22,7 +22,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 5 | JSON Schema generator | [005](005-json-schema/spec.md) | green (Axis 3 now closed by 6) | n/a (gated on the 18 owned `$defs`, spec §7.1) |
 | 6 | Design & themes (9) + the settings schema | [006](006-design-and-themes/spec.md) | green (with cut scope, see below) | n/a (gated on the 164 `$defs` differential and the override diff, spec §5) |
 | 7 | Locale (English + 21 catalogs) | [007](007-locale/spec.md) | green | n/a (gated on the 45 `$defs` differential and the submodule catalog diff, spec §5) |
-| 8 | Templater (pongo2 env, filters, markdown→typst, processors) | — | — | 0 |
+| 8 | Templater (pongo2 env, filters, markdown→typst, processors) | [008](008-templater/spec.md) | spec (partial — §6 lists seven modules still to investigate) | 0 |
 | 9 | Typst renderer (`.typ` emission) | — | — | 0 / 18 |
 | 10 | wazero + WASI typst → PDF, then PNG | — | — | 0 |
 | 11 | Markdown + HTML renderers | — | — | 0 / 4 |
