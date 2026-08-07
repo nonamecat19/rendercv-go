@@ -120,14 +120,9 @@ func Validate(
 		errs = append(errs, cvErrs...)
 	}
 
-	// The thin slice spec 004 §7.9 pulls forward for `design`, and the whole of
-	// `locale`. Everything else in `design` and `settings` is iterations 6 and 12;
-	// a porter adding a second field of either here has left scope.
-	if model.Design != nil {
-		if theme, ok := mappingValue(model.Design, "theme"); ok {
-			errs = append(errs, design.ValidateTheme(theme, []string{"design"}, source)...)
-		}
-	}
+	// `design` and `locale` in full; `settings` is still the thin slice spec 004
+	// §7.9 pulled forward, and the rest of it is iteration 12's.
+	errs = append(errs, design.Validate(model.Design, []string{"design"}, source)...)
 	// Iteration 7 landed the catalog model; this is the edge that makes it
 	// reachable. Without it the extra-key and month-length rules exist and no
 	// document can reach them.
