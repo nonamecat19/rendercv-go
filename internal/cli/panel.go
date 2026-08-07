@@ -20,6 +20,14 @@ type PanelRow struct {
 	// conformance harness normalizes it to `<duration>`, so its content is not
 	// part of the contract but its position is.
 	Timing string
+
+	// Text is a whole row of free text, used by the panels that are prose
+	// rather than a table — `new`'s two. When it is set the other fields are
+	// ignored.
+	Text string
+	// IsText marks a row as free text even when Text is empty, which is how a
+	// blank separator row inside a panel is spelled.
+	IsText bool
 }
 
 // labelWidth is the column the value starts in, measured from two goldens
@@ -56,6 +64,9 @@ func Panel(title string, rows []PanelRow) string {
 
 	for _, row := range rows {
 		body := row.Mark + " " + pad(row.Timing, timingWidth) + pad(row.Label, labelWidth) + row.Value
+		if row.IsText || row.Text != "" {
+			body = row.Text
+		}
 		// The inner width is the panel minus the two borders and their padding
 		// spaces.
 		inner := PanelWidth - 4

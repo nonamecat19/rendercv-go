@@ -26,7 +26,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 9 | Typst renderer (`.typ` emission) + iteration 6's T10 + iteration 8's Wave C | [009](009-typst-renderer/spec.md) | **green** — verified by a fresh context, which returned FAIL on four items; all four fixed and pinned | 24 / 24 |
 | 10 | wazero + WASI typst → PDF, then PNG | — | — | 0 |
 | 11 | Markdown + HTML renderers | [011](011-markdown-and-html/spec.md) | **green** — both documents byte-identical on all 24 cases | 24 / 24 md, 24 / 24 html |
-| 12 | CLI (`new`, `render`, `create-theme`, overrides, watcher) | [012](012-cli/spec.md) | **started** — `render` writes all three text artifacts, its result panel is byte-identical, and its panel/args/path layers are unit-pinned; `new`, `create-theme` and the six help panels are not written. Parity numbers blocked on the corpus defect below | 0 (see below) |
+| 12 | CLI (`new`, `render`, `create-theme`, overrides, watcher) | [012](012-cli/spec.md) | **started** — `render` and `new` are wired; `new`'s seven starter CVs are byte-identical against their goldens. `create-theme` and the six help panels are not written. Every parity number is blocked on one of the three gates below | 0 (see below) |
 | 13 | Parity closeout (sample generator, version, error handler, packaging) | — | — | 0 |
 | 14 | Lua-scripted custom themes (D-002) + the two folder messages | — | — | 0 |
 
@@ -583,6 +583,34 @@ contract (`AGENTS.md` §5):
 Until then, `render`'s correctness is measurable only through the document differential of
 iterations 9 and 11 — which is byte-exact and date-pinned, and which does pass.
 
+## `new`'s eight cases collide with the sanctioned binary name — HUMAN GATE
+
+`new` is implemented and its starter CVs are **byte-identical**: `tools/sampleprobe` captures them
+from the vendored CLI and all seven variants `cmp` clean against their goldens. The two panels and
+the greeting match too.
+
+**One line cannot match, and it is the sanctioned divergence itself.** `new` prints
+
+```
+│   2. Run: rendercv render John_Doe_CV.yaml                                   │
+```
+
+The port must tell the user to run `rendercv-go` — that is `AGENTS.md` §1's one permitted
+deviation, and printing `rendercv` would be an instruction that does not work. But the row is
+inside a **fixed-width panel**, so the longer name changes the padding: substituting either
+direction in the harness leaves the line three characters short or long.
+
+So the eight `new_*` cases are byte-identical everywhere except a line that *must* differ. The
+resolution is a human call between three options:
+
+1. a `divergences.md` entry recording the line, leaving the cases red;
+2. a harness rule that re-pads panel rows after substituting the binary name — narrow, and it
+   weakens the width check on exactly the rows it touches;
+3. accepting `rendercv` in output text as a brand rather than a command, which contradicts the
+   instruction's purpose.
+
+I did not choose. Option 2 was implemented, measured to be wrong by three characters, and reverted.
+
 ## `create-theme` cannot be byte-identical — HUMAN GATE
 
 Measured while scoping iteration 12's remaining commands. `create-theme` writes fourteen files, and
@@ -643,6 +671,7 @@ whether to reproduce the crash, record the divergence, or leave it.
 | 2026-08-07 | Verifier returned FAIL on iteration 8 with three blockers, all fixed. The one that matters: I had argued in spec §8 that the transform could only be checked by a corpus `.typ`, which is false for fragments — and that argument is what hid a trailing-newline bug adding a blank line to every entry and section of every artifact. |
 | 2026-08-07 | Open for the human gate: five measured `markdown_to_typst` divergences — a dropped image, raw HTML, an autolink, a link title and a doubled backtick — all reachable from ordinary CV text. Unlike the parser-choice gate I invented and withdrew, these are user-visible. |
 | 2026-08-07 | Iteration 9 opened by closing iteration 8's debt: `process_date` and `render_entry_templates`, both measured against upstream on a validated `EducationEntry`. The orchestrator is what made the other nine processors reachable — before it, nothing expanded a theme template. |
+| 2026-08-07 | **`new` wired.** `tools/sampleprobe` captures the starter CV per theme and locale from the vendored CLI; all seven variants are byte-identical against their goldens, as are both panels and the greeting. The eight cases still fail on one line — the `rendercv render …` instruction, which must name this binary and so changes a fixed-width panel row's padding. Recorded for the human gate. |
 | 2026-08-07 | **Iteration 12 started.** `render` is wired end to end: overlays, dotted overrides, path placeholders, the five negative and five path flags, and Rich's result panel — whose geometry was recovered from the goldens, including a duration column the harness erases. `render_typst_only` matches on exit code, stdout, stderr and file list, and differs only on the baked generation date. |
 | 2026-08-07 | **Corpus defect found: the goldens expire daily.** 18 `.typ` goldens embed the day they were generated because `gengolden` never pinned `settings.current_date`. Recorded for the human gate; it blocks those cases independently of the port. |
 | 2026-08-07 | **Iteration 11 green** (unverified by a fresh context). Both text documents byte-identical on all 24 cases. The HTML was cut and uncut in the same session: the 16 goldmark misses were not "block-layer list structure" but one list-indent rule — python-markdown nests at 4 spaces, CommonMark at 2 — and normalizing the input makes goldmark match 24/24. |
