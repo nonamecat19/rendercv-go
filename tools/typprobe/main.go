@@ -1,6 +1,6 @@
 // Command typprobe renders every corpus input with the vendored Python and
 // stores the resulting `.typ` under
-// internal/renderer/typstdoc/testdata/typ/<case>/, beside the input it came
+// internal/renderer/document/testdata/typ/<case>/, beside the input it came
 // from.
 //
 // **This is the gate iteration 9 ends at** (spec 009 §6): the Go renderer's
@@ -44,7 +44,7 @@ import (
 const (
 	upstreamDir = "third_party/rendercv"
 	corpusDir   = "testdata/.work/run"
-	outDir      = "internal/renderer/typstdoc/testdata/typ"
+	outDir      = "internal/renderer/document/testdata/typ"
 
 	// CurrentDate is what every case is rendered with, so the preamble's
 	// `datetime(...)` and the top note's month are the same on both sides and on

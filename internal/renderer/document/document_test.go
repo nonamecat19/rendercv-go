@@ -1,4 +1,4 @@
-package typstdoc_test
+package document_test
 
 import (
 	"errors"
@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/nonamecat19/rendercv-go/internal/renderer/bridge"
-	"github.com/nonamecat19/rendercv-go/internal/renderer/typstdoc"
+	"github.com/nonamecat19/rendercv-go/internal/renderer/document"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/valctx"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
@@ -16,9 +16,9 @@ import (
 
 var now = time.Date(2025, 3, 5, 0, 0, 0, 0, time.UTC)
 
-func render(t *testing.T, document string) string {
+func render(t *testing.T, input string) string {
 	t.Helper()
-	node, err := yamlreader.ReadString(document)
+	node, err := yamlreader.ReadString(input)
 	if err != nil {
 		t.Fatalf("reading the document: %v", err)
 	}
@@ -29,14 +29,14 @@ func render(t *testing.T, document string) string {
 		t.Fatalf("the document did not validate: %v", errs)
 	}
 
-	out, err := typstdoc.Render(bridge.Resolve(model, now), typstdoc.Options{})
+	out, err := document.Render(bridge.Resolve(model, now), document.Options{})
 	if err != nil {
 		t.Fatalf("Render: %v", err)
 	}
 	return out
 }
 
-const document = `
+const sampleCV = `
 cv:
   name: John Doe
   email: john@example.com
@@ -58,7 +58,7 @@ cv:
 // This is not the parity gate — the corpus `.typ` diff is — but it is what says
 // the pieces are wired to each other at all.
 func TestRenderAssemblesTheWholeDocument(t *testing.T) {
-	out := render(t, document)
+	out := render(t, sampleCV)
 
 	for _, want := range []string{
 		`#import "@preview/rendercv:0.3.0": *`, // the preamble
@@ -79,7 +79,7 @@ func TestRenderAssemblesTheWholeDocument(t *testing.T) {
 // `main_column` exist at all — and the Typst conversion ran over the result, so
 // the template's own `**` became `#strong[…]` rather than being escaped.
 func TestEntryTemplatesReachTheFragment(t *testing.T) {
-	out := render(t, document)
+	out := render(t, sampleCV)
 
 	if !strings.Contains(out, "#strong[MIT], CS") {
 		t.Errorf("the education entry's main column is missing from:\n%s", out)
@@ -91,7 +91,7 @@ func TestEntryTemplatesReachTheFragment(t *testing.T) {
 
 // The locale reaches the preamble as a code and a direction, not as a name.
 func TestTheLocaleReachesThePreamble(t *testing.T) {
-	out := render(t, strings.Replace(document, "cv:", "locale:\n  language: arabic\ncv:", 1))
+	out := render(t, strings.Replace(sampleCV, "cv:", "locale:\n  language: arabic\ncv:", 1))
 
 	if !strings.Contains(out, `locale-catalog-language: "ar"`) {
 		t.Errorf("the preamble does not carry the Arabic code")
@@ -127,8 +127,8 @@ cv:
 		t.Fatalf("the document did not validate: %v", errs)
 	}
 
-	out, err := typstdoc.Render(bridge.Resolve(model, now), typstdoc.Options{})
-	if !errors.Is(err, typstdoc.ErrPhotoDownloadUnsupported) {
+	out, err := document.Render(bridge.Resolve(model, now), document.Options{})
+	if !errors.Is(err, document.ErrPhotoDownloadUnsupported) {
 		t.Fatalf("Render = %q, %v; want ErrPhotoDownloadUnsupported", out, err)
 	}
 }
