@@ -3,6 +3,7 @@ module github.com/nonamecat19/rendercv-go
 go 1.25.0
 
 require (
+	github.com/flosch/pongo2/v6 v6.1.0
 	github.com/goccy/go-yaml v1.19.2
 	github.com/nlnwa/whatwg-url v0.6.2
 	github.com/nyaruka/phonenumbers v1.8.1
