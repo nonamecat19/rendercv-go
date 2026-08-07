@@ -95,9 +95,26 @@ func TestDumpReportsIntegerDates(t *testing.T) {
 	}
 }
 
+// toYAML writes the case's input back out as the YAML a user would have typed.
+//
+// **The whole-number floats have to become integers first.** The fixture's
+// `start_date: 2000` arrived through Go's JSON decoder as `float64(2000)`, and
+// marshalling that emits `2000.0` — a float to the reader, so the very
+// distinction this fixture exists to pin would be destroyed by the harness that
+// checks it.
 func toYAML(t *testing.T, value map[string]any) string {
 	t.Helper()
-	raw, err := yaml.Marshal(value)
+	narrowed := make(map[string]any, len(value))
+	for key, item := range value {
+		number, isNumber := item.(float64)
+		if isNumber && number == float64(int(number)) {
+			narrowed[key] = int(number)
+			continue
+		}
+		narrowed[key] = item
+	}
+
+	raw, err := yaml.Marshal(narrowed)
 	if err != nil {
 		t.Fatalf("marshalling the case: %v", err)
 	}

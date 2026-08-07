@@ -262,6 +262,7 @@ func scalarRaw(tok *token.Token) string {
 	switch tok.Type {
 	case token.SingleQuoteType, token.DoubleQuoteType, token.LiteralType, token.FoldedType:
 		return tok.Value
+	default:
 	}
 	if tok.Value != "" {
 		return tok.Value
