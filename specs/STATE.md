@@ -24,9 +24,9 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 7 | Locale (English + 21 catalogs) | [007](007-locale/spec.md) | **audited — FAIL, demoted.** Three locale fields are unvalidated; a short month list panicked the renderer (fixed) | n/a (gated on the 45 `$defs` differential and the submodule catalog diff, spec §5) |
 | 8 | Templater (pongo2 env, filters, markdown→typst, processors) | [008](008-templater/spec.md) | **audited — FAIL, demoted.** Four `markdown_to_typst` divergences still live and unrecorded; one produced uncompilable Typst and is fixed | n/a (gated on the 52-fragment Jinja differential and 240 unit cases, spec §7) |
 | 9 | Typst renderer (`.typ` emission) + iteration 6's T10 + iteration 8's Wave C | [009](009-typst-renderer/spec.md) | **green** — verified by a fresh context, which returned FAIL on four items; all four fixed and pinned | 24 / 24 |
-| 10 | wazero + WASI typst → PDF, then PNG | [010](010-typst-compilation/spec.md) | **route proven end to end, 14/14 on the PDF differential, blocked at a HUMAN GATE.** The shim's source is committed; the 29 MB `.wasm` and 59 MB of fonts are not — see the gate below. Not green: nothing runs in the suite yet | 14 / 14 measured, 0 / 14 in the suite |
+| 10 | wazero + WASI typst → PDF, then PNG | [010](010-typst-compilation/spec.md) | **gate cleared 2026-08-08; landed and running in the suite.** The compiler, the fonts and `fontawesome` are vendored and embedded (D-007). Every render case now produces a PDF and its PNGs, and `AssertPDF` compares text, page count and geometry. **Not yet verified by a fresh context** | 14 / 14 in the suite |
 | 11 | Markdown + HTML renderers | [011](011-markdown-and-html/spec.md) | **verified — FAIL, demoted from green.** 24/24 on the corpus, but a `"` in any CV breaks the HTML and raw HTML is dropped. Not green | 24 / 24 corpus, blockers open |
-| 12 | CLI (`new`, `render`, `create-theme`, overrides, watcher) | [012](012-cli/spec.md) | **started** — `render` and `new` are wired; `new`'s seven starter CVs are byte-identical against their goldens. `create-theme` and the six help panels are not written. Every parity number is blocked on one of the three gates below | 0 (see below) |
+| 12 | CLI (`new`, `render`, `create-theme`, overrides, watcher) | [012](012-cli/spec.md) | **in progress.** `render` and `new` are wired and their goldens pass, error panels included. `create-theme`, `--create-typst-templates` and the five help panels are still unwritten. **Not verified by a fresh context** | 25 / 35 `TestParity` cases |
 | 13 | Parity closeout (sample generator, version, error handler, packaging) | — | — | 0 |
 | 14 | Lua-scripted custom themes (D-002) + the two folder messages | [014](014-lua-custom-themes/spec.md) | **verified — FAIL.** Three of four blockers fixed; the rest is open work, listed below. Not green | 4 / 4 criteria, 11 findings |
 
@@ -34,12 +34,12 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 
 | Axis | Gate command | Status |
 |---|---|---|
-| 1 — artifacts byte-identical | `just test-parity` | **72 passing comparisons on the corpus, and the corpus is narrower than that number suggests** — 8 of the 24 cases share one byte-identical `.md`, so there are 14 distinct Markdown documents, and a verifier broke the HTML with a double quote. Every text artifact — 24/24 `.typ`, `.md` and `.html` — byte-identical against the vendored Python (`TestCorpusTypstIsByteIdentical`), over the 21 corpus inputs plus three the corpus cannot express. PDF and PNG are iteration 10's. The 15 CLI-driven artifact cases stay red until iteration 12: they shell `rendercv-go render`, which does not exist. |
-| 2 — CLI surface | `just test-parity` | **6/21 passing** — `cli_version`, the first green case in the whole parity suite. It is the only CLI output carrying no `rendercv` token, which is why it is reachable before the binary-name question below is answered. |
+| 1 — artifacts byte-identical | `just test-parity` | **PDF and PNG now compare, and every render case passes.** 14 render cases produce a PDF matched on extracted text, page count and page geometry, plus their PNGs on name and dimensions. Previously: **72 passing comparisons on the corpus, and the corpus is narrower than that number suggests** — 8 of the 24 cases share one byte-identical `.md`, so there are 14 distinct Markdown documents, and a verifier broke the HTML with a double quote. Every text artifact — 24/24 `.typ`, `.md` and `.html` — byte-identical against the vendored Python (`TestCorpusTypstIsByteIdentical`), over the 21 corpus inputs plus three the corpus cannot express. PDF and PNG are iteration 10's. The 15 CLI-driven artifact cases stay red until iteration 12: they shell `rendercv-go render`, which does not exist. |
+| 2 — CLI surface | `just test-parity` | **25 of 35 `TestParity` cases pass.** The ten that do not are five help panels (unwritten), `create_theme` and `new_typst_templates` (unwritten, and unreachable by construction under D-008), `err_not_yaml` (a YAML span and message suffix), and `err_missing_file` / `err_bad_override_key`, whose goldens are Python tracebacks. |
 | 3 — JSON Schema | `just schema-diff` | **green.** All 227 `$defs` byte-identical; the command exits 0. The oracle is `tools/genschema`, not the parity suite — `TestSchemaParity` shells `rendercv-go schema` and stays red until iteration 12. |
-| 4 — validation errors | `just test-parity` | **1/7 passing** (`err_empty_yaml`). **verified — FAIL.** The 25-record differential is real and mutation-discriminating, but it gates far less than the axis: 6 of 13 dictionary rows, 2 of 8 username rules. Two blockers open (below). 0/7 corpus cases. |
+| 4 — validation errors | `just test-parity` | **4/7 passing** (`err_empty_yaml`, `err_unknown_theme`, `err_unknown_locale`, `err_wrong_input`). Rich's error table is reproduced and its three width stages are pinned. **verified — FAIL.** The 25-record differential is real and mutation-discriminating, but it gates far less than the axis: 6 of 13 dictionary rows, 2 of 8 username rules. Two blockers open (below). 0/7 corpus cases. |
 
-PDF content comparison (spec §1.2) is not yet measurable — it lands with iteration 10.
+PDF content comparison (spec §1.2) is measurable and measured: `conformance.AssertPDF`, over poppler.
 
 ## Stretch goals (not gates)
 
@@ -491,6 +491,62 @@ regenerated and the submodule was not bumped, so no human gate was requested.
 **Carried forward:** date formatting is **not** this iteration's despite the row title it used to
 carry — spec §4.1 assigns `2020-09` → `Sept 2020` and §4.2 assigns `degree_with_area`'s
 substitution to iteration 9, with the renderer.
+
+## The three gates were answered — 2026-08-08
+
+A human answered all three open gates in one pass. What each one licensed, and what landed:
+
+| Gate | Decision | Divergence | Result |
+|---|---|---|---|
+| iteration 10's distribution question | **vendor and embed all three** | D-007 | 14 render cases green, PDF included |
+| `new`'s panel next-step line | **harness substitutes and re-pads the row** | D-009 | 7 of 8 `new_*` green |
+| `create-theme`'s two file kinds | **write `init.lua` and the pongo2 transforms** | D-008 | recorded; the command is still unwritten |
+
+`TestParity` went from **0 / 35 to 25 / 35** in this pass. What moved, and why:
+
+1. **The whole PDF/PNG path landed.** `internal/renderer/typstc` runs the embedded compiler on
+   wazero through three mounts. The first compile pays ~4 s for the 29 MB module and every
+   document after it costs ~40 ms — an order of magnitude better than the 3.2 s the measurement
+   pass reported, because that figure included module compilation each time.
+2. **The font order was wrong and it was silent.** The runner searched caller folders before the
+   vendored set; upstream passes `rendercv_fonts` first (`pdf_png.py:174-185`). Reversed, a
+   user's `fonts/` folder would win a family-name tie that upstream gives to the packaged face.
+   Fixed before any golden could have caught it.
+3. **Panels wrap.** `theme_classic`'s two PNG paths do not fit on one row, and Rich folds the row
+   with its continuation flush left. Nothing in the port wrapped anything.
+4. **Validation errors are a table, not a sentence.** Upstream has two error panels and the port
+   only had one. `internal/cli/table.go` reproduces `rich.table.Table` — all three width stages,
+   each pinned by a different golden, and the third one is not hypothetical: `err_wrong_input`
+   reduces a column to width zero.
+5. **The custom-theme folder checks were in the wrong layer.** They ran from the CLI as a user
+   error; upstream raises them from inside the validator, so they belong in the same table as
+   every other record, located at `design`.
+6. **Two corrections to my own work, both caught by a golden rather than by reading:**
+   - the binary-name rewrite matched the token *anywhere*, and this repository's directory is
+     called `rendercv-go`, so it corrupted an absolute path the port had printed correctly. It
+     now matches only the token standing alone between spaces.
+   - a Panel's overflow is `fold` and a Column's is `ellipsis`. Using one wrap for both split
+     `err_unknown_theme`'s path across two lines where upstream cuts it with `…`.
+
+### What is left, and what each one needs
+
+| Case(s) | Blocker | Shape of the work |
+|---|---|---|
+| `cli_help`, `cli_help_short`, `cli_new_help`, `cli_render_help`, `cli_create_theme_help` | Typer's help renderer is not written | Its geometry is **not** the error table's. Measured on the goldens: the first column starts at offset 0 and the option column is 26 wide for a longest option of 24, which neither `pad_edge=False` with `padding=(0,1)` nor `pad_edge=True` explains. **Read `typer/rich_utils.py` in the submodule's venv before writing any of it** — I reverse-engineered it from goldens, got two columns right and the third wrong, and stopped rather than guess. |
+| `create_theme`, `new_typst_templates` | the command is unwritten | D-008 approved the design. Both cases compare template *source*, so both stay red by construction once written; the point of writing them is the feature, not the case. |
+| `err_not_yaml` | two defects, both upstream-visible | the location reports `line 1` where upstream reports `line 1 to line 2` (the span's end line is not carried), and the message lacks ruamel's ` while parsing a flow sequence.` suffix. |
+| `err_missing_file`, `err_bad_override_key` | **the goldens are Python tracebacks** | 5 KB of `error_handler.py:38 in wrapper` with this machine's absolute paths. A Go binary cannot produce them and should not try. These need a divergence entry saying so, and that is a human gate. |
+| `TestSchemaParity` | the test asks for a command that must not exist | It shells `rendercv-go schema`. Upstream's CLI has exactly three commands and none is `schema` — adding it would break axis 2 to satisfy axis 3. `tools/genschema` is the sanctioned oracle and `just schema-diff` is green. **The test is wrong, not the port**, and fixing it means pointing it at the generator. |
+| `TestMarkdownToHTMLMatchesPython` | iteration 11's open blockers | goldmark escapes `"` as `&quot;`, orders attributes differently, and self-closes void elements where Python's `markdown` does not. Four assertions, unchanged from the last audit. |
+
+### Two things this pass did not do
+
+- **Nothing here was verified by a fresh context.** Every number above is what `go test -tags
+  conformance ./...` printed in the context that wrote the code, which `AGENTS.md` §10.6 says is
+  not parity. Iterations 10 and 12 stay unverified until `rendercv-parity-verifier` runs.
+- **The goldens are still not portable.** `caseWorkDir` makes cases run where `gengolden` ran
+  them, which is what lets a golden carrying an absolute path be compared at all. It carries
+  *this machine's* repository path. Iteration 1's audit finding stands.
 
 ## Iteration 9 — verification
 
