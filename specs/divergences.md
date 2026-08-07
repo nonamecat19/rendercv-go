@@ -121,3 +121,84 @@ Each entry: what differs · upstream citation · why parity is impossible or und
 - **User notices:** slower compilation than native typst; no external dependency to install.
 - **Watch:** the WASI build must carry the same font set as `rendercv-fonts`, or PDF metrics
   drift and Axis 1 §1.2 fails. Tracked in iteration 10.
+
+---
+
+## D-007 — The compiler, the fonts and `fontawesome` are vendored into the repository
+
+**Status:** approved (human gate, 2026-08-08) · **Iteration:** 10
+
+- **Differs:** upstream installs its compiler and fonts as Python dependencies (`typst`,
+  `rendercv-fonts`) and **downloads** `@preview/fontawesome:0.6.0` from Typst Universe into
+  `~/.cache/typst` the first time a document imports it
+  (`third_party/rendercv/rendercv_typst/lib.typ:1`, resolved by the `typst` crate's package
+  loader). Nothing but `rendercv`'s own two package files is copied by `get_package_path`
+  (`src/rendercv/renderer/pdf_png.py:114-146`).
+- **Why parity is impossible:** a Go binary has no package manager behind it. The three inputs
+  the compiler needs — the compiler itself, `rendercv_fonts`, and the `fontawesome` package —
+  have to arrive somehow, and the two alternatives are worse:
+  - *finding fonts on the system* is the failure mode that was measured in iteration 10 and
+    **passed 12 of 14 PDF cases while silently rendering `sb2nov` in a fallback face**;
+  - *downloading at render time* puts a network dependency inside `render`, which upstream does
+    not have for the compiler and which makes an offline render fail.
+- **Instead:** all three are committed under `internal/renderer/typstc/assets/` and `//go:embed`ed:
+
+  | Vendored | Size | Source |
+  |---|---|---|
+  | `typst.wasm` | 29 MB | `just typst-wasm`, `tools/typstwasm` pinned to typst 0.14.2 by `Cargo.lock` |
+  | `fonts/` | 59 MB, 62 files in 15 folders | the `rendercv-fonts` package the submodule locks |
+  | `packages/preview/rendercv/0.3.0/` | 8 KB | the submodule's `rendercv_typst/` |
+  | `packages/preview/fontawesome/0.6.0/` | 428 KB | Typst Universe — **the file upstream does not ship** |
+
+- **User notices:** a ~90 MB binary instead of a ~15 MB one, and `render` works offline with no
+  `typst`, no `rendercv-fonts` and no package cache installed. Font metrics are reproducible
+  because they cannot be shadowed by whatever the host happens to have.
+- **Not licensed by this:** vendoring does not change *font resolution order*. A `fonts/`
+  directory beside the input file still wins a name tie, matching typst-cli's `FontSearcher`
+  and upstream's `get_typst_compiler` (`pdf_png.py:154-186`).
+
+---
+
+## D-008 — `create-theme` writes port-native files
+
+**Status:** approved (human gate, 2026-08-08) · **Iteration:** 12
+
+- **Differs:** two of the fourteen files `create_theme` writes cannot be upstream's bytes.
+- **Upstream:** `src/rendercv/cli/create_theme_command/`.
+- **Why:**
+  - `__init__.py` is Python that upstream *executes* at validation time. This port does not
+    execute Python — that is D-002 — so writing the file would produce a theme whose options
+    are never applied.
+  - the `.j2.typ` files are Jinja. The port's loader reads the pongo2 transform of them (D-005).
+    Writing Jinja source would hand the user a theme **this binary renders differently from the
+    one it just wrote** — measured on `Header.j2.typ`, where upstream's carries a newline after
+    `{% macro image() %}` that Jinja's `trim_blocks` eats at parse time.
+- **Instead:** `create-theme` writes `init.lua` in place of `__init__.py`, and the pongo2
+  transform of each template in place of the Jinja source. The other twelve files are
+  byte-identical.
+- **User notices:** the generated theme folder is scripted in Lua and its templates are in the
+  port's dialect. It renders identically to the theme it was copied from, which the Jinja
+  version would not.
+- **Consequence for the suite:** the `create_theme` corpus case compares template *source*, so it
+  is unreachable by construction. It stays red, with this entry as the reason.
+
+---
+
+## D-009 — The `new` panel's next-step line names `rendercv-go`
+
+**Status:** approved (human gate, 2026-08-08) · **Iteration:** 12
+
+- **Differs:** upstream's `new` prints `2. Run: rendercv render John_Doe_CV.yaml`
+  (`src/rendercv/cli/new_command/`). The port must print `rendercv-go`, or it prints an
+  instruction that does not work — D-001's whole point.
+- **Why it is not just D-001:** the line sits inside a **fixed-width Rich panel**, so the longer
+  name also shifts that row's right-hand padding by three characters. It is the one place where
+  the sanctioned name change is not confined to `argv[0]`.
+- **Instead:** the port prints the working command and pads the row to the panel's width. The
+  conformance harness substitutes the binary name **and re-pads the row** before comparing, so
+  the eight `new_*` cases stay comparable.
+- **User notices:** a command they can copy and run.
+- **Cost, recorded rather than hidden:** the harness's fixed-width check is weakened on exactly
+  the rows it rewrites. Every other row of every panel is still compared verbatim, and the
+  rewrite is confined to rows containing the binary token — a row that does not contain it is
+  never touched.
