@@ -11,6 +11,7 @@ import (
 	"github.com/nonamecat19/rendercv-go/internal/schema/jsonschema"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv/entries"
+	"github.com/nonamecat19/rendercv-go/internal/schema/models/design"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/locale"
 )
 
@@ -62,10 +63,11 @@ func TestAbsentDefsAreAccountedFor(t *testing.T) {
 	}
 	sort.Strings(absent)
 
-	// 227 upstream, 63 in the port: iterations 2-4's 18 plus iteration 7's 45
-	// locale entries. The remainder is iteration 6's design tree and the three
-	// settings models.
-	const wantAbsent = 227 - 63
+	// 227 upstream, 224 in the port: iterations 2-4's 18, iteration 7's 45
+	// locale entries, and iteration 6's 161 design entries. The three left are
+	// `Settings`, `RenderCommand` and `PlannedPathRelativeToInput`, which
+	// iteration 6 takes as its T15.
+	const wantAbsent = 227 - 224
 	if len(absent) != wantAbsent {
 		t.Errorf("%d $defs are absent, want %d — if a model landed, update this"+
 			" count and Axis 3's status in specs/STATE.md", len(absent), wantAbsent)
@@ -87,6 +89,9 @@ func portDefs() map[string]*jsonschema.Object {
 		defs[name] = object
 	}
 	for name, object := range locale.SchemaDefs() {
+		defs[name] = object
+	}
+	for name, object := range design.SchemaDefs() {
 		defs[name] = object
 	}
 	return defs
