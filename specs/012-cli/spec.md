@@ -67,7 +67,26 @@ The 42 split three ways:
     is an error (`err_unknown_locale`), so the name is validated against the 22-member union.
 14. `--create-typst-templates` additionally writes the theme's Typst templates beside the input, so
     a user can edit them — the override path spec 008 §2 already loads from.
-15. `create-theme <name>` writes a theme folder of Typst templates to customize.
+15. `create-theme <name>` writes a theme folder of Typst templates to customize — fourteen files:
+    the four top-level fragments, the nine entry templates, and `__init__.py`.
+
+**This command cannot be byte-identical, and the reason is structural rather than a defect.**
+Two of its outputs are things the port deliberately does not have:
+
+- **`__init__.py` is Python.** A custom theme executes it at validation time, which is D-002 in
+  `specs/divergences.md`: the port scripts custom themes in Lua instead. So the file this command
+  writes must be `init.lua`, or the feature it exists for does not work.
+- **The `.j2.typ` files are Jinja source.** The port ships the pongo2 transform of them
+  (`AGENTS.md` §6.1 sanctions the source diverging while the *output* must not), and the loader
+  reads that form. Measured on `Header.j2.typ`: upstream's has a newline after `{% macro image() %}`
+  that `trim_blocks` removes at parse time, and the port's transform has already removed it.
+  Emitting upstream's bytes would produce a theme this binary renders **differently** from the
+  theme it just wrote.
+
+So `create_theme`'s golden is unreachable by construction, and the honest resolution is a
+`divergences.md` entry naming both files — which is human-gated, so this spec records it and stops.
+The *panel* is reachable and is a second shape beyond the result panel: multi-line body text with
+blank rows.
 
 ## 4. Exit codes and the error surface
 
