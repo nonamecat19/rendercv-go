@@ -46,10 +46,11 @@ func TestCorpusTypstIsByteIdentical(t *testing.T) {
 		}
 		t.Run(entry.Name(), func(t *testing.T) {
 			dir := filepath.Join(root, entry.Name())
-			input := readFixture(t, filepath.Join(dir, "cv.yaml"))
+			path := filepath.Join(dir, "cv.yaml")
+			input := readFixture(t, path)
 			want := readFixture(t, filepath.Join(dir, "expected.typ"))
 
-			got := renderFixture(t, input)
+			got := renderFixture(t, input, path)
 			if got == want {
 				return
 			}
@@ -59,20 +60,27 @@ func TestCorpusTypstIsByteIdentical(t *testing.T) {
 	}
 }
 
-func renderFixture(t *testing.T, input string) string {
+// renderFixture validates and renders one case. The input **path** is threaded
+// through because two things resolve against it: `cv.photo`'s existence check,
+// and the loader's search for a user template override.
+func renderFixture(t *testing.T, input, path string) string {
 	t.Helper()
 	node, err := yamlreader.ReadString(input)
 	if err != nil {
 		t.Fatalf("reading the input: %v", err)
 	}
 
-	model, errs := models.Validate(node,
-		&valctx.ValidationContext{CurrentDate: probeDate}, schemaerr.SourceMain)
+	model, errs := models.Validate(node, &valctx.ValidationContext{
+		CurrentDate:   probeDate,
+		InputFilePath: path,
+	}, schemaerr.SourceMain)
 	if len(errs) > 0 {
 		t.Fatalf("the input did not validate: %v", errs)
 	}
 
-	out, err := typstdoc.Render(bridge.Resolve(model, probeDate), typstdoc.Options{})
+	out, err := typstdoc.Render(bridge.Resolve(model, probeDate), typstdoc.Options{
+		InputDir: filepath.Dir(path),
+	})
 	if err != nil {
 		t.Fatalf("Render: %v", err)
 	}

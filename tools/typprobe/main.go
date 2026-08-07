@@ -54,7 +54,20 @@ const (
 //   - `design_null_column`: `degree_column: null` is the one nullable design
 //     field with a non-null default, and the port emitted the default instead of
 //     omitting the column.
+//   - `header_photo`: every corpus `cv.yaml` writes `photo:` with a **null**
+//     value, so nothing exercised the header's `#grid`. The port emitted a bare
+//     name where upstream emits the whole two-column grid.
 var extraCases = map[string]string{
+	"header_photo": `cv:
+  name: John Doe
+  photo: images/me.png
+  email: john@example.com
+  sections:
+    education:
+      - institution: MIT
+        area: CS
+`,
+
 	"design_null_column": `cv:
   name: John Doe
   sections:
@@ -149,6 +162,11 @@ func run() error {
 		if err := os.WriteFile(filepath.Join(dir, "expected.typ"), typ, 0o644); err != nil {
 			return err
 		}
+		// The fixture has to carry the photo too: the conformance test validates
+		// the input, and `cv.photo`'s existence check runs there as well.
+		if err := copyImages(filepath.Dir(input), dir); err != nil {
+			return err
+		}
 		rendered = append(rendered, name)
 	}
 
@@ -171,6 +189,21 @@ func writeExtra(name, document string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
+	// `cv.photo` is an **existence-checked** path, so a case that names one has
+	// to have one. The bytes are a PNG header and nothing reads them: neither
+	// side decodes the image, and no case here compiles the Typst.
+	if strings.Contains(document, "images/me.png") {
+		images := filepath.Join(dir, "images")
+		if err := os.MkdirAll(images, 0o755); err != nil {
+			return "", err
+		}
+		png := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'}
+		if err := os.WriteFile(filepath.Join(images, "me.png"), png, 0o644); err != nil {
+			return "", err
+		}
+	}
+
 	path := filepath.Join(dir, "cv.yaml")
 	return path, os.WriteFile(path, []byte(document), 0o644)
 }
@@ -193,6 +226,12 @@ func renderCase(root, input string) ([]byte, error) {
 		return nil, err
 	}
 
+	// `cv.photo` is resolved **relative to the input file** and its existence is
+	// checked, so a case that names one needs its `images/` beside the copy.
+	if err := copyImages(filepath.Dir(input), scratch); err != nil {
+		return nil, err
+	}
+
 	cmd := exec.Command(
 		"uv", "run", "--frozen", "--all-extras",
 		"rendercv", "render", copied,
@@ -212,6 +251,32 @@ func renderCase(root, input string) ([]byte, error) {
 		return nil, fmt.Errorf("produced %d .typ files", len(matches))
 	}
 	return os.ReadFile(matches[0])
+}
+
+// copyImages copies an `images/` directory beside the input, when there is one.
+func copyImages(from, to string) error {
+	entries, err := os.ReadDir(filepath.Join(from, "images"))
+	if err != nil {
+		return nil //nolint:nilerr // no images directory is the ordinary case
+	}
+
+	target := filepath.Join(to, "images")
+	if err := os.MkdirAll(target, 0o755); err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		raw, err := os.ReadFile(filepath.Join(from, "images", entry.Name()))
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(target, entry.Name()), raw, 0o644); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func firstLine(out []byte) string {
