@@ -91,3 +91,54 @@ func CleanURL(url string) string {
 // what `strings.TrimSpace` does. They agree on every character either calls
 // whitespace.
 func Strip(text string) string { return strings.TrimSpace(text) }
+
+// MakeKeywordsBold is `make_keywords_bold` (string_processor.py:72-97): every
+// occurrence of a configured keyword wrapped in Markdown `**`.
+//
+// Two differences from SubstitutePlaceholders' matcher, both deliberate
+// upstream:
+//
+//   - it is built with `word_boundary=True`, so `Java` does not match inside
+//     `JavaScript`. The placeholder matcher has no boundaries, which is why
+//     `YEAR` matches inside `YEAR_IN_TWO_DIGITS` and has to rely on ordering.
+//   - it produces **Markdown**, not Typst. It runs before `markdown_to_typst` in
+//     the chain (spec 008 §4A behavior 18), so the markers it inserts are
+//     converted by the next stage rather than emitted raw.
+//
+// An empty keyword list returns the string untouched — upstream raises from the
+// pattern builder and guards the call, which is the same result.
+func MakeKeywordsBold(text string, keywords []string) string {
+	if len(keywords) == 0 {
+		return text
+	}
+	return keywordBoldPattern(keywords).ReplaceAllString(text, "**$0**")
+}
+
+// keywordBoldPattern is `build_keyword_matcher_pattern` with boundaries.
+//
+// **Longest first**, so `Machine Learning` wins over `Machine`. Ties break on
+// the keyword itself, which upstream leaves to set order and no pair of
+// keywords in the corpus exercises.
+func keywordBoldPattern(keywords []string) *regexp.Regexp {
+	unique := make(map[string]bool, len(keywords))
+	ordered := make([]string, 0, len(keywords))
+	for _, keyword := range keywords {
+		if keyword == "" || unique[keyword] {
+			continue
+		}
+		unique[keyword] = true
+		ordered = append(ordered, keyword)
+	}
+	sort.Slice(ordered, func(i, j int) bool {
+		if len(ordered[i]) != len(ordered[j]) {
+			return len(ordered[i]) > len(ordered[j])
+		}
+		return ordered[i] < ordered[j]
+	})
+
+	quoted := make([]string, 0, len(ordered))
+	for _, keyword := range ordered {
+		quoted = append(quoted, regexp.QuoteMeta(keyword))
+	}
+	return regexp.MustCompile(`\b(` + strings.Join(quoted, "|") + `)\b`)
+}
