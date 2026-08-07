@@ -63,9 +63,11 @@ this iteration's contract.
 
 ## 4. Acceptance criteria
 
-- [ ] Behavior 4 first: a theme folder with **no** script resolves to `ClassicTheme` with the theme
+- [x] Behavior 4 first: a theme folder with **no** script resolves to `ClassicTheme` with the theme
       name, and every built-in theme still resolves exactly as it does today — 24/24 documents
-      unchanged.
+      unchanged. **Met with no new code**, as §2 behavior 7 predicted: `design.Effective` already
+      produces it, and `design/customtheme_test.go` pins it so the prediction stays true rather
+      than being asserted once and discovered wrong later.
 - [ ] A theme whose script **adds** an option: the option validates, appears in the effective tree,
       and reaches a template.
 - [ ] A theme whose script **changes a default**: the new default appears where no document
@@ -74,7 +76,7 @@ this iteration's contract.
 
 ## 5. Status
 
-**Not started. Unblocked** — D-002 is approved and no other gate applies. The honest ordering is
+**Started: one criterion met, and it is the one that could regress what works.** Unblocked — D-002 is approved and no other gate applies. The honest ordering is
 behavior 4 before anything else: it is the path all nine built-in themes and all 24 corpus
 documents already take, so it is the one that can regress something that currently works.
 
