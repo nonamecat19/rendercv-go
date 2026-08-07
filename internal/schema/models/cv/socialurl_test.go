@@ -47,7 +47,7 @@ func TestGeneratedURLs(t *testing.T) {
 		{"YouTube", "johndoe", "https://youtube.com/@johndoe"},
 		{"Google Scholar", "abc123", "https://scholar.google.com/citations?user=abc123"},
 		{"Telegram", "johndoe", "https://t.me/johndoe"},
-		{"WhatsApp", "905419999999", "https://wa.me/905419999999"},
+		{"WhatsApp", "+905419999999", "https://wa.me/+905419999999"},
 		{"Leetcode", "johndoe", "https://leetcode.com/u/johndoe"},
 		{"X", "johndoe", "https://x.com/johndoe"},
 		{"Bluesky", "john.bsky.social", "https://bsky.app/profile/john.bsky.social"},

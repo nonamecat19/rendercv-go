@@ -7,6 +7,7 @@ import (
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/binder"
 	"github.com/nonamecat19/rendercv-go/internal/schema/httpurl"
+	"github.com/nonamecat19/rendercv-go/internal/schema/phonenum"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
 )
@@ -105,7 +106,7 @@ type usernameRule func(username string) string
 // kept in the source strings so a diff against upstream is mechanical
 // (behavior 60).
 //
-// TODO(spec 004 T36-T37): the other two rules.
+// TODO(spec 004 T37): the Reddit rule.
 var usernameRules = map[SocialNetworkName]usernameRule{
 	SocialNetworkMastodon: func(username string) string {
 		if mastodonPattern.MatchString(username) {
@@ -151,6 +152,16 @@ var usernameRules = map[SocialNetworkName]usernameRule{
 		}
 		return "Bluesky username should be a valid handle with no '@'" +
 			" (e.g., 'username.bsky.social' or 'domain.com')."
+	},
+	// The one rule that is not syntactic: the username must validate as a phone
+	// number (social_network.py:129-140). Upstream catches the library's failure
+	// and replaces it wholesale, so the phone message never surfaces here.
+	SocialNetworkWhatsApp: func(username string) string {
+		if _, err := phonenum.Validate(username); err == nil {
+			return ""
+		}
+		return "WhatsApp username should be your phone number with country" +
+			" code in international format (e.g., +1 for USA, +44 for UK)."
 	},
 }
 

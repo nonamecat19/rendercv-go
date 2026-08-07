@@ -232,3 +232,29 @@ func TestBlueskyUsername(t *testing.T) {
 		{"Bluesky", "", want},
 	})
 }
+
+// Spec 004 §4.7, the one rule of the eight that is not syntactic: the username
+// must validate as a phone number.
+//
+// Upstream catches the phone library's failure and replaces it wholesale, so
+// `value is not a valid phone number` never reaches a user through this path —
+// which the last row asserts, since that is the message the same library
+// produces for `cv.phone`.
+func TestWhatsAppUsername(t *testing.T) {
+	const want = "WhatsApp username should be your phone number with country" +
+		" code in international format (e.g., +1 for USA, +44 for UK)."
+
+	runUsernameCases(t, []usernameCase{
+		{"WhatsApp", "+905419999999", ""},
+		{"WhatsApp", "+1-415-555-0142", ""},
+		{"WhatsApp", "+44 20 1234 5678", ""},
+		// No default region, so a national number is not a phone number here.
+		{"WhatsApp", "4155550142", want},
+		{"WhatsApp", "johndoe", want},
+		{"WhatsApp", "", want},
+	})
+
+	if strings.Contains(want, "value is not a valid phone number") {
+		t.Errorf("the library's own message leaked into the rule: %q", want)
+	}
+}
