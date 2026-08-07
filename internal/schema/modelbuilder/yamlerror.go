@@ -50,22 +50,54 @@ func yamlSyntaxValidationError(
 		SchemaLocation: nil,
 		YamlLocation:   yamlErrorLocation(parserErr),
 		YamlSource:     source,
-		// TODO(iteration-4): spec §7.3 — {parser_message} is the YAML library's
-		// own text (ruamel upstream, goccy here) and cannot be reproduced
-		// verbatim. Deciding what rendercv-go emits is iteration 4's call and
-		// needs the human gate if the answer is a divergence.
-		Message: fmt.Sprintf("This is not a valid YAML file. %s", parserMessage(parserErr.Error())),
-		Input:   schemaerr.InputEllipsis,
+		Message:        fmt.Sprintf("This is not a valid YAML file. %s", parserMessage(parserErr.Error())),
+		Input:          schemaerr.InputEllipsis,
 	}
+}
+
+// ruamelPhrasing maps goccy's error taxonomy onto ruamel's, for the syntax
+// failures the corpus contains (spec 004 §7.5, plan §6 option B).
+//
+// The two libraries describe the same failures differently: goccy names the
+// token it wanted, ruamel names the construct it was in. Upstream interpolates
+// ruamel's phrasing into a user-visible message, so parity needs the mapping.
+//
+// **The set is deliberately small and grows only when a corpus case is added.**
+// The corpus has exactly one syntax case today — `this: [is, not, a, cv`, whose
+// golden reads `while parsing a flow sequence` — and the other four rows were
+// measured alongside it because they are the shapes a user is next most likely
+// to write. An unmapped failure falls through to goccy's own first line, which
+// is option A for the remainder: wrong, but visibly wrong rather than silently
+// misattributed.
+//
+// Each key is a substring of goccy's message; each value is ruamel's verbatim
+// first line, measured against the vendored Python.
+var ruamelPhrasing = []struct{ goccy, ruamel string }{
+	{"sequence end token", "while parsing a flow sequence"},
+	{"flow map", "while parsing a flow mapping"},
+	{"quoted text", "while scanning a quoted scalar"},
+	{"tab character", "while scanning for the next token"},
+	{"already defined", "while constructing a mapping"},
 }
 
 // parserMessage mirrors rendercv_model_builder.py:87-89: the first line of the
 // parser's own error text, stripped, with a period appended when absent.
+//
+// The first line is mapped onto ruamel's phrasing first, so what upstream
+// interpolates and what the port interpolates agree for the mapped set.
 func parserMessage(text string) string {
 	if i := strings.IndexByte(text, '\n'); i >= 0 {
 		text = text[:i]
 	}
 	text = strings.TrimSpace(text)
+
+	for _, row := range ruamelPhrasing {
+		if strings.Contains(text, row.goccy) {
+			text = row.ruamel
+			break
+		}
+	}
+
 	if text == "" {
 		return "."
 	}
