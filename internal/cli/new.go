@@ -6,7 +6,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
+
+	"github.com/nonamecat19/rendercv-go/internal/schema/models/design"
+	"github.com/nonamecat19/rendercv-go/internal/schema/models/locale"
 )
 
 // samples are the starter CVs `rendercv new` writes, captured from the vendored
@@ -52,6 +56,15 @@ type NewOptions struct {
 
 // New is the `new` command.
 func New(options NewOptions, stdout, stderr io.Writer) int {
+	// **The two flag checks come before anything is printed**, greeting
+	// included (`new_command.py:65-77`): an unknown theme or locale is a
+	// `RenderCVUserError`, which reaches the user as the `Error` panel and
+	// exit 1.
+	if err := checkNewFlags(options); err != nil {
+		failPanel(stdout, err)
+		return exitValidationError
+	}
+
 	if options.Name != "John Doe" {
 		fail(stderr, ErrSampleNameUnsupported)
 		return exitValidationError
@@ -140,4 +153,21 @@ func newBanner(path string) string {
 		{Text: "  2. Run: rendercv-go render " + path},
 	}))
 	return out.String()
+}
+
+// checkNewFlags is `new_command.py:65-77`: the theme first, then the locale,
+// each against the list the schema publishes. The messages are upstream's, with
+// the list joined by `", "` exactly as `str.join` produces it.
+func checkNewFlags(options NewOptions) error {
+	if options.Theme != "" && !slices.Contains(design.BuiltInThemes, options.Theme) {
+		//nolint:staticcheck // upstream's text
+		return fmt.Errorf("Theme %s is not available. Available themes are: %s",
+			options.Theme, strings.Join(design.BuiltInThemes, ", "))
+	}
+	if options.Locale != "" && !slices.Contains(locale.AvailableLocales(), options.Locale) {
+		//nolint:staticcheck // upstream's text
+		return fmt.Errorf("Locale %s is not available. Available locales are: %s",
+			options.Locale, strings.Join(locale.AvailableLocales(), ", "))
+	}
+	return nil
 }
