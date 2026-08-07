@@ -23,7 +23,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 6 | Design & themes (9) + the settings schema | [006](006-design-and-themes/spec.md) | green (with cut scope, see below) | n/a (gated on the 164 `$defs` differential and the override diff, spec §5) |
 | 7 | Locale (English + 21 catalogs) | [007](007-locale/spec.md) | green | n/a (gated on the 45 `$defs` differential and the submodule catalog diff, spec §5) |
 | 8 | Templater (pongo2 env, filters, markdown→typst, processors) | [008](008-templater/spec.md) | green (with cut scope, see below) | n/a (gated on the 52-fragment Jinja differential and 240 unit cases, spec §7) |
-| 9 | Typst renderer (`.typ` emission) + iteration 6's T10 + iteration 8's Wave C | — | — | 0 / 18 |
+| 9 | Typst renderer (`.typ` emission) + iteration 6's T10 + iteration 8's Wave C | — | wip — iteration 8's two under-scoped functions closed; spec, model bridge and goldens left | 0 / 18 |
 | 10 | wazero + WASI typst → PDF, then PNG | — | — | 0 |
 | 11 | Markdown + HTML renderers | — | — | 0 / 4 |
 | 12 | CLI (`new`, `render`, `create-theme`, overrides, watcher) | — | — | 0 |
@@ -402,10 +402,12 @@ the conclusion.
 
 **Two things the verifier found that are open, and are not blockers:**
 
-- **`render_entry_templates` and `process_date` are not ported.** `tasks.md` T9 marks behaviors
-  58–66 done and only the leaf helpers exist; `process.Run` calls `RunFields` directly and its
-  `showTimeSpan` parameter is `_ bool`. Both are pure string functions needing nothing from
-  iteration 9 — they are **under-scoped, not blocked**, and iteration 9 owns them.
+- **`render_entry_templates` and `process_date` were not ported** — `tasks.md` T9 marked behaviors
+  58–66 done and only the leaf helpers existed. Both are pure string functions needing nothing from
+  the renderer, so they were **under-scoped, not blocked**. **Closed at the head of iteration 9**
+  (`EntryDate`, `RenderEntryTemplates`), and the orchestrator is what made the other nine
+  processors reachable at all: before it, `process.Run` called `RunFields` directly and no theme
+  template was ever expanded.
 - **Five `markdown_to_typst` divergences**, none declared: an image is dropped upstream and
   rendered here, raw HTML passes through unescaped upstream, an autolink becomes a link upstream, a
   link title is not stripped here, and a doubled backtick differs. All reachable from ordinary CV
@@ -513,3 +515,4 @@ substitution to iteration 9, with the renderer.
 | 2026-08-07 | Iteration 8 green with cut scope: ten processors, the pongo2 engine, the template transform, and a 52-fragment differential against Jinja. Wave C's corpus cases move to iteration 9 with iteration 6's T10. |
 | 2026-08-07 | Verifier returned FAIL on iteration 8 with three blockers, all fixed. The one that matters: I had argued in spec §8 that the transform could only be checked by a corpus `.typ`, which is false for fragments — and that argument is what hid a trailing-newline bug adding a blank line to every entry and section of every artifact. |
 | 2026-08-07 | Open for the human gate: five measured `markdown_to_typst` divergences — a dropped image, raw HTML, an autolink, a link title and a doubled backtick — all reachable from ordinary CV text. Unlike the parser-choice gate I invented and withdrew, these are user-visible. |
+| 2026-08-07 | Iteration 9 opened by closing iteration 8's debt: `process_date` and `render_entry_templates`, both measured against upstream on a validated `EducationEntry`. The orchestrator is what made the other nine processors reachable — before it, nothing expanded a theme template. |
