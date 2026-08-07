@@ -97,12 +97,13 @@ type BaseEntryWithComplexFields struct {
 func BindEntryWithComplexFields(
 	node *yamldoc.Node,
 	spec []binder.Field,
+	model string,
 	location []string,
 	source schemaerr.YamlSource,
 	reference time.Time,
 ) (*BaseEntryWithComplexFields, []schemaerr.ValidationError) {
 	withDate, errs := bindEntryWithDateFields(
-		node, withExactDateValidators(spec, reference), location, source,
+		node, withExactDateValidators(spec, reference), model, location, source,
 	)
 
 	entry := &BaseEntryWithComplexFields{BaseEntryWithDate: *withDate}

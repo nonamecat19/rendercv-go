@@ -142,7 +142,7 @@ func ValidatePublicationEntry(
 	source schemaerr.YamlSource,
 	_ time.Time,
 ) (*PublicationEntry, []schemaerr.ValidationError) {
-	base, errs := bases.BindEntryWithDate(node, publicationFields(), location, source)
+	base, errs := bases.BindEntryWithDate(node, publicationFields(), "PublicationEntry", location, source)
 
 	entry := &PublicationEntry{BaseEntryWithDate: *base}
 	for _, field := range []struct {

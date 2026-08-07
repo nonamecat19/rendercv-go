@@ -11,7 +11,7 @@ import (
 func bind(t *testing.T, src string) (*bases.BaseEntryWithComplexFields, []schemaerr.ValidationError) {
 	t.Helper()
 	return bases.BindEntryWithComplexFields(
-		parse(t, src), bases.ComplexSpec(nil),
+		parse(t, src), bases.ComplexSpec(nil), "TestEntry",
 		[]string{"cv", "sections", "x", "0"}, schemaerr.SourceMain, reference,
 	)
 }

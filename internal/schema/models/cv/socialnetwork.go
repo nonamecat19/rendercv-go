@@ -351,7 +351,7 @@ func ValidateSocialNetwork(
 ) (*SocialNetwork, []schemaerr.ValidationError) {
 	result, errs := binder.Bind(
 		node,
-		binder.Spec{Fields: socialNetworkFields, Policy: binder.ForbidExtra},
+		binder.Spec{Fields: socialNetworkFields, Policy: binder.ForbidExtra, Model: "SocialNetwork"},
 		location,
 		source,
 	)

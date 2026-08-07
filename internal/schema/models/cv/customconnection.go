@@ -64,7 +64,7 @@ func ValidateCustomConnection(
 ) (*CustomConnection, []schemaerr.ValidationError) {
 	result, errs := binder.Bind(
 		node,
-		binder.Spec{Fields: customConnectionFields, Policy: binder.ForbidExtra},
+		binder.Spec{Fields: customConnectionFields, Policy: binder.ForbidExtra, Model: "CustomConnection"},
 		location,
 		source,
 	)

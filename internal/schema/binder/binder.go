@@ -30,10 +30,6 @@ const (
 
 // Error codes. The user-visible text for each is pydantic's, not RenderCV's,
 // and is therefore deferred with the other borrowed strings.
-//
-// TODO(iteration-4): spec §7.3 — pin the text of CodeMissing, CodeExtraForbidden
-// and CodeModelType against upstream's rendered output, and record a divergence
-// if it cannot be reproduced.
 const (
 	CodeMissing        schemaerr.Code = "missing"
 	CodeExtraForbidden schemaerr.Code = "extra_forbidden"
@@ -54,10 +50,12 @@ const (
 const (
 	messageMissing        = "Field required"
 	messageExtraForbidden = "Extra inputs are not permitted"
-	messageModelType      = "Input should be a valid dictionary"
+	// messageModelType is pydantic's text without its suffix; Spec.Model supplies
+	// the rest (spec 004 §4.32).
+	messageModelType = "Input should be a valid dictionary"
 
-	// TODO(iteration-4): spec 003 §4.4 and §4.5 — these two are pydantic's own
-	// text as well, and belong with the borrowed strings of spec 002 §7.3.
+	// Pydantic's own text, both measured and both dictionary keys — the
+	// pipeline replaces them, so these are what it must see.
 	messageStringType = "Input should be a valid string"
 	messageListType   = "Input should be a valid list"
 
@@ -216,6 +214,15 @@ func (v ValueType) branches() []dateBranch {
 type Spec struct {
 	Fields []Field
 	Policy Policy
+
+	// Model is the class name pydantic names in its `model_type` message when the
+	// value is not a mapping (spec 004 §4.32). Every model that can appear as a
+	// mapping value has its own, so the text is model-specific and not a
+	// constant: `cv: 5` says "or instance of Cv".
+	//
+	// An empty Model omits the suffix, which no upstream model does — it is the
+	// zero value for a Spec built before this field existed.
+	Model string
 }
 
 // Result is what a successful (or partially successful) bind produced.
@@ -258,7 +265,7 @@ func Bind(
 			SchemaLocation: append([]string(nil), location...),
 			YamlLocation:   spanOf(node),
 			YamlSource:     source,
-			Message:        messageModelType,
+			Message:        modelTypeMessage(spec.Model),
 			Input:          inputOf(node),
 		}}
 	}
@@ -327,6 +334,15 @@ func Bind(
 	}
 
 	return result, errs
+}
+
+// modelTypeMessage names the target model, which pydantic does: `cv: null` and
+// `cv: 5` both report `Input should be a valid dictionary or instance of Cv.`
+func modelTypeMessage(model string) string {
+	if model == "" {
+		return messageModelType
+	}
+	return messageModelType + " or instance of " + model
 }
 
 // checkValue applies a field's declared shape to a present value, per the table

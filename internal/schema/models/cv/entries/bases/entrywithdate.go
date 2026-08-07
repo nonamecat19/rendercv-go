@@ -136,10 +136,11 @@ func isLeapYear(year int) bool {
 func BindEntryWithDate(
 	node *yamldoc.Node,
 	spec []binder.Field,
+	model string,
 	location []string,
 	source schemaerr.YamlSource,
 ) (*BaseEntryWithDate, []schemaerr.ValidationError) {
-	return bindEntryWithDateFields(node, spec, location, source)
+	return bindEntryWithDateFields(node, spec, model, location, source)
 }
 
 // bindEntryWithDateFields binds an already-ordered field list. It exists so that
@@ -149,10 +150,11 @@ func BindEntryWithDate(
 func bindEntryWithDateFields(
 	node *yamldoc.Node,
 	fields []binder.Field,
+	model string,
 	location []string,
 	source schemaerr.YamlSource,
 ) (*BaseEntryWithDate, []schemaerr.ValidationError) {
-	base, errs := BindEntry(node, fields, location, source)
+	base, errs := BindEntry(node, fields, model, location, source)
 
 	entry := &BaseEntryWithDate{BaseEntry: *base}
 	date, ok := base.Field("date")

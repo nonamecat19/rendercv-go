@@ -53,7 +53,7 @@ func ValidateExperienceEntry(
 	reference time.Time,
 ) (*ExperienceEntry, []schemaerr.ValidationError) {
 	base, errs := bases.BindEntryWithComplexFields(
-		node, experienceFields(), location, source, reference,
+		node, experienceFields(), "ExperienceEntry", location, source, reference,
 	)
 
 	entry := &ExperienceEntry{BaseEntryWithComplexFields: *base}

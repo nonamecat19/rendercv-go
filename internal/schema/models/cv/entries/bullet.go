@@ -39,7 +39,7 @@ func ValidateBulletEntry(
 	source schemaerr.YamlSource,
 	_ time.Time,
 ) (*BulletEntry, []schemaerr.ValidationError) {
-	base, errs := bases.BindEntry(node, bulletOwnFields, location, source)
+	base, errs := bases.BindEntry(node, bulletOwnFields, "BulletEntry", location, source)
 
 	entry := &BulletEntry{BaseEntry: *base}
 	if bullet, ok := base.Field("bullet"); ok && bullet != nil && bullet.Kind != yamldoc.KindNull {
