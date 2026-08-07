@@ -11,6 +11,7 @@ import (
 
 	"github.com/nonamecat19/rendercv-go/internal/renderer/bridge"
 	"github.com/nonamecat19/rendercv-go/internal/renderer/document"
+	"github.com/nonamecat19/rendercv-go/internal/renderer/templater"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/valctx"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
@@ -48,14 +49,22 @@ func TestCorpusTypstIsByteIdentical(t *testing.T) {
 			dir := filepath.Join(root, entry.Name())
 			path := filepath.Join(dir, "cv.yaml")
 			input := readFixture(t, path)
-			want := readFixture(t, filepath.Join(dir, "expected.typ"))
 
-			got := renderFixture(t, input, path)
-			if got == want {
-				return
+			for _, artifact := range []struct {
+				name   string
+				format templater.Format
+			}{
+				{"expected.typ", templater.FormatTypst},
+				{"expected.md", templater.FormatMarkdown},
+			} {
+				want := readFixture(t, filepath.Join(dir, artifact.name))
+				got := renderFixture(t, input, path, artifact.format)
+				if got == want {
+					continue
+				}
+				t.Errorf("the rendered %s differs from upstream's:\n%s",
+					artifact.name, firstDifference(want, got))
 			}
-			t.Errorf("the rendered .typ differs from upstream's:\n%s",
-				firstDifference(want, got))
 		})
 	}
 }
@@ -63,7 +72,7 @@ func TestCorpusTypstIsByteIdentical(t *testing.T) {
 // renderFixture validates and renders one case. The input **path** is threaded
 // through because two things resolve against it: `cv.photo`'s existence check,
 // and the loader's search for a user template override.
-func renderFixture(t *testing.T, input, path string) string {
+func renderFixture(t *testing.T, input, path string, format templater.Format) string {
 	t.Helper()
 	node, err := yamlreader.ReadString(input)
 	if err != nil {
@@ -78,7 +87,7 @@ func renderFixture(t *testing.T, input, path string) string {
 		t.Fatalf("the input did not validate: %v", errs)
 	}
 
-	out, err := document.Render(bridge.Resolve(model, probeDate), document.Options{
+	out, err := document.Render(bridge.Resolve(model, probeDate), format, document.Options{
 		InputDir: filepath.Dir(path),
 	})
 	if err != nil {

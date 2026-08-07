@@ -8,6 +8,7 @@ import (
 
 	"github.com/nonamecat19/rendercv-go/internal/renderer/bridge"
 	"github.com/nonamecat19/rendercv-go/internal/renderer/document"
+	"github.com/nonamecat19/rendercv-go/internal/renderer/templater"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/valctx"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
@@ -29,7 +30,7 @@ func render(t *testing.T, input string) string {
 		t.Fatalf("the document did not validate: %v", errs)
 	}
 
-	out, err := document.Render(bridge.Resolve(model, now), document.Options{})
+	out, err := document.Render(bridge.Resolve(model, now), templater.FormatTypst, document.Options{})
 	if err != nil {
 		t.Fatalf("Render: %v", err)
 	}
@@ -127,7 +128,7 @@ cv:
 		t.Fatalf("the document did not validate: %v", errs)
 	}
 
-	out, err := document.Render(bridge.Resolve(model, now), document.Options{})
+	out, err := document.Render(bridge.Resolve(model, now), templater.FormatTypst, document.Options{})
 	if !errors.Is(err, document.ErrPhotoDownloadUnsupported) {
 		t.Fatalf("Render = %q, %v; want ErrPhotoDownloadUnsupported", out, err)
 	}
