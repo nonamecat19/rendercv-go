@@ -343,7 +343,12 @@ func checkValue(
 	source schemaerr.YamlSource,
 ) []schemaerr.ValidationError {
 	if field.Value == ValueAny {
-		return nil
+		// A field with no declared shape can still carry a constraint. That is
+		// how a required-but-nullable field works: an explicit null is its
+		// declared default and must pass, so it cannot be ValueString, but a
+		// value it does carry is still checked. checkScalar skips nulls and
+		// non-scalars itself.
+		return checkScalar(field, value, location, source)
 	}
 
 	isNull := value == nil || value.Kind == yamldoc.KindNull

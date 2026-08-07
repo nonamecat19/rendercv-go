@@ -1,6 +1,7 @@
 package binder_test
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -236,5 +237,42 @@ func TestValueAnyIsTheZeroValue(t *testing.T) {
 	var field binder.Field
 	if field.Value != binder.ValueAny {
 		t.Errorf("zero Field.Value = %d, want ValueAny", field.Value)
+	}
+}
+
+// A field with no declared shape can still carry a scalar constraint.
+//
+// That combination is what a required-but-nullable field needs: an explicit null
+// is its declared default and must pass, so it cannot be ValueString, but a
+// value it does carry is still checked. `CustomConnection.url` is the case.
+func TestScalarRunsForValueAny(t *testing.T) {
+	failing := errors.New("nope")
+	spec := binder.Spec{Fields: []binder.Field{{
+		Name:       "url",
+		Required:   true,
+		Scalar:     func(string, bool) error { return failing },
+		ScalarCode: "custom_code",
+	}}}
+
+	tests := []struct {
+		name      string
+		src       string
+		wantCount int
+	}{
+		{name: "a value is checked", src: "url: something\n", wantCount: 1},
+		{name: "an explicit null is not", src: "url: null\n", wantCount: 0},
+		{name: "a mapping is not", src: "url:\n  a: 1\n", wantCount: 0},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, errs := binder.Bind(parse(t, test.src), spec, nil, schemaerr.SourceMain)
+			if len(errs) != test.wantCount {
+				t.Fatalf("errs = %+v, want %d", errs, test.wantCount)
+			}
+			if test.wantCount == 1 && errs[0].Code != "custom_code" {
+				t.Errorf("code = %q, want the registered one", errs[0].Code)
+			}
+		})
 	}
 }
