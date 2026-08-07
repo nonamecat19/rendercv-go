@@ -185,3 +185,50 @@ func TestSectionTitlesAreProcessed(t *testing.T) {
 		t.Errorf("entry = %v", got.Sections[0].Entries[0].Fields["a"])
 	}
 }
+
+// **Entry templates expand before the field processors run**, which is the
+// ordering spec 008 §4A behavior 23 pins and which `process.Run` could not
+// honour until RenderEntryTemplates existed — before that it called RunFields
+// directly and no template was ever expanded.
+func TestRunExpandsEntryTemplatesFirst(t *testing.T) {
+	model := baseModel()
+	model.Phrases = map[string]string{"degree_with_area": "DEGREE in AREA"}
+	model.EntryTemplates = map[string]map[string]string{
+		"education_entry": {"main_column": "**INSTITUTION**, AREA"},
+	}
+	model.Sections = []process.Section{{
+		Title:     "Education",
+		EntryType: "EducationEntry",
+		Entries: []process.Entry{{Fields: map[string]any{
+			"institution": "MIT", "area": "CS",
+		}}},
+	}}
+
+	got := process.Run(model, process.FormatTypst)
+	column := got.Sections[0].Entries[0].Fields["main_column"]
+
+	// The template expanded **and then** the Typst conversion ran over the
+	// result, so the `**` became `#strong[…]` rather than being escaped.
+	if column != "#strong[MIT], CS" {
+		t.Errorf("main_column = %#v, want %q", column, "#strong[MIT], CS")
+	}
+}
+
+// The entry type's snake-case name is what `design.templates` is keyed by, so a
+// type with no block is passed through — `TextEntry`'s case.
+func TestRunPassesThroughAnUntemplatedEntryType(t *testing.T) {
+	model := baseModel()
+	model.EntryTemplates = map[string]map[string]string{
+		"education_entry": {"main_column": "X"},
+	}
+	model.Sections = []process.Section{{
+		EntryType: "TextEntry",
+		Entries:   []process.Entry{{Text: "a_b", IsText: true}},
+	}}
+
+	got := process.Run(model, process.FormatTypst)
+	if got.Sections[0].Entries[0].Text != `a\_b` {
+		t.Errorf("= %#v, want the text processed and not templated",
+			got.Sections[0].Entries[0].Text)
+	}
+}
