@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nonamecat19/rendercv-go/internal/schema/binder"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/valctx"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
@@ -68,8 +67,11 @@ func TestUnknownTopLevelKeyRejected(t *testing.T) {
 			if len(errs) != 1 {
 				t.Fatalf("errs = %+v, want exactly one", errs)
 			}
-			if errs[0].Code != binder.CodeExtraForbidden {
-				t.Errorf("code = %q, want %q", errs[0].Code, binder.CodeExtraForbidden)
+			// Upstream's literal, not `binder.CodeExtraForbidden`: asserting the
+			// Go constant would stay green if the constant were changed to the
+			// wrong value (spec 004 §3.9c behavior 33h).
+			if errs[0].Code != "extra_forbidden" {
+				t.Errorf("code = %q, want %q", errs[0].Code, "extra_forbidden")
 			}
 			if len(errs[0].SchemaLocation) != 1 || errs[0].SchemaLocation[0] != "unknown" {
 				t.Errorf("schema location = %v, want [unknown]", errs[0].SchemaLocation)

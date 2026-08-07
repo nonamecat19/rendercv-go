@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nonamecat19/rendercv-go/internal/schema/binder"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv/entries"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
@@ -123,8 +122,10 @@ func TestNormalMissingField(t *testing.T) {
 	if len(errs) != 1 {
 		t.Fatalf("errs = %+v, want exactly one", errs)
 	}
-	if errs[0].Code != binder.CodeMissing {
-		t.Errorf("code = %q, want %q", errs[0].Code, binder.CodeMissing)
+	// Upstream's literal rather than `binder.CodeMissing`, for the reason
+	// TestNormalDateRejections spells out below.
+	if errs[0].Code != "missing" {
+		t.Errorf("code = %q, want %q", errs[0].Code, "missing")
 	}
 	assertNormalStrings(
 		t, "schema location", errs[0].SchemaLocation, append(normalLocation(), "name"),
@@ -138,8 +139,8 @@ func TestNormalNullNameIsStringType(t *testing.T) {
 	if len(errs) != 1 {
 		t.Fatalf("errs = %+v, want exactly one", errs)
 	}
-	if errs[0].Code != binder.CodeStringType {
-		t.Errorf("code = %q, want %q", errs[0].Code, binder.CodeStringType)
+	if errs[0].Code != "string_type" {
+		t.Errorf("code = %q, want %q", errs[0].Code, "string_type")
 	}
 	if entry.Name != nil {
 		t.Errorf("name = %+v, want nil for a null value", entry.Name)
