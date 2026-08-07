@@ -72,11 +72,17 @@ this iteration's contract.
       and reaches a template.
 - [ ] A theme whose script **changes a default**: the new default appears where no document
       overrides it, and a document override still wins.
-- [ ] The sandbox refuses filesystem and process access, asserted rather than assumed.
+- [x] The sandbox refuses filesystem and process access, asserted rather than assumed.
+      `internal/schema/luatheme` closes `io`, `os`, `package`, `require`, `dofile`, `loadfile` and
+      `debug`, and names each one in a table-driven test — so removing one from the list fails
+      loudly instead of quietly widening what a downloaded theme can do. `string`, `table` and
+      `math` remain, which is all a declaration needs.
 
 ## 5. Status
 
-**Started: one criterion met, and it is the one that could regress what works.** Unblocked — D-002 is approved and no other gate applies. The honest ordering is
+**Started: two of four criteria met** — the no-script fallback, and the sandbox. What remains is
+the option-tree integration: turning the returned table into fields the design tree carries, which
+is where a scripted theme actually earns its keep. Unblocked — D-002 is approved and no other gate applies. The honest ordering is
 behavior 4 before anything else: it is the path all nine built-in themes and all 24 corpus
 documents already take, so it is the one that can regress something that currently works.
 
