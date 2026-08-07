@@ -138,9 +138,18 @@ func (c *Cv) validateFields(
 		errs = append(errs, fieldErrs...)
 	}
 
-	// Spec §3.46: the photo union, path interpretation first.
+	// Spec §3.46: the photo union, path interpretation first. Only the path
+	// arm reports — see ResolvePhoto for why the URL record must not exist.
 	if c.Photo != nil && c.Photo.Kind != yamldoc.KindNull {
-		c.PhotoValue = ResolvePhoto(c.Photo.Raw, opts.Context)
+		photo, failure := ResolvePhoto(c.Photo.Raw, opts.Context)
+		c.PhotoValue = photo
+		if failure != nil {
+			located := *failure
+			located.SchemaLocation = fieldLocation(location, "photo")
+			located.YamlSource = source
+			located.YamlLocation = &c.Photo.Span
+			errs = append(errs, located)
+		}
 	}
 
 	if c.SocialNetworks != nil && c.SocialNetworks.Kind == yamldoc.KindSequence {

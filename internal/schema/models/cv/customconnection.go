@@ -1,7 +1,10 @@
 package cv
 
 import (
+	"errors"
+
 	"github.com/nonamecat19/rendercv-go/internal/schema/binder"
+	"github.com/nonamecat19/rendercv-go/internal/schema/httpurl"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/inputpath"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/valctx"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
@@ -93,15 +96,39 @@ type Photo struct {
 // and only when it fails is raw treated as a URL. This is the only field in
 // this iteration with a non-default union resolution order (spec §3.46).
 //
-// TODO(iteration-4): like the pass-through element validators of
-// scalarorlist.go, the URL branch does not yet apply `pydantic.HttpUrl`
-// validation (spec §7); any string that fails the path interpretation is
-// accepted as a URL. Wiring this into `Cv.Validate` is deferred the same way
-// scalar-or-list routing was in T18 — the resolver exists and is tested on
-// its own; the spine connects it to the model when the renderer needs it.
-func ResolvePhoto(raw string, ctx *valctx.ValidationContext) *Photo {
-	if path, err := inputpath.ResolveExistingPath(raw, ctx); err == nil {
-		return &Photo{Kind: PhotoKindPath, Path: path}
+// **When both arms fail, only the path failure is reported, and that is
+// deliberate.** Upstream evaluates both and emits two records at
+// `("cv", "photo")` — the path failure, then a URL parse failure — and its
+// deduplication keeps the first. The port emits the survivor directly
+// (spec 004 plan §2.2 consequence 2).
+//
+// This is the one site of the three where the surviving *message* differs
+// between the branches, so getting it wrong is visible:
+// `photo: photo_doesnt_exist.jpg` must report spec 004 §4.25's
+// "The file `…` does not exist." and never §4.9's URL text
+// (`expected_errors.yaml:14-18`).
+//
+// A URL that parses is a success, not a failure with a nicer message: the union
+// only fails when neither arm accepts the value.
+func ResolvePhoto(raw string, ctx *valctx.ValidationContext) (*Photo, *schemaerr.ValidationError) {
+	path, pathErr := inputpath.ResolveExistingPath(raw, ctx)
+	if pathErr == nil {
+		return &Photo{Kind: PhotoKindPath, Path: path}, nil
 	}
-	return &Photo{Kind: PhotoKindURL, URL: raw}
+
+	if _, urlErr := httpurl.Validate(raw); urlErr == nil {
+		return &Photo{Kind: PhotoKindURL, URL: raw}, nil
+	}
+
+	// Both arms failed. Report the path one; the URL record is the one dedup
+	// would have thrown away.
+	var failure *schemaerr.ValidationError
+	if errors.As(pathErr, &failure) {
+		reported := *failure
+		return nil, &reported
+	}
+
+	// The path arm failed for a non-validation reason — no resolution base, say —
+	// which is not something to report against the field.
+	return &Photo{Kind: PhotoKindURL, URL: raw}, nil
 }
