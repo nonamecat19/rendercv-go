@@ -239,6 +239,31 @@ func checkUsername(
 	}}
 }
 
+// messageUnknownNetwork is pydantic's `literal_error` enumeration for
+// `SocialNetworkName` (social_network.py:13-31): every name in the literal
+// type's declared order, comma-separated, with `or` before the last and no
+// serial comma. No dictionary row matches it, so the pipeline appends a period.
+//
+// Built from SocialNetworkNames rather than written out, so it cannot drift from
+// the list it enumerates — the failure mode a hand-written string has is naming
+// sixteen networks after a seventeenth is added.
+var messageUnknownNetwork = buildUnknownNetworkMessage()
+
+func buildUnknownNetworkMessage() string {
+	quoted := make([]string, 0, len(SocialNetworkNames))
+	for _, name := range SocialNetworkNames {
+		quoted = append(quoted, "'"+string(name)+"'")
+	}
+	switch len(quoted) {
+	case 0:
+		return "Input should be a valid social network"
+	case 1:
+		return "Input should be " + quoted[0]
+	}
+	return "Input should be " +
+		strings.Join(quoted[:len(quoted)-1], ", ") + " or " + quoted[len(quoted)-1]
+}
+
 // urlPrefixes is `url_dictionary` (social_network.py:33-50): the profile-URL
 // prefix each network's username is appended to.
 //
@@ -349,7 +374,7 @@ func ValidateSocialNetwork(
 			SchemaLocation: fieldLocation(location, "network"),
 			YamlLocation:   &span,
 			YamlSource:     source,
-			Message:        "Input should be one of the supported social networks",
+			Message:        messageUnknownNetwork,
 			Input:          schemaerr.RenderInput(value),
 		})
 		return model, errs
