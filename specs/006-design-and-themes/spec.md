@@ -78,11 +78,19 @@ repository: compiled-in data plus a **submodule-diff test**, exactly as iteratio
 
    `Bullet`'s members are non-ASCII and appear literally in the schema (spec 005 §3.4).
 
-   A seventh union is **not** in the table because it is not a named alias: `header.photo_position`
-   is an inline `Literal["left", "right"]`, so it has no `$defs` entry and is emitted inline. Two
-   of the six are named and reached once each, and pydantic inlines those too — `BodyAlignment` has
-   no `$defs` entry either, while `Alignment`, reached twice, does. The rule is usage count, not
-   whether the alias has a name.
+   **Whether a union gets a `$defs` entry is decided at the use site, not at the declaration.** A
+   field annotated with the alias — `size: PageSize` (`:32`) — gets one; a field annotated with the
+   literal spelled out gets none, and there are two of those: `typography.alignment` (`:241`) and
+   `header.photo_position` (`:380`).
+
+   That is why `BodyAlignment` is declared at `:11` and has **no** `$defs` entry: nothing ever
+   annotates a field with it. Five of the six named aliases are used and appear;
+   `BodyAlignment` is written and unused, and its members reach the schema inlined at
+   `typography.alignment` instead. `photo_position` is an anonymous `Literal` and is inlined too.
+
+   *(An earlier revision of this paragraph said the rule was usage count — that `Alignment` appears
+   because it is used twice and `PageSize`... would then not. `PageSize` is used once and appears,
+   which disproves it. Recorded rather than edited away: the wrong rule fit four of the six.)*
 
 ---
 

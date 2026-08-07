@@ -17,8 +17,9 @@ var (
 	// schema literally, which spec 005 §3.4 covers in the encoder.
 	Bullets = []string{"●", "•", "◦", "-", "◆", "★", "■", "—", "○"}
 
-	// BodyAlignments is `BodyAlignment` (`:11`), reached by
-	// `typography.alignment`.
+	// BodyAlignments is `BodyAlignment` (`:11`). **The alias is declared and
+	// never used** — `typography.alignment` (`:241`) spells the literal out — so
+	// it has no `$defs` entry and these members reach the schema inlined.
 	BodyAlignments = []string{"left", "justified", "justified-with-no-hyphenation"}
 
 	// Alignments is `Alignment` (`:12`), reached by `header.alignment` and by
@@ -47,8 +48,8 @@ var (
 	PageSizes = []string{"a4", "a5", "us-letter", "us-executive"}
 
 	// PhotoPositions is `header.photo_position`'s inline `Literal["left",
-	// "right"]`. It is **not** a named alias upstream, which is why it has no
-	// `$defs` entry and is emitted inline — the distinction matters to the
-	// schema and not to validation.
+	// "right"]` (`:380`). Anonymous, so inlined for the same reason
+	// `BodyAlignments` is — the distinction matters to the schema and not to
+	// validation.
 	PhotoPositions = []string{"left", "right"}
 )
