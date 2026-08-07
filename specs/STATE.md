@@ -28,7 +28,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 11 | Markdown + HTML renderers | [011](011-markdown-and-html/spec.md) | **green** — both documents byte-identical on all 24 cases | 24 / 24 md, 24 / 24 html |
 | 12 | CLI (`new`, `render`, `create-theme`, overrides, watcher) | [012](012-cli/spec.md) | **started** — `render` and `new` are wired; `new`'s seven starter CVs are byte-identical against their goldens. `create-theme` and the six help panels are not written. Every parity number is blocked on one of the three gates below | 0 (see below) |
 | 13 | Parity closeout (sample generator, version, error handler, packaging) | — | — | 0 |
-| 14 | Lua-scripted custom themes (D-002) + the two folder messages | [014](014-lua-custom-themes/spec.md) | **criteria met and wired, NOT verified** — `bridge.Resolve` finds and runs `<theme>/init.lua`; no fresh-context pass and no corpus case exercises it. A failing script is silent, pending the gated message text | 4 / 4 criteria |
+| 14 | Lua-scripted custom themes (D-002) + the two folder messages | [014](014-lua-custom-themes/spec.md) | **verified — FAIL.** Three of four blockers fixed; the rest is open work, listed below. Not green | 4 / 4 criteria, 11 findings |
 
 ## Parity axes
 
@@ -653,6 +653,44 @@ port has now produced three times and disproved three times.
 So iteration 10 is **implementable now**, and its first unit is small: build typst for
 `wasm32-wasip1`, compile one of the 24 byte-identical `.typ` documents, and diff its extracted text
 against upstream's PDF for the same case. The fonts fail loudly there or not at all.
+
+## Iteration 14 was verified and it failed — 11 findings
+
+A fresh context reviewed the Lua work and returned **FAIL with four blockers**. Running it was the
+right call: two of the four were *denial of service from a downloaded file*, and one silently
+changed a built-in theme's artifact.
+
+**Fixed, each pinned by a test:**
+
+| # | Blocker | Fix |
+|---|---|---|
+| 1 | `themeScript` read `<theme>/init.lua` for **every** theme, built-ins included. A `classic/init.lua` beside a CV changed the artifact — measured as `page-size: "a5"` where upstream emits `"us-letter"` — without the document mentioning it. | `design.IsBuiltinTheme` gates the lookup, mirroring upstream's discriminator-first order (`design.py:36-50`). Four built-ins asserted. |
+| 3 | A **cyclic table killed the process**: `local t={} t.self=t` overflowed the stack, and Go's stack overflow is a `fatal error`, not a panic — unrecoverable, exit 2. | Depth bound of 32 with `ErrTooDeep`; the design tree is four deep. |
+| 4 | **No execution limit at all**: `while true do end` hung `render` forever. | A 2-second context budget on the `LState`. A declaration needs microseconds. |
+| 9 | `print` wrote to the process's real stdout, prepending a line to the result panel — CLI stdout is parity axis 2. | `print`, `_printregs`, `load`, `loadstring`, `setfenv`, `getfenv`, `collectgarbage`, `newproxy`, `module` and `channel` added to the blocklist. |
+
+**Open, and honestly worse than the fixes:**
+
+- **Blocker 2 — a mis-typed script option emits a wrong document containing Go internals**
+  (`page-size: "<map[string]interface {} Value>"`), exit 0, "Your CV is ready". Narrowed by fix 1
+  to custom themes only, **not eliminated**.
+- **Finding 5 — `luatheme.Validate` is dead code.** Nothing calls it. It is exactly the check that
+  would catch blocker 2, and spec 014 §4 criterion 2 claims it runs. That claim is false and the
+  spec needs correcting. This is the *unreached-code* defect this port has now hit four times.
+- **Finding 6** — `ErrSandboxed` is exported, documented, and never returned.
+- **Finding 7** — D-002's own stated rules are unimplemented: folder existence, a `*.j2.typ`
+  requirement, the theme-name pattern. A theme naming a folder that does not exist renders happily
+  where upstream reports an error.
+- **Finding 11** — spec 014 undercounts the folder messages: upstream has **five** distinct
+  user-visible messages on this path, not two.
+- **Finding 8** — `33e9ab6` bundles `luatheme/options.go` with the `Effective` →
+  `EffectiveWithScript` change that every built-in theme flows through, and lands a criterion's
+  pinning test in the same commit as the code it pins. Recorded, not rewritten.
+
+**Iteration 14 is therefore not green**, and the verifier also noted what makes it hard to make
+green: the port requires `init.lua` where upstream requires `__init__.py` plus a `*.j2.typ` folder,
+so **there is no input on which both sides do the same thing** — criteria 2 and 3 have no upstream
+oracle at all.
 
 ## Two measured behaviors awaiting the human gate
 
