@@ -35,7 +35,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | Axis | Gate command | Status |
 |---|---|---|
 | 1 — artifacts byte-identical | `just test-parity` | **72 passing comparisons on the corpus, and the corpus is narrower than that number suggests** — 8 of the 24 cases share one byte-identical `.md`, so there are 14 distinct Markdown documents, and a verifier broke the HTML with a double quote. Every text artifact — 24/24 `.typ`, `.md` and `.html` — byte-identical against the vendored Python (`TestCorpusTypstIsByteIdentical`), over the 21 corpus inputs plus three the corpus cannot express. PDF and PNG are iteration 10's. The 15 CLI-driven artifact cases stay red until iteration 12: they shell `rendercv-go render`, which does not exist. |
-| 2 — CLI surface | `just test-parity` | **1/21 passing** — `cli_version`, the first green case in the whole parity suite. It is the only CLI output carrying no `rendercv` token, which is why it is reachable before the binary-name question below is answered. |
+| 2 — CLI surface | `just test-parity` | **6/21 passing** — `cli_version`, the first green case in the whole parity suite. It is the only CLI output carrying no `rendercv` token, which is why it is reachable before the binary-name question below is answered. |
 | 3 — JSON Schema | `just schema-diff` | **green.** All 227 `$defs` byte-identical; the command exits 0. The oracle is `tools/genschema`, not the parity suite — `TestSchemaParity` shells `rendercv-go schema` and stays red until iteration 12. |
 | 4 — validation errors | `just test-parity` | **verified — FAIL.** The 25-record differential is real and mutation-discriminating, but it gates far less than the axis: 6 of 13 dictionary rows, 2 of 8 username rules. Two blockers open (below). 0/7 corpus cases. |
 
@@ -599,10 +599,15 @@ indexed form `render_override_indexed` uses.
 Verified by hand: `render cv.yaml --settings.current_date 2025-03-05` now emits
 `Last updated in Mar 2025` where it emitted `Aug 2026`.
 
-**Still open, and it is not the overrides:** through the conformance harness the same case still
-renders `Aug 2026`, though `case.json` carries the pin and the identical command works from a
-shell. So something in the harness path differs from a direct invocation — the next thing to trace,
-and unrelated to the override walk itself.
+**Traced and closed.** The harness reads its arguments from `testdata/corpus.json`, not from the
+golden's `case.json` — `case.json` is a *record* of the run, not its input. The pin was reaching
+the generator and not the replay. Pinning the 27 `render` cases in `corpus.json` makes both sides
+read the same source; the goldens did not change at all, which is the proof the two were already
+consistent.
+
+**Parity: 41 red → 36.** Six cases now pass — `render_typst_only`, `render_quiet`,
+`render_custom_paths`, `render_override_indexed`, `render_override_theme` and `cli_version`. Axis 1
+and axis 2 both have real passing cases through the binary for the first time.
 
 That is why `--settings.current_date` has no effect, and it means `render_override_scalar`,
 `render_override_indexed` and `render_override_theme` cannot pass either — four cases, one stub.
