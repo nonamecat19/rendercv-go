@@ -10,6 +10,7 @@ package binder
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
@@ -436,7 +437,15 @@ func checkScalar(
 		return nil
 	}
 
-	err := field.Scalar(value.Raw, value.Kind == yamldoc.KindInt)
+	// A bool satisfies the `int` arm and pydantic's lax mode converts it, so the
+	// constraint sees the integer, not the spelling: `date: true` is accepted and
+	// stored as `1`, `date: false` as `0` (spec 004 §3.9b behavior 33g, measured).
+	raw, isInteger := value.Raw, value.Kind == yamldoc.KindInt
+	if value.Kind == yamldoc.KindBool {
+		raw, isInteger = boolAsInteger(raw), true
+	}
+
+	err := field.Scalar(raw, isInteger)
 	if err == nil {
 		return nil
 	}
@@ -453,6 +462,16 @@ func checkScalar(
 		Message:        err.Error(),
 		Input:          value.Raw,
 	}}
+}
+
+// boolAsInteger spells a KindBool node the way pydantic's lax mode coerces it.
+// The resolver admits exactly six spellings and they differ only in case
+// (yamlreader/resolve.go:22-24), so the first letter decides.
+func boolAsInteger(raw string) string {
+	if strings.HasPrefix(raw, "t") || strings.HasPrefix(raw, "T") {
+		return "1"
+	}
+	return "0"
 }
 
 // isTextKind reports whether a node's kind binds to a Python `str`.
