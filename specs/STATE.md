@@ -716,8 +716,8 @@ diff — but **the corpus is much narrower than 24 suggests**: 8 cases share one
 
 | # | Blocker | Status |
 |---|---|---|
-| 1 | **goldmark escapes `"` as `&quot;`; python-markdown does not.** Any double quote anywhere in a CV produces a differing `.html`. Reproduced independently: upstream `<p>He said "hello" to me.</p>`, port `<p>He said &quot;hello&quot; to me.</p>`. | **open** |
-| 2 | **goldmark drops raw HTML** (`WithUnsafe` off); python-markdown passes it through. `<b>x</b>` becomes `<!-- raw HTML omitted -->`, and a `<tag>` in ordinary prose triggers it. | **open** |
+| 1 | **goldmark escapes `"` as `&quot;`; python-markdown does not.** Any double quote anywhere in a CV produces a differing `.html`. Reproduced independently: upstream `<p>He said "hello" to me.</p>`, port `<p>He said &quot;hello&quot; to me.</p>`. | **open, and now pinned red**: `process/html_conformance_test.go` differentials against CPython's own output and fails on exactly this case. A blanket `&quot;`→`"` replacement is **wrong** — python-markdown escapes quotes inside attribute values — so the fix is a custom goldmark writer, not a post-pass. |
+| 2 | **goldmark drops raw HTML** (`WithUnsafe` off); python-markdown passes it through. `<b>x</b>` becomes `<!-- raw HTML omitted -->`, and a `<tag>` in ordinary prose triggers it. | **fixed** — `WithUnsafe` matches python-markdown's passthrough. Not a security decision: the input is the user's own CV, which the port already renders verbatim into Typst. |
 | 3 | **YAML block scalars are not parsed at all** — `key: \|` and `key: >` yield the raw indicator. A literal-block `TextEntry` renders as `\|` in **all three** artifacts. This is iteration 2's reader, not iteration 11's, and it is the most serious of the three. | **open** |
 
 **`plan.md` §2's "this is a library substitution and not a divergence" is now known to be wrong**,
