@@ -44,6 +44,21 @@ CASES: dict[str, list[tuple[str, dict]]] = {
             {"institution": "X", "area": "Y", "start_date": 2000, "end_date": 2005},
         ),
         ("empty_string", {"institution": "X", "area": "Y", "degree": ""}),
+        # `check_and_adjust_dates`' three rewrites. The fixture had none of
+        # them, which is why a lone `start_date` blanked a whole entry and
+        # nobody noticed.
+        (
+            "date_beats_range",
+            {
+                "institution": "X",
+                "area": "Y",
+                "date": "2021-01-01",
+                "start_date": "2022-01-01",
+                "end_date": "2023-01-01",
+            },
+        ),
+        ("lone_start_date", {"institution": "X", "area": "Y", "start_date": "2020-05"}),
+        ("lone_end_date", {"institution": "X", "area": "Y", "end_date": "2020-05"}),
         ("extra_key", {"institution": "X", "area": "Y", "supervisor": "Dr. Who"}),
     ],
     "ExperienceEntry": [
