@@ -5,6 +5,7 @@ package locale_test
 import (
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 
@@ -132,4 +133,32 @@ func contains(values []string, want string) bool {
 		}
 	}
 	return false
+}
+
+// `Languages` is in **upstream's union order**, not merely upstream's set
+// (spec 007 §5 criterion 2).
+//
+// `discover_other_locales` globs `other_locales/` and sorts by filename
+// (locale.py:26-38), and `Locale` puts `EnglishLocale` ahead of the reduction
+// (locale.py:43-46). So the order is english, then the stems sorted.
+//
+// It is asserted here rather than left to the `$defs` differential because the
+// order decides the `Phrases__N` numbering: a submodule bump that reordered the
+// union would surface as forty-five byte failures naming no cause.
+func TestLanguagesAreInUnionOrder(t *testing.T) {
+	files, err := filepath.Glob(filepath.Join(overridesDir, "*.yaml"))
+	if err != nil {
+		t.Fatalf("globbing %s: %v", overridesDir, err)
+	}
+	if len(files) == 0 {
+		t.Fatalf("no override files under %s — is the submodule initialized? `just setup`", overridesDir)
+	}
+	sort.Strings(files)
+
+	want := []string{"english"}
+	for _, file := range files {
+		want = append(want, strings.TrimSuffix(filepath.Base(file), ".yaml"))
+	}
+
+	assertList(t, "Languages", locale.Languages, want)
 }
