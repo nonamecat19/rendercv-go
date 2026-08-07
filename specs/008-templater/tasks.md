@@ -8,16 +8,30 @@ environment and the transform are the spine and stay with one owner (`AGENTS.md`
 
 ---
 
-## Wave 0 — the gate
+## Wave 0 — withdrawn
 
-### T1 — the divergence entry · `[human gate]`
-`specs/divergences.md`: a second Markdown parser on the Typst path, because upstream deregisters
-five block processors and goldmark cannot drop them (`plan.md` §3).
+### T1 — the divergence entry · ~~`[human gate]`~~ — **withdrawn, not needed**
 
-**Nothing else in this iteration may land first.** `AGENTS.md` §5 routes every change to
-`divergences.md` through explicit human approval, and every task in Wave A that touches
-`markdown.go` depends on the answer. The entry must say goldmark stays on the HTML path — the
-divergence is narrow and an entry that reads "goldmark was dropped" would be wrong.
+This task claimed the Markdown-parser decision of `plan.md` §3 needed a `divergences.md` entry and
+the human gate. **It does not, and saying so blocked the iteration for no reason.**
+
+`divergences.md` is scoped by its own header — "every deviation from `third_party/rendercv`" — and
+every entry carries a **"what the user notices"** field. D-001: they type a different command name.
+D-002: a custom theme needs translating. For a Markdown parser that produces byte-identical output
+the answer is **nothing**, and an entry whose user-visible effect is nothing is not a divergence.
+
+The deeper error: upstream uses python-markdown, which the port cannot use **at all**. goldmark was
+never upstream's choice either — it is one of two Go implementations of the same required behavior,
+and picking between them is a plan decision, which is what `plan.md` is for. `AGENTS.md` §2's table
+names goldmark under "Go / replacement tech"; that is a plan statement about a subsystem whose plan
+had not been written yet, and `plan.md` §3 is where it gets refined.
+
+**What would need the gate**: a Markdown difference a user could see — a construct upstream renders
+and the port does not, or vice versa. If the hand-written parser turns out to have one, that is a
+divergence and it stops here.
+
+`AGENTS.md` §2's table should be corrected to match; it is not itself a gated file, but it is the
+project manual and the correction is flagged for the human rather than made silently.
 
 ---
 
@@ -38,7 +52,7 @@ Spec §4 behavior 16.
 Tests: the three phases in order; `$$x$$` collapsing to `$x$`; the two longer replacements running
 after the thirteen single characters; a lone `"\n"` returning immediately.
 
-### T4 — markdown → Typst · `[parallel]` · **gated on T1**
+### T4 — markdown → Typst · `[parallel]`
 `process/markdown.go`, second half: the hand-written parser of `plan.md` §3, the five-tag walk, and
 line-by-line conversion.
 Spec §4C behaviors 35–39.
