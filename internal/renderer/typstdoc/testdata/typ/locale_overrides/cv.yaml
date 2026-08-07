@@ -1,0 +1,34 @@
+cv:
+  name: John Doe
+  sections:
+    education:
+      - institution: MIT
+        area: CS
+        start_date: 2000-09
+        end_date: present
+      - institution: Singular
+        area: One of each
+        start_date: 2020-01
+        end_date: 2021-02
+      - institution: One month
+        area: The singular month
+        start_date: 2020-01
+        end_date: 2020-01
+locale:
+  language: french
+  last_updated: "Mis à jour le"
+  month: MONTH1
+  months: MONTHN
+  year: YEAR1
+  years: YEARN
+  present: aujourd'hui
+  month_abbreviations: [A01, A02, A03, A04, A05, A06, A07, A08, A09, A10, A11, A12]
+  month_names: [N01, N02, N03, N04, N05, N06, N07, N08, N09, N10, N11, N12]
+  phrases:
+    degree_with_area: DEGREE en AREA
+design:
+  theme: classic
+  templates:
+    single_date: MONTH_NAME (MONTH_ABBREVIATION) YEAR
+  sections:
+    show_time_spans_in: [Education]
