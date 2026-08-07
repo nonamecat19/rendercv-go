@@ -19,7 +19,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 2 | YAML reader + core model (RenderCVModel, CV, Section) | [002](002-yaml-and-core-model/spec.md) | green (with cut scope, see below) | n/a (gated on unit tests, spec §7.2) |
 | 3 | Entry types (9) | [003](003-entry-types/spec.md) | green (with cut scope, see below) | n/a (gated on unit tests, spec §7.1) |
 | 4 | Validation-error parity | [004](004-validation-errors/spec.md) | green | n/a (gated on the 25-record differential, spec §7.3) |
-| 5 | JSON Schema generator | — | — | 0 / 1 |
+| 5 | JSON Schema generator | [005](005-json-schema/spec.md) | green (Axis 3 blocked on 6–7, see below) | n/a (gated on the 18 owned `$defs`, spec §7.1) |
 | 6 | Design & themes (9) + Lua-scripted custom themes (D-002) | — | — | 0 / 9 |
 | 7 | Locale (English + 21 catalogs) + date formatting | — | — | 0 / 22 |
 | 8 | Templater (pongo2 env, filters, markdown→typst, processors) | — | — | 0 |
@@ -35,7 +35,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 |---|---|---|
 | 1 — artifacts byte-identical | `just test-parity` | measurable, 0/15 cases passing |
 | 2 — CLI surface | `just test-parity` | measurable, 0/20 cases passing |
-| 3 — JSON Schema | `just test-parity`, `just schema-diff` | measurable, failing |
+| 3 — JSON Schema | `just schema-diff` | **blocked on iterations 6–7**, not failing: 209 of 227 `$defs` are design and locale models. The 18 the port owns are byte-identical. |
 | 4 — validation errors | `just test-parity` | measurable, 0/7 corpus cases passing; the 25-record differential is green |
 
 PDF content comparison (spec §1.2) is not yet measurable — it lands with iteration 10.
@@ -243,6 +243,59 @@ invisible to the suite that existed at the time:
   Both carry `TODO(iteration-12)` markers.
 
 **Open for the human gate:** the YAML-syntax coordinate span above. Nothing else.
+
+### Iteration 5
+
+**No cut scope.** Every task landed. The one deferral is written into the spec rather than cut
+here: the `$defs` collision suffix (§7.2) is iteration 6's, because it is exercised only by the
+per-theme variants and its numbering follows pydantic's emission order — a plausible
+implementation would be a wrong answer that reads right, so `DefNameWithSuffix` panics naming the
+iteration that owns it.
+
+**Axis 3 is blocked, not failing, and the distinction is the iteration's main finding.**
+`schema.json` is a projection of the model tree, so it is complete exactly when the tree is.
+Measured over the 227 `$defs`:
+
+| Owner | `$defs` | Share |
+|---|---:|---:|
+| Iteration 6 — design and themes | 161 | 74.8% |
+| Iteration 7 — locale | 45 | 17.0% |
+| Iteration 7 — settings | 3 | 3.3% |
+| **Iterations 2–4 — what exists** | **18** | **4.8%** |
+
+All 18 are byte-identical to upstream's. `just schema-diff` prints 8,621 lines of difference and
+**zero of them are the port's** — every line it emits appears in upstream's file, which is asserted
+by `TestPortSchemaInventsNothing`. A green `schema-diff` before iteration 7 would mean the port
+invented something.
+
+The alternative — reordering design and locale ahead of the generator — is recorded in spec §7.1
+and rejected: the generator is what makes those two iterations mechanically checkable, and
+reordering would put the two largest model iterations back to back with no gate between them.
+
+**Four things the differential caught that transcription would not**, each invisible without
+comparing real bytes:
+
+| Finding |
+|---|
+| A required single-arm field **inlines** its arm: `authors` is `{items, type}`, not `{anyOf: [{items, type}]}` |
+| `Cv`, `SocialNetwork` and `CustomConnection` have **no `description` key**; every entry type has an explicit `null` — the entry base's `json_schema_extra`, not a docstring difference |
+| `CustomConnection.url` is required *and* nullable: in `required`, carrying the null arm, and with **no default** |
+| `Cv`'s three scalar-or-list fields carry **no type key at all**, because pydantic cannot express that union |
+
+One rule was derived rather than listed, and it will matter later: pydantic omits a field's title
+when the schema is exactly one `$ref` plus `null`. That is why `date` and `start_date` have none
+and `end_date` does — the shape, not the field. Iterations 6 and 7 add many more
+optional-reference fields, and a list of the four known cases would have missed them silently.
+
+**Two corrections to the parity contract**, both made in place in `specs/000-parity-contract`:
+
+1. Axis 3 named a `rendercv-go schema` subcommand, which Axis 2.1's "no commands added" forbids —
+   upstream's CLI has three commands and none is `schema`. The generation path is now named
+   explicitly (`go run ./tools/genschema`), so the two axes cannot be read as contradicting.
+2. Axis 3 required a trailing newline. Upstream's file has none; its last three bytes are `"\n}`.
+
+**Carried forward:** the absent-set test states the remaining 209 as a number that must be changed
+deliberately, so iterations 6 and 7 cannot close Axis 3 by accident or leave it closed on paper.
 
 ## Log
 
