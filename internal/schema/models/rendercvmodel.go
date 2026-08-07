@@ -120,19 +120,18 @@ func Validate(
 		errs = append(errs, cvErrs...)
 	}
 
-	// The two thin slices spec 004 §7.9 pulls forward, plus the locale tag.
-	// Everything else in `design`, `locale` and `settings` is iterations 6 and 7;
-	// a porter adding a second field of any of them here has left scope.
+	// The thin slice spec 004 §7.9 pulls forward for `design`, and the whole of
+	// `locale`. Everything else in `design` and `settings` is iterations 6 and 12;
+	// a porter adding a second field of either here has left scope.
 	if model.Design != nil {
 		if theme, ok := mappingValue(model.Design, "theme"); ok {
 			errs = append(errs, design.ValidateTheme(theme, []string{"design"}, source)...)
 		}
 	}
-	if model.Locale != nil {
-		if language, ok := mappingValue(model.Locale, "language"); ok {
-			errs = append(errs, locale.ValidateLanguage(language, []string{"locale"}, source)...)
-		}
-	}
+	// Iteration 7 landed the catalog model; this is the edge that makes it
+	// reachable. Without it the extra-key and month-length rules exist and no
+	// document can reach them.
+	errs = append(errs, locale.Validate(model.Locale, []string{"locale"}, source)...)
 	if model.Settings != nil {
 		if current, ok := mappingValue(model.Settings, "current_date"); ok {
 			errs = append(errs, settings.ValidateCurrentDate(current, []string{"settings"}, source)...)
