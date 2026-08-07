@@ -1,0 +1,113 @@
+{
+"classic": {
+"theme": "classic",
+"page.top_margin": "0.7in",
+"page.size": "us-letter",
+"typography.font_size.body": "10pt",
+"typography.font_size.name": "30pt",
+"typography.font_family.body": "Source Sans 3",
+"typography.font_family.name": "Source Sans 3",
+"colors.body": "rgb(0, 0, 0)",
+"sections.show_time_spans_in": [
+"experience"
+],
+"header.connections.separator": "",
+"links.underline": false,
+"entries.short_second_row": true,
+"templates.single_date": "MONTH_ABBREVIATION YEAR"
+},
+"sb2nov": {
+"theme": "sb2nov",
+"page.top_margin": "0.7in",
+"page.size": "us-letter",
+"typography.font_size.body": "10pt",
+"typography.font_size.name": "30pt",
+"typography.font_family.body": "New Computer Modern",
+"typography.font_family.name": "New Computer Modern",
+"colors.body": "rgb(0, 0, 0)",
+"sections.show_time_spans_in": [],
+"header.connections.separator": "•",
+"links.underline": true,
+"entries.short_second_row": false,
+"templates.single_date": "MONTH_ABBREVIATION YEAR"
+},
+"engineeringresumes": {
+"theme": "engineeringresumes",
+"page.top_margin": "0.7in",
+"page.size": "us-letter",
+"typography.font_size.body": "10pt",
+"typography.font_size.name": "25pt",
+"typography.font_family.body": "XCharter",
+"typography.font_family.name": "XCharter",
+"colors.body": "rgb(0, 0, 0)",
+"sections.show_time_spans_in": [],
+"header.connections.separator": "|",
+"links.underline": true,
+"entries.short_second_row": false,
+"templates.single_date": "MONTH_ABBREVIATION YEAR"
+},
+"moderncv": {
+"theme": "moderncv",
+"page.top_margin": "0.7in",
+"page.size": "us-letter",
+"typography.font_size.body": "10pt",
+"typography.font_size.name": "25pt",
+"typography.font_family.body": "Fontin",
+"typography.font_family.name": "Fontin",
+"colors.body": "rgb(0, 0, 0)",
+"sections.show_time_spans_in": [],
+"header.connections.separator": "",
+"links.underline": true,
+"entries.short_second_row": false,
+"templates.single_date": "MONTH_ABBREVIATION YEAR"
+},
+"classic+margin": {
+"theme": "classic",
+"page.top_margin": "1cm",
+"page.size": "us-letter",
+"typography.font_size.body": "10pt",
+"typography.font_size.name": "30pt",
+"typography.font_family.body": "Source Sans 3",
+"typography.font_family.name": "Source Sans 3",
+"colors.body": "rgb(0, 0, 0)",
+"sections.show_time_spans_in": [
+"experience"
+],
+"header.connections.separator": "",
+"links.underline": false,
+"entries.short_second_row": true,
+"templates.single_date": "MONTH_ABBREVIATION YEAR"
+},
+"sb2nov+one-font-size": {
+"theme": "sb2nov",
+"page.top_margin": "0.7in",
+"page.size": "us-letter",
+"typography.font_size.body": "9pt",
+"typography.font_size.name": "30pt",
+"typography.font_family.body": "New Computer Modern",
+"typography.font_family.name": "New Computer Modern",
+"colors.body": "rgb(0, 0, 0)",
+"sections.show_time_spans_in": [],
+"header.connections.separator": "•",
+"links.underline": true,
+"entries.short_second_row": false,
+"templates.single_date": "MONTH_ABBREVIATION YEAR"
+},
+"classic+font-string": {
+"theme": "classic",
+"page.top_margin": "0.7in",
+"page.size": "us-letter",
+"typography.font_size.body": "10pt",
+"typography.font_size.name": "30pt",
+"typography.font_family.body": "Roboto",
+"typography.font_family.name": "Roboto",
+"colors.body": "rgb(0, 0, 0)",
+"sections.show_time_spans_in": [
+"experience"
+],
+"header.connections.separator": "",
+"links.underline": false,
+"entries.short_second_row": true,
+"templates.single_date": "MONTH_ABBREVIATION YEAR"
+}
+}
