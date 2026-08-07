@@ -81,6 +81,16 @@ func (e *InternalError) Error() string {
 	return e.Message
 }
 
+// Coded is an error that knows the code its record should carry.
+//
+// It exists for validators whose failures are not all one kind — a URL can fail
+// to parse, carry the wrong scheme, or be too long, and the pipeline dispatches
+// on the difference. A validator with a single failure kind does not need it.
+type Coded interface {
+	error
+	ErrorCode() Code
+}
+
 // RenderInput is step 11 of the error pipeline (pydantic_error_handling.py:122-126):
 // the offending value as text.
 //

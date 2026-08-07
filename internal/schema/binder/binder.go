@@ -9,6 +9,7 @@
 package binder
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 
@@ -450,8 +451,14 @@ func checkScalar(
 		return nil
 	}
 
+	// A failure that names its own code wins: one hook can then serve a
+	// validator with several failure kinds, which is what a URL needs.
 	code := field.ScalarCode
-	if code == "" {
+	var coded schemaerr.Coded
+	switch {
+	case errors.As(err, &coded):
+		code = coded.ErrorCode()
+	case code == "":
 		code = field.Value.dateCode()
 	}
 	return []schemaerr.ValidationError{{

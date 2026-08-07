@@ -341,8 +341,10 @@ func TestPublicationDOIURLTooLong(t *testing.T) {
 	if len(errs) != 1 {
 		t.Fatalf("errs = %+v, want exactly one", errs)
 	}
-	if errs[0].Code != entries.CodeURLTooLong {
-		t.Errorf("code = %q, want %q", errs[0].Code, entries.CodeURLTooLong)
+	// Upstream's literal, not the Go constant, for the reason spelled out in
+	// TestNormalDateRejections.
+	if errs[0].Code != "url_too_long" {
+		t.Errorf("code = %q, want %q", errs[0].Code, "url_too_long")
 	}
 	if len(errs[0].SchemaLocation) != 0 {
 		t.Errorf("location = %v, want it empty", errs[0].SchemaLocation)
@@ -475,4 +477,84 @@ func nodeText(node *yamldoc.Node) string {
 		return ""
 	}
 	return node.Raw
+}
+
+// Spec 004 §3.13 behavior 41: `PublicationEntry.url` is declared
+// `pydantic.HttpUrl`, and upstream parses it during **field** validation — so
+// its failure lands at `url`'s declared position, between `doi` and `journal`.
+//
+// No golden case sets this field (spec 003 §5.24), so these are the only gate
+// this decision will ever have.
+func TestPublicationURL(t *testing.T) {
+	tests := []struct {
+		name string
+		url  string
+		code string
+		want string
+	}{
+		{
+			name: "a value that does not parse",
+			url:  "not a url",
+			code: "url_parsing",
+			// The dictionary key; the pipeline replaces it with §4.9.
+			want: "Input should be a valid URL",
+		},
+		{
+			name: "the wrong scheme",
+			url:  "ftp://example.com",
+			code: "url_scheme",
+			want: "URL scheme should be 'http' or 'https'",
+		},
+		{
+			name: "too long",
+			url:  "https://example.com/" + strings.Repeat("a", 2100),
+			code: "url_too_long",
+			want: "URL should have at most 2083 characters",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, errs := validatePublication(t, publicationMinimal+"url: "+test.url+"\n")
+			if len(errs) != 1 {
+				t.Fatalf("errs = %+v, want exactly one", errs)
+			}
+			if string(errs[0].Code) != test.code {
+				t.Errorf("code = %q, want %q", errs[0].Code, test.code)
+			}
+			if errs[0].Message != test.want {
+				t.Errorf("message = %q, want %q", errs[0].Message, test.want)
+			}
+			if last := errs[0].SchemaLocation[len(errs[0].SchemaLocation)-1]; last != "url" {
+				t.Errorf("location ends %q, want url", last)
+			}
+		})
+	}
+
+	t.Run("a valid URL is accepted", func(t *testing.T) {
+		_, errs := validatePublication(t, publicationMinimal+"url: https://example.com/paper\n")
+		if len(errs) != 0 {
+			t.Errorf("errs = %+v, want none", errs)
+		}
+	})
+}
+
+// The three URL failure kinds reach the record through one binder hook, so the
+// hook must take the code from the error rather than from a single registered
+// constant. `doi` is the counter-example: one failure kind, one ScalarCode.
+func TestPublicationURLCodesAreDistinct(t *testing.T) {
+	seen := map[schemaerr.Code]bool{}
+	for _, url := range []string{
+		"not a url", "ftp://example.com",
+		"https://example.com/" + strings.Repeat("a", 2100),
+	} {
+		_, errs := validatePublication(t, publicationMinimal+"url: "+url+"\n")
+		if len(errs) == 1 {
+			seen[errs[0].Code] = true
+		}
+	}
+	if len(seen) != 3 {
+		t.Errorf("reached %d distinct codes, want 3 — a single ScalarCode would"+
+			" collapse them", len(seen))
+	}
 }

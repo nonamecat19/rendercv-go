@@ -12,15 +12,16 @@ import (
 // validate — so they cannot appear in the error list no matter what value they
 // hold.
 //
-// It is written out rather than inferred because inferring it would make the
-// test agree with whatever the port happens to do. Upstream fails on all seven
-// `PublicationEntry` fields for the document below; the port fails on six.
-// `url` is `pydantic.HttpUrl` and lands with this iteration's `httpurl` work, at
-// which point this map becomes empty and the entry should be deleted, not
-// updated.
-var unchecked = map[entries.TypeName][]string{
-	"PublicationEntry": {"url"},
-}
+// **It is empty, and every entry type now fails on every declared field.**
+// `PublicationEntry.url` was the last one; it landed with the `httpurl` package.
+// The map stays because the invariant below needs somewhere to record a future
+// gap, and because an empty map is a stronger statement than no map: it says the
+// gap was closed rather than never considered.
+//
+// Entries are written out rather than inferred. Inferring would make the test
+// agree with whatever the port happens to do, which is how a gap becomes
+// permanent.
+var unchecked = map[entries.TypeName][]string{}
 
 // Spec 004 §3.9a behaviors 33a and 33c, as one invariant over all eight entry
 // types: the order the binder reports failures in **is** the order the
