@@ -105,7 +105,7 @@ type usernameRule func(username string) string
 // kept in the source strings so a diff against upstream is mechanical
 // (behavior 60).
 //
-// TODO(spec 004 T32-T37): the other six rules.
+// TODO(spec 004 T33-T37): the other five rules.
 var usernameRules = map[SocialNetworkName]usernameRule{
 	SocialNetworkMastodon: func(username string) string {
 		if mastodonPattern.MatchString(username) {
@@ -118,6 +118,19 @@ var usernameRules = map[SocialNetworkName]usernameRule{
 			return ""
 		}
 		return `StackOverflow username should be in the format "user_id/username".`
+	},
+	// Not a pattern: the only rule of the eight that is a prefix test
+	// (social_network.py:101).
+	//
+	// Its message ends with a stray `"` after the final period, verbatim from
+	// social_network.py:104-105. The pipeline then appends its own period, so
+	// the emitted text ends `username.".` — upstream's output, and not the
+	// port's to fix (spec 004 §3.16 behavior 61).
+	SocialNetworkYouTube: func(username string) string {
+		if !strings.HasPrefix(username, "@") {
+			return ""
+		}
+		return `YouTube username should not start with "@". Remove "@" from the beginning of the username."`
 	},
 }
 
