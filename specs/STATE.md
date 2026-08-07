@@ -26,7 +26,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 9 | Typst renderer (`.typ` emission) + iteration 6's T10 + iteration 8's Wave C | [009](009-typst-renderer/spec.md) | **green** — verified by a fresh context, which returned FAIL on four items; all four fixed and pinned | 24 / 24 |
 | 10 | wazero + WASI typst → PDF, then PNG | — | — | 0 |
 | 11 | Markdown + HTML renderers | [011](011-markdown-and-html/spec.md) | **green** — both documents byte-identical on all 24 cases | 24 / 24 md, 24 / 24 html |
-| 12 | CLI (`new`, `render`, `create-theme`, overrides, watcher) | — | — | 0 |
+| 12 | CLI (`new`, `render`, `create-theme`, overrides, watcher) | [012](012-cli/spec.md) | **started** — `render` writes all three text artifacts and its result panel is byte-identical; blocked on the corpus defect below | 0 (see below) |
 | 13 | Parity closeout (sample generator, version, error handler, packaging) | — | — | 0 |
 | 14 | Lua-scripted custom themes (D-002) + the two folder messages | — | — | 0 |
 
@@ -552,6 +552,37 @@ either.
 **Not verified by a fresh context.** Iteration 11 has had no `rendercv-parity-verifier` pass; the
 row above reports what the suite prints, not an independent audit.
 
+## The golden corpus expires daily — HUMAN GATE
+
+**Found while wiring `render`, and it blocks 18 of the 42 parity cases regardless of how correct
+the port is.**
+
+`render_typst_only` now matches its golden on **exit code, stdout, stderr and file list**, and its
+`.typ` differs on exactly one line:
+
+```
+golden:   day: 6,
+got:      day: 7,
+```
+
+The corpus inputs write `settings.current_date: today`. Upstream resolved that to its *generation*
+day — 2026-08-06 — and baked it into the preamble's `datetime(...)` and the top note. 18 golden
+`.typ` files embed a date this way. **They can only pass on the day they were generated.**
+
+This is a defect in `tools/gengolden`, not in the port: the corpus was captured without pinning the
+date, exactly as `tools/docprobe` learned to do later (it passes
+`--settings.current_date 2025-03-05`, which is why the 72 document comparisons are reproducible).
+
+**The fix needs the human gate**, because it regenerates `testdata/golden/` and so changes the
+contract (`AGENTS.md` §5):
+
+1. `tools/gengolden` passes `--settings.current_date` with a fixed date, as `docprobe` does;
+2. `just golden` regenerates;
+3. the 18 affected cases become reproducible on any day.
+
+Until then, `render`'s correctness is measurable only through the document differential of
+iterations 9 and 11 — which is byte-exact and date-pinned, and which does pass.
+
 ## Two measured behaviors awaiting the human gate
 
 Neither is written into `specs/divergences.md`; that file is human-gated (`AGENTS.md` §5) and this
@@ -594,6 +625,8 @@ whether to reproduce the crash, record the divergence, or leave it.
 | 2026-08-07 | Verifier returned FAIL on iteration 8 with three blockers, all fixed. The one that matters: I had argued in spec §8 that the transform could only be checked by a corpus `.typ`, which is false for fragments — and that argument is what hid a trailing-newline bug adding a blank line to every entry and section of every artifact. |
 | 2026-08-07 | Open for the human gate: five measured `markdown_to_typst` divergences — a dropped image, raw HTML, an autolink, a link title and a doubled backtick — all reachable from ordinary CV text. Unlike the parser-choice gate I invented and withdrew, these are user-visible. |
 | 2026-08-07 | Iteration 9 opened by closing iteration 8's debt: `process_date` and `render_entry_templates`, both measured against upstream on a validated `EducationEntry`. The orchestrator is what made the other nine processors reachable — before it, nothing expanded a theme template. |
+| 2026-08-07 | **Iteration 12 started.** `render` is wired end to end: overlays, dotted overrides, path placeholders, the five negative and five path flags, and Rich's result panel — whose geometry was recovered from the goldens, including a duration column the harness erases. `render_typst_only` matches on exit code, stdout, stderr and file list, and differs only on the baked generation date. |
+| 2026-08-07 | **Corpus defect found: the goldens expire daily.** 18 `.typ` goldens embed the day they were generated because `gengolden` never pinned `settings.current_date`. Recorded for the human gate; it blocks those cases independently of the port. |
 | 2026-08-07 | **Iteration 11 green** (unverified by a fresh context). Both text documents byte-identical on all 24 cases. The HTML was cut and uncut in the same session: the 16 goldmark misses were not "block-layer list structure" but one list-indent rule — python-markdown nests at 4 spaces, CommonMark at 2 — and normalizing the input makes goldmark match 24/24. |
 | 2026-08-07 | **Iteration 9 green.** The fresh-context verifier returned FAIL with two blockers (a null `degree_column` ignored; a photo rendering silently wrong), one major (`splitLines` was not `str.splitlines()`) and one coverage hole (seven unpinned `locale.Resolve` branches). All four fixed, each behind a fixture that is red without its fix. 24/24 `.typ` byte-identical. Two upstream *crashes* the port does not reproduce are recorded for the human gate. |
 | 2026-08-07 | **Axis 1's first passing cases.** The bridge (`internal/renderer/bridge`) and the orchestration (`internal/renderer/typstdoc`) landed, and all 21 corpus inputs that carry a `cv.yaml` render a `.typ` byte-identical to the vendored Python's, pinned to `settings.current_date: 2025-03-05` by `tools/typprobe`. All nine entry types are covered; the fixture is mutation-checked (19 of 21 fail on a one-newline change to `Assemble`). |
