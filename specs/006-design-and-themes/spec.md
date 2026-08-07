@@ -72,11 +72,17 @@ repository: compiled-in data plus a **submodule-diff test**, exactly as iteratio
    | `Bullet` | `●`, `•`, `◦`, `-`, `◆`, `★`, `■`, `—`, `○` | `classic_theme.py:10` |
    | `BodyAlignment` | `left`, `justified`, `justified-with-no-hyphenation` | `:11` |
    | `Alignment` | `left`, `center`, `right` | `:12` |
-   | `SectionTitleType` | (six, `:13-22`) | `:13` |
+   | `SectionTitleType` | **eight**, `:13-22` — the earlier "six" was a miscount, corrected here | `:13` |
    | `PhoneNumberFormatType` | `national`, `international`, `E164` | `:23` |
    | `PageSize` | `a4`, `a5`, `us-letter`, `us-executive` | `:24` |
 
    `Bullet`'s members are non-ASCII and appear literally in the schema (spec 005 §3.4).
+
+   A seventh union is **not** in the table because it is not a named alias: `header.photo_position`
+   is an inline `Literal["left", "right"]`, so it has no `$defs` entry and is emitted inline. Two
+   of the six are named and reached once each, and pydantic inlines those too — `BodyAlignment` has
+   no `$defs` entry either, while `Alignment`, reached twice, does. The rule is usage count, not
+   whether the alias has a name.
 
 ---
 
