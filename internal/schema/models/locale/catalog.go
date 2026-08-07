@@ -28,9 +28,17 @@ var catalogFields = []binder.Field{
 	{Name: "year", Value: binder.ValueString},
 	{Name: "years", Value: binder.ValueString},
 	{Name: "present", Value: binder.ValueString},
+	// **These three carried no value type at all**, which the binder documents
+	// as "never checks" — so `month_names: hello` and a list of twelve integers
+	// both rendered at exit 0 where upstream rejects each. An audit measured
+	// four such documents. `phrases` is a nested model, so its own unknown-key
+	// rule is `ValidatePhrases` below; the shape check belongs here.
+	// `phrases` is still untyped: the binder has no mapping shape to declare, so
+	// `phrases: hello` and `phrases: {bogus: x}` are **still accepted** where
+	// upstream rejects both. Recorded in `STATE.md` rather than half-fixed.
 	{Name: "phrases"},
-	{Name: "month_abbreviations"},
-	{Name: "month_names"},
+	{Name: "month_abbreviations", Value: binder.ValueStringList},
+	{Name: "month_names", Value: binder.ValueStringList},
 }
 
 // FieldNames returns the catalog's declaration order.
