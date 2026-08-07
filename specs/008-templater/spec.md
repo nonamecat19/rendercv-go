@@ -244,6 +244,39 @@ is the tree walk around it, and it is where `AGENTS.md`'s choice of `goldmark` n
 
 ---
 
+## 4D. The footer and the top note
+
+Measured from `footer_and_top_note.py`. Two functions of the same shape with three differences that
+all reach the bytes.
+
+40. **Both substitute first and process second**: `apply_string_processors(substitute_placeholders(
+    template, placeholders), string_processors)`. So a placeholder's **value** goes through the
+    Markdown-to-Typst conversion, not only the template text around it. A port that processed the
+    template first would escape the placeholder names.
+41. **Both include all eight date placeholders** of §4B behavior 27, plus their own:
+
+    | | Extra placeholders |
+    |---|---|
+    | top note | `CURRENT_DATE`, `LAST_UPDATED` (which is `locale.last_updated`), `NAME` |
+    | footer | `CURRENT_DATE`, `NAME`, `PAGE_NUMBER`, `TOTAL_PAGES` |
+
+    `LAST_UPDATED` exists only in the top note and the two page counters only in the footer — a
+    shared placeholder map would make each work in both, which upstream's descriptions do not
+    promise.
+42. **`NAME` is `name or ""`**, so an absent `cv.name` substitutes the empty string rather than
+    leaving the placeholder in place.
+43. **The two page placeholders are Typst source, not values**: `PAGE_NUMBER` is
+    `#str(here().page())` and `TOTAL_PAGES` is `#str(counter(page).final().first())`. They are
+    substituted **before** the string processors run, so `escape_typst_characters` sees them — and
+    they survive only because §4 behavior 16's first phase recognizes `#`-commands and holds them
+    out. **That is a load-bearing interaction between two modules**, and a port that escaped them
+    would emit `\#str(here().page())` into the footer.
+44. **The footer is wrapped and the top note is not**: the result is
+    `"context {" + " [" + rendered + "] }"`. Note the space after `{` and before `]` — the literal
+    is `f"context {{ [{…}] }}"`.
+
+---
+
 ## 5. Out of scope
 
 **5.1 The HTML wrapper is iteration 11's** (behavior 14), as is `markdown_to_html`.
@@ -261,7 +294,6 @@ been read closely enough to write behavior from.
 |---|---:|---|
 | `entry_templates_from_input.py` | 514 | The largest single unknown. How a theme's template strings become the `main_column` / `date_and_location_column` an entry template reads, and what the UPPERCASE placeholder substitution does with an arbitrary user key. |
 | `connections.py` | 244 | How `cv`'s email, phone, website and social networks become the header's connection list, including the `phone_number_format` options and `display_urls_instead_of_usernames`. |
-| `footer_and_top_note.py` | 123 | The two templates that carry `CURRENT_DATE` and `PAGE_NUMBER`. |
 | `templates/**` | 384 | All 25 files, and for each the Jinja constructs it uses — this is what decides how much of `AGENTS.md` §6.1's mechanical transform is actually needed. `EducationEntry.j2.typ` alone uses `splitlines()`, a slice with a computed bound, `|length` and `|indent`. |
 
 ---
@@ -289,3 +321,7 @@ Provisional, and they will grow as §6 empties.
 - [ ] §4C's five disabled block processors, proven by a `# Heading` surviving as literal text.
 - [ ] Line-by-line conversion, proven by an unmatched `*` on adjacent lines not pairing.
 - [ ] The five mapped tags, the dropped `admonition-title`, and tail text surviving.
+- [ ] §4D's two placeholder maps, which are **not** the same map, and the `context { [ … ] }`
+      wrapper with its exact spacing.
+- [ ] The footer's two Typst-source placeholders surviving `escape_typst_characters` — the
+      cross-module interaction, tested end to end rather than in either module.
