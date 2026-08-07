@@ -140,3 +140,69 @@ func TestFormatSingleDate(t *testing.T) {
 		})
 	}
 }
+
+// The arithmetic, which is upstream's own and calendar-incorrect on purpose.
+// Every row is measured; the interesting ones are labelled with what they pin.
+func TestComputeTimeSpan(t *testing.T) {
+	current := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name                   string
+		start, end             string
+		startYearly, endYearly bool
+		want                   string
+	}{
+		{name: "a normal span", start: "2020-06", end: "2023-09", want: "3 years 4 months"},
+		{name: "to present", start: "2020-06", end: "present", want: "4 years 8 months"},
+		{
+			// `(days % 365) / 30 + 1` with the `+1` unconditional: a one-day
+			// span is one month, and a zero-day span is too.
+			name: "one day is one month", start: "2020-01-01", end: "2020-01-02",
+			want: "1 month",
+		},
+		{name: "no time at all is one month", start: "2020-01", end: "2020-01", want: "1 month"},
+		{
+			// 335 days: 0 years and 12 months before the fold, which then makes
+			// it 1 year 0 months — and the zero blanks both halves.
+			name: "the overflow fold", start: "2020-01", end: "2020-12",
+			want: "1 year",
+		},
+		{name: "a year and a month", start: "2020-01", end: "2021-01", want: "1 year 1 month"},
+		{name: "plurals on both halves", start: "2020-01", end: "2022-02", want: "2 years 2 months"},
+
+		// The year-only branch, which is not a special case of the above.
+		{
+			// A span of **zero** years still reports 1, because the test is
+			// `< 2` rather than `== 1`.
+			name: "the same year", start: "2020", end: "2020",
+			startYearly: true, endYearly: true, want: "1 year",
+		},
+		{
+			name: "one year apart", start: "2020", end: "2021",
+			startYearly: true, endYearly: true, want: "1 year",
+		},
+		{
+			name: "three years apart", start: "2020", end: "2023",
+			startYearly: true, endYearly: true, want: "3 years",
+		},
+		{
+			// One year-only endpoint is enough to take the branch, so the
+			// months never appear even though the other end has a month.
+			name: "one endpoint year-only", start: "2020", end: "2023-09",
+			startYearly: true, want: "3 years",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := process.ComputeTimeSpan(tc.start, tc.end,
+				tc.startYearly, tc.endYearly, english, current, templates.TimeSpan)
+			if err != nil {
+				t.Fatalf("ComputeTimeSpan: %v", err)
+			}
+			if got != tc.want {
+				t.Errorf("= %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
