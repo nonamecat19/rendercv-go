@@ -112,6 +112,11 @@ designprobe:
 entryprobe:
     go run ./tools/entryprobe
 
+# Regenerate the entry-dump fixture: what `model_dump(exclude_none=True)` gives
+# for a set of validated entries, which is the bridge's boundary (spec 009).
+dumpprobe:
+    go run ./tools/dumpprobe
+
 # Render the same input with both and diff every artifact.
 diff-render input:
     go run ./tools/gengolden -diff {{input}}
