@@ -65,9 +65,9 @@ type Request struct {
 	// PPI is the PNG resolution. Zero means DefaultPPI. Ignored for PDF.
 	PPI int
 
-	// FontDirs are extra host font folders, searched before the vendored ones
-	// so a user's `fonts/` beside the input wins a name tie — typst-cli's
-	// FontSearcher order, which upstream inherits.
+	// FontDirs are extra host font folders, searched *after* the vendored set,
+	// which is the order upstream passes them in (`pdf_png.py:174-185`). A
+	// folder that does not exist is skipped, as upstream's does.
 	FontDirs []string
 
 	// Today pins `World::today`. The zero value means the system date, which
@@ -141,19 +141,27 @@ func Compile(ctx context.Context, req Request) (Result, error) {
 		"--format", string(req.Format),
 		"--ppi", strconv.Itoa(req.PPI),
 	}
-	// Caller font folders first: the shim loads them in the order given, and
-	// the vendored set is appended so a user font wins a name tie.
+	// **The vendored set goes first**, then the caller's folders — the order
+	// upstream passes to `typst.Compiler`, which lists
+	// `rendercv_fonts.paths_to_font_folders` ahead of the input file's own
+	// `fonts/` directory (`pdf_png.py:174-185`). The order decides which face
+	// wins a family-name tie, so reversing it is a silent metrics divergence.
+	argv = append(argv, "--font-dir", fontsMount)
 	fontMounts := make(map[string]fs.FS)
 	for i, dir := range req.FontDirs {
 		absolute, err := filepath.Abs(dir)
 		if err != nil {
 			return Result{}, fmt.Errorf("typstc: resolving a font folder: %w", err)
 		}
+		// A missing `fonts/` folder is normal: upstream passes the path
+		// whether or not it exists, and typst ignores what it cannot read.
+		if info, err := os.Stat(absolute); err != nil || !info.IsDir() {
+			continue
+		}
 		mount := fmt.Sprintf("/fonts-%d", i)
 		fontMounts[mount] = os.DirFS(absolute)
 		argv = append(argv, "--font-dir", mount)
 	}
-	argv = append(argv, "--font-dir", fontsMount)
 	if !req.Today.IsZero() {
 		argv = append(argv, "--today", req.Today.Format("2006-01-02"))
 	}
