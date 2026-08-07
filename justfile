@@ -85,6 +85,17 @@ golden-verify:
 schema-diff:
     diff -u {{upstream_dir}}/schema.json <(go run ./tools/genschema)
 
+# Build the Typst compiler for WASI (D-006). Needs the Rust toolchain and
+# `rustup target add wasm32-wasip1`. Pinned to typst 0.14.2 by Cargo.lock, which
+# is upstream's line: rendercv_typst/typst.toml declares compiler 0.14.0 and the
+# installed typst-py is 0.14.8.
+#
+# The output is ~29 MB and is NOT committed by this recipe — see
+# specs/010-typst-compilation/tasks.md T2, which is human-gated.
+typst-wasm:
+    cd tools/typstwasm && cargo build --release --target wasm32-wasip1
+    @ls -l tools/typstwasm/target/wasm32-wasip1/release/typstwasm.wasm
+
 # Run the vendored Python RenderCV: `just upstream render CV.yaml`
 upstream *args:
     cd {{upstream_dir}} && uv run --frozen --all-extras rendercv {{args}}
