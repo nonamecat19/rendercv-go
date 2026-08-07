@@ -95,6 +95,12 @@ upstream *args:
 localeprobe:
     go run ./tools/localeprobe
 
+# Regenerate the pongo2 templates from the vendored Python's Jinja ones.
+# Generated, never hand-edited. The transform is semantic, not a copy — see
+# tools/gentemplates for what it cannot check.
+gentemplates:
+    go run ./tools/gentemplates
+
 # Regenerate the design subsystem's data from the vendored Python.
 # Generated, never hand-edited. The colour names come from the installed
 # pydantic_extra_types rather than from a submodule file — see tools/designprobe.
