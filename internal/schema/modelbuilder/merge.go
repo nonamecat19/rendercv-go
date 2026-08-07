@@ -2,6 +2,9 @@ package modelbuilder
 
 import (
 	"fmt"
+	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
@@ -96,18 +99,96 @@ func BuildDictionary(mainYaml string, args BuildArguments) (*BuildResult, error)
 
 	// Spec §3.21: dotted-key overrides are applied last. Their semantics are
 	// iteration 12's; only the ordering is fixed here.
-	document = applyOverrides(document, args.Overrides)
+	document, err = applyOverrides(document, args.Overrides)
+	if err != nil {
+		return nil, err
+	}
 
 	return &BuildResult{Document: document, OverlaySources: overlaySources}, nil
 }
 
-// applyOverrides is the ordering hook of spec §3.21.
+// applyOverrides applies the CLI's dotted-key overrides
+// (override_dictionary.py:91-121, applied at rendercv_model_builder.py:153-155).
 //
-// TODO(iteration-12): implement dotted-key override semantics
-// (schema/overrides.py, applied at rendercv_model_builder.py:153-155).
-func applyOverrides(document *yamldoc.Node, overrides map[string]string) *yamldoc.Node {
-	_ = overrides
-	return document
+// **This was a stub returning the document unchanged**, which meant every
+// `--cv.phone`, `--design.theme` and `--settings.current_date` was silently
+// discarded — four corpus cases could never pass, and the pinned date the
+// goldens are now generated with had no effect on the port.
+//
+// The keys are applied in sorted order rather than map order. Upstream iterates
+// a dict, which is insertion-ordered from the CLI; Go's map order is random, and
+// two overrides that touch the same path must not resolve differently between
+// runs.
+func applyOverrides(
+	document *yamldoc.Node,
+	overrides map[string]string,
+) (*yamldoc.Node, error) {
+	keys := make([]string, 0, len(overrides))
+	for key := range overrides {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	for _, key := range keys {
+		if err := setByLocation(document, strings.Split(key, "."), overrides[key], key); err != nil {
+			return nil, err
+		}
+	}
+	return document, nil
+}
+
+// setByLocation is `update_value_by_location` (`:5-89`), walking one dotted path.
+//
+// **A missing mapping key is created; a missing list index is an error.** That
+// asymmetry is upstream's: a dict grows to meet the path, a list does not
+// (`:74-76` against `:61-65`).
+func setByLocation(node *yamldoc.Node, path []string, value, fullKey string) error {
+	if len(path) == 0 {
+		return nil
+	}
+	previous := strings.Join(strings.Split(fullKey, ".")[:len(strings.Split(fullKey, "."))-len(path)], ".")
+
+	switch {
+	case node != nil && node.Kind == yamldoc.KindSequence:
+		index, err := strconv.Atoi(path[0])
+		if err != nil {
+			return &schemaerr.UserError{Message: fmt.Sprintf(
+				"`%s` corresponds to a list, but `%s` is not an integer.", previous, path[0])}
+		}
+		if index < 0 || index >= len(node.Elems) {
+			return &schemaerr.UserError{Message: fmt.Sprintf(
+				"Index %d is out of range for the list `%s`.", index, previous)}
+		}
+		if len(path) == 1 {
+			node.Elems[index] = stringOverride(value)
+			return nil
+		}
+		return setByLocation(node.Elems[index], path[1:], value, fullKey)
+
+	case node != nil && node.Kind == yamldoc.KindMapping:
+		if len(path) == 1 {
+			setMappingValue(node, path[0], stringOverride(value))
+			return nil
+		}
+		child := setDefaultMapping(node, path[0])
+		return setByLocation(child, path[1:], value, fullKey)
+
+	default:
+		return &schemaerr.UserError{Message: fmt.Sprintf(
+			"It seems like there's something wrong with `%s`, but we don't know what it is.",
+			fullKey)}
+	}
+}
+
+// setMappingValue replaces a key's value, appending the key when it is absent.
+func setMappingValue(node *yamldoc.Node, key string, value *yamldoc.Node) {
+	for i := range node.Items {
+		if node.Items[i].Key == key {
+			node.Items[i].Value = value
+			return
+		}
+	}
+	node.Items = append(node.Items, yamldoc.Item{Key: key, Value: value})
 }
 
 func overlayContent(args BuildArguments, key schemaerr.OverlayKey) string {
