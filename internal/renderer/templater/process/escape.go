@@ -62,25 +62,32 @@ func EscapeTypstCharacters(text string) string {
 		return text
 	}
 
-	// Phase 1. Math first, then commands — `itertools.chain` in that order
-	// (`:97-102`) — so `$$...$$` wins where the two could overlap.
+	// Phase 1. **Both patterns scan the *original* string.**
+	//
+	// `itertools.chain(math_pattern.finditer(string), typst_command_pattern
+	// .finditer(string))` (`:97-102`) binds both iterators before the loop
+	// mutates `string`, so the command pattern never sees a dummy name. Rescanning
+	// the mutated text instead matches `#emph[RENDERCVTYPSTCOMMANDORMATH0]` as one
+	// command and leaves dummy 0 unresolved — the literal name reaches the
+	// output. Measured on `#emph[$$x$$]`, which upstream escapes entirely.
+	original := text
+	matches := append(
+		mathPattern.FindAllString(original, -1),
+		typstCommandPattern.FindAllString(original, -1)...,
+	)
+
 	saved := map[string]string{}
 	var order []string
-	index := 0
-
-	protect := func(pattern *regexp.Regexp) {
-		for _, match := range pattern.FindAllString(text, -1) {
-			name := fmt.Sprintf("RENDERCVTYPSTCOMMANDORMATH%d", index)
-			index++
-			// `str.replace` with no count: **every** occurrence, which is why a
-			// repeated command is saved once and restored everywhere.
-			text = strings.ReplaceAll(text, match, name)
-			saved[name] = strings.ReplaceAll(match, "$$", "$")
-			order = append(order, name)
-		}
+	for index, match := range matches {
+		name := fmt.Sprintf("RENDERCVTYPSTCOMMANDORMATH%d", index)
+		// `str.replace` with no count: **every** occurrence. A repeated command
+		// is saved once and restored everywhere — and a later match whose text
+		// an earlier replacement already removed simply finds nothing, which is
+		// upstream's behavior too.
+		text = strings.ReplaceAll(text, match, name)
+		saved[name] = strings.ReplaceAll(match, "$$", "$")
+		order = append(order, name)
 	}
-	protect(mathPattern)
-	protect(typstCommandPattern)
 
 	// Phase 2, simultaneous. `strings.NewReplacer` is Python's `translate`: it
 	// scans once and never reconsiders what it wrote.

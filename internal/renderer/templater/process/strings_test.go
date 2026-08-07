@@ -162,6 +162,19 @@ func TestMakeKeywordsBold(t *testing.T) {
 			name: "a keyword ending in punctuation never matches", text: "C++ dev",
 			keywords: []string{"C++"}, want: "C++ dev",
 		},
+
+		// **Unicode boundaries.** Python's `\b` is Unicode-aware and Go's is
+		// ASCII-only, so a pattern using Go's would silently never match any of
+		// these — and `ats_diacritics` is a corpus case.
+		{"a keyword with a diacritic", "Café au lait", []string{"Café"}, "**Café** au lait"},
+		{"before punctuation", "Café.", []string{"Café"}, "**Café**."},
+		{"twice", "Ünicode Ünicode", []string{"Ünicode"}, "**Ünicode** **Ünicode**"},
+		{"non-Latin", "日本語 test", []string{"日本語"}, "**日本語** test"},
+		// And the negative side: a non-ASCII letter is a word character, so it
+		// blocks the boundary just as an ASCII one does.
+		{"inside a word", "prefixCafé", []string{"Café"}, "prefixCafé"},
+		{"before a digit", "Café2", []string{"Café"}, "Café2"},
+		{"an underscore blocks it", "_Java_", []string{"Java"}, "_Java_"},
 	}
 
 	for _, tc := range tests {
@@ -170,5 +183,37 @@ func TestMakeKeywordsBold(t *testing.T) {
 				t.Errorf("= %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+// **An empty keyword is kept, and the port still differs from upstream on it.**
+//
+// Upstream builds `\b(Java|)\b` from a frozenset containing `""`; the empty
+// alternative matches at every word boundary, so the output is garbage on both
+// sides. They differ in one place: Go's regexp **skips an empty match adjacent
+// to a preceding non-empty one** and Python's does not, so upstream emits one
+// more `****` immediately after `Java`.
+//
+//	upstream  ****a**** **Java******, ****b****
+//	port      ****a**** **Java**, ****b****
+//
+// Recorded rather than papered over. Dropping the empty keyword — which is what
+// the first implementation did — would be a larger and quieter difference, so
+// the keyword is kept and this test states exactly what remains. **Whether it
+// warrants a `specs/divergences.md` entry is a human call**: it is user-visible
+// in principle and only reachable from a `bold_keywords` list containing `""`,
+// which nothing in the schema rejects and which produces unusable output either
+// way.
+func TestAnEmptyKeywordDiffersFromUpstream(t *testing.T) {
+	got := process.MakeKeywordsBold("a Java, b", []string{"", "Java"})
+
+	const port = "****a**** **Java**, ****b****"
+	const upstream = "****a**** **Java******, ****b****"
+
+	if got != port {
+		t.Errorf("= %q, want %q", got, port)
+	}
+	if got == upstream {
+		t.Error("the port now matches upstream here; delete this test and its note")
 	}
 }

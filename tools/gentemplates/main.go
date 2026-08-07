@@ -116,6 +116,10 @@ var transforms = []rule{
 	{name: "replace_args", mustFire: true, apply: applyReplaceArgs},
 	{name: "slices", mustFire: true, apply: applySlices},
 	{name: "in_list", mustFire: true, apply: applyInList},
+
+	// **Last**, because it is about the file's end and every rule above can
+	// change it.
+	{name: "keep_trailing_newline", mustFire: true, apply: applyKeepTrailingNewline},
 }
 
 func transform(source string, counts map[string]int) string {
@@ -241,6 +245,25 @@ func applySlices(source string) (string, int) {
 		return groups[1] + "." + groups[2]
 	})
 	return source, fired
+}
+
+// applyKeepTrailingNewline strips one final newline from the template source,
+// which is Jinja's `keep_trailing_newline=False` default — it happens at parse
+// time and upstream never overrides it (templater.py:34-44).
+//
+// pongo2 keeps it. Missing this adds one `\n` to **every** fragment, and
+// `Assemble` joins entries with `"\n\n"`, so the result is a blank line per
+// entry and per section on every artifact case.
+//
+// It was found by a fragment-level differential — upstream's `.j2` through Jinja
+// against the transformed source through pongo2 — which showed 55 of 85 renders
+// differing and all 85 agreeing once one trailing newline came off. The rule is
+// **exactly one** newline, not a trim.
+func applyKeepTrailingNewline(source string) (string, int) {
+	if !strings.HasSuffix(source, "\n") {
+		return source, 0
+	}
+	return source[:len(source)-1], 1
 }
 
 // applyInList rewrites Jinja's `x in ["A", "B"]` into a disjunction.
