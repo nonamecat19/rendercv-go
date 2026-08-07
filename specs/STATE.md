@@ -24,7 +24,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 7 | Locale (English + 21 catalogs) | [007](007-locale/spec.md) | **audited — FAIL, demoted.** Three locale fields are unvalidated; a short month list panicked the renderer (fixed) | n/a (gated on the 45 `$defs` differential and the submodule catalog diff, spec §5) |
 | 8 | Templater (pongo2 env, filters, markdown→typst, processors) | [008](008-templater/spec.md) | **audited — FAIL, demoted.** Four `markdown_to_typst` divergences still live and unrecorded; one produced uncompilable Typst and is fixed | n/a (gated on the 52-fragment Jinja differential and 240 unit cases, spec §7) |
 | 9 | Typst renderer (`.typ` emission) + iteration 6's T10 + iteration 8's Wave C | [009](009-typst-renderer/spec.md) | **green** — verified by a fresh context, which returned FAIL on four items; all four fixed and pinned | 24 / 24 |
-| 10 | wazero + WASI typst → PDF, then PNG | [010](010-typst-compilation/spec.md) | **specced, measured, unblocked** — the route is D-006, approved since iteration 6; implementation is the next real work in the port | 0 / 14 |
+| 10 | wazero + WASI typst → PDF, then PNG | [010](010-typst-compilation/spec.md) | **route proven end to end, 14/14 on the PDF differential, blocked at a HUMAN GATE.** The shim's source is committed; the 29 MB `.wasm` and 59 MB of fonts are not — see the gate below. Not green: nothing runs in the suite yet | 14 / 14 measured, 0 / 14 in the suite |
 | 11 | Markdown + HTML renderers | [011](011-markdown-and-html/spec.md) | **verified — FAIL, demoted from green.** 24/24 on the corpus, but a `"` in any CV breaks the HTML and raw HTML is dropped. Not green | 24 / 24 corpus, blockers open |
 | 12 | CLI (`new`, `render`, `create-theme`, overrides, watcher) | [012](012-cli/spec.md) | **started** — `render` and `new` are wired; `new`'s seven starter CVs are byte-identical against their goldens. `create-theme` and the six help panels are not written. Every parity number is blocked on one of the three gates below | 0 (see below) |
 | 13 | Parity closeout (sample generator, version, error handler, packaging) | — | — | 0 |
@@ -703,7 +703,64 @@ Measured while scoping iteration 12's remaining commands. `create-theme` writes 
 `create_theme` golden compares source, so the case is unreachable by construction rather than by
 omission. It needs a `divergences.md` entry naming both files. Recorded, not written.
 
-## Iteration 10 is measured and **unblocked** — a gate I claimed that does not exist
+## Iteration 10's route works, 14/14 — and it needs a HUMAN GATE to land
+
+**D-006 is proven.** typst 0.14.2 — upstream's line — builds for `wasm32-wasip1` with no patches,
+runs on wazero through three preopens, and produces PDFs that match upstream's on all three things
+axis 1 names.
+
+| Measured | Value |
+|---|---|
+| PDF differential | **14 / 14** — every golden `.typ` with a golden `.pdf` beside it: nine themes, four ATS inputs, `input_minimal` |
+| Compared on | extracted text (`pdftotext -layout`, byte-compared), page count, page geometry |
+| Mutation-checked | 3 ways — cross-case, one character, one leading space. All caught |
+| `.wasm` size | **29 MB** (`opt-level = "z"`, LTO, stripped) |
+| Runtime | **3.2 s** per document, single-threaded wazero |
+
+**The font risk D-006's `Watch` line named was real, and it fired twice.** Both were found by
+compiling, not by reading:
+
+1. **`@preview/fontawesome:0.6.0` is downloaded, not vendored.** `rendercv_typst/lib.typ:1` imports
+   it; `get_package_path` copies only `rendercv`'s two files. Upstream fetches the rest from Typst
+   Universe into `~/.cache/typst`. Spec §2.6 said the packages were resolved without a download —
+   corrected.
+2. **typst's embedded fonts are a third input.** `sb2nov` wants New Computer Modern, which
+   `rendercv_fonts` does not ship. Without `typst_assets::fonts()`, `theme_sb2nov` renders in a
+   fallback (`PhD in Computer Science` extracts as `PhDinComputer Science`) and `theme_opal` shifts
+   two lines by one space — **and the other 12 of 14 cases pass anyway.** A quiet failure on 86% of
+   the corpus is exactly the shape this port keeps getting caught by.
+
+**What is committed:** `tools/typstwasm/` (the shim's Rust source, `Cargo.lock` pinning 0.14.2) and
+`just typst-wasm`. No binary, no fonts.
+
+### The gate
+
+Landing T2, T3 and T6 of `tasks.md` puts this into the repository:
+
+| Artifact | Size | Note |
+|---|---|---|
+| `typst.wasm` | 29 MB | `//go:embed`ed into `rendercv-go` |
+| `rendercv_fonts` | 59 MB | 62 files, 15 folders. Not in this repo today; it is a Python package |
+| `preview/fontawesome/0.6.0` | 428 KB | **not in the submodule either** — vendoring it is the divergence, because upstream downloads it |
+
+That is ~88 MB of vendored binary and a binary an order of magnitude larger than a Go CLI usually
+is. `spec.md` §5 count 3 says it needs a `divergences.md` entry; `AGENTS.md` §5 makes that file
+human-gated. **Three things need a decision, and I did not make any of them:**
+
+1. **Embed or fetch the `.wasm`?** Embedding gives a self-contained binary and a 29 MB floor.
+   Fetching on first run adds a network dependency to `render`, which upstream does not have for
+   the compiler.
+2. **Vendor, fetch, or find the fonts?** Vendoring is 59 MB and reproducible. Finding them on the
+   system is what breaks metrics silently — measured above, and the failure passed 12 of 14 cases.
+3. **Vendor `fontawesome`?** The port should not fetch from Typst Universe at render time, so
+   vendoring is the only route that keeps `render` offline — but it is a file upstream does not
+   ship, so it is a divergence either way.
+
+Until this is answered, iteration 10 stays not green and the parity suite is unchanged. The
+measurement is real; nothing in the suite runs it yet, and `AGENTS.md` §10.6 says parity is what
+`just test-parity` prints.
+
+## Iteration 10's first measurement pass — a gate I claimed that does not exist
 
 `plan.md` reports the measurements `spec.md` demanded before any design:
 
