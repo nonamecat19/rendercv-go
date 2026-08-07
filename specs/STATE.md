@@ -26,7 +26,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 9 | Typst renderer (`.typ` emission) + iteration 6's T10 + iteration 8's Wave C | [009](009-typst-renderer/spec.md) | **green** — verified by a fresh context, which returned FAIL on four items; all four fixed and pinned | 24 / 24 |
 | 10 | wazero + WASI typst → PDF, then PNG | — | — | 0 |
 | 11 | Markdown + HTML renderers | [011](011-markdown-and-html/spec.md) | **green** — both documents byte-identical on all 24 cases | 24 / 24 md, 24 / 24 html |
-| 12 | CLI (`new`, `render`, `create-theme`, overrides, watcher) | [012](012-cli/spec.md) | **started** — `render` writes all three text artifacts and its result panel is byte-identical; blocked on the corpus defect below | 0 (see below) |
+| 12 | CLI (`new`, `render`, `create-theme`, overrides, watcher) | [012](012-cli/spec.md) | **started** — `render` writes all three text artifacts, its result panel is byte-identical, and its panel/args/path layers are unit-pinned; `new`, `create-theme` and the six help panels are not written. Parity numbers blocked on the corpus defect below | 0 (see below) |
 | 13 | Parity closeout (sample generator, version, error handler, packaging) | — | — | 0 |
 | 14 | Lua-scripted custom themes (D-002) + the two folder messages | — | — | 0 |
 
