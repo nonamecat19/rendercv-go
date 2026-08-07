@@ -18,6 +18,7 @@ type Catalog struct {
 	Present            string
 	Year, Years        string
 	Month, Months      string
+	LastUpdated        string
 }
 
 // DateTemplates is the three `design.templates` strings a date reads.
