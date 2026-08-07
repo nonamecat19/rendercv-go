@@ -2,12 +2,25 @@ package design
 
 import (
 	"errors"
+	"path/filepath"
 	"strings"
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/binder"
+	"github.com/nonamecat19/rendercv-go/internal/schema/models/valctx"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
 )
+
+// relativeTo is what a custom theme's folder is resolved against: the input
+// file's directory, or the working directory when there is no input file
+// (`design.py:55-56`).
+func relativeTo(ctx *valctx.ValidationContext) string {
+	path, ok := ctx.InputPath()
+	if !ok {
+		return "."
+	}
+	return filepath.Dir(path)
+}
 
 // CodeModelAttributesType is a `design` that is not a mapping. It is the only
 // block-level failure `design` has — and **not** the pair `locale` has, which is
@@ -48,14 +61,14 @@ var (
 // option** and not "unknown theme".
 //
 // A theme name that is not built in is a custom theme, and `ValidateTheme` owns
-// the name-shape check that iteration 4 ported. The folder checks that would
-// follow it are Wave E's, so a well-named custom theme currently validates
-// without its options being checked at all — the option tree describes
-// `ClassicTheme`, and a custom theme's is its own.
+// the name-shape check that iteration 4 ported, followed by the two folder
+// checks of `design.py:72-86`. A custom theme's *options* are its own, so the
+// built-in option tree is not applied to it.
 func Validate(
 	node *yamldoc.Node,
 	location []string,
 	source schemaerr.YamlSource,
+	ctx *valctx.ValidationContext,
 ) []schemaerr.ValidationError {
 	if node == nil {
 		return nil
@@ -89,8 +102,22 @@ func Validate(
 		return errs
 	}
 	if !isBuiltIn(theme.Raw) {
-		// A custom theme passed the name-shape check. Its options are its own
-		// and Wave E owns loading them.
+		// A custom theme passed the name-shape check, so the two folder checks
+		// run next (`design.py:72-86`).
+		//
+		// **They are validation records, not a user error.** Upstream raises a
+		// `PydanticCustomError` from inside the validator, so it arrives in the
+		// same table as every other problem, located at `design` — the block, not
+		// `design.theme`, because neither of these two passes a `loc` override the
+		// way the name check does. The port used to run them from the CLI and
+		// print a one-line `Error` panel instead, which `err_unknown_theme`
+		// measures.
+		if err := ValidateCustomThemeFolder(theme.Raw, relativeTo(ctx)); err != nil {
+			return []schemaerr.ValidationError{
+				blockError(node, CodeTheme, err.Error(), location, source),
+			}
+		}
+		// Its options are its own; the built-in tree does not describe them.
 		return nil
 	}
 	return validateModel(node, baseTree(), baseTree().Root, theme.Raw, location, source)

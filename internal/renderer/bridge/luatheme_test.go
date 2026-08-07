@@ -32,6 +32,12 @@ func resolveWithTheme(t *testing.T, theme, script, block string) bridge.Document
 		if err := os.WriteFile(filepath.Join(dir, theme, "init.lua"), []byte(script), 0o644); err != nil {
 			t.Fatal(err)
 		}
+		// A custom theme folder with no `*.j2.typ` in it is rejected during
+		// validation (`design.py:82-86`), so the folder needs one before the
+		// script can be reached at all.
+		if err := os.WriteFile(filepath.Join(dir, theme, "Preamble.j2.typ"), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	node, err := yamlreader.ReadString(document)

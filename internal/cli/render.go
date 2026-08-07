@@ -17,7 +17,6 @@ import (
 	"github.com/nonamecat19/rendercv-go/internal/renderer/typstc"
 	"github.com/nonamecat19/rendercv-go/internal/schema/modelbuilder"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv"
-	"github.com/nonamecat19/rendercv-go/internal/schema/models/design"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/valctx"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 )
@@ -88,16 +87,10 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 	doc := bridge.Resolve(model, context.Today())
 	inputDir := filepath.Dir(options.InputPath)
 
-	// **A custom theme's folder is checked before anything is rendered**
-	// (`design.py:72-86`). Upstream reports a validation error and writes
-	// nothing; the port used to render happily against a theme folder that did
-	// not exist, which a verifier measured. The two messages are upstream's own.
-	if theme := themeOf(doc); !design.IsBuiltinTheme(theme) {
-		if err := design.ValidateCustomThemeFolder(theme, inputDir); err != nil {
-			failPanel(stdout, err)
-			return exitValidationError
-		}
-	}
+	// The custom-theme folder checks used to run here, as a user error. They are
+	// upstream's *validation* records (`design.py:72-86`), so they moved into
+	// `design.Validate` and arrive through `BuildModel` above with every other
+	// record — which is what `err_unknown_theme` compares.
 
 	pathInput := PathInput{
 		Name:         plainName(doc),
