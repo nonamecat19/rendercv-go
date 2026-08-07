@@ -106,3 +106,22 @@ func TestMastodonTrailingSpaceFailsAsAURL(t *testing.T) {
 		t.Errorf("location = %q, want the record's", got)
 	}
 }
+
+// Spec 004 §4.2. Full match of `\d+/[^/]+`.
+func TestStackOverflowUsername(t *testing.T) {
+	const want = `StackOverflow username should be in the format "user_id/username".`
+
+	runUsernameCases(t, []usernameCase{
+		{"StackOverflow", "12345/john", ""},
+		{"StackOverflow", "1/a", ""},
+		// The second part takes anything but a slash, spaces included.
+		{"StackOverflow", "12345/john doe", ""},
+		{"StackOverflow", "johndoe", want},
+		{"StackOverflow", "12345", want},
+		{"StackOverflow", "12345/", want},
+		{"StackOverflow", "/john", want},
+		{"StackOverflow", "12345/john/extra", want},
+		{"StackOverflow", "abc/john", want},
+		{"StackOverflow", "", want},
+	})
+}
