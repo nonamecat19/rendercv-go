@@ -50,6 +50,7 @@ func TestCorpusTypstIsByteIdentical(t *testing.T) {
 			path := filepath.Join(dir, "cv.yaml")
 			input := readFixture(t, path)
 
+			markdown := ""
 			for _, artifact := range []struct {
 				name   string
 				format templater.Format
@@ -59,11 +60,23 @@ func TestCorpusTypstIsByteIdentical(t *testing.T) {
 			} {
 				want := readFixture(t, filepath.Join(dir, artifact.name))
 				got := renderFixture(t, input, path, artifact.format)
+				if artifact.format == templater.FormatMarkdown {
+					markdown = got
+				}
 				if got == want {
 					continue
 				}
 				t.Errorf("the rendered %s differs from upstream's:\n%s",
 					artifact.name, firstDifference(want, got))
+			}
+
+			// **The HTML is built from the Markdown this run produced**, not
+			// from the fixture's — so a `.md` regression shows up here too,
+			// which is upstream's own coupling (`html.py:31-33`).
+			want := readFixture(t, filepath.Join(dir, "expected.html"))
+			if got := renderHTMLFixture(t, input, path, markdown); got != want {
+				t.Errorf("the rendered expected.html differs from upstream's:\n%s",
+					firstDifference(want, got))
 			}
 		})
 	}
@@ -72,7 +85,7 @@ func TestCorpusTypstIsByteIdentical(t *testing.T) {
 // renderFixture validates and renders one case. The input **path** is threaded
 // through because two things resolve against it: `cv.photo`'s existence check,
 // and the loader's search for a user template override.
-func renderFixture(t *testing.T, input, path string, format templater.Format) string {
+func resolveFixture(t *testing.T, input, path string) bridge.Document {
 	t.Helper()
 	node, err := yamlreader.ReadString(input)
 	if err != nil {
@@ -86,12 +99,26 @@ func renderFixture(t *testing.T, input, path string, format templater.Format) st
 	if len(errs) > 0 {
 		t.Fatalf("the input did not validate: %v", errs)
 	}
+	return bridge.Resolve(model, probeDate)
+}
 
-	out, err := document.Render(bridge.Resolve(model, probeDate), format, document.Options{
+func renderFixture(t *testing.T, input, path string, format templater.Format) string {
+	t.Helper()
+	out, err := document.Render(resolveFixture(t, input, path), format, document.Options{
 		InputDir: filepath.Dir(path),
 	})
 	if err != nil {
 		t.Fatalf("Render: %v", err)
+	}
+	return out
+}
+
+func renderHTMLFixture(t *testing.T, input, path, markdown string) string {
+	t.Helper()
+	out, err := document.RenderHTML(resolveFixture(t, input, path), markdown,
+		document.Options{InputDir: filepath.Dir(path)})
+	if err != nil {
+		t.Fatalf("RenderHTML: %v", err)
 	}
 	return out
 }
