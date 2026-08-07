@@ -290,7 +290,7 @@ func renderCell(text string, width int, noWrap bool) []string {
 
 	var lines []string
 	for paragraph := range strings.SplitSeq(text, "\n") {
-		for _, line := range wrap(paragraph, width) {
+		for _, line := range wrapKeepingWords(paragraph, width) {
 			lines = append(lines, truncate(line, width))
 		}
 	}
