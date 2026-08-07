@@ -50,11 +50,11 @@ Tests: the orders, and `Bullet`'s non-ASCII members surviving a round trip.
 
 ## Wave B — the tree
 
-### T5 — the tree shape · `[sequential]`
+### T5 — the tree shape · `[sequential]` — **done**
 `tree.go`: `Model`, `Field`, `Kind`. No data.
 Plan §3, §5.
 
-### T6 — the 161-row differential, red · `[sequential]`
+### T6 — the 161-row differential, red · `[sequential]` — **done**
 **Revised from "the submodule diff".** A test comparing the generated tree against the same
 introspection that generated it could not fail — `tools/localeprobe`'s stated blind spot, and here
 it would be the *whole* check rather than half of it.
@@ -65,13 +65,13 @@ wrong default is a byte mismatch and there is nothing a separate diff would catc
 not. Landing it red means declaring an empty `design.SchemaDefs`, wiring it into `portDefs`, and
 moving the absent count from 227−63 to 227−224 — which fails until Wave D lands.
 
-### T7 — `tools/designprobe` and the generated tree · `[sequential]`
+### T7 — `tools/designprobe` and the generated tree · `[sequential]` — **done**
 Introspects `ClassicTheme` through `uv` and emits `tree_generated.go`: twenty-two models, every
 field, default and description. `just designprobe` reruns it.
 Plan §2. **The tool's head states what the diff does and does not check**, matching
 `tools/localeprobe` — including that it and the test share a parser.
 
-### T8 — the eight override maps · `[sequential]`
+### T8 — the eight override maps · `[sequential]` — **done**
 `overrides_generated.go` from the same tool, plus `Themes` in union order: `classic` then the eight
 sorted stems.
 Spec §1 behavior 2, §5 criterion 7.
@@ -81,23 +81,33 @@ Test: `Themes` derived from the glob, as `TestLanguagesAreInUnionOrder` does for
 
 ## Wave C — validation
 
-### T9 — the recursive binder · `[sequential]`
+### T9 — the recursive binder · `[sequential]` — **done**
 `validate.go`: one walk of the tree, `binder.ForbidExtra` at every level, leaf kinds dispatching to
 Wave A.
 Spec §3 behavior 4. Plan §5.
 
-### T10 — the effective tree per theme · `[sequential]`
-`variants.go`: an override map applied to the base tree, deep-merged, so a theme validates against
-its own defaults.
-Spec §1 behavior 1.
+### T10 — the effective tree per theme · `[sequential]` — **cut, to iteration 9**
+`variants.go` carries T13's ordinal assignment; the deep merge is not there.
 
-### T11 — wire `design` into the model · `[sequential]`
+**Why it is not needed to validate**: nothing checks a default. A theme's overrides change what a
+field *defaults to*, and validation only ever looks at what the document *says* — so the option
+tree the walk uses is the same for all nine themes, and `TestDesignBlock` proves it by reporting
+the same failure under `classic` and `sb2nov`.
+
+**What it costs to defer, stated rather than hidden**: `RenderCVModel.Design` is still a raw
+document node, so no design *model* exists, so `WidenFontFamily` and `SnakeCaseSectionTitles` have
+no non-test callers. Spec §5 criterion 4's wording — "must produce the same **model**" — is
+therefore not testable as shipped; what is tested is the transform. The renderer is the first
+consumer that needs effective values, and it is the first place the criterion can be checked as
+written.
+
+### T11 — wire `design` into the model · `[sequential]` — **done**
 `rendercvmodel.go` reaches only `ValidateTheme` today, so nothing can reach the option tree — the
 same gap iteration 7's verifier found in `locale` (`STATE.md`, iteration 7).
 Spec §3 behavior 6.
 Tests: a built-in theme with a bad option reports **that option**, not "unknown theme".
 
-### T12 — the two coercions · `[sequential]`
+### T12 — the two coercions · `[sequential]` — **done**
 `validate_font_family`'s string widening and `convert_section_titles_to_snake_case`.
 Spec §3.2 behaviors 14 and 15.
 Tests: `font_family: Roboto` and the full mapping produce the same model;
@@ -107,22 +117,22 @@ Tests: `font_family: Roboto` and the full mapping produce the same model;
 
 ## Wave D — the schema
 
-### T13 — the ordinal assignment · `[sequential]`
+### T13 — the ordinal assignment · `[sequential]` — **done**
 `variants.go`: `(model, theme) → ordinal` by walking the tree depth-first inside the theme loop.
 Plan §4. **Two hazards are the unit's whole point**: a model no theme overrides carries **no**
 suffix, and a theme that omits a key points back at `__1`.
 Tests: `Page` has six, `Links` eight, `OneLineEntry` none; `HarvardTheme.links` refs `__1`.
 
-### T14 — the 161 `$defs` · `[sequential]`
+### T14 — the 161 `$defs` · `[sequential]` — **done**
 `schema.go`. Turns the 161 rows T6 made red green. The absent count is already 227−224 by then.
 
-### T15 — the three settings `$defs` · `[sequential]`
+### T15 — the three settings `$defs` · `[sequential]` — **done**
 `Settings`, `RenderCommand`, `PlannedPathRelativeToInput` — unowned by any iteration's spec today
 and the last three between the port and a green Axis 3. Small enough to land here rather than
 leave Axis 3 open on three entries.
 **Update the absent count to 0** and `just schema-diff` exits 0.
 
-### T16 — close the ledger · `[sequential]`
+### T16 — close the ledger · `[sequential]` — **done**
 `specs/STATE.md`: iteration 6 green, Axis 3 **closed**, Wave E recorded as cut scope.
 
 ---
@@ -132,6 +142,9 @@ leave Axis 3 open on three entries.
 **Custom themes (D-002's Lua path) and spec §3 behavior 7's second and third messages are not in
 this iteration.** The spec places them here; `plan.md` §7 moves them out, because the sandbox is a
 subsystem of its own and bundling it with 161 `$defs` makes both unreviewable.
+
+They are **iteration 14's**, and `design.go` carries a `TODO(iteration-14)` saying so — the marker
+`tasks.md` promised and did not have until the verifier asked for it.
 
 This is a scheduling decision, not a divergence — `divergences.md` already carries D-002 and is
 untouched. `STATE.md` records it as cut scope with this reason, and the two messages keep their

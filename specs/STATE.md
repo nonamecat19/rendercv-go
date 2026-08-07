@@ -19,8 +19,8 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 2 | YAML reader + core model (RenderCVModel, CV, Section) | [002](002-yaml-and-core-model/spec.md) | green (with cut scope, see below) | n/a (gated on unit tests, spec §7.2) |
 | 3 | Entry types (9) | [003](003-entry-types/spec.md) | green (with cut scope, see below) | n/a (gated on unit tests, spec §7.1) |
 | 4 | Validation-error parity | [004](004-validation-errors/spec.md) | green | n/a (gated on the 25-record differential, spec §7.3) |
-| 5 | JSON Schema generator | [005](005-json-schema/spec.md) | green (Axis 3 blocked on 6, see below) | n/a (gated on the 18 owned `$defs`, spec §7.1) |
-| 6 | Design & themes (9) + Lua-scripted custom themes (D-002) | [006](006-design-and-themes/spec.md) | spec (behavior complete; plan and tasks to write) | 0 / 9 |
+| 5 | JSON Schema generator | [005](005-json-schema/spec.md) | green (Axis 3 now closed by 6) | n/a (gated on the 18 owned `$defs`, spec §7.1) |
+| 6 | Design & themes (9) + the settings schema | [006](006-design-and-themes/spec.md) | green (with cut scope, see below) | n/a (gated on the 164 `$defs` differential and the override diff, spec §5) |
 | 7 | Locale (English + 21 catalogs) | [007](007-locale/spec.md) | green | n/a (gated on the 45 `$defs` differential and the submodule catalog diff, spec §5) |
 | 8 | Templater (pongo2 env, filters, markdown→typst, processors) | — | — | 0 |
 | 9 | Typst renderer (`.typ` emission) | — | — | 0 / 18 |
@@ -28,6 +28,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 11 | Markdown + HTML renderers | — | — | 0 / 4 |
 | 12 | CLI (`new`, `render`, `create-theme`, overrides, watcher) | — | — | 0 |
 | 13 | Parity closeout (sample generator, version, error handler, packaging) | — | — | 0 |
+| 14 | Lua-scripted custom themes (D-002) + the two folder messages | — | — | 0 |
 
 ## Parity axes
 
@@ -35,7 +36,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 |---|---|---|
 | 1 — artifacts byte-identical | `just test-parity` | measurable, 0/15 cases passing |
 | 2 — CLI surface | `just test-parity` | measurable, 0/20 cases passing |
-| 3 — JSON Schema | `just schema-diff` | **blocked on iteration 6 alone**, not failing: 164 of 227 `$defs` are the design tree and the three settings models. The 63 the port owns are byte-identical. |
+| 3 — JSON Schema | `just schema-diff` | **green.** All 227 `$defs` byte-identical; the command exits 0. The oracle is `tools/genschema`, not the parity suite — `TestSchemaParity` shells `rendercv-go schema` and stays red until iteration 12. |
 | 4 — validation errors | `just test-parity` | measurable, 0/7 corpus cases passing; the 25-record differential is green |
 
 PDF content comparison (spec §1.2) is not yet measurable — it lands with iteration 10.
@@ -298,6 +299,70 @@ optional-reference fields, and a list of the four known cases would have missed 
 changed deliberately, so iterations 6 and 7 cannot close Axis 3 by accident or leave it closed on
 paper. Iteration 7 moved it from 209 to 164; iteration 6 takes it to 0.
 
+### Iteration 6
+
+**Axis 3 is closed.** All 227 `$defs` are byte-identical and `just schema-diff` exits 0. The
+oracle is `tools/genschema`; the parity suite's own Axis-3 case shells `rendercv-go schema` and
+stays red until iteration 12, so "closed" means by the generation path spec 005 §4 named, not by
+`just test-parity`.
+
+**Verified by `rendercv-parity-verifier` in a fresh context, which returned FAIL with twelve
+findings, two of them blockers.** Everything below either was fixed inside the iteration or is cut
+here with its reason. None of it belongs in `divergences.md`.
+
+**The blocker worth reading, because the diamond is the only thing that could have caught it.**
+The error pipeline reproduced upstream's step 2 — pydantic-core inserts a discriminated union's
+resolved branch value as the location's second element, and `parse_plain_pydantic_error` deletes
+it. The port never produces that element: `design.Validate` and `locale.Validate` resolve the union
+themselves. Deleting anyway removed a **real** key. `design.colors.body` became `design.body`,
+which failed to resolve against the document and reached the user as an internal error;
+`design.nope` became `design`, which resolved and shipped a wrong location **silently**.
+
+It was unreachable until this iteration emitted the first non-`theme` location under `design`, and
+it survived my own tests because they stop at `models.Validate`. The fix deletes step 2 and adds
+`TestDesignAndLocaleErrorsSurviveTheWholePipeline`, which runs five documents through `Parse` and
+asserts what the user sees — including the colour message reaching dictionary row 13, the first
+live producer for a row that has been in the table since iteration 4.
+
+**Four shape checks were missing and are now measured** (`0dbd1e4`): a bool reported nothing at
+all, `font_family` accepted a sequence, a non-string colour reported `string_type` instead of
+`color_error`, and a non-mapping nested model reported nothing. Each of the four now carries the
+code and message upstream gives, including the pair that distinguishes `bool_parsing` from
+`bool_type` and the `model_type` text that **names the model**.
+
+**Cut scope, with owners:**
+
+1. **T10, the effective per-theme option tree, is cut to iteration 9.** Nothing validates a
+   default, so the walk is the same for all nine themes — `TestDesignBlock` shows the same failure
+   under `classic` and `sb2nov`. The cost is stated rather than hidden: `RenderCVModel.Design` is
+   still a raw node, so `WidenFontFamily` and `SnakeCaseSectionTitles` have no non-test callers,
+   and spec §5 criterion 4's "must produce the same **model**" is not testable as shipped. The
+   renderer is the first consumer that needs effective values.
+2. **Wave E — the D-002 Lua custom-theme path and spec §3 behavior 7's two folder messages — is
+   iteration 14's**, a new row in the table above. `plan.md` §7 gives the reason: a sandbox bundled
+   with 161 `$defs` makes both unreviewable. `design.go` carries the `TODO(iteration-14)` that
+   `tasks.md` promised and did not have until the verifier asked for it.
+3. **`settings` is still the thin slice of spec 004 §7.9.** The three `$defs` shipped here to close
+   Axis 3; unknown-key rejection under `settings` and everything `RenderCommand` describes are
+   iteration 12's. `specs/006-design-and-themes/settings.md` says so.
+
+**A process failure the verifier found and I am recording rather than rewriting:**
+`settings/schema.go` shipped before any spec covered it, against `AGENTS.md` §4. The retrofit is
+`settings.md`, and it marks which of its criteria are open rather than implying the block is
+finished.
+
+**Two commit-discipline failures**, also recorded: `ff0c903` bundles T9, T11 and T12, and `58fc1f0`
+bundles three `$defs` models with the Axis-3 status claim. Each should have been three commits.
+
+**A design finding worth carrying forward:** a `design` block with **no `theme` key crashes
+upstream** — `validate_design` runs in front of the union and does `str(design["theme"])` unguarded
+(`design.py:57`), so the shape that gives `locale` a `union_tag_not_found` gives `design` a
+`KeyError`. The port stays silent rather than reporting where upstream crashes, joining the two
+crashes spec 004 §7.8 sent to iteration 12.
+
+The parity suite stays at its 42 red cases. No golden was regenerated and the submodule was not
+bumped, so no human gate was requested.
+
 ### Iteration 7
 
 **No cut scope.** Every task landed: the ten-field catalog model with both length messages
@@ -372,3 +437,6 @@ substitution to iteration 9, with the renderer.
 | 2026-08-07 | Iteration 7 green. The 45 locale `$defs` land byte-identical, taking the port from 18 of 227 to 63 and Axis 3 from "blocked on 6–7" to "blocked on 6". |
 | 2026-08-07 | Two locale behaviors found by measuring rather than reading, both fixed inside the iteration: the twelve-element month bound is `EnglishLocale`'s alone, so applying it to every member rejected documents upstream accepts; and a null `language` is a tag failure rather than an absence. |
 | 2026-08-07 | Verifier returned FAIL on iteration 7 with three findings, all closed: `ValidateCatalog` was unreachable from `rendercvmodel.go`, so the rules T1 and T2 shipped could not be reached by any document; `Languages`' order was pinned only transitively through the `$defs` bytes; and the catalog drift check shares a YAML parser with the tool that generated the data it checks. The `design` block is wired the same thin way today — iteration 6 must not repeat it. |
+| 2026-08-07 | Iteration 6 green with cut scope: the 161 design `$defs` plus the three settings ones. **Axis 3 closed** — all 227 byte-identical, `just schema-diff` exits 0. |
+| 2026-08-07 | Verifier returned FAIL on iteration 6 with twelve findings, two blockers, all closed or cut. The pipeline was deleting the second element of every `design` and `locale` location, which the port never produces: `design.colors.body` became `design.body` and reached the user as an internal error. Unreachable until this iteration emitted the first non-`theme` location, and invisible to tests that stop at `models.Validate`. |
+| 2026-08-07 | Iteration 14 added to the table: the D-002 Lua custom-theme path, moved out of iteration 6 by its plan §7. |
