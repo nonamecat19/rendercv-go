@@ -2,6 +2,7 @@ package cv
 
 import (
 	"errors"
+	"regexp"
 	"strings"
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/binder"
@@ -69,9 +70,6 @@ var SocialNetworkFields = []string{"network", "username"}
 // SocialNetwork is the shell of schema/models/cv/social_network.py's
 // SocialNetwork model: both fields are required, with no default
 // (social_network.py:54-57, spec §3.80).
-//
-// TODO(spec 004 T30-T37): the eight per-network username rules
-// (social_network.py:59-151).
 type SocialNetwork struct {
 	Network  SocialNetworkName
 	Username string
@@ -87,6 +85,76 @@ var socialNetworkFields = []binder.Field{
 // CodeLiteral marks a value outside a fixed set of literals. The text is
 // pydantic's, not RenderCV's.
 const CodeLiteral schemaerr.Code = "literal_error"
+
+// CodeUsername is the kind every per-network username rule raises
+// (models/custom_error_types.py:6). None of the eight messages is touched by
+// the dictionary.
+const CodeUsername schemaerr.Code = "rendercv_other_error"
+
+// usernameRule is one network's check. It reports the message to raise, or the
+// empty string to accept.
+//
+// Nine of the seventeen networks have no rule and accept any username; only the
+// eight below appear here (spec 004 §3.16 behavior 59).
+type usernameRule func(username string) string
+
+// usernameRules is check_username's match statement (social_network.py:82-151).
+//
+// **Every pattern is a full match**, `re.fullmatch` rather than `re.search`.
+// Bluesky's and Reddit's additionally carry redundant `^`/`$` anchors, which are
+// kept in the source strings so a diff against upstream is mechanical
+// (behavior 60).
+//
+// TODO(spec 004 T31-T37): the other seven rules.
+var usernameRules = map[SocialNetworkName]usernameRule{
+	SocialNetworkMastodon: func(username string) string {
+		if mastodonPattern.MatchString(username) {
+			return ""
+		}
+		return `Mastodon username should be in the format "@username@domain".`
+	},
+}
+
+// mastodonPattern is `@[^@]+@[^@]+` (social_network.py:86-87), anchored here
+// because Go's MatchString is a search and upstream's is a full match.
+var mastodonPattern = regexp.MustCompile(`^@[^@]+@[^@]+$`)
+
+// checkUsername mirrors check_username (social_network.py:59-151).
+//
+// It runs **only** when a valid network is already present: an absent or unknown
+// network returns the username unchecked and lets the network failure stand
+// alone (social_network.py:76-80). That is why the caller reaches it after the
+// literal check and not before.
+func checkUsername(
+	network SocialNetworkName,
+	username string,
+	node *yamldoc.Node,
+	location []string,
+	source schemaerr.YamlSource,
+) []schemaerr.ValidationError {
+	rule, ok := usernameRules[network]
+	if !ok {
+		return nil
+	}
+	message := rule(username)
+	if message == "" {
+		return nil
+	}
+
+	var span *yamldoc.Span
+	if node != nil {
+		copied := node.Span
+		span = &copied
+	}
+	return []schemaerr.ValidationError{{
+		Code:           CodeUsername,
+		SchemaLocation: fieldLocation(location, "username"),
+		YamlLocation:   span,
+		YamlSource:     source,
+		Message:        message,
+		Input:          schemaerr.RenderInput(node),
+	}}
+}
 
 // urlPrefixes is `url_dictionary` (social_network.py:33-50): the profile-URL
 // prefix each network's username is appended to.
@@ -206,8 +274,17 @@ func ValidateSocialNetwork(
 
 	model.Network = name
 
+	// The username rules run only once the network is known to be valid.
+	usernameNode, _ := result.Value("username")
+	usernameErrs := checkUsername(name, model.Username, usernameNode, location, source)
+	errs = append(errs, usernameErrs...)
+
 	// The generated URL is checked last, as a model-level validator upstream.
-	errs = append(errs, validateGeneratedURL(model, location, source)...)
+	// A username the rules rejected never reaches it: upstream's field validator
+	// raises before the model validator runs.
+	if len(usernameErrs) == 0 {
+		errs = append(errs, validateGeneratedURL(model, location, source)...)
+	}
 	return model, errs
 }
 

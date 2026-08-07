@@ -153,10 +153,22 @@ func TestValidateSocialNetwork(t *testing.T) {
 	}
 }
 
+// validUsernames gives each network a username its own rule accepts. Nine
+// networks have no rule and take anything; the rest need a real value, and
+// listing them here keeps the "every name is accepted" test about the *name*
+// rather than about the username.
+var validUsernames = map[cv.SocialNetworkName]string{
+	"Mastodon": "@johndoe@mastodon.social",
+}
+
 // Every one of the seventeen names is accepted.
 func TestAllSocialNetworkNamesAccepted(t *testing.T) {
 	for _, name := range cv.SocialNetworkNames {
-		node, err := yamlreader.ReadString("network: \"" + string(name) + "\"\nusername: johndoe\n")
+		username := "johndoe"
+		if special, ok := validUsernames[name]; ok {
+			username = special
+		}
+		node, err := yamlreader.ReadString("network: \"" + string(name) + "\"\nusername: \"" + username + "\"\n")
 		if err != nil {
 			t.Fatalf("ReadString: %v", err)
 		}
