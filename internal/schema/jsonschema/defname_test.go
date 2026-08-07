@@ -42,20 +42,43 @@ func TestDefName(t *testing.T) {
 	}
 }
 
-// The collision suffix is iteration 6's, and asking for one is a panic rather
-// than a guess: the numbering follows pydantic's emission order, so a plausible
-// implementation would be a wrong answer that reads right.
-func TestDefNameWithSuffixPanicsNamingIteration6(t *testing.T) {
-	defer func() {
-		recovered := recover()
-		if recovered == nil {
-			t.Fatal("DefNameWithSuffix returned instead of panicking")
-		}
-		message, ok := recovered.(string)
-		if !ok || !strings.Contains(message, "iteration 6") {
-			t.Errorf("panic = %v, want it to name iteration 6", recovered)
-		}
-	}()
+// Spec 005 §3.3 behaviors 12 and 13, on upstream's own locale keys.
+func TestDefNameWithSuffix(t *testing.T) {
+	const module = "rendercv.schema.models.locale.english_locale"
 
-	DefNameWithSuffix("Colors", "rendercv.schema.models.design.classic_theme", 1)
+	got := DefNameWithSuffix("Phrases", module, 1)
+	const want = "rendercv__schema__models__locale__english_locale__Phrases__1"
+	if got != want {
+		t.Errorf("=\n  %q\nwant\n  %q", got, want)
+	}
+}
+
+// The numbering follows the **emission order** it is given, not the alphabet.
+//
+// That distinction is the whole difficulty and it is invisible in the output:
+// `$defs` sorts its keys, so an alphabetically-assigned suffix produces a file
+// that looks correctly sorted while pairing every model with the wrong number.
+// The test therefore checks the pairing, on an order chosen so the two disagree.
+func TestSuffixedNamesFollowsEmissionOrder(t *testing.T) {
+	const module = "rendercv.schema.models.locale.english_locale"
+
+	// Deliberately not alphabetical: `english` leads, as Languages does.
+	emission := []string{"english", "arabic", "danish"}
+	got := SuffixedNames("Phrases", module, emission)
+
+	if len(got) != len(emission) {
+		t.Fatalf("got %d names, want %d", len(got), len(emission))
+	}
+	for i, name := range got {
+		want := DefNameWithSuffix("Phrases", module, i+1)
+		if name != want {
+			t.Errorf("name %d = %q, want %q", i, name, want)
+		}
+	}
+
+	// `english` is first in emission order and third alphabetically, so a
+	// sorted implementation would give it __3.
+	if !strings.HasSuffix(got[0], "__1") {
+		t.Errorf("the first emitted model got %q; emission order was ignored", got[0])
+	}
 }

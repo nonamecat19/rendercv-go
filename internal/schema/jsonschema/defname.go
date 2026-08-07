@@ -26,23 +26,37 @@ func DefName(class, module string) string {
 	return strings.ReplaceAll(module, ".", "__") + "__" + class
 }
 
-// DefNameWithSuffix is spec 005 §3.3 behavior 12: two distinct models that
-// collide even after qualification get `__1`, `__2`, … in the order pydantic
-// first emitted them.
+// DefNameWithSuffix is spec 005 §3.3 behavior 12: distinct models that collide
+// even after qualification get `__1`, `__2`, … appended.
 //
-// **Not implemented, deliberately.** The rule is exercised only by the per-theme
-// variant classes, which are iteration 6's models — building it now would mean
-// building against models that do not exist and testing against nothing. The
-// numbering is emission-order-dependent rather than alphabetical (behavior 13),
-// so a plausible-looking implementation would be a wrong answer that reads
-// right.
-//
-// It panics rather than returning a guess for the same reason.
-//
-// TODO(iteration-6): implement the emission-order numbering alongside the theme
-// variants that produce the collisions.
+// **ordinal is 1-based and follows pydantic's emission order, not the alphabet**
+// (behavior 13). That distinction is the whole difficulty: the keys themselves
+// sort alphabetically in `$defs`, so a suffix assigned alphabetically produces a
+// file that looks sorted and pairs the wrong model with the wrong number.
+// SuffixedNames is the helper that gets it right by construction.
 func DefNameWithSuffix(class, module string, ordinal int) string {
-	panic(fmt.Sprintf(
-		"jsonschema: the $defs collision suffix is iteration 6's (spec 005 §7.2);"+
-			" asked for %s.%s__%d", module, class, ordinal))
+	return fmt.Sprintf("%s__%d", DefName(class, module), ordinal)
+}
+
+// SuffixedNames numbers a colliding model once per member of an emission order.
+//
+// The caller passes the order pydantic walks the union in — for locale that is
+// the twenty-two languages, for design the nine themes — and gets back the
+// `$defs` keys in the same order, numbered from 1.
+//
+// Taking the order as an argument rather than deriving it is deliberate. There
+// is nothing in the Go tree to derive it *from*: the numbering is a property of
+// how pydantic happened to walk the model graph, and the only faithful source is
+// the union's own declared member order, which each package already carries and
+// already pins against upstream.
+//
+// Locale is the easy case and is why this lands with iteration 7 rather than 6:
+// a flat list of twenty-two, where design's is nine themes × their nested
+// models. Same rule, visibly right on the flat one first.
+func SuffixedNames(class, module string, emissionOrder []string) []string {
+	names := make([]string, 0, len(emissionOrder))
+	for i := range emissionOrder {
+		names = append(names, DefNameWithSuffix(class, module, i+1))
+	}
+	return names
 }

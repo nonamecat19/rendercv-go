@@ -53,7 +53,7 @@ The base catalog, written by hand because its values are Python defaults rather 
 
 ## Wave C — the schema
 
-### T26 — the collision suffix · `[sequential]`
+### T26 — the collision suffix · `[sequential]` — **done**
 `internal/schema/jsonschema`: implement the emission-order numbering spec 005 §7.2 deferred, and
 replace `DefNameWithSuffix`'s panic.
 Plan §4. Spec 005 §3.3 behaviors 12–13.
