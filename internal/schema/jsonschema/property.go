@@ -27,6 +27,17 @@ type Property struct {
 	// Optional adds the `null` member and `"default": null`.
 	Optional bool
 
+	// Metadata marks a field pydantic cannot type at all, so its schema is
+	// description, examples, default and title and nothing else. The three
+	// scalar-or-list fields of `Cv` are the only ones (spec 002 §3.47).
+	Metadata bool
+
+	// Required forces the field into `required` even though it is Optional.
+	// `CustomConnection.url` is the only field shaped this way: its key must be
+	// present and its value may be null, which spec 002 §3.81 drew as a
+	// distinction and which the schema shows as both at once.
+	Required bool
+
 	// Description and Examples are pydantic's `Field(...)` metadata, omitted
 	// when empty.
 	Description string
@@ -41,6 +52,13 @@ func (p Property) Schema() *Object {
 	object := NewObject()
 
 	switch {
+	case p.Metadata:
+		// No type key at all.
+	case len(p.Arms) == 1 && !p.Optional:
+		// A required field with one arm **inlines** it: `authors` is
+		// `{items, type}` and not `{anyOf: [{items, type}]}`. There is no union
+		// to express, so pydantic emits the member directly.
+		inlineInto(object, p.Arms[0])
 	case len(p.Arms) > 0:
 		object.Set("anyOf", p.anyOf(p.Arms))
 	case p.Ref != "" && p.Optional:
@@ -53,7 +71,10 @@ func (p Property) Schema() *Object {
 		object.Set("type", p.Type)
 	}
 
-	if p.Optional {
+	// A required-but-nullable field has no default: its key must be present, so
+	// there is nothing to default to. Only `CustomConnection.url` is shaped
+	// this way.
+	if p.Optional && !p.Required {
 		object.Set("default", nil)
 	}
 	if p.Description != "" {
@@ -110,6 +131,19 @@ func TitleFor(field string) string {
 	return strings.Join(words, " ")
 }
 
+// inlineInto copies an arm's keys onto the property, for the single-arm
+// required case above.
+func inlineInto(object *Object, arm any) {
+	inner, ok := arm.(*Object)
+	if !ok {
+		return
+	}
+	for _, key := range inner.Keys() {
+		value, _ := inner.Get(key)
+		object.Set(key, value)
+	}
+}
+
 func ref(name string) *Object {
 	return NewObject().Set("$ref", "#/$defs/"+name)
 }
@@ -117,25 +151,29 @@ func ref(name string) *Object {
 // Ref is a bare reference object, for an `anyOf` arm or a whole `$defs` entry.
 func Ref(name string) *Object { return ref(name) }
 
-// Model renders a model's `$defs` entry: the uniform envelope every entry type
-// and every `cv` model shares (spec 005 §5 behaviors 17 and 18).
+// Model renders a model's `$defs` entry.
 //
-// `description` is set to nil rather than omitted, because a model without a
-// docstring emits `"description": null`. `additionalProperties` is explicit in
-// both directions.
+// **No `description` key.** `Cv`, `SocialNetwork` and `CustomConnection` have
+// none at all, while every entry type has an explicit `"description": null` —
+// which is not a docstring difference but the `json_schema_extra` the entry base
+// carries (entry_with_complex_fields.py:90). EntryModel is the one that emits it.
+//
+// `additionalProperties` is explicit in both directions, and `required` is
+// omitted entirely when no field is required — `Cv` has no such key, while the
+// top-level object has `"required": []` (spec 005 §5 behavior 16). The two
+// differ, so neither is derived from the other.
 func Model(title string, allowExtra bool, properties []Property) *Object {
 	props := NewObject()
 	var required []any
 	for _, property := range properties {
 		props.Set(property.Name, property.Schema())
-		if !property.Optional {
+		if !property.Optional || property.Required {
 			required = append(required, property.Name)
 		}
 	}
 
 	object := NewObject().
 		Set("additionalProperties", allowExtra).
-		Set("description", nil).
 		Set("properties", props).
 		Set("title", title).
 		Set("type", "object")
@@ -143,4 +181,10 @@ func Model(title string, allowExtra bool, properties []Property) *Object {
 		object.Set("required", required)
 	}
 	return object.Sort()
+}
+
+// EntryModel is Model plus the explicit `"description": null` every entry type
+// carries (spec 005 §5 behavior 18).
+func EntryModel(title string, properties []Property) *Object {
+	return Model(title, true, properties).Set("description", nil).Sort()
 }
