@@ -87,6 +87,40 @@ Primary sources: `src/rendercv/schema/models/locale/` — `english_locale.py` (1
     Both interpolate the actual count, and neither matches a dictionary row, so the pipeline only
     appends a period.
 
+### 3.2 Corrections measured while implementing, not before
+
+Both were found by running the vendored Python rather than by reading it, and each is a case where
+the port's natural answer accepts or rejects a document upstream does not.
+
+10a. **Behavior 10's bound is `EnglishLocale`'s alone.** `{language: danish, month_names: [11
+     items]}` **validates**; the same document with `english` does not. The `at.Len(12, 12)` lives
+     in the `Annotated` metadata of `english_locale.py:60` and `:79`, and
+     `create_simple_field_spec` rebuilds every variant's field from `base_field_info.annotation`
+     (`variant_pydantic_model_generator.py:428-431`) — the bare `list[str]`, metadata already
+     stripped. So the twenty-one variants carry **no** length rule, in validation exactly as in
+     their schema, where they carry no `minItems`/`maxItems` either. Behavior 10's table is
+     English's.
+
+     Applying the bound to every member is the easy wrong answer: it rejects valid documents, and
+     no English fixture can see the difference.
+
+10b. **Three block-level failures precede any member.** Behavior 9 says the package raises nothing
+     of its own, which is true and is not the same as the block having no failures — pydantic's
+     union resolution has three, all reporting at `("locale",)` and all measured:
+
+     | Input | Code | Message |
+     |---|---|---|
+     | `{locale: {}}` | `union_tag_not_found` | `Unable to extract tag using discriminator 'language'` |
+     | `{locale: {language: null}}` | `union_tag_invalid` | `Input tag 'None' found using 'language' does not match any of the expected tags: …` |
+     | `{locale: null}`, `{locale: [1]}` | `model_attributes_type` | `Input should be a valid dictionary or object to extract fields from` |
+
+     The second is the one that reads as an absence. Treating a null `language` as "unspecified,
+     use English" accepts a document upstream rejects; pydantic reads the key, finds `None`, and
+     matches its repr against the tags.
+
+     The tag resolves **before** the member, and nothing else reports when it fails — so an
+     unknown language never produces field errors alongside it.
+
 ### 3.3 Two things about the 45 `$defs` that are not guessable
 
 11. **A non-ASCII language name is mangled into its class name.** `norwegian_bokmål` becomes

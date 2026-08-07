@@ -13,6 +13,13 @@
 // hand-edits the generated file. That is a weaker guarantee than the error
 // dictionary's — which was small enough to transcribe, so its diff really did
 // check a human copy — and the difference is worth knowing before trusting it.
+//
+// **A second blind spot, from the same shape.** The tool and the test both read
+// the YAML with `goccy/go-yaml` and the same struct tags, so a goccy defect —
+// an escape, a BOM, a Unicode normalization — would land in the generated data
+// and in the expectation alike, and the diff would agree with itself. Closing it
+// needs a second parser: the data was checked against ruamel out of band, field
+// by field, with zero differences, but nothing in the repo repeats that.
 package main
 
 import (
