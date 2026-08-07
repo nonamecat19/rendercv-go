@@ -164,6 +164,7 @@ var validUsernames = map[cv.SocialNetworkName]string{
 	"IMDB":          "nm0000001",
 	"Bluesky":       "john.bsky.social",
 	"WhatsApp":      "+905419999999",
+	"Reddit":        "johndoe",
 }
 
 // Every one of the seventeen names is accepted.
