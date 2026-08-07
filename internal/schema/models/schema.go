@@ -6,6 +6,7 @@ import (
 	"github.com/nonamecat19/rendercv-go/internal/schema/jsonschema"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv/entries"
+	"github.com/nonamecat19/rendercv-go/internal/schema/models/design"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/locale"
 )
 
@@ -86,6 +87,9 @@ func schemaDefs() *jsonschema.Object {
 		all[name] = object
 	}
 	for name, object := range locale.SchemaDefs() {
+		all[name] = object
+	}
+	for name, object := range design.SchemaDefs() {
 		all[name] = object
 	}
 
