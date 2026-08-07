@@ -167,3 +167,22 @@ func TestYouTubeMessageEndsWithQuotePeriod(t *testing.T) {
 		t.Errorf("final message = %q, want it to end `.\".`", final[0].Message)
 	}
 }
+
+// Spec 004 §4.4. Full match of `\d{4}-\d{4}-\d{4}-\d{3}[\dX]`.
+func TestORCIDUsername(t *testing.T) {
+	const want = "ORCID username should be in the format 'XXXX-XXXX-XXXX-XXX'."
+
+	runUsernameCases(t, []usernameCase{
+		{"ORCID", "0000-0002-1825-0097", ""},
+		// The check character may be a literal uppercase X.
+		{"ORCID", "0000-0002-1825-009X", ""},
+		// Lowercase is not the same character.
+		{"ORCID", "0000-0002-1825-009x", want},
+		{"ORCID", "0000-0002-1825-00970", want},
+		{"ORCID", "0000-0002-1825-009", want},
+		{"ORCID", "000-0002-1825-0097", want},
+		{"ORCID", "0000000218250097", want},
+		{"ORCID", "johndoe", want},
+		{"ORCID", "", want},
+	})
+}
