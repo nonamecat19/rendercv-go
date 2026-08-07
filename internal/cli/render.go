@@ -12,6 +12,7 @@ import (
 	"github.com/nonamecat19/rendercv-go/internal/renderer/templater"
 	"github.com/nonamecat19/rendercv-go/internal/renderer/templater/process"
 	"github.com/nonamecat19/rendercv-go/internal/schema/modelbuilder"
+	"github.com/nonamecat19/rendercv-go/internal/schema/models/design"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/valctx"
 )
 
@@ -71,6 +72,17 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 
 	doc := bridge.Resolve(model, context.Today())
 	inputDir := filepath.Dir(options.InputPath)
+
+	// **A custom theme's folder is checked before anything is rendered**
+	// (`design.py:72-86`). Upstream reports a validation error and writes
+	// nothing; the port used to render happily against a theme folder that did
+	// not exist, which a verifier measured. The two messages are upstream's own.
+	if theme := themeOf(doc); !design.IsBuiltinTheme(theme) {
+		if err := design.ValidateCustomThemeFolder(theme, inputDir); err != nil {
+			fail(stderr, err)
+			return 4
+		}
+	}
 
 	pathInput := PathInput{
 		Name:         plainName(doc),
@@ -158,6 +170,13 @@ func writeArtifact(template string, input PathInput, content string) (string, er
 		return "", err
 	}
 	return path, os.WriteFile(path, []byte(content), 0o644)
+}
+
+// themeOf reads the resolved theme name, which is the discriminator the folder
+// check is keyed on.
+func themeOf(doc bridge.Document) string {
+	theme, _ := doc.Design["theme"].(string)
+	return theme
 }
 
 // display is how the panel spells a path: relative to the working directory and
