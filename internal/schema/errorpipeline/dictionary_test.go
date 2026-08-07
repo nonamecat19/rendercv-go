@@ -149,7 +149,7 @@ func TestDeadDictionaryRowsStayDead(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got := Parse([]schemaerr.ValidationError{{
+			got := mustParse(t, []schemaerr.ValidationError{{
 				SchemaLocation: test.location, Message: test.message,
 			}}, nil, nil)[0]
 
@@ -166,7 +166,7 @@ func TestDeadDictionaryRowsStayDead(t *testing.T) {
 // A live row, end to end, so the test above cannot pass because the dictionary
 // is wired up wrong altogether.
 func TestALiveDictionaryRowFiresThroughParse(t *testing.T) {
-	got := Parse([]schemaerr.ValidationError{{
+	got := mustParse(t, []schemaerr.ValidationError{{
 		SchemaLocation: []string{"cv", "name"}, Message: "Field required",
 	}}, nil, nil)[0]
 

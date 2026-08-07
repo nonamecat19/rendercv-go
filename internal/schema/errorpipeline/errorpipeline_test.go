@@ -120,7 +120,7 @@ func TestStripPrefixes(t *testing.T) {
 // It does **not** prove step 1 precedes step 7 — see
 // TestPrefixStripDoesNotChangeWhichRowMatches for why nothing can.
 func TestParseAppliesStripThenPeriod(t *testing.T) {
-	got := Parse([]schemaerr.ValidationError{
+	got := mustParse(t, []schemaerr.ValidationError{
 		{Code: "value_error", Message: "Value error, month must be in 1..12"},
 		{Code: "string_type", Message: "Input should be a valid string"},
 	}, nil, nil)
@@ -139,7 +139,7 @@ func TestParseAppliesStripThenPeriod(t *testing.T) {
 // Record order is the raw order, unsorted (spec 004 §6 rule 1). Asserted on
 // messages that would sort differently, so an accidental sort fails here.
 func TestParseKeepsRawOrder(t *testing.T) {
-	got := Parse([]schemaerr.ValidationError{
+	got := mustParse(t, []schemaerr.ValidationError{
 		{Message: "zebra"}, {Message: "alpha"}, {Message: "middle"},
 	}, nil, nil)
 
@@ -156,7 +156,7 @@ func TestParseKeepsRawOrder(t *testing.T) {
 // would corrupt the second pass.
 func TestParseLeavesTheRawRecordsAlone(t *testing.T) {
 	raw := []schemaerr.ValidationError{{Message: "Value error, boom"}}
-	Parse(raw, nil, nil)
+	mustParse(t, raw, nil, nil)
 
 	if raw[0].Message != "Value error, boom" {
 		t.Errorf("raw record was mutated: %q", raw[0].Message)
@@ -185,7 +185,7 @@ func TestParseSkipsTheDiscriminatorForAPinnedLocation(t *testing.T) {
 		SchemaLocation:  []string{"design", "theme"},
 		LocationIsFinal: true,
 	}
-	if got := Parse([]schemaerr.ValidationError{pinned}, nil, nil)[0]; len(got.SchemaLocation) != 2 ||
+	if got := mustParse(t, []schemaerr.ValidationError{pinned}, nil, nil)[0]; len(got.SchemaLocation) != 2 ||
 		got.SchemaLocation[1] != "theme" {
 		t.Errorf("location = %v, want it left alone", got.SchemaLocation)
 	}
@@ -194,7 +194,7 @@ func TestParseSkipsTheDiscriminatorForAPinnedLocation(t *testing.T) {
 	// makes the assertion above mean something.
 	unpinned := pinned
 	unpinned.LocationIsFinal = false
-	if got := Parse([]schemaerr.ValidationError{unpinned}, nil, nil)[0]; len(got.SchemaLocation) != 1 {
+	if got := mustParse(t, []schemaerr.ValidationError{unpinned}, nil, nil)[0]; len(got.SchemaLocation) != 1 {
 		t.Errorf("location = %v, want the branch element dropped", got.SchemaLocation)
 	}
 }
@@ -207,7 +207,7 @@ func TestParseSkipsTheDiscriminatorForAPinnedLocation(t *testing.T) {
 // `design` mapping, which is what an unoverridden input would render as `...`
 // (`expected_errors.yaml:143`).
 func TestParseCarriesAnOverriddenInput(t *testing.T) {
-	got := Parse([]schemaerr.ValidationError{{
+	got := mustParse(t, []schemaerr.ValidationError{{
 		Code:            "rendercv_other_error",
 		SchemaLocation:  []string{"design", "theme"},
 		LocationIsFinal: true,
@@ -302,7 +302,7 @@ func TestSelectSource(t *testing.T) {
 // record whose branch element step 2 dropped still roots at `design`.
 func TestParseSetsTheOverlaySource(t *testing.T) {
 	design := &yamldoc.Node{Kind: yamldoc.KindMapping}
-	got := Parse(
+	got := mustParse(t,
 		[]schemaerr.ValidationError{{
 			SchemaLocation: []string{"design", "classic", "page", "top_margin"},
 			Message:        "nope",
@@ -314,4 +314,20 @@ func TestParseSetsTheOverlaySource(t *testing.T) {
 	if got.YamlSource != schemaerr.SourceDesign {
 		t.Errorf("source = %q, want %q", got.YamlSource, schemaerr.SourceDesign)
 	}
+}
+
+// mustParse is Parse with the internal-failure branch turned into a test
+// failure. Only the wrapper tests exercise that branch deliberately.
+func mustParse(
+	t *testing.T,
+	raw []schemaerr.ValidationError,
+	doc *yamldoc.Node,
+	overlays map[schemaerr.OverlayKey]*yamldoc.Node,
+) []schemaerr.ValidationError {
+	t.Helper()
+	final, err := Parse(raw, doc, overlays)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	return final
 }

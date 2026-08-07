@@ -109,7 +109,7 @@ func TestParseAppliesTheTwoOverrides(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got := Parse([]schemaerr.ValidationError{{
+			got := mustParse(t, []schemaerr.ValidationError{{
 				SchemaLocation: test.location,
 				Message:        "This is not a valid date! Please use either YYYY-MM-DD, YYYY-MM, or YYYY format.",
 			}}, nil, nil)[0]
@@ -127,7 +127,7 @@ func TestParseAppliesTheTwoOverrides(t *testing.T) {
 func TestBothEndDateBranchesReduceAlike(t *testing.T) {
 	const wrapper = "function-after[validate_exact_date(), union[str,int]]"
 
-	got := Parse([]schemaerr.ValidationError{
+	got := mustParse(t, []schemaerr.ValidationError{
 		{SchemaLocation: []string{"cv", "end_date", wrapper}, Message: "branch one"},
 		{SchemaLocation: []string{"cv", "end_date", "literal['present']"}, Message: "branch two"},
 	}, nil, nil)

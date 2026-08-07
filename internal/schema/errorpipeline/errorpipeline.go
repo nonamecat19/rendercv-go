@@ -89,18 +89,90 @@ func appendPeriod(message string) string {
 // record rooted at an overlay key resolves its coordinates against that
 // overlay's document, not the main one.
 //
-// TODO(spec 004 T17-T19): the entry-problems splice and the deduplication.
+// A wrapped entry failure contributes its own record **and** one per child,
+// spliced in immediately after it — see spliceChildren.
+//
+// TODO(spec 004 T18-T19): the deduplication.
 func Parse(
 	raw []schemaerr.ValidationError,
 	doc *yamldoc.Node,
 	overlays map[schemaerr.OverlayKey]*yamldoc.Node,
-) []schemaerr.ValidationError {
+) ([]schemaerr.ValidationError, error) {
 	final := make([]schemaerr.ValidationError, 0, len(raw))
 	for _, record := range raw {
 		final = append(final, parseOne(record, doc, overlays))
+
+		if record.Code != CodeEntryValidation {
+			continue
+		}
+		children, err := spliceChildren(record, doc, overlays)
+		if err != nil {
+			return nil, err
+		}
+		final = append(final, children...)
 	}
-	return final
+	return final, nil
 }
+
+// CodeEntryValidation is the one code that carries child failures
+// (models/custom_error_types.py:5, raised only at section.py:230).
+const CodeEntryValidation schemaerr.Code = "rendercv_entry_validation_error"
+
+// spliceChildren unpacks a wrapped entry failure
+// (pydantic_error_handling.py:153-165).
+//
+// The wrapper's own record is kept and each child becomes a record of its own,
+// appended immediately after it in the child list's order.
+//
+// A child's location is rebuilt twice over:
+//
+//   - **its first element is dropped** — the literal `entries`, which exists
+//     only because section.py validates the shape `{"entries": [...]}`;
+//   - the **wrapper's raw location** is prepended, before the filter has touched
+//     it, and the spliced whole is then filtered as one in the child's own pass.
+//
+// Measured: child `("entries", 1, "institution")` under wrapper
+// `("cv", "sections", "welcome_to_rendercv_tests_2")` becomes
+// `["cv", "sections", "welcome_to_rendercv_tests_2", "1", "institution"]`.
+//
+// A child with an empty location splices to the wrapper's location and nothing
+// else, so it lands one level shallower — that is how the start-after-end rule
+// reports at the entry rather than at a field.
+//
+// **One level only. Do not recurse.** Only section.py raises this code and it is
+// never raised from inside a child, so a nested wrapper does not occur; treating
+// one as a wrapper would invent a location no upstream input produces.
+func spliceChildren(
+	wrapper schemaerr.ValidationError,
+	doc *yamldoc.Node,
+	overlays map[schemaerr.OverlayKey]*yamldoc.Node,
+) ([]schemaerr.ValidationError, error) {
+	if len(wrapper.Children) == 0 {
+		return nil, &schemaerr.InternalError{Message: messageWrapperWithoutChildren}
+	}
+
+	spliced := make([]schemaerr.ValidationError, 0, len(wrapper.Children))
+	for _, child := range wrapper.Children {
+		tail := child.SchemaLocation
+		if len(tail) > 0 {
+			tail = tail[1:]
+		}
+
+		located := child
+		located.SchemaLocation = make([]string, 0, len(wrapper.SchemaLocation)+len(tail))
+		located.SchemaLocation = append(located.SchemaLocation, wrapper.SchemaLocation...)
+		located.SchemaLocation = append(located.SchemaLocation, tail...)
+		located.Children = nil
+
+		spliced = append(spliced, parseOne(located, doc, overlays))
+	}
+	return spliced, nil
+}
+
+// messageWrapperWithoutChildren is spec 004 §4.16, an internal failure rather
+// than a validation record: a wrapper with no children means the producer built
+// it wrong.
+const messageWrapperWithoutChildren = "entry_validation error missing ctx or caused_by"
 
 // selectSource is steps 9 and 12 (pydantic_error_handling.py:97-104).
 //
