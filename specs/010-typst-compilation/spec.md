@@ -37,9 +37,28 @@ It is also the only iteration that needs a **non-Go artifact**: the Typst compil
    `fonts/` directory beside the input file if one exists. **Different font files produce different
    glyph metrics, so a PDF compiled without them differs in every line break** — this is
    `AGENTS.md` §6.6, and it is the most likely cause of a near-miss.
-6. **The Typst package.** `rendercv_typst/` is vendored in the submodule: `lib.typ`, `template/`
-   and a `typst.toml` declaring `@preview/rendercv:0.3.0` — which is exactly the import iteration
-   9's preamble emits. It is resolved through `package_path`, not downloaded.
+6. **The Typst packages — plural, and only one of them is vendored.** `rendercv_typst/` is in the
+   submodule: `lib.typ`, `template/` and a `typst.toml` declaring `@preview/rendercv:0.3.0` —
+   exactly the import iteration 9's preamble emits. `get_package_path` (`pdf_png.py:114-146`)
+   copies **two** files of it into a temp `preview/rendercv/0.3.0/` and passes that as
+   `package_path`.
+
+   **`lib.typ:1` then imports `@preview/fontawesome:0.6.0`, which is not vendored anywhere.**
+   Upstream resolves it by **downloading it from Typst Universe** into the compiler's own package
+   cache (`~/.cache/typst/packages/preview/fontawesome/0.6.0`, 428 KB, 7 files). Measured: a
+   compile with only `rendercv` in `package_path` fails with
+   `file not found (searched at .../preview/fontawesome/0.6.0/typst.toml)`.
+
+   An earlier draft of this line read "resolved through `package_path`, not downloaded". That is
+   true of `rendercv` and false of its dependency, and the difference is a network fetch on first
+   render — which a Go port must either vendor or reproduce.
+
+6b. **Typst's own embedded fonts are a third input, and they are not `rendercv_fonts`.** The
+   `sb2nov` theme asks for **New Computer Modern**, which `rendercv_fonts` does not ship; it comes
+   from the `typst-assets` crate that every typst distribution links in. Measured: without it,
+   `theme_sb2nov` renders in a fallback face — `PhD in Computer Science` extracts as
+   `PhDinComputer Science` — and `theme_opal` shifts two lines by one space. The other **12 of 14**
+   cases pass anyway, so this defect is visible on 2 cases out of 14.
 7. **The root.** The compiler's root is the `.typ`'s own directory, which is what makes the photo's
    base-name reference resolve.
 

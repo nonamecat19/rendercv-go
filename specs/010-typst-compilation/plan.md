@@ -60,6 +60,39 @@ D-006 also **pre-answers the font question**: its `Watch` line names exactly the
 and assigns it to this iteration. So the 77 files are not an open design question either — they
 are a stated acceptance condition.
 
+## 3b. The three counts are now answered by building the thing
+
+`spec.md` §5 asked three questions before any Go was written. All three are answered by
+measurement, not estimate.
+
+| §5 count | Answer | How |
+|---|---|---|
+| 1 — does typst build for `wasm32-wasip1`? | **Yes.** `typst`, `typst-layout`, `typst-realize`, `typst-eval`, `typst-pdf`, `typst-render`, `typst-svg`, `typst-html` at **0.14.2** — upstream's line — all compile clean. 304 crates, no patches, no feature surgery. | `cargo build --release --target wasm32-wasip1` on a shim crate depending on `typst = "0.14"` |
+| 2 — can the WASI build reach fonts and packages? | **Yes**, through wazero preopens. Three mounts: `/work` (root), `/pkg` (package path), `/fonts`. Nothing else is visible to the compiler. | `wazero.NewFSConfig().WithDirMount(...)`, `wasi_snapshot_preview1.MustInstantiate` |
+| 3 — size, embedded or fetched? | **29 MB** `.wasm`, `opt-level = "z"` + LTO + `strip`. 20 MB of that is the compiler; the remaining 9 MB is `typst-assets`' embedded fonts. Plus **59 MB** of `rendercv_fonts` and **428 KB** of the `fontawesome` package, neither of which is in this repo. | `stat` on the build output |
+
+**Runtime: 3.2 s per document on wazero, single-threaded interpreter, no compilation cache.**
+Upstream's native extension is faster; the parity contract does not measure speed, but 24 corpus
+cases × 3.2 s is a minute of wall clock in the conformance suite and that shapes how the suite runs.
+
+## 3c. The differential passes 14/14
+
+Every golden `.typ` in `testdata/golden` that has a golden `.pdf` beside it — 14 cases, covering
+all nine themes and the four ATS inputs — was compiled by the WASI shim on wazero and compared
+against upstream's PDF on the three things the parity contract names:
+
+- **extracted text**, `pdftotext -layout`, byte-compared — `-layout` preserves horizontal position,
+  so a metric drift shows up as shifted columns rather than passing silently;
+- **page count**;
+- **page geometry**, from `pdfinfo`.
+
+**14 pass, 0 fail.** The harness is mutation-checked three ways: a cross-case comparison, a
+one-character change, and a leading-space-only change on one line are each caught.
+
+**The font risk D-006 flagged is real and was hit twice on the way here** — the `fontawesome`
+package and New Computer Modern, §2.6 and §2.6b. Both failed loudly, as the plan predicted, and
+both were invisible on the majority of cases: the embedded-font omission passed 12 of 14.
+
 ## 4. The first task, now that nothing blocks it
 
 Whichever route wins, the first unit is the same and is small: compile one of the 24 `.typ`
