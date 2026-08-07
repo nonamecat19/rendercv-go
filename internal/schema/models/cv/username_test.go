@@ -209,3 +209,26 @@ func TestIMDBUsername(t *testing.T) {
 		t.Errorf("the message says username; upstream says name: %q", want)
 	}
 }
+
+// Spec 004 §4.6. A DNS-style handle: at least two labels, each bounded by
+// alphanumerics.
+func TestBlueskyUsername(t *testing.T) {
+	const want = "Bluesky username should be a valid handle with no '@'" +
+		" (e.g., 'username.bsky.social' or 'domain.com')."
+
+	runUsernameCases(t, []usernameCase{
+		{"Bluesky", "john.bsky.social", ""},
+		{"Bluesky", "domain.com", ""},
+		{"Bluesky", "a.b", ""},
+		{"Bluesky", "my-handle.bsky.social", ""},
+		// One label is not enough — the pattern requires at least one dot.
+		{"Bluesky", "johndoe", want},
+		{"Bluesky", "@john.bsky.social", want},
+		{"Bluesky", ".bsky.social", want},
+		{"Bluesky", "john..social", want},
+		{"Bluesky", "-john.bsky.social", want},
+		{"Bluesky", "john-.bsky.social", want},
+		{"Bluesky", "john.bsky.social.", want},
+		{"Bluesky", "", want},
+	})
+}

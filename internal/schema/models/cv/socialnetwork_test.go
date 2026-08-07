@@ -162,6 +162,7 @@ var validUsernames = map[cv.SocialNetworkName]string{
 	"StackOverflow": "12345/johndoe",
 	"ORCID":         "0000-0002-1825-0097",
 	"IMDB":          "nm0000001",
+	"Bluesky":       "john.bsky.social",
 }
 
 // Every one of the seventeen names is accepted.

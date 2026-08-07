@@ -105,7 +105,7 @@ type usernameRule func(username string) string
 // kept in the source strings so a diff against upstream is mechanical
 // (behavior 60).
 //
-// TODO(spec 004 T35-T37): the other three rules.
+// TODO(spec 004 T36-T37): the other two rules.
 var usernameRules = map[SocialNetworkName]usernameRule{
 	SocialNetworkMastodon: func(username string) string {
 		if mastodonPattern.MatchString(username) {
@@ -145,6 +145,13 @@ var usernameRules = map[SocialNetworkName]usernameRule{
 		// "name", not "username": upstream's wording for this one row.
 		return "IMDB name should be in the format 'nmXXXXXXX'."
 	},
+	SocialNetworkBluesky: func(username string) string {
+		if blueskyPattern.MatchString(username) {
+			return ""
+		}
+		return "Bluesky username should be a valid handle with no '@'" +
+			" (e.g., 'username.bsky.social' or 'domain.com')."
+	},
 }
 
 // mastodonPattern is `@[^@]+@[^@]+` (social_network.py:86-87), anchored here
@@ -163,6 +170,15 @@ var orcidPattern = regexp.MustCompile(`^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$`)
 // imdbPattern is `nm\d{7}` (social_network.py:115-116): exactly seven digits
 // after a lowercase `nm`.
 var imdbPattern = regexp.MustCompile(`^nm\d{7}$`)
+
+// blueskyPattern is social_network.py:122, copied verbatim including its
+// redundant `^` and `$` — the rule is a full match anyway, and keeping the
+// anchors makes the diff against upstream mechanical.
+//
+// It is a DNS-style hostname: at least two dot-separated labels, each starting
+// and ending with an alphanumeric and up to 63 characters long.
+var blueskyPattern = regexp.MustCompile(
+	`^([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$`)
 
 // checkUsername mirrors check_username (social_network.py:59-151).
 //
