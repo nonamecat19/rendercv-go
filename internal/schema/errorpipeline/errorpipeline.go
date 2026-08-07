@@ -114,6 +114,14 @@ func parseOne(raw schemaerr.ValidationError) schemaerr.ValidationError {
 		final.SchemaLocation = filterLocation(skipDiscriminator(final.SchemaLocation))
 	}
 
+	// Step 5: the `end_date` override, before the dictionary.
+	final.Message = overrideEndDate(final.SchemaLocation, final.Message)
+
+	// Step 6: the `current_date` suffix strip, then its override. The strip
+	// must precede the containment test, or the field name is not last.
+	final.SchemaLocation = stripCurrentDateSuffix(final.SchemaLocation)
+	final.Message = overrideCurrentDate(final.SchemaLocation, final.Message)
+
 	// Step 8: the trailing period. Last, always.
 	final.Message = appendPeriod(final.Message)
 
