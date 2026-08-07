@@ -74,7 +74,7 @@ func ValidateCustomConnection(
 	model.Placeholder, _ = result.Value("placeholder")
 	model.Url, _ = result.Value("url")
 
-	return model, errs
+	return model, append(errs, result.ExtraErrors...)
 }
 
 // PhotoKind distinguishes which branch of the `cv.photo` union

@@ -363,7 +363,7 @@ func ValidateSocialNetwork(
 
 	value, ok := result.Value("network")
 	if !ok || value == nil {
-		return model, errs
+		return model, append(errs, result.ExtraErrors...)
 	}
 
 	name := SocialNetworkName(value.Raw)
@@ -377,7 +377,7 @@ func ValidateSocialNetwork(
 			Message:        messageUnknownNetwork,
 			Input:          schemaerr.RenderInput(value),
 		})
-		return model, errs
+		return model, append(errs, result.ExtraErrors...)
 	}
 
 	model.Network = name
@@ -393,7 +393,7 @@ func ValidateSocialNetwork(
 	if len(usernameErrs) == 0 {
 		errs = append(errs, validateGeneratedURL(model, location, source)...)
 	}
-	return model, errs
+	return model, append(errs, result.ExtraErrors...)
 }
 
 // IsSocialNetworkName reports whether a name is one of the seventeen

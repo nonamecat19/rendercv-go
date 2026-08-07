@@ -35,7 +35,7 @@ func TestExtraKeyPolicies(t *testing.T) {
 	src := "name: John\nurl: null\nunknown: 1\n"
 
 	t.Run("forbid", func(t *testing.T) {
-		result, errs := binder.Bind(parse(t, src), cvSpec(binder.ForbidExtra), nil, schemaerr.SourceMain)
+		result, errs := bindAll(parse(t, src), cvSpec(binder.ForbidExtra), nil, schemaerr.SourceMain)
 		if len(errs) != 1 {
 			t.Fatalf("errs = %+v, want exactly one", errs)
 		}
@@ -48,7 +48,7 @@ func TestExtraKeyPolicies(t *testing.T) {
 	})
 
 	t.Run("allow", func(t *testing.T) {
-		result, errs := binder.Bind(parse(t, src), cvSpec(binder.AllowExtra), nil, schemaerr.SourceMain)
+		result, errs := bindAll(parse(t, src), cvSpec(binder.AllowExtra), nil, schemaerr.SourceMain)
 		if len(errs) != 0 {
 			t.Fatalf("errs = %+v, want none", errs)
 		}
@@ -61,7 +61,7 @@ func TestExtraKeyPolicies(t *testing.T) {
 
 // Spec §5.15 — a null-valued unknown key is still rejected; the value is never consulted.
 func TestNullValuedUnknownKeyIsRejected(t *testing.T) {
-	_, errs := binder.Bind(
+	_, errs := bindAll(
 		parse(t, "name: John\nurl: null\nunknown: null\n"),
 		cvSpec(binder.ForbidExtra), nil, schemaerr.SourceMain,
 	)
@@ -104,7 +104,7 @@ func TestRequiredButNullable(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, errs := binder.Bind(parse(t, tc.src), cvSpec(binder.ForbidExtra), nil, schemaerr.SourceMain)
+			_, errs := bindAll(parse(t, tc.src), cvSpec(binder.ForbidExtra), nil, schemaerr.SourceMain)
 			if len(errs) != len(tc.wantCodes) {
 				t.Fatalf("errs = %+v, want %d", errs, len(tc.wantCodes))
 			}
@@ -138,7 +138,7 @@ func TestKeyOrderDropsNulls(t *testing.T) {
 // Spec §5.16 — a non-mapping input records an empty key order.
 func TestNonMappingInput(t *testing.T) {
 	node := &yamldoc.Node{Kind: yamldoc.KindSequence}
-	result, errs := binder.Bind(node, cvSpec(binder.ForbidExtra), []string{"cv"}, schemaerr.SourceMain)
+	result, errs := bindAll(node, cvSpec(binder.ForbidExtra), []string{"cv"}, schemaerr.SourceMain)
 
 	if len(result.KeyOrder) != 0 {
 		t.Errorf("key order = %v, want empty", result.KeyOrder)
@@ -152,7 +152,12 @@ func TestNonMappingInput(t *testing.T) {
 }
 
 // Spec §6.6 — errors accumulate in the order the validator produced them:
-// unknown keys in input order, then missing fields in declaration order.
+// **declared-field failures first, in declaration order, then unknown keys in
+// input order.**
+//
+// Iteration 2 had it the other way round. Nothing pinned it then; it is measured
+// now — `SocialNetwork(z=1, y=2)` reports `network` missing, `username` missing,
+// then `z` and `y` (spec 004 §3.9 behavior 32 step 3).
 func TestErrorAccumulationOrder(t *testing.T) {
 	spec := binder.Spec{
 		Fields: []binder.Field{
@@ -161,16 +166,16 @@ func TestErrorAccumulationOrder(t *testing.T) {
 		},
 		Policy: binder.ForbidExtra,
 	}
-	_, errs := binder.Bind(parse(t, "z: 1\ny: 2\n"), spec, []string{"cv"}, schemaerr.SourceMain)
+	_, errs := bindAll(parse(t, "z: 1\ny: 2\n"), spec, []string{"cv"}, schemaerr.SourceMain)
 
 	want := []struct {
 		code schemaerr.Code
 		key  string
 	}{
-		{code: binder.CodeExtraForbidden, key: "z"},
-		{code: binder.CodeExtraForbidden, key: "y"},
 		{code: binder.CodeMissing, key: "a"},
 		{code: binder.CodeMissing, key: "b"},
+		{code: binder.CodeExtraForbidden, key: "z"},
+		{code: binder.CodeExtraForbidden, key: "y"},
 	}
 	if len(errs) != len(want) {
 		t.Fatalf("errs = %+v, want %d", errs, len(want))
@@ -188,7 +193,7 @@ func TestErrorAccumulationOrder(t *testing.T) {
 
 // Every error carries the source it was produced against and a YAML location.
 func TestErrorsCarrySourceAndLocation(t *testing.T) {
-	_, errs := binder.Bind(
+	_, errs := bindAll(
 		parse(t, "name: John\nurl: null\nunknown: 1\n"),
 		cvSpec(binder.ForbidExtra), nil, schemaerr.SourceDesign,
 	)
@@ -201,4 +206,18 @@ func TestErrorsCarrySourceAndLocation(t *testing.T) {
 	if errs[0].YamlLocation == nil || errs[0].YamlLocation.Start.Line != 3 {
 		t.Errorf("yaml location = %+v, want line 3", errs[0].YamlLocation)
 	}
+}
+
+// bindAll is binder.Bind with the unknown-key failures appended, which is what
+// every production caller does at the end of its own validation. Bind returns
+// them separately so a caller's own field failures can come first
+// (binder.Result.ExtraErrors).
+func bindAll(
+	node *yamldoc.Node,
+	spec binder.Spec,
+	location []string,
+	source schemaerr.YamlSource,
+) (*binder.Result, []schemaerr.ValidationError) {
+	result, errs := binder.Bind(node, spec, location, source)
+	return result, append(errs, result.ExtraErrors...)
 }

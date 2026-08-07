@@ -99,7 +99,10 @@ func Validate(
 	model.Sections, _ = result.Value("sections")
 
 	errs = append(errs, model.validateFields(location, source, opts)...)
-	return model, errs
+
+	// Unknown keys last: after every declared field of this model has reported,
+	// including the ones validateFields emits (spec 004 §3.9 behavior 32 step 3).
+	return model, append(errs, result.ExtraErrors...)
 }
 
 // Options carries what the field validators need beyond the document: the
