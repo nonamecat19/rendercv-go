@@ -68,10 +68,13 @@ this iteration's contract.
       unchanged. **Met with no new code**, as §2 behavior 7 predicted: `design.Effective` already
       produces it, and `design/customtheme_test.go` pins it so the prediction stays true rather
       than being asserted once and discovered wrong later.
-- [~] A theme whose script **adds** an option: `luatheme.Options` carries it into the effective
-      tree and `design.EffectiveWithScript` merges it, so it reaches a template. What is **not**
-      done is *validating* it — an added option has no declared type, so nothing checks that a
-      document setting it wrote a colour where a colour belongs. That is the remaining work.
+- [x] A theme whose script **adds** an option: `luatheme.Options` carries it into the effective
+      tree, `design.EffectiveWithScript` merges it, and `luatheme.Validate` checks what a document
+      puts in it. **The declared default is the type** — a Lua declaration carries no annotation
+      but always carries a value, so a script cannot claim a type it does not demonstrate. That is
+      a smaller contract than upstream's pydantic annotations and an honest one; it catches a group
+      written where a value belongs and the reverse, which is the mistake that fails
+      unreadably further down.
 - [x] A theme whose script **changes a default**: the new default appears where no document
       overrides it, and a document override still wins. The layer sits between the theme's
       overrides and the document's block — above it and a user could not override their own theme,
@@ -84,11 +87,18 @@ this iteration's contract.
 
 ## 5. Status
 
-**Started: three of four criteria met, one partly** — the no-script fallback, the sandbox, and the
-option layer with its ordering. What remains is **validating an added option**: a script can
-declare a field the design tree has never heard of, and nothing yet checks what a document puts in
-it. That is the part where a scripted theme needs the schema machinery of iteration 6, not just
-its merge. Unblocked — D-002 is approved and no other gate applies. The honest ordering is
+**All four acceptance criteria met**, and **not verified by a fresh context** — no
+`rendercv-parity-verifier` pass has looked at this iteration, so the row in `STATE.md` reports what
+the suite prints and nothing more.
+
+What is deliberately *not* here, and would be the next work: the two folder messages of §1
+behavior 3, whose text is new and human-gated (§2 behavior 9); wiring `luatheme` into
+`design.validate_design`'s position in the pipeline, so a real `<theme>/init.lua` beside an input
+file is found and run; and `create-theme` writing an `init.lua`, which is iteration 12's and
+recorded as unreachable by construction.
+
+**No corpus case exercises any of it** — the corpus has no custom theme — so every claim here rests
+on unit tests rather than on a differential against upstream. Unblocked — D-002 is approved and no other gate applies. The honest ordering is
 behavior 4 before anything else: it is the path all nine built-in themes and all 24 corpus
 documents already take, so it is the one that can regress something that currently works.
 
