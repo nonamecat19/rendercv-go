@@ -1,7 +1,9 @@
 {
   "args": [
     "render",
-    "does_not_exist.yaml"
+    "does_not_exist.yaml",
+    "--settings.current_date",
+    "2025-03-05"
   ],
   "axis": "errors",
   "name": "err_missing_file"

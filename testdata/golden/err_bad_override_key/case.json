@@ -3,7 +3,9 @@
     "render",
     "cv.yaml",
     "--cv.no_such_field",
-    "x"
+    "x",
+    "--settings.current_date",
+    "2025-03-05"
   ],
   "axis": "errors",
   "name": "err_bad_override_key"

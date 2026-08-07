@@ -573,7 +573,34 @@ work: at least 3 can never pass, and 19 more depend on a date that has already m
 whole port is measured against needs regenerating before its count means anything — and
 regenerating `testdata/golden/` is a human gate (§5).
 
-## The golden corpus expires daily — HUMAN GATE
+## The goldens were regenerated with a pinned date — GATE CLEARED 2026-08-08
+
+`tools/gengolden` now appends `--settings.current_date 2025-03-05` to every **`render`** case (only
+render — `new`, `create-theme` and the help cases take no such flag). The pin lands in each case's
+own `args`, so the conformance harness replays the identical command; it is part of the case, not a
+hidden setting.
+
+42 cases regenerated, 73 files changed. No golden carries a generation date any more — every
+`.typ` reads `year: 2025`, and the 19 that rotted monthly are now stable.
+
+**The parity count did not move, and the reason is a new finding.** `render_typst_only`'s golden is
+now correctly `Last updated in Mar 2025` while the port still emits `Aug 2026`, because:
+
+> **`modelbuilder.applyOverrides` is a stub** — its whole body is `_ = overrides; return document`
+> (`internal/schema/modelbuilder/merge.go:108-111`). **Every dotted CLI override is silently
+> discarded.**
+
+That is why `--settings.current_date` has no effect, and it means `render_override_scalar`,
+`render_override_indexed` and `render_override_theme` cannot pass either — four cases, one stub.
+Implementing it is a real unit: parse a dotted path with numeric indices, walk or create the nodes,
+set the scalar. Spec 004 §3.21 already describes the ordering it has to respect.
+
+**The three absolute-path goldens are untouched by this**: `err_missing_file`,
+`err_bad_override_key` and `err_unknown_theme` still bake `/home/nnc/…` and Python tracebacks, so
+they remain unreachable by construction. Fixing those needs a different change to `gengolden` —
+running upstream from a stable relative path — and is not part of this regeneration.
+
+## The golden corpus expired daily — now fixed, kept for the record
 
 **Found while wiring `render`, and it blocks 18 of the 42 parity cases regardless of how correct
 the port is.**

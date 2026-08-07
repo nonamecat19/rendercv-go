@@ -5,7 +5,9 @@
     "-nopdf",
     "-nopng",
     "-nomd",
-    "-nohtml"
+    "-nohtml",
+    "--settings.current_date",
+    "2025-03-05"
   ],
   "axis": "cli",
   "name": "render_typst_only"

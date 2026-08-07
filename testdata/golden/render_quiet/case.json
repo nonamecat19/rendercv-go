@@ -4,7 +4,9 @@
     "cv.yaml",
     "--quiet",
     "-nopdf",
-    "-nopng"
+    "-nopng",
+    "--settings.current_date",
+    "2025-03-05"
   ],
   "axis": "cli",
   "name": "render_quiet"

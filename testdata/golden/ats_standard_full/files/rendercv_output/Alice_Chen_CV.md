@@ -20,7 +20,7 @@ Mar 2021 – present
 
 
 
-5 years 6 months
+4 years 1 month
 
 - Designed and implemented real-time fraud detection pipeline processing 50M+ transactions daily with 99.99% uptime
 

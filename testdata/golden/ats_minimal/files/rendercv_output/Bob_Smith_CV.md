@@ -12,7 +12,7 @@ Jan 2022 – present
 
 
 
-4 years 8 months
+3 years 3 months
 
 - Developed REST APIs serving 10K requests per second
 
