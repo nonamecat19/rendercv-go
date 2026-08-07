@@ -28,9 +28,23 @@ func TestCoordinateParity(t *testing.T) {
 		t.Fatalf("parsing coordinate fixture: %v", err)
 	}
 
+	// The two real documents carry 620 of the 656 paths between them. Guarding
+	// the total means a fixture silently dropped from the probe's list fails
+	// here rather than shrinking the corpus unnoticed.
+	total := 0
+	for _, fx := range fixtures {
+		total += len(fx.Data)
+	}
+	if total < 600 {
+		t.Fatalf("the coordinate corpus has %d paths, want the full set — has a"+
+			" document been dropped from tools/yamlprobe?", total)
+	}
+
 	for _, fx := range fixtures {
 		t.Run(fx.File, func(t *testing.T) {
-			yamlPath := filepath.Join("testdata", "coords", fx.File)
+			// Repo-relative, so the shaped fixtures and the two submodule
+			// documents live in one list.
+			yamlPath := filepath.Join("..", "..", "..", fx.File)
 			doc, err := yamlreader.ReadFile(yamlPath)
 			if err != nil {
 				t.Fatalf("ReadFile: %v", err)

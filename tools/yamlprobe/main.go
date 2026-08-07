@@ -15,14 +15,21 @@ func main() {
 	fixturesDir := filepath.Join(root, "internal/schema/yamlreader/testdata/coords")
 	outFile := filepath.Join(fixturesDir, "coords.json")
 
+	// Repo-relative so the two real documents can sit in the same list as the
+	// shaped fixtures. The shaped ones isolate a single construct; the real ones
+	// are the coverage that matters, because a coordinate the port gets wrong on
+	// a document nobody wrote by hand is the kind that survives review
+	// (spec 004 §7.2).
 	fixtures := []string{
-		"nested_mapping.yaml",
-		"sequence_of_mappings.yaml",
-		"sequence_of_scalars.yaml",
-		"empty_mapping_value.yaml",
-		"flow_mapping.yaml",
-		"indented_empty_value.yaml",
-		"flow_sequence.yaml",
+		"internal/schema/yamlreader/testdata/coords/nested_mapping.yaml",
+		"internal/schema/yamlreader/testdata/coords/sequence_of_mappings.yaml",
+		"internal/schema/yamlreader/testdata/coords/sequence_of_scalars.yaml",
+		"internal/schema/yamlreader/testdata/coords/empty_mapping_value.yaml",
+		"internal/schema/yamlreader/testdata/coords/flow_mapping.yaml",
+		"internal/schema/yamlreader/testdata/coords/indented_empty_value.yaml",
+		"internal/schema/yamlreader/testdata/coords/flow_sequence.yaml",
+		"third_party/rendercv/examples/John_Doe_ClassicTheme_CV.yaml",
+		"third_party/rendercv/tests/schema/testdata/test_pydantic_error_handling/expected_errors.yaml",
 	}
 
 	type coordEntry struct {
@@ -32,7 +39,7 @@ func main() {
 
 	var entries []coordEntry
 	for _, f := range fixtures {
-		path := filepath.Join(fixturesDir, f)
+		path := filepath.Join(root, f)
 		cmd := exec.Command(
 			filepath.Join(root, "third_party/rendercv/.venv/bin/python"),
 			script,
