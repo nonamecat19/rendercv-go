@@ -32,13 +32,21 @@ var educationOwnFields = []binder.Field{
 	{Name: "degree", Value: binder.ValueString},
 }
 
+// educationFields is the entry's whole declared field set, in upstream's order.
+// Both the descriptor and the binder read this one value, so the order the
+// registry advertises is by construction the order errors come out in
+// (spec 004 §3.9a behavior 33c).
+func educationFields() []binder.Field {
+	return bases.ComplexSpec(educationOwnFields)
+}
+
 // EducationDescriptor is EducationEntry's registration. The own fields come
 // first even though BaseEntryWithComplexFields is the first-listed base:
 // pydantic emits the last-listed base's own fields first, which is exactly why
 // upstream lists the bases in that order (education.py:25). So the field set is
 // the three own fields, then `date`, then the five complex fields (spec §3.9).
 func EducationDescriptor() Descriptor {
-	fields := make([]string, 0, len(educationOwnFields)+1+5)
+	fields := make([]string, 0, len(educationOwnFields)+1+len(bases.ComplexFieldNames()))
 	for _, field := range educationOwnFields {
 		fields = append(fields, field.Name)
 	}
@@ -59,7 +67,7 @@ func ValidateEducationEntry(
 ) (*EducationEntry, []schemaerr.ValidationError) {
 	base, errs := bases.BindEntryWithComplexFields(
 		node,
-		educationOwnFields,
+		educationFields(),
 		location,
 		source,
 		reference,

@@ -32,10 +32,29 @@ type BaseEntryWithDate struct {
 	Date *yamldoc.Node
 }
 
+// DateSpec is the full declared field set of an entry built on
+// BaseEntryWithDate: its own fields, then the inherited `date`. See ComplexSpec
+// for why the composition is a shared builder rather than an inline append.
+func DateSpec(own []binder.Field) []binder.Field {
+	fields := make([]binder.Field, 0, len(own)+len(dateFields))
+	fields = append(fields, own...)
+	return append(fields, dateFields...)
+}
+
 // DateFieldNames returns the field names this base contributes.
+//
+// TODO(spec 004 A2): superseded by FieldNames once the descriptors read the
+// shared field set.
 func DateFieldNames() []string {
-	names := make([]string, 0, len(dateFields))
-	for _, field := range dateFields {
+	return FieldNames(dateFields)
+}
+
+// FieldNames projects a field set onto its declared name order. It is how a
+// Descriptor is derived from the very field set the binder is given, so the two
+// cannot disagree.
+func FieldNames(fields []binder.Field) []string {
+	names := make([]string, 0, len(fields))
+	for _, field := range fields {
 		names = append(names, field.Name)
 	}
 	return names
@@ -117,23 +136,18 @@ func isLeapYear(year int) bool {
 // BindEntryWithDate binds an entry mapping that carries a `date`, validating it
 // per spec §3.69 and retaining unknown keys per spec §3.67.
 //
-// The own fields come **first**, then `date`. That is upstream's field order for
-// every type built as `class X(BaseEntryWithDate, BaseX)`, because pydantic emits
-// the last-listed base's own fields first (spec 003 §3.2). Iteration 3 composed
-// this the other way round, which put every base-field error ahead of every
-// own-field error and is item 1 of its cut scope.
+// spec is the entry's whole declared field set, as DateSpec builds it — the same
+// value its descriptor is projected from. Iteration 3 composed the two
+// separately and put `date` ahead of the own fields, which is item 1 of its cut
+// scope; DateSpec is why that can no longer happen at one site and not the
+// other.
 func BindEntryWithDate(
 	node *yamldoc.Node,
-	extraFields []binder.Field,
+	spec []binder.Field,
 	location []string,
 	source schemaerr.YamlSource,
 ) (*BaseEntryWithDate, []schemaerr.ValidationError) {
-	return bindEntryWithDateFields(
-		node,
-		append(append([]binder.Field(nil), extraFields...), dateFields...),
-		location,
-		source,
-	)
+	return bindEntryWithDateFields(node, spec, location, source)
 }
 
 // bindEntryWithDateFields binds an already-ordered field list. It exists so that

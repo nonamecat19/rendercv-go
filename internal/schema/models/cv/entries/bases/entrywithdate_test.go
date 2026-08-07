@@ -23,7 +23,7 @@ func parse(t *testing.T, src string) *yamldoc.Node {
 func TestExtraKeysRetained(t *testing.T) {
 	entry, errs := bases.BindEntryWithDate(
 		parse(t, "date: 2020-09-24\ncustom_key: custom value\n"),
-		nil, []string{"cv", "sections", "x", "0"}, schemaerr.SourceMain,
+		bases.DateSpec(nil), []string{"cv", "sections", "x", "0"}, schemaerr.SourceMain,
 	)
 	if len(errs) != 0 {
 		t.Fatalf("errs = %+v, want none", errs)
@@ -39,7 +39,7 @@ func TestExtraKeysRetained(t *testing.T) {
 
 // Spec §3.70 — `date` defaults to absent.
 func TestDateDefaultsToAbsent(t *testing.T) {
-	entry, errs := bases.BindEntryWithDate(parse(t, "{}\n"), nil, nil, schemaerr.SourceMain)
+	entry, errs := bases.BindEntryWithDate(parse(t, "{}\n"), bases.DateSpec(nil), nil, schemaerr.SourceMain)
 	if len(errs) != 0 {
 		t.Fatalf("errs = %+v, want none", errs)
 	}
@@ -94,7 +94,7 @@ func TestValidateArbitraryDate(t *testing.T) {
 func TestDateErrorIsReported(t *testing.T) {
 	_, errs := bases.BindEntryWithDate(
 		parse(t, "date: 2020-01-99\n"),
-		nil, []string{"cv", "sections", "x", "0"}, schemaerr.SourceMain,
+		bases.DateSpec(nil), []string{"cv", "sections", "x", "0"}, schemaerr.SourceMain,
 	)
 	if len(errs) != 1 {
 		t.Fatalf("errs = %+v, want exactly one", errs)
@@ -110,7 +110,7 @@ func TestDateErrorIsReported(t *testing.T) {
 
 // The integer form takes the pass-through branch, as `str(date)` does upstream.
 func TestIntegerDateAccepted(t *testing.T) {
-	entry, errs := bases.BindEntryWithDate(parse(t, "date: 2020\n"), nil, nil, schemaerr.SourceMain)
+	entry, errs := bases.BindEntryWithDate(parse(t, "date: 2020\n"), bases.DateSpec(nil), nil, schemaerr.SourceMain)
 	if len(errs) != 0 {
 		t.Fatalf("errs = %+v, want none", errs)
 	}
@@ -121,7 +121,7 @@ func TestIntegerDateAccepted(t *testing.T) {
 
 // Spec §3.69 — a null date validates nothing.
 func TestNullDateIsAbsent(t *testing.T) {
-	entry, errs := bases.BindEntryWithDate(parse(t, "date: null\n"), nil, nil, schemaerr.SourceMain)
+	entry, errs := bases.BindEntryWithDate(parse(t, "date: null\n"), bases.DateSpec(nil), nil, schemaerr.SourceMain)
 	if len(errs) != 0 {
 		t.Fatalf("errs = %+v, want none", errs)
 	}
@@ -134,7 +134,7 @@ func TestNullDateIsAbsent(t *testing.T) {
 func TestExtraDeclaredFields(t *testing.T) {
 	entry, errs := bases.BindEntryWithDate(
 		parse(t, "date: 2020\ntitle: Some title\nunknown: 1\n"),
-		[]binder.Field{{Name: "title"}}, nil, schemaerr.SourceMain,
+		bases.DateSpec([]binder.Field{{Name: "title"}}), nil, schemaerr.SourceMain,
 	)
 	if len(errs) != 0 {
 		t.Fatalf("errs = %+v, want none", errs)
@@ -151,8 +151,8 @@ func TestExtraDeclaredFields(t *testing.T) {
 }
 
 // Spec §3.70 — the base contributes exactly one field.
-func TestDateFieldNames(t *testing.T) {
-	got := bases.DateFieldNames()
+func TestDateSpecPutsOwnFieldsFirst(t *testing.T) {
+	got := bases.FieldNames(bases.DateSpec(nil))
 	if len(got) != 1 || got[0] != "date" {
 		t.Errorf("date field names = %v, want [date]", got)
 	}

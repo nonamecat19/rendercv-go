@@ -27,6 +27,14 @@ var normalOwnFields = []binder.Field{
 	{Name: "name", Required: true, Value: binder.ValueString},
 }
 
+// normalFields is the entry's whole declared field set, in upstream's order.
+// Both the descriptor and the binder read this one value, so the order the
+// registry advertises is by construction the order errors come out in
+// (spec 004 §3.9a behavior 33c).
+func normalFields() []binder.Field {
+	return bases.ComplexSpec(normalOwnFields)
+}
+
 // NormalDescriptor is NormalEntry's registration. Its field set is its own field
 // then the inherited `date` then the five complex fields, which is the verified
 // runtime order `name, date, start_date, end_date, location, summary,
@@ -51,7 +59,7 @@ func ValidateNormalEntry(
 	source schemaerr.YamlSource,
 	reference time.Time,
 ) (*NormalEntry, []schemaerr.ValidationError) {
-	base, errs := bases.BindEntryWithComplexFields(node, normalOwnFields, location, source, reference)
+	base, errs := bases.BindEntryWithComplexFields(node, normalFields(), location, source, reference)
 
 	entry := &NormalEntry{BaseEntryWithComplexFields: *base}
 	if name, ok := base.Field("name"); ok && name != nil && name.Kind != yamldoc.KindNull {
