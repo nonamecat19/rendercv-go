@@ -109,3 +109,30 @@ func TestEveryBuiltinIgnoresAScript(t *testing.T) {
 		}
 	}
 }
+
+// A script whose shapes conflict with the design tree is dropped, rather than
+// reaching a template and printing a Go type name into the artifact — the
+// verifier's blocker 2, which produced `page-size: "<map[string]interface {}
+// Value>"` at exit 0 under "Your CV is ready".
+func TestAConflictingScriptIsDropped(t *testing.T) {
+	doc := resolveWithTheme(t, "mytheme",
+		`return { page = { size = { a = 1 } }, colors = { name = { r = 1 } } }`, "")
+
+	if got := design.EffectiveString(doc.Design, "page", "size"); got != "us-letter" {
+		t.Errorf("page.size = %q, want the theme's own default", got)
+	}
+	if got := design.EffectiveString(doc.Design, "colors", "name"); got == "" ||
+		got[0] == '<' {
+		t.Errorf("colors.name = %q, want a real colour", got)
+	}
+}
+
+// A script that is *correct* still applies — the drop is targeted, not a
+// blanket refusal of scripts that touch declared options.
+func TestACorrectScriptStillApplies(t *testing.T) {
+	doc := resolveWithTheme(t, "mytheme", `return { page = { size = "a5" } }`, "")
+
+	if got := design.EffectiveString(doc.Design, "page", "size"); got != "a5" {
+		t.Errorf("page.size = %q, want the script's value", got)
+	}
+}

@@ -69,8 +69,11 @@ this iteration's contract.
       produces it, and `design/customtheme_test.go` pins it so the prediction stays true rather
       than being asserted once and discovered wrong later.
 - [x] A theme whose script **adds** an option: `luatheme.Options` carries it into the effective
-      tree, `design.EffectiveWithScript` merges it, and `luatheme.Validate` checks what a document
-      puts in it. **The declared default is the type** — a Lua declaration carries no annotation
+      tree, `design.EffectiveWithScript` merges it, and `design.ValidateScript` checks the script's
+      own shapes against the tree — a mis-typed option is dropped rather than printed into the
+      artifact as a Go type name, which is what it did before a verifier caught it. **What a
+      *document* puts in a script-declared option is still unchecked**: `luatheme.Validate` exists
+      for it and nothing calls it. **The declared default is the type** — a Lua declaration carries no annotation
       but always carries a value, so a script cannot claim a type it does not demonstrate. That is
       a smaller contract than upstream's pydantic annotations and an honest one; it catches a group
       written where a value belongs and the reverse, which is the mistake that fails

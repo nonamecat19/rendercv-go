@@ -669,15 +669,21 @@ changed a built-in theme's artifact.
 | 4 | **No execution limit at all**: `while true do end` hung `render` forever. | A 2-second context budget on the `LState`. A declaration needs microseconds. |
 | 9 | `print` wrote to the process's real stdout, prepending a line to the result panel — CLI stdout is parity axis 2. | `print`, `_printregs`, `load`, `loadstring`, `setfenv`, `getfenv`, `collectgarbage`, `newproxy`, `module` and `channel` added to the blocklist. |
 
-**Open, and honestly worse than the fixes:**
+**Since fixed, in a second pass:**
 
-- **Blocker 2 — a mis-typed script option emits a wrong document containing Go internals**
-  (`page-size: "<map[string]interface {} Value>"`), exit 0, "Your CV is ready". Narrowed by fix 1
-  to custom themes only, **not eliminated**.
-- **Finding 5 — `luatheme.Validate` is dead code.** Nothing calls it. It is exactly the check that
-  would catch blocker 2, and spec 014 §4 criterion 2 claims it runs. That claim is false and the
-  spec needs correcting. This is the *unreached-code* defect this port has now hit four times.
-- **Finding 6** — `ErrSandboxed` is exported, documented, and never returned.
+- **Blocker 2** — `design.ValidateScript` walks the base tree and drops a script whose shapes
+  conflict with it, so a mis-typed option can no longer reach a template. Dropping is what a
+  *missing* script already does; **reporting** it needs the gated message text.
+- **Finding 6** — `ErrSandboxed` is gone. A blocked global is `nil`, so a script touching it fails
+  with Lua's own message, which names the line. The comment where it stood records why there is no
+  replacement.
+
+**Open:**
+
+- **Finding 5 — `luatheme.Validate` is still dead code.** It types a *document's* value against a
+  script-declared option, which `ValidateScript` does not cover — that one checks the script
+  against the tree. Spec 014 no longer claims it runs. This remains the *unreached-code* defect
+  this port has now hit four times, and it is the honest reason criterion 2 is not fully met.
 - **Finding 7** — D-002's own stated rules are unimplemented: folder existence, a `*.j2.typ`
   requirement, the theme-name pattern. A theme naming a folder that does not exist renders happily
   where upstream reports an error.

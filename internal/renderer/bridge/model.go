@@ -84,7 +84,22 @@ func themeScript(model *models.RenderCVModel, theme string) map[string]any {
 	if err != nil {
 		return nil
 	}
-	return luatheme.Options(table)
+
+	options := luatheme.Options(table)
+
+	// **A script whose shapes conflict with the tree is dropped whole.** It used
+	// to reach the template and print a Go type name into the artifact —
+	// `page-size: "<map[string]interface {} Value>"` at exit 0. Falling back to
+	// the theme's own defaults is what a *missing* script already does, so this
+	// is the failure mode the rest of the path is already built for.
+	//
+	// Reporting it properly is the human-gated message text (spec 014 §2
+	// behavior 9); dropping it is what can be done without inventing user-facing
+	// wording.
+	if errs := design.ValidateScript(options); len(errs) > 0 {
+		return nil
+	}
+	return options
 }
 
 // Model builds the `process.Model` the templater consumes — the bridge's whole

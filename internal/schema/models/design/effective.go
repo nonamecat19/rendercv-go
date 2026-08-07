@@ -237,3 +237,64 @@ func lookup(values map[string]any, path []string) any {
 	}
 	return current
 }
+
+// ScriptConflict is a theme script declaring a shape the design tree cannot
+// hold — a group where a value belongs, or the reverse.
+type ScriptConflict struct {
+	Path     string
+	Declared string
+	Wanted   string
+}
+
+func (c *ScriptConflict) Error() string {
+	return "design." + c.Path + " is " + c.Declared + " in this theme's script, but should be " + c.Wanted
+}
+
+// ValidateScript checks a theme script's options against the base tree's shapes
+// (spec 014 §4, criterion 2).
+//
+// **Without it a mis-typed option reaches the template and prints a Go type
+// name**: a script declaring `page = { size = { a = 1 } }` produced
+// `page-size: "<map[string]interface {} Value>"` in the artifact, at exit 0,
+// under "Your CV is ready". A fresh-context verifier measured that; it is the
+// failure mode this port keeps finding, where wrong output is more expensive
+// than no output.
+//
+// Only options the tree **declares** are checked. An option a script invents is
+// the tree's business to carry and `luatheme.Validate`'s to type against the
+// document, because the tree has no shape for it.
+func ValidateScript(script map[string]any) []error {
+	var errs []error
+	validateScript(baseTree(), baseTree().Root, script, "", &errs)
+	return errs
+}
+
+func validateScript(tree Tree, model string, script map[string]any, prefix string, errs *[]error) {
+	for _, declared := range tree.Models[model].Fields {
+		value, present := script[declared.Name]
+		if !present || value == nil {
+			continue
+		}
+		path := declared.Name
+		if prefix != "" {
+			path = prefix + "." + declared.Name
+		}
+
+		nested, isNested := value.(map[string]any)
+		if declared.Kind == KindNested {
+			if !isNested {
+				*errs = append(*errs, &ScriptConflict{
+					Path: path, Declared: "a value", Wanted: "a group of options",
+				})
+				continue
+			}
+			validateScript(tree, declared.Nested, nested, path, errs)
+			continue
+		}
+		if isNested {
+			*errs = append(*errs, &ScriptConflict{
+				Path: path, Declared: "a group of options", Wanted: "a value",
+			})
+		}
+	}
+}
