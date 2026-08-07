@@ -192,7 +192,7 @@ func sectionError(
 		SchemaLocation: append([]string(nil), location...),
 		YamlSource:     source,
 		Message:        message,
-		Input:          "...",
+		Input:          schemaerr.InputEllipsis,
 	}
 	if node != nil {
 		span := node.Span

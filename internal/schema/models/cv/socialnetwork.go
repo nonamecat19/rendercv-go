@@ -121,7 +121,7 @@ func ValidateSocialNetwork(
 			YamlLocation:   &span,
 			YamlSource:     source,
 			Message:        "Input should be one of the supported social networks",
-			Input:          value.Raw,
+			Input:          schemaerr.RenderInput(value),
 		})
 		return model, errs
 	}
