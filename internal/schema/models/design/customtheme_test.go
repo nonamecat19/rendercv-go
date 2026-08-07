@@ -53,3 +53,44 @@ func TestABuiltinThemeStillOverrides(t *testing.T) {
 		t.Errorf("sb2nov's name colour = %q, same as classic's — the override was lost", sb2nov)
 	}
 }
+
+// Spec 014 §4, criterion 3: a script **changes a default**, and a document
+// override still wins.
+//
+// **The layer order is the whole question.** A script's declarations are
+// defaults, so they must sit above the theme's and below the document's. Put
+// them above the document and a user could not override their own theme; put
+// them below the theme and a custom theme could not change anything.
+func TestAScriptsDefaultLosesToTheDocument(t *testing.T) {
+	script := map[string]any{"colors": map[string]any{"name": "rgb(1, 2, 3)"}}
+
+	// With no document, the script's value is what the renderer sees.
+	withScript := design.EffectiveWithScript("mytheme", script, nil)
+	if got := design.EffectiveString(withScript, "colors", "name"); got != "rgb(1, 2, 3)" {
+		t.Errorf("colors.name = %q, want the script's default", got)
+	}
+
+	// The document overrides it, and the script's *other* values survive —
+	// the merge is deep at this layer too.
+	document := map[string]any{"colors": map[string]any{"name": "rgb(9, 9, 9)"}}
+	overridden := design.EffectiveWithScript("mytheme", script, document)
+	if got := design.EffectiveString(overridden, "colors", "name"); got != "rgb(9, 9, 9)" {
+		t.Errorf("colors.name = %q, want the document's value", got)
+	}
+	if got := design.EffectiveString(overridden, "colors", "body"); got == "" {
+		t.Errorf("colors.body was lost when the script layer merged")
+	}
+}
+
+// A nil script is the built-in case: nothing changes for the nine themes that
+// have no script at all.
+func TestANilScriptChangesNothing(t *testing.T) {
+	for _, theme := range []string{"classic", "sb2nov", "moderncv"} {
+		plain := design.Effective(theme, nil)
+		scripted := design.EffectiveWithScript(theme, nil, nil)
+		if design.EffectiveString(plain, "colors", "name") !=
+			design.EffectiveString(scripted, "colors", "name") {
+			t.Errorf("%s changed when a nil script was merged", theme)
+		}
+	}
+}

@@ -19,10 +19,25 @@ package design
 // silently reset every sibling to the base's value — plausible output, wrong
 // document.
 func Effective(theme string, document map[string]any) map[string]any {
+	return EffectiveWithScript(theme, nil, document)
+}
+
+// EffectiveWithScript is Effective with a custom theme's declaration merged in
+// (spec 014 §4, criterion 3).
+//
+// **The script sits between the theme and the document**, which is the whole
+// ordering question a scripted theme raises: its declarations are *defaults*, so
+// they must lose to anything the document says. Upstream gets this for free —
+// the script declares a pydantic model and the document's values override its
+// field defaults — and the port has to place the layer deliberately.
+//
+// A nil script is the built-in case and merges nothing.
+func EffectiveWithScript(theme string, script, document map[string]any) map[string]any {
 	tree := baseTree()
 	values := defaultsOf(tree, tree.Root)
 
 	values = deepMerge(values, Overrides(theme))
+	values = deepMerge(values, script)
 	values = deepMerge(values, document)
 
 	// The discriminator is the theme's own name, not the base's.
