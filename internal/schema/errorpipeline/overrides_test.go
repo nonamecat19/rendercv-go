@@ -122,22 +122,28 @@ func TestParseAppliesTheTwoOverrides(t *testing.T) {
 }
 
 // Both raw failures for one bad `end_date` reduce to the same location and the
-// same message, which is the whole reason the override exists — deduplication
-// can then keep either one and get the right answer.
+// same message. That is the whole reason the override exists: dedup keeps the
+// first record at a location, so without the forced message the survivor would
+// be whichever branch happened to come first.
+//
+// Asserted on parseOne rather than on Parse, because Parse now dedups and the
+// property is about what dedup is handed.
 func TestBothEndDateBranchesReduceAlike(t *testing.T) {
 	const wrapper = "function-after[validate_exact_date(), union[str,int]]"
 
-	got := mustParse(t, []schemaerr.ValidationError{
-		{SchemaLocation: []string{"cv", "end_date", wrapper}, Message: "branch one"},
-		{SchemaLocation: []string{"cv", "end_date", "literal['present']"}, Message: "branch two"},
+	first := parseOne(schemaerr.ValidationError{
+		SchemaLocation: []string{"cv", "end_date", wrapper}, Message: "branch one",
+	}, nil, nil)
+	second := parseOne(schemaerr.ValidationError{
+		SchemaLocation: []string{"cv", "end_date", "literal['present']"}, Message: "branch two",
 	}, nil, nil)
 
-	if strings.Join(got[0].SchemaLocation, ".") != "cv.end_date" ||
-		strings.Join(got[1].SchemaLocation, ".") != "cv.end_date" {
+	if strings.Join(first.SchemaLocation, ".") != "cv.end_date" ||
+		strings.Join(second.SchemaLocation, ".") != "cv.end_date" {
 		t.Fatalf("locations = %v and %v, want both cv.end_date",
-			got[0].SchemaLocation, got[1].SchemaLocation)
+			first.SchemaLocation, second.SchemaLocation)
 	}
-	if got[0].Message != got[1].Message {
-		t.Errorf("messages differ:\n  %q\n  %q", got[0].Message, got[1].Message)
+	if first.Message != second.Message {
+		t.Errorf("messages differ:\n  %q\n  %q", first.Message, second.Message)
 	}
 }

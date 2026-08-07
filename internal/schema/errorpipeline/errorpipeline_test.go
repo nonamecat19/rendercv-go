@@ -121,8 +121,8 @@ func TestStripPrefixes(t *testing.T) {
 // TestPrefixStripDoesNotChangeWhichRowMatches for why nothing can.
 func TestParseAppliesStripThenPeriod(t *testing.T) {
 	got := mustParse(t, []schemaerr.ValidationError{
-		{Code: "value_error", Message: "Value error, month must be in 1..12"},
-		{Code: "string_type", Message: "Input should be a valid string"},
+		{Code: "value_error", SchemaLocation: []string{"cv", "date"}, Message: "Value error, month must be in 1..12"},
+		{Code: "string_type", SchemaLocation: []string{"cv", "name"}, Message: "Input should be a valid string"},
 	}, nil, nil)
 
 	want := []string{"The month must be between 1 and 12.", "Input should be a valid string."}
@@ -140,7 +140,9 @@ func TestParseAppliesStripThenPeriod(t *testing.T) {
 // messages that would sort differently, so an accidental sort fails here.
 func TestParseKeepsRawOrder(t *testing.T) {
 	got := mustParse(t, []schemaerr.ValidationError{
-		{Message: "zebra"}, {Message: "alpha"}, {Message: "middle"},
+		{SchemaLocation: []string{"z"}, Message: "zebra"},
+		{SchemaLocation: []string{"a"}, Message: "alpha"},
+		{SchemaLocation: []string{"m"}, Message: "middle"},
 	}, nil, nil)
 
 	want := []string{"zebra.", "alpha.", "middle."}
@@ -155,7 +157,9 @@ func TestParseKeepsRawOrder(t *testing.T) {
 // once downstream — for the record and again for its children — so aliasing it
 // would corrupt the second pass.
 func TestParseLeavesTheRawRecordsAlone(t *testing.T) {
-	raw := []schemaerr.ValidationError{{Message: "Value error, boom"}}
+	raw := []schemaerr.ValidationError{{
+		SchemaLocation: []string{"cv", "name"}, Message: "Value error, boom",
+	}}
 	mustParse(t, raw, nil, nil)
 
 	if raw[0].Message != "Value error, boom" {
