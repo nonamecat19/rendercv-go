@@ -91,8 +91,30 @@ repository: compiled-in data plus a **submodule-diff test**, exactly as iteratio
    code is loaded. **§4.27 is already ported** (iteration 4, `models/design`); §4.28 and §4.29
    are this iteration's and are only reachable once custom themes can be loaded, which is D-002's
    Lua path.
-8. `TypstDimension`, `Color` and `FontFamily` are the three value types with their own validation.
-   Their messages are iteration 6's and are **not yet extracted**; §7 scopes that.
+8. `TypstDimension`, `Color` and `FontFamily` are the three value types with their own
+   validation, and they fail in three different ways — §3.1 has the measurements.
+
+### 3.1 The three value types
+
+9. **`TypstDimension`** (`typst_dimension.py:9-30`) is a full match of
+   `-?\d+(?:\.\d+)?(cm|in|pt|mm|em)`, raising `PydanticCustomError(other)` with §4.1's text.
+   Measured: `1` and `1px` both fail, `1cm` passes. A negative value is legal, and the pattern
+   admits no space between number and unit.
+10. **`Color`** (`color.py:1-15`) subclasses `pydantic_extra_types.color.Color` and adds **no
+    validation** — only a `__str__` that returns `as_rgb()`, because the Typst templates need
+    `rgb(r, g, b)`. So the failure is the library's, coded `color_error`, and its message is
+    §4.2's. Measured for `notacolor` and `#gggggg`, which give the same text.
+11. **`Color`'s failure is already reachable from the port's pipeline.** Its message is dictionary
+    row 13's key, so spec 004 §3.4 behavior 14's substitution and the `)".` ending of §4.11 are
+    the *final* text a user sees. That row is live today with nothing to fire it; this iteration
+    supplies the producer.
+12. **`FontFamily`** (`font_family.py:5-30`) is `SkipJsonSchema[str] | Literal[*available_font_families]`
+    — a union of a free string with seventeen names, where the string arm is hidden from the
+    schema. So **any** font name validates and the seventeen only drive editor completion. There
+    is no failure message.
+13. `available_font_families` is **`sorted()`** over a source list written in two groups (three
+    Typst built-ins, fourteen RenderCV-bundled). The port must carry the sorted order, not the
+    source order, because that is what reaches the schema.
 
 ---
 
@@ -105,17 +127,41 @@ them as **data**; interpreting them is the templater's.
 
 **4.2 Custom theme loading is D-002's Lua path**, and §4.28/§4.29 land with it.
 
-**4.3 The individual option messages are not yet extracted.** §3 behavior 8 names three value
-types whose failure text this spec does not yet carry. That is the honest state: this spec was
-written to establish structure and scope, and a second pass must extract every message before
-implementation, the way spec 004 §4 enumerates thirty-four. **`tasks.md` must not be written until
-then** — a porter given this file alone would invent error text.
+**4.3 The per-field option messages of `classic_theme.py` are not yet extracted.** §3.1 covers the
+three *value types*, which is where the failures actually live: the 857-line theme file declares
+fields and defaults but raises nothing of its own — every option failure is a plain pydantic
+message (`literal_error`, `string_type`) or one of §4A's two. A pass confirming that claim
+field-by-field is still owed before `tasks.md`, because "it raises nothing" is exactly the sort of
+statement that is cheap to assert and expensive to be wrong about.
+
+---
+
+## 4A. Exact strings
+
+### 4.1 Bad Typst dimension — `typst_dimension.py:26-27`
+
+```
+The value must be a number followed by a unit (cm, in, pt, mm, em). For example, 0.1cm.
+```
+
+### 4.2 Bad colour — `pydantic_extra_types.color`
+
+The raw message. Dictionary row 13's key is a substring of it, so the final text is spec 004
+§4.11's and ends `)".`
+
+```
+value is not a valid color: string not recognised as a valid color
+```
 
 ---
 
 ## 5. Acceptance criteria
 
 - [ ] `ClassicTheme`'s twenty-two nested models, every field, every default, every constraint.
+- [ ] §4A's two messages, verbatim, and `Color`'s reaching §4.11 through dictionary row 13 — the
+      first live producer for a row that has been in the table since iteration 4.
+- [ ] Any font name accepted, with the seventeen appearing in the schema's `enum` in **sorted**
+      order (§3.1 behavior 13).
 - [ ] The six `Literal` unions with their members in declaration order.
 - [ ] The eight override files reproduced as data, with a **submodule-diff test** proving each
       matches `other_themes/<stem>.yaml` key for key.
@@ -131,6 +177,7 @@ then** — a porter given this file alone would invent error text.
 
 ## 6. Status
 
-**Incomplete — structure and scope only.** §4.3 says what is missing and why `tasks.md` does not
-exist yet. The next step on this iteration is a message-extraction pass over `classic_theme.py`,
-`color.py`, `font_family.py` and `typst_dimension.py`, not implementation.
+**Incomplete.** Structure, scope and the three value types are done (§3.1, §4A). What is owed
+before `tasks.md` is a field-by-field pass over `classic_theme.py` confirming §4.3's claim that it
+raises nothing of its own — 857 lines of declarations, where a single overlooked validator would
+be a message the port never emits.
