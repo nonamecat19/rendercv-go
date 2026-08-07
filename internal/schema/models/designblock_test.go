@@ -87,6 +87,74 @@ func TestDesignBlock(t *testing.T) {
 			input: "design:\n  theme: classic\n  sections:\n    show_time_spans_in:\n      - Work Experience\n",
 		},
 		{
+			// bool_parsing, because a string was tried and could not be read.
+			name:     "an uninterpretable boolean",
+			input:    "design:\n  theme: classic\n  page:\n    show_footer: yes please\n",
+			code:     "bool_parsing",
+			message:  "Input should be a valid boolean, unable to interpret input",
+			location: "design.page.show_footer",
+		},
+		{
+			// bool_type, because a float is not coerced at all — the code
+			// differs from the row above and the message does too.
+			name:     "a float where a boolean belongs",
+			input:    "design:\n  theme: classic\n  page:\n    show_footer: 1.5\n",
+			code:     "bool_type",
+			message:  "Input should be a valid boolean",
+			location: "design.page.show_footer",
+		},
+		{
+			// `yes` and `1` are both accepted; the lax direction matters as much
+			// as the strict one.
+			name:  "a truthy word and a one",
+			input: "design:\n  theme: classic\n  page:\n    show_footer: yes\n    show_top_note: 1\n",
+		},
+		{
+			// A non-member of any shape is literal_error, not string_type.
+			name:     "an integer where a literal belongs",
+			input:    "design:\n  theme: classic\n  page:\n    size: 5\n",
+			code:     "literal_error",
+			message:  "Input should be 'a4', 'a5', 'us-letter' or 'us-executive'",
+			location: "design.page.size",
+		},
+		{
+			// The colour type owns the message even for a non-string, so this is
+			// color_error and not string_type — and dictionary row 13 rewrites
+			// it like any other colour failure.
+			name:     "an integer where a colour belongs",
+			input:    "design:\n  theme: classic\n  colors:\n    body: 5\n",
+			code:     "color_error",
+			message:  "value is not a valid color: value must be a tuple, list or string",
+			location: "design.colors.body",
+		},
+		{
+			// A three- or four-element sequence is a colour tuple.
+			name:  "a colour tuple",
+			input: "design:\n  theme: classic\n  colors:\n    body: [1, 2, 3]\n",
+		},
+		{
+			name:     "a two-element colour tuple",
+			input:    "design:\n  theme: classic\n  colors:\n    body: [1, 2]\n",
+			code:     "color_error",
+			message:  "value is not a valid color: tuples must have length 3 or 4",
+			location: "design.colors.body",
+		},
+		{
+			// The model is **named** in the message.
+			name:     "a sequence where a font family belongs",
+			input:    "design:\n  theme: classic\n  typography:\n    font_family:\n      - a\n      - b\n",
+			code:     "model_type",
+			message:  "Input should be a valid dictionary or instance of FontFamily",
+			location: "design.typography.font_family",
+		},
+		{
+			name:     "a string where a nested model belongs",
+			input:    "design:\n  theme: classic\n  page: x\n",
+			code:     "model_type",
+			message:  "Input should be a valid dictionary or instance of Page",
+			location: "design.page",
+		},
+		{
 			name:     "a non-mapping design",
 			input:    "design: null\n",
 			code:     "model_attributes_type",

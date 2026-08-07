@@ -1,6 +1,7 @@
 package design
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/binder"
@@ -15,6 +16,28 @@ const CodeModelAttributesType schemaerr.Code = "model_attributes_type"
 
 const messageNotAMapping = "Input should be a valid dictionary or object to" +
 	" extract fields from"
+
+// The bool codes, which differ by what failed to coerce.
+const (
+	CodeBoolParsing schemaerr.Code = "bool_parsing"
+	CodeBoolType    schemaerr.Code = "bool_type"
+)
+
+// The four shape failures, as sentinel errors.
+//
+// They are `var`s rather than `errors.New` at the raise site so the capital
+// letters — pydantic's, not the port's — need explaining once. `staticcheck`'s
+// ST1005 wants lowercase error strings; lowercasing these would be a parity
+// break for a style rule.
+//
+//nolint:staticcheck // ST1005: upstream's literals, capital and all.
+var (
+	errBoolParsing = errors.New("Input should be a valid boolean, unable to interpret input")
+	errBoolType    = errors.New("Input should be a valid boolean")
+
+	errColorNotAValue   = errors.New("value is not a valid color: value must be a tuple, list or string")
+	errColorTupleLength = errors.New("value is not a valid color: tuples must have length 3 or 4")
+)
 
 // Validate is the whole `design` block: the discriminator, then the theme's
 // option tree.
@@ -132,15 +155,15 @@ func modelTitle(model, theme string) string {
 // error and a wrong *value* is this file's.
 func valueKind(field Field) binder.ValueType {
 	switch field.Kind {
-	case KindString, KindOptionalString, KindTypstDimension, KindColor,
-		KindLiteral, KindThemeTag:
+	case KindString, KindOptionalString, KindTypstDimension, KindThemeTag:
 		return binder.ValueString
 	case KindStringList:
 		return binder.ValueStringList
-	case KindNested, KindBool, KindFontFamily:
-		// ValueAny: the binder has no bool shape, and a nested model's or a font
-		// family's shape failure belongs to the walk below rather than to the
-		// binder's single-shape check.
+	case KindNested, KindBool, KindFontFamily, KindColor, KindLiteral:
+		// ValueAny, because none of these reports `string_type` for a non-string.
+		// Measured: `size: 5` gives `literal_error`, `colors.body: 5` gives
+		// `color_error`, `page: x` gives `model_type`. Declaring them
+		// ValueString would report the binder's message for all three.
 	}
 	return binder.ValueAny
 }
@@ -155,38 +178,127 @@ func validateField(
 ) []schemaerr.ValidationError {
 	switch field.Kind {
 	case KindNested:
+		if node.Kind != yamldoc.KindMapping {
+			return one(node, binder.CodeModelType, modelTypeMessage(field.Nested), location, source)
+		}
 		return validateModel(node, tree, field.Nested, theme, location, source)
 
 	case KindTypstDimension:
+		// The binder reported a non-string as `string_type`, which is what
+		// upstream gives for `top_margin: 5`.
 		if node.Kind == yamldoc.KindString && !ValidTypstDimension(node.Raw) {
 			return one(node, CodeTypstDimension, MessageBadTypstDimension, location, source)
 		}
 
 	case KindColor:
-		if node.Kind == yamldoc.KindString {
-			if _, err := ParseColor(node.Raw); err != nil {
-				return one(node, CodeColor, err.Error(), location, source)
-			}
+		if err := validColorNode(node); err != nil {
+			return one(node, CodeColor, err.Error(), location, source)
 		}
 
 	case KindLiteral:
-		if node.Kind == yamldoc.KindString && !contains(field.Members, node.Raw) {
+		// **Any** non-member is `literal_error`, whatever its shape: a mapping,
+		// a sequence and a bool all give the same message as a wrong string.
+		// Measured on `page.size`.
+		if node.Kind != yamldoc.KindString || !contains(field.Members, node.Raw) {
 			return one(node, binder.CodeLiteralError,
 				binder.LiteralMessage(field.Members, "Input should be a valid value"),
 				location, source)
 		}
 
-	case KindFontFamily:
-		// Any name validates, and a mapping is the five-element form
-		// (spec 006 §3.1 behavior 12). Only the mapping's *keys* can be wrong.
-		if node.Kind == yamldoc.KindMapping {
-			return validateModel(node, tree, "FontFamily", theme, location, source)
+	case KindBool:
+		if err := validBoolNode(node); err != nil {
+			return one(node, boolCode(node), err.Error(), location, source)
 		}
 
-	case KindString, KindOptionalString, KindStringList, KindBool, KindThemeTag:
+	case KindFontFamily:
+		// Any *name* validates (spec 006 §3.1 behavior 12), and a mapping is the
+		// five-element form. Anything else is the model's shape failure.
+		switch node.Kind {
+		case yamldoc.KindMapping:
+			return validateModel(node, tree, "FontFamily", theme, location, source)
+		case yamldoc.KindString:
+		default:
+			return one(node, binder.CodeModelType, modelTypeMessage("FontFamily"), location, source)
+		}
+
+	case KindString, KindOptionalString, KindStringList, KindThemeTag:
 		// Shape only, which the binder already reported.
 	}
 	return nil
+}
+
+// modelTypeMessage is pydantic's `model_type` text, which **names the model**:
+// `page: x` gives `Input should be a valid dictionary or instance of Page`. The
+// interpolation is the same one spec 003 §6 found missing in the entry binder.
+func modelTypeMessage(model string) string {
+	return "Input should be a valid dictionary or instance of " + model
+}
+
+// boolTruthy and boolFalsy are the strings pydantic accepts for a bool, matched
+// case-insensitively (pydantic-core's `str_as_bool`).
+var boolWords = map[string]bool{
+	"0": true, "off": true, "f": true, "false": true, "n": true, "no": true,
+	"1": true, "on": true, "t": true, "true": true, "y": true, "yes": true,
+}
+
+// validBoolNode is pydantic's bool coercion, which is lax in one direction and
+// not the other. Measured:
+//
+//	show_footer: yes         accepted        — a truthy word
+//	show_footer: 1           accepted        — an int, but only 0 or 1
+//	show_footer: "yes please" bool_parsing   — a string it cannot interpret
+//	show_footer: 1.5          bool_type      — a float is not coerced at all
+//	show_footer: [1]          bool_type      — nor is a collection
+//
+// The two codes are the whole point: a string that fails is `bool_parsing`, and
+// anything that is not a string or an int is `bool_type`.
+func validBoolNode(node *yamldoc.Node) error {
+	switch node.Kind {
+	case yamldoc.KindBool:
+		return nil
+	case yamldoc.KindString:
+		if boolWords[strings.ToLower(node.Raw)] {
+			return nil
+		}
+		return errBoolParsing
+	case yamldoc.KindInt:
+		if node.Raw == "0" || node.Raw == "1" {
+			return nil
+		}
+		return errBoolType
+	case yamldoc.KindNull, yamldoc.KindFloat, yamldoc.KindMapping, yamldoc.KindSequence:
+		// A float is not coerced even when it is 1.0, and a collection never is.
+	}
+	return errBoolType
+}
+
+func boolCode(node *yamldoc.Node) schemaerr.Code {
+	if node.Kind == yamldoc.KindString {
+		return CodeBoolParsing
+	}
+	return CodeBoolType
+}
+
+// validColorNode covers the shapes `Color` accepts beyond a string: a sequence
+// of three or four numbers is a tuple, which is why `[1, 2, 3]` validates and
+// `[1, 2]` does not.
+func validColorNode(node *yamldoc.Node) error {
+	switch node.Kind {
+	case yamldoc.KindString:
+		_, err := ParseColor(node.Raw)
+		return err
+	case yamldoc.KindSequence:
+		if len(node.Elems) != 3 && len(node.Elems) != 4 {
+			return errColorTupleLength
+		}
+		return nil
+	case yamldoc.KindNull, yamldoc.KindBool, yamldoc.KindInt, yamldoc.KindFloat,
+		yamldoc.KindMapping:
+		// Fall through to the shape message below.
+	}
+	// An int, a float, a bool or a mapping. Not `string_type`: the colour type
+	// owns the message, and dictionary row 13 rewrites it like any other.
+	return errColorNotAValue
 }
 
 // SnakeCaseSectionTitles is `convert_section_titles_to_snake_case`
