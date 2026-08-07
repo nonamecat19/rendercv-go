@@ -123,9 +123,21 @@ concerns. `rendercv-go` does not contact PyPI. Logged in `divergences.md`.
 
 ## 3. Axis 3 — JSON Schema parity
 
-`rendercv-go schema` (or the equivalent generation path) must produce a document that diffs
-**empty** against `third_party/rendercv/schema.json` after both are normalized with the same
-JSON serializer settings (2-space indent, keys in upstream's emission order, trailing newline).
+The **generation path** — `go run ./tools/genschema` — must produce a document that diffs
+**empty** against `third_party/rendercv/schema.json`, byte for byte: 2-space indent, keys in
+upstream's emission order, non-ASCII literal, and **no trailing newline**.
+
+*(Corrected twice, in place rather than silently, because both errors were reachable from the
+original text.*
+
+*First: this section previously read "`rendercv-go schema` (or the equivalent generation path)".
+Taken as licence to add a subcommand, that breaks §2.1 — upstream's CLI has three commands and
+none of them is `schema`; it generates its file from `generate_json_schema_file`, outside the CLI.
+The generation path is now named, so the two axes cannot be read as contradicting.*
+
+*Second: it said "trailing newline". Upstream's file has none — `json.dumps` does not append one
+and `write_text` adds nothing, and the file's last three bytes are measured as `"\n}`. A port
+appending one would diff on the last line of a 405 KB file.)*
 
 Key order is part of the contract: editors surface schema properties in document order.
 

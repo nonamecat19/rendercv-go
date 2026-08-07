@@ -75,8 +75,15 @@ golden-verify:
 # --- Parity probes -----------------------------------------------------------
 
 # Diff our JSON schema against upstream's (contract axis 3).
-schema-diff: build
-    diff -u {{upstream_dir}}/schema.json <({{bin}} schema)
+#
+# A tool rather than a `rendercv-go schema` subcommand: axis 2 forbids adding
+# commands, and upstream has no such command either. Axis 3's own parenthetical
+# allows an equivalent generation path, and this is it.
+#
+# Red until iteration 7 by design — 209 of upstream's 227 $defs come from the
+# design and locale models. See specs/005-json-schema/spec.md §1.
+schema-diff:
+    diff -u {{upstream_dir}}/schema.json <(go run ./tools/genschema)
 
 # Run the vendored Python RenderCV: `just upstream render CV.yaml`
 upstream *args:
