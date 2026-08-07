@@ -5,11 +5,34 @@
 package luatheme
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	lua "github.com/yuin/gopher-lua"
 )
+
+// Budget is how long a theme script may run.
+//
+// **Without it, `while true do end` in a downloaded theme hangs the render
+// forever** — measured by a verifier: `timeout 10 rendercv-go render` exited
+// 124. A declaration needs microseconds, so the budget is generous by four
+// orders of magnitude and still bounds the damage.
+const Budget = 2 * time.Second
+
+// maxDepth bounds table nesting.
+//
+// **A cyclic table used to kill the process**: `local t={} t.self=t return t`
+// sent the copy into unbounded recursion and Go's stack overflow is a `fatal
+// error`, not a panic — unrecoverable, exit 2, from a file the user may have
+// downloaded. The design tree is four levels deep at its deepest, so this is
+// generous too.
+const maxDepth = 32
+
+// ErrTooDeep is a table nested past maxDepth, which is what a cycle looks like
+// from inside the copy.
+var ErrTooDeep = errors.New("this custom theme's options are nested too deeply (or contain a cycle)")
 
 // ErrSandboxed is what a script gets for reaching outside the sandbox. It is one
 // error rather than one per library, because the distinction is not useful to
@@ -28,7 +51,15 @@ var ErrSandboxed = errors.New("this custom theme script tried to use a disallowe
 // The list is what `gopher-lua` opens by default that can leave the process:
 // files, the OS, the module loader, the bytecode loader, and the debug library
 // (which can reach back into the Go host through upvalues).
-var blocked = []string{"io", "os", "package", "require", "dofile", "loadfile", "debug"}
+//
+// **`print` is on the list because CLI stdout is parity axis 2**: a script
+// printing to the process's real stdout prepends a line to `render`'s result
+// panel. Measured by a verifier.
+var blocked = []string{
+	"io", "os", "package", "require", "dofile", "loadfile", "debug",
+	"print", "_printregs", "collectgarbage", "newproxy", "module", "channel",
+	"load", "loadstring", "setfenv", "getfenv",
+}
 
 // NewState returns a Lua state a theme script runs in.
 //
@@ -53,6 +84,12 @@ func Run(script string) (*lua.LTable, error) {
 	state := NewState()
 	defer state.Close()
 
+	// The budget is enforced by the state's context, which gopher-lua checks
+	// between instructions — so a script that never yields is still stopped.
+	ctx, cancel := context.WithTimeout(context.Background(), Budget)
+	defer cancel()
+	state.SetContext(ctx)
+
 	if err := state.DoString(script); err != nil {
 		return nil, fmt.Errorf("%w", err)
 	}
@@ -65,17 +102,35 @@ func Run(script string) (*lua.LTable, error) {
 
 	// The table outlives the state it was built in, so it is copied out before
 	// the state closes. Only the shapes a theme declaration can hold are copied.
-	return copyTable(table), nil
+	copied, err := copyTable(table, 0)
+	if err != nil {
+		return nil, err
+	}
+	return copied, nil
 }
 
-func copyTable(source *lua.LTable) *lua.LTable {
+func copyTable(source *lua.LTable, depth int) (*lua.LTable, error) {
+	if depth > maxDepth {
+		return nil, ErrTooDeep
+	}
+
 	out := &lua.LTable{}
+	var failure error
 	source.ForEach(func(key, value lua.LValue) {
-		if nested, ok := value.(*lua.LTable); ok {
-			out.RawSet(key, copyTable(nested))
+		if failure != nil {
 			return
 		}
-		out.RawSet(key, value)
+		nested, ok := value.(*lua.LTable)
+		if !ok {
+			out.RawSet(key, value)
+			return
+		}
+		copied, err := copyTable(nested, depth+1)
+		if err != nil {
+			failure = err
+			return
+		}
+		out.RawSet(key, copied)
 	})
-	return out
+	return out, failure
 }

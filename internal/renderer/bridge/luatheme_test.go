@@ -81,3 +81,31 @@ func TestNoScriptIsUnchanged(t *testing.T) {
 		}
 	}
 }
+
+// **A built-in theme ignores an `init.lua` beside the input.** Upstream only
+// enters the custom-theme path when the built-in discriminator fails, so a
+// `classic/init.lua` is never read there. Reading it changed a built-in theme's
+// artifact — `page-size: "a5"` where upstream emits `"us-letter"` — from a file
+// a user could drop next to their CV without touching the document. Found by a
+// fresh-context verifier.
+func TestABuiltinThemeIgnoresAScript(t *testing.T) {
+	doc := resolveWithTheme(t, "classic",
+		`return { page = { size = "a5" }, colors = { name = "rgb(255, 0, 0)" } }`, "")
+
+	if got := design.EffectiveString(doc.Design, "page", "size"); got != "us-letter" {
+		t.Errorf("page.size = %q, want classic's own default", got)
+	}
+	if got := design.EffectiveString(doc.Design, "colors", "name"); got != "rgb(0, 79, 144)" {
+		t.Errorf("colors.name = %q, want classic's own default", got)
+	}
+}
+
+// Every built-in name is protected, not just the default one.
+func TestEveryBuiltinIgnoresAScript(t *testing.T) {
+	for _, theme := range []string{"classic", "sb2nov", "moderncv", "engineeringresumes"} {
+		doc := resolveWithTheme(t, theme, `return { page = { size = "a5" } }`, "")
+		if got := design.EffectiveString(doc.Design, "page", "size"); got == "a5" {
+			t.Errorf("%s read a theme script", theme)
+		}
+	}
+}
