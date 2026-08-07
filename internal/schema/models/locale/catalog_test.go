@@ -105,7 +105,7 @@ func TestMonthListLength(t *testing.T) {
 				t.Fatalf("ReadString: %v", err)
 			}
 
-			errs := locale.ValidateCatalog(node, []string{"locale"}, schemaerr.SourceMain)
+			errs := locale.ValidateCatalog(node, "english", []string{"locale"}, schemaerr.SourceMain)
 			if len(errs) != 1 {
 				t.Fatalf("errs = %+v, want exactly one", errs)
 			}
@@ -145,7 +145,7 @@ func TestTwelveMonthsAccepted(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadString: %v", err)
 	}
-	if errs := locale.ValidateCatalog(node, []string{"locale"}, schemaerr.SourceMain); len(errs) != 0 {
+	if errs := locale.ValidateCatalog(node, "english", []string{"locale"}, schemaerr.SourceMain); len(errs) != 0 {
 		t.Errorf("errs = %+v, want none", errs)
 	}
 }
@@ -157,11 +157,46 @@ func TestCatalogRejectsUnknownKeys(t *testing.T) {
 		t.Fatalf("ReadString: %v", err)
 	}
 
-	errs := locale.ValidateCatalog(node, []string{"locale"}, schemaerr.SourceMain)
+	errs := locale.ValidateCatalog(node, "english", []string{"locale"}, schemaerr.SourceMain)
 	if len(errs) != 1 {
 		t.Fatalf("errs = %+v, want exactly one", errs)
 	}
 	if errs[0].Message != "Extra inputs are not permitted" {
 		t.Errorf("message = %q", errs[0].Message)
+	}
+}
+
+// The twelve-element bound is EnglishLocale's alone.
+//
+// Measured against the vendored Python: `{language: danish, month_names: [11
+// items]}` validates and the same document with `english` does not. The bound
+// lives in the `Annotated` metadata that `create_simple_field_spec` strips when
+// it rebuilds each variant's field, so the twenty-one variants have no length
+// rule at all — in validation as in their schema.
+//
+// A port that applied the bound to every member rejects documents upstream
+// accepts, and no English fixture can see it.
+func TestMonthBoundAppliesToEnglishOnly(t *testing.T) {
+	var src strings.Builder
+	src.WriteString("month_names:\n")
+	for i := 0; i < 11; i++ {
+		src.WriteString("  - x\n")
+	}
+	node, err := yamlreader.ReadString(src.String())
+	if err != nil {
+		t.Fatalf("ReadString: %v", err)
+	}
+
+	for _, language := range locale.Languages {
+		t.Run(language, func(t *testing.T) {
+			errs := locale.ValidateCatalog(node, language, []string{"locale"}, schemaerr.SourceMain)
+			want := 0
+			if language == "english" {
+				want = 1
+			}
+			if len(errs) != want {
+				t.Errorf("%d errors, want %d: %+v", len(errs), want, errs)
+			}
+		})
 	}
 }

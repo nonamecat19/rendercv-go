@@ -121,8 +121,8 @@ func UnionSchema() *jsonschema.Object {
 // `create_simple_field_spec` rebuilds each variant's field from
 // `base_field_info.annotation` (variant_pydantic_model_generator.py:428-431),
 // which is the bare `list[str]` with the metadata already stripped off. So the
-// twenty-one variants lose the constraint in their schema while keeping it in
-// their validation — an asymmetry that is upstream's, not the port's.
+// twenty-one variants lose the constraint entirely — in their schema and in
+// their validation alike. ValidateCatalog carries the measurement.
 func CatalogSchema(catalog Catalog, phrasesDef string) *jsonschema.Object {
 	english := English()
 	isEnglish := catalog.Language == english.Language
