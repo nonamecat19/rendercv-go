@@ -118,7 +118,7 @@ func TestInputFilePathRecording(t *testing.T) {
 
 // The four known keys bind to their document nodes.
 func TestKnownKeysBind(t *testing.T) {
-	src := "cv:\n  name: John\ndesign:\n  theme: sb2nov\nlocale:\n  language: en\nsettings:\n  bold_keywords: []\n"
+	src := "cv:\n  name: John\ndesign:\n  theme: sb2nov\nlocale:\n  language: english\nsettings:\n  bold_keywords: []\n"
 	model, errs := models.Validate(parse(t, src), nil, schemaerr.SourceMain)
 	if len(errs) != 0 {
 		t.Fatalf("errs = %+v, want none", errs)

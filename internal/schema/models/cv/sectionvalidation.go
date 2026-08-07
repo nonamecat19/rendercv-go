@@ -31,6 +31,11 @@ const CodeSection schemaerr.Code = "rendercv_other_error"
 // `wrong_input.yaml` carry `rendercv_entry_validation_error`.
 const CodeEntryProblems schemaerr.Code = "rendercv_entry_validation_error"
 
+// entriesKey is the first element of every child's location, and it exists only
+// because upstream validates the shape `{"entries": [...]}` (section.py:219-222).
+// The pipeline's splice drops it.
+const entriesKey = "entries"
+
 // The five section messages of spec §4.8–§4.12, verbatim.
 const (
 	messageNotAList     = "Each section should be a list of entries! This is not a list."
@@ -162,13 +167,24 @@ func ValidateSection(
 		}
 	}
 
-	// Spec §3.61: every entry is validated against the one decided type, and
-	// any failure is re-raised as §4.12 carrying the nested failures.
+	// Spec §3.61: every entry is validated against the one decided type, and any
+	// failure is re-raised as §4.12 carrying the nested failures.
+	//
+	// The children's locations are **relative to `entries`**, not absolute:
+	// upstream validates the synthetic model `{"entries": [...]}`
+	// (section.py:219-222), so a child reads `("entries", 1, "institution")`.
+	// The pipeline's splice drops that leading element and prepends the
+	// wrapper's own location (spec 004 §3.7 behavior 22).
+	//
+	// Building absolute locations here instead would look equivalent and is not:
+	// the splice would prepend the wrapper's location to an already-complete
+	// path. The shape has to match what the splice expects, and matching
+	// upstream's is how it stays matched.
 	var children []schemaerr.ValidationError
 	for i, elem := range node.Elems {
 		children = append(
 			children,
-			entryValidator(elem, entryType, elemLocation(location, i), source, reference)...,
+			entryValidator(elem, entryType, elemLocation([]string{entriesKey}, i), source, reference)...,
 		)
 	}
 	if len(children) > 0 {

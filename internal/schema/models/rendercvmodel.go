@@ -4,6 +4,9 @@ import (
 	"github.com/nonamecat19/rendercv-go/internal/schema/binder"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv/entries"
+	"github.com/nonamecat19/rendercv-go/internal/schema/models/design"
+	"github.com/nonamecat19/rendercv-go/internal/schema/models/locale"
+	"github.com/nonamecat19/rendercv-go/internal/schema/models/settings"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/valctx"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
@@ -117,6 +120,25 @@ func Validate(
 		errs = append(errs, cvErrs...)
 	}
 
+	// The two thin slices spec 004 §7.9 pulls forward, plus the locale tag.
+	// Everything else in `design`, `locale` and `settings` is iterations 6 and 7;
+	// a porter adding a second field of any of them here has left scope.
+	if model.Design != nil {
+		if theme, ok := mappingValue(model.Design, "theme"); ok {
+			errs = append(errs, design.ValidateTheme(theme, []string{"design"}, source)...)
+		}
+	}
+	if model.Locale != nil {
+		if language, ok := mappingValue(model.Locale, "language"); ok {
+			errs = append(errs, locale.ValidateLanguage(language, []string{"locale"}, source)...)
+		}
+	}
+	if model.Settings != nil {
+		if current, ok := mappingValue(model.Settings, "current_date"); ok {
+			errs = append(errs, settings.ValidateCurrentDate(current, []string{"settings"}, source)...)
+		}
+	}
+
 	// Spec §3.31: the input file path comes from the context, after validation,
 	// and is held out-of-band.
 	if path, ok := ctx.InputPath(); ok {
@@ -125,4 +147,17 @@ func Validate(
 
 	// Unknown keys last, after `cv` and everything under it has reported.
 	return model, append(errs, result.ExtraErrors...)
+}
+
+// mappingValue reads one key of a mapping node, reporting whether it was there.
+func mappingValue(node *yamldoc.Node, key string) (*yamldoc.Node, bool) {
+	if node == nil || node.Kind != yamldoc.KindMapping {
+		return nil, false
+	}
+	for _, item := range node.Items {
+		if item.Key == key {
+			return item.Value, true
+		}
+	}
+	return nil, false
 }
