@@ -73,10 +73,14 @@ func ValidateArbitraryDate(value string) error {
 // parseISODate reproduces the range checks CPython's `date.fromisoformat`
 // performs, in its order: year, then month, then day.
 //
-// TODO(iteration-4): spec §7.3, §5.11 — these three strings are CPython's, not
-// RenderCV's, and are user-visible (spec §4.13). They are pinned here so a
-// later decision to diverge is visible in a diff; the decision itself, and any
-// divergence entry, is iteration 4's.
+// The three messages are CPython's, not RenderCV's, and they are user-visible.
+// The decision spec 002 deferred is made: they are reproducible verbatim in Go,
+// so the port reproduces them and no divergence is recorded.
+//
+// They are stored **unprefixed**. Upstream's carry `Value error, ` because the
+// exception escapes the validator uncaught, but the port has no such mechanism
+// and does not fabricate one (spec 004 §3.2 behavior 4a). The dictionary matches
+// by substring either way, so the final text is identical.
 func parseISODate(value string) error {
 	year, _ := strconv.Atoi(value[0:4])
 	month, _ := strconv.Atoi(value[5:7])
@@ -104,6 +108,16 @@ type DateRangeError struct {
 func (e *DateRangeError) Error() string {
 	return e.Message
 }
+
+// ErrorCode implements schemaerr.Coded.
+//
+// A range failure is `value_error` **wherever it occurs**, including on
+// `start_date` and `end_date` where the structural failure is
+// `rendercv_other_error`. Upstream's `validate_exact_date` catches only its own
+// internal error, so CPython's range exception escapes uncaught and pydantic
+// labels it `value_error`. Measured: `start_date: 2020-13-01` is `value_error`
+// while `start_date: aaa` is `rendercv_other_error`.
+func (e *DateRangeError) ErrorCode() schemaerr.Code { return CodeDateValue }
 
 func daysInMonth(year, month int) int {
 	switch month {
