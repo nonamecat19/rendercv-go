@@ -29,11 +29,7 @@ var oneLineOwnFields = []binder.Field{
 // OneLineDescriptor is OneLineEntry's registration. Its field set is exactly its
 // own fields, because BaseEntry declares none (one_line.py:6, spec §3.3).
 func OneLineDescriptor() Descriptor {
-	fields := make([]string, 0, len(oneLineOwnFields))
-	for _, field := range oneLineOwnFields {
-		fields = append(fields, field.Name)
-	}
-	return Descriptor{Name: "OneLineEntry", Fields: fields}
+	return Descriptor{Name: "OneLineEntry", Fields: bases.FieldNames(oneLineOwnFields)}
 }
 
 // ValidateOneLineEntry binds and validates one one-line entry

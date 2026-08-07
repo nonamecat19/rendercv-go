@@ -35,11 +35,7 @@ var reversedNumberedOwnFields = []binder.Field{
 // set is exactly its own fields, because BaseEntry declares none
 // (reversed_numbered.py:6, spec §3.6).
 func ReversedNumberedDescriptor() Descriptor {
-	fields := make([]string, 0, len(reversedNumberedOwnFields))
-	for _, field := range reversedNumberedOwnFields {
-		fields = append(fields, field.Name)
-	}
-	return Descriptor{Name: "ReversedNumberedEntry", Fields: fields}
+	return Descriptor{Name: "ReversedNumberedEntry", Fields: bases.FieldNames(reversedNumberedOwnFields)}
 }
 
 // ValidateReversedNumberedEntry binds and validates one reversed-numbered entry

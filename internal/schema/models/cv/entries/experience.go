@@ -39,13 +39,7 @@ func experienceFields() []binder.Field {
 // two own fields, then the inherited `date`, then the five complex fields —
 // the verified runtime order of spec §3.8.
 func ExperienceDescriptor() Descriptor {
-	fields := make([]string, 0, len(experienceOwnFields)+1+len(bases.ComplexFieldNames()))
-	for _, field := range experienceOwnFields {
-		fields = append(fields, field.Name)
-	}
-	fields = append(fields, bases.DateFieldNames()...)
-	fields = append(fields, bases.ComplexFieldNames()...)
-	return Descriptor{Name: "ExperienceEntry", Fields: fields}
+	return Descriptor{Name: "ExperienceEntry", Fields: bases.FieldNames(experienceFields())}
 }
 
 // ValidateExperienceEntry binds and validates one experience entry
