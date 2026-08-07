@@ -250,18 +250,11 @@ func checkUsername(
 var messageUnknownNetwork = buildUnknownNetworkMessage()
 
 func buildUnknownNetworkMessage() string {
-	quoted := make([]string, 0, len(SocialNetworkNames))
+	members := make([]string, 0, len(SocialNetworkNames))
 	for _, name := range SocialNetworkNames {
-		quoted = append(quoted, "'"+string(name)+"'")
+		members = append(members, string(name))
 	}
-	switch len(quoted) {
-	case 0:
-		return "Input should be a valid social network"
-	case 1:
-		return "Input should be " + quoted[0]
-	}
-	return "Input should be " +
-		strings.Join(quoted[:len(quoted)-1], ", ") + " or " + quoted[len(quoted)-1]
+	return binder.LiteralMessage(members, "Input should be a valid social network")
 }
 
 // urlPrefixes is `url_dictionary` (social_network.py:33-50): the profile-URL
