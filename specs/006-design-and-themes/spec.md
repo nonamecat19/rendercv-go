@@ -116,6 +116,28 @@ repository: compiled-in data plus a **submodule-diff test**, exactly as iteratio
     Typst built-ins, fourteen RenderCV-bundled). The port must carry the sorted order, not the
     source order, because that is what reaches the schema.
 
+### 3.2 `classic_theme.py` has two field validators, and neither raises
+
+*(This section replaces an earlier §4.3 that asserted the file "raises nothing of its own" and
+deferred the check. The assertion was wrong — there are two validators — and the check is what
+found it. Recorded rather than edited away, because the failure mode is the one this spec was
+most at risk of: a plausible claim about 857 lines, cheap to write and expensive to be wrong
+about.)*
+
+14. **`validate_font_family`** (`classic_theme.py:280-300`, `mode="plain"`) accepts either a
+    string or a `FontFamily` mapping and **expands a string into the full object**, giving every
+    element the same font. It raises nothing: a string is widened, a mapping passes through. This
+    is a coercion the port must reproduce, not an error to match — `font_family: Roboto` and
+    `font_family: {body: Roboto, name: Roboto, …}` must produce the same model.
+15. **`convert_section_titles_to_snake_case`** (`:493-500`, `mode="after"`) lowercases each entry
+    of `sections.show_time_spans_in` and replaces spaces with underscores. Also non-raising, also
+    a coercion: `["Work Experience"]` becomes `["work_experience"]`, which is what the renderer
+    matches section titles against.
+16. So the original claim survives in the form that matters — **the file adds no error strings** —
+    but for the wrong reason. It has validators; they transform rather than reject. Both
+    transformations are observable in rendered output, which makes them iteration 8 and 9's
+    problem as much as this one's.
+
 ---
 
 ## 4. Out of scope
@@ -127,12 +149,7 @@ them as **data**; interpreting them is the templater's.
 
 **4.2 Custom theme loading is D-002's Lua path**, and §4.28/§4.29 land with it.
 
-**4.3 The per-field option messages of `classic_theme.py` are not yet extracted.** §3.1 covers the
-three *value types*, which is where the failures actually live: the 857-line theme file declares
-fields and defaults but raises nothing of its own — every option failure is a plain pydantic
-message (`literal_error`, `string_type`) or one of §4A's two. A pass confirming that claim
-field-by-field is still owed before `tasks.md`, because "it raises nothing" is exactly the sort of
-statement that is cheap to assert and expensive to be wrong about.
+**4.3 Superseded by §3.2**, which is the corrected version of what this section claimed.
 
 ---
 
@@ -162,6 +179,8 @@ value is not a valid color: string not recognised as a valid color
       first live producer for a row that has been in the table since iteration 4.
 - [ ] Any font name accepted, with the seventeen appearing in the schema's `enum` in **sorted**
       order (§3.1 behavior 13).
+- [ ] §3.2's two coercions: a string `font_family` expands to every element, and
+      `show_time_spans_in` is lowercased and underscored.
 - [ ] The six `Literal` unions with their members in declaration order.
 - [ ] The eight override files reproduced as data, with a **submodule-diff test** proving each
       matches `other_themes/<stem>.yaml` key for key.
@@ -177,7 +196,8 @@ value is not a valid color: string not recognised as a valid color
 
 ## 6. Status
 
-**Incomplete.** Structure, scope and the three value types are done (§3.1, §4A). What is owed
-before `tasks.md` is a field-by-field pass over `classic_theme.py` confirming §4.3's claim that it
-raises nothing of its own — 857 lines of declarations, where a single overlooked validator would
-be a message the port never emits.
+**Complete for behavior; `plan.md` and `tasks.md` still to write.** The owed pass is done and is
+§3.2 — it disproved the claim it was meant to confirm, which is the argument for having run it.
+
+The iteration adds two error strings (§4A) and two coercions (§3.2). What remains is the volume:
+twenty-two nested models and eight override files, all measurable, none surprising.
