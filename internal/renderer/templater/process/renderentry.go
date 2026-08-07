@@ -24,9 +24,11 @@ type EntryTemplateInput struct {
 	// upstream distinguishes by `isinstance(x, int)` and the port cannot
 	// re-derive from the string (see FormatDateRange).
 	YearOnly map[string]bool
-	// DOIURL is `PublicationEntry.doi_url`, computed by the model.
-	DOIURL string
 }
+
+// DOIPrefix is what `PublicationEntry.doi_url` prepends to a DOI
+// (publication.py:79-95).
+const DOIPrefix = "https://doi.org/"
 
 // RenderEntryTemplates is `render_entry_templates` (`:95-218`), the orchestrator
 // that turns a theme's template strings into the fields an entry template
@@ -82,15 +84,25 @@ func RenderEntryTemplates(entry Entry, input EntryTemplateInput) (Entry, error) 
 			input.YearOnly["end_date"], input.Catalog, input.DateTemplates.SingleDate)
 	}
 
+	// **`doi_url` is the entry's own computed property**, not something the
+	// caller supplies (`:79-95`). Threading it in as an input left every corpus
+	// publication linking to its `url` field instead of to its DOI — seventeen
+	// of twenty-one cases, all with the DOI text already correct beside the
+	// wrong href.
 	doi := fields["DOI"]
+	doiURL := ""
+	if doi != "" {
+		doiURL = DOIPrefix + doi
+	}
+
 	if _, present := fields["URL"]; present {
-		fields["URL"] = EntryURL(fields["URL"], doi, input.DOIURL)
+		fields["URL"] = EntryURL(fields["URL"], doi, doiURL)
 	}
 	// **The `DOI` branch sets both keys** (`:199-201`), so a publication with a
 	// DOI shows the DOI link for its `URL` placeholder as well.
 	if doi != "" {
-		fields["URL"] = EntryURL(fields["URL"], doi, input.DOIURL)
-		fields["DOI"] = EntryDOI(doi, input.DOIURL)
+		fields["URL"] = EntryURL(fields["URL"], doi, doiURL)
+		fields["DOI"] = EntryDOI(doi, doiURL)
 	}
 
 	if summary, present := fields["SUMMARY"]; present && SummaryIsStandalone(templates) {
