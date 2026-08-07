@@ -229,11 +229,22 @@ func firstToken(n ast.Node) *token.Token {
 	}
 }
 
+// buildLiteral reads a block scalar — `key: |` and `key: >` with their chomping
+// variants.
+//
+// **The body lives in `n.Value`, not in `n.Start`.** `n.Start` is the *indicator*
+// token, so reading it yielded `" |\n"` — the indicator itself — and the block's
+// content never reached the model at all. Every artifact carried a literal `|`
+// where the user's text belonged. Found by a fresh-context verifier and present
+// since the reader was first written.
+//
+// goccy has already applied the folding and chomping rules by this point, so
+// `n.Value.Value` is the finished string.
 func buildLiteral(n *ast.LiteralNode) *yamldoc.Node {
 	tok := n.Start
-	raw := tok.Origin
-	if raw == "" {
-		raw = tok.Value
+	raw := ""
+	if n.Value != nil {
+		raw = n.Value.Value
 	}
 	return &yamldoc.Node{
 		Kind:  yamldoc.KindString,
