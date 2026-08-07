@@ -1,0 +1,123 @@
+package process_test
+
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/nonamecat19/rendercv-go/internal/renderer/templater/process"
+)
+
+// The markdown→Typst differential: 101 inputs and the vendored Python's answer
+// for each, captured into testdata rather than restated here.
+//
+// **The fixture is generated, and what that does and does not buy is the same
+// trade `tools/localeprobe` states.** It was produced by running upstream's
+// `markdown_to_typst` over the input list, so it pins the port against a
+// measurement rather than against my reading — but it cannot notice an input
+// nobody thought to add. The golden `.typ` diff is the gate that can.
+//
+// The inputs were not chosen for coverage of the parser's code; they were chosen
+// by running the port and adding whatever disagreed, which is why the list
+// includes `****` and `_**a**_`.
+func TestMarkdownToTypst(t *testing.T) {
+	var rows []struct {
+		In   string `json:"in"`
+		Want string `json:"want"`
+	}
+
+	path := filepath.Join("testdata", "markdown_to_typst.json")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading %s: %v", path, err)
+	}
+	if err := json.Unmarshal(raw, &rows); err != nil {
+		t.Fatalf("parsing %s: %v", path, err)
+	}
+	if len(rows) < 100 {
+		t.Fatalf("%d rows, want the full fixture", len(rows))
+	}
+
+	for _, row := range rows {
+		t.Run(row.In, func(t *testing.T) {
+			if got := process.MarkdownToTypst(row.In); got != row.Want {
+				t.Errorf("MarkdownToTypst(%q) =\n%q\nwant\n%q", row.In, got, row.Want)
+			}
+		})
+	}
+}
+
+// The findings the fixture encodes, named so a failure says which rule broke
+// rather than which string differs.
+func TestMarkdownToTypstFindings(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			// Five block processors are deregistered, so these are text.
+			name: "a heading is literal text", in: "# Heading", want: `\# Heading`,
+		},
+		{"a bullet is literal text", "- item", "- item"},
+		{"a numbered item is literal text", "1. item", "1. item"},
+		{"a quote is literal text", "> quote", `\> quote`},
+		{
+			// But `hr` and `indent` are **not** deregistered.
+			name: "a horizontal rule renders as nothing", in: "---", want: "",
+		},
+		{"an indented line is a code block", "    x", "`x\n`"},
+		{
+			// EMPHASIS_RE's body admits no asterisk, so this is three emphases
+			// rather than one containing a strong.
+			name: "a strong inside an emphasis splits it",
+			in:   "*a **b** c*",
+			want: "#emph[a ]#emph[b]#emph[ c]",
+		},
+		{
+			// The per-processor cutoff: a `*` inside an `_` starts fresh.
+			name: "asterisks nest inside underscores",
+			in:   "_**a**_",
+			want: "#emph[#strong[a]]",
+		},
+		{
+			// The smart guards: a word character before the `_` blocks it.
+			name: "an underscore inside a word is not emphasis",
+			in:   "snake_case_word",
+			want: `snake\_case\_word`,
+		},
+		{
+			// Links run at every depth, not only at the top.
+			name: "a link inside a strong",
+			in:   "**[a](u)**",
+			want: `#strong[#link("u")[a]]`,
+		},
+		{
+			// An empty href becomes the example URL rather than an empty one.
+			name: "an empty link URL", in: "[t]()", want: `#link("https://example.com")[t]`,
+		},
+		{
+			// The admonition is the one multi-line construct, and its keyword
+			// selects nothing — the title child is dropped.
+			name: "an admonition becomes a summary",
+			in:   "!!! note\n    a\n    b",
+			want: `#summary[a \ b]`,
+		},
+		{
+			// Line-by-line conversion: the asterisks do not pair across the
+			// newline.
+			name: "emphasis does not cross a line boundary",
+			in:   "*a\nb*",
+			want: "#sym.ast.basic#h(0pt, weak: true) a\nb#sym.ast.basic#h(0pt, weak: true)",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := process.MarkdownToTypst(tc.in); got != tc.want {
+				t.Errorf("= %q, want %q", got, tc.want)
+			}
+		})
+	}
+}

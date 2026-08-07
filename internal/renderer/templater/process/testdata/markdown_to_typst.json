@@ -1,0 +1,406 @@
+[
+ {
+  "in": "plain",
+  "want": "plain"
+ },
+ {
+  "in": "**bold**",
+  "want": "#strong[bold]"
+ },
+ {
+  "in": "*em*",
+  "want": "#emph[em]"
+ },
+ {
+  "in": "`code`",
+  "want": "`code`"
+ },
+ {
+  "in": "[t](https://u)",
+  "want": "#link(\"https://u\")[t]"
+ },
+ {
+  "in": "[t]()",
+  "want": "#link(\"https://example.com\")[t]"
+ },
+ {
+  "in": "# Heading",
+  "want": "\\# Heading"
+ },
+ {
+  "in": "- item",
+  "want": "- item"
+ },
+ {
+  "in": "1. item",
+  "want": "1. item"
+ },
+ {
+  "in": "> quote",
+  "want": "\\> quote"
+ },
+ {
+  "in": "a **b** c",
+  "want": "a #strong[b] c"
+ },
+ {
+  "in": "**a *b* c**",
+  "want": "#strong[a #emph[b] c]"
+ },
+ {
+  "in": "*a **b** c*",
+  "want": "#emph[a ]#emph[b]#emph[ c]"
+ },
+ {
+  "in": "a\nb",
+  "want": "a\nb"
+ },
+ {
+  "in": "**a**\n**b**",
+  "want": "#strong[a]\n#strong[b]"
+ },
+ {
+  "in": "*a\nb*",
+  "want": "#sym.ast.basic#h(0pt, weak: true) a\nb#sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "!!! summary\n    line one\n    line two",
+  "want": "#summary[line one \\ line two]"
+ },
+ {
+  "in": "!!! note\n    x",
+  "want": "#summary[x]"
+ },
+ {
+  "in": "text with [link](u) and **bold**",
+  "want": "text with #link(\"u\")[link] and #strong[bold]"
+ },
+ {
+  "in": "",
+  "want": ""
+ },
+ {
+  "in": "a_b",
+  "want": "a\\_b"
+ },
+ {
+  "in": "100%",
+  "want": "100\\%"
+ },
+ {
+  "in": "`a_b`",
+  "want": "`a_b`"
+ },
+ {
+  "in": "[**b**](u)",
+  "want": "#link(\"u\")[#strong[b]]"
+ },
+ {
+  "in": "**a `c` b**",
+  "want": "#strong[a `c` b]"
+ },
+ {
+  "in": "a\n\nb",
+  "want": "a\n\nb"
+ },
+ {
+  "in": "  indented",
+  "want": "indented"
+ },
+ {
+  "in": "[t](u) tail",
+  "want": "#link(\"u\")[t] tail"
+ },
+ {
+  "in": "**unclosed",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) unclosed"
+ },
+ {
+  "in": "***both***",
+  "want": "#strong[#emph[both]]"
+ },
+ {
+  "in": "_em_",
+  "want": "#emph[em]"
+ },
+ {
+  "in": "__strong__",
+  "want": "#strong[strong]"
+ },
+ {
+  "in": "___both___",
+  "want": "#strong[#emph[both]]"
+ },
+ {
+  "in": "a*b*c",
+  "want": "a#emph[b]c"
+ },
+ {
+  "in": "a * b",
+  "want": "a #sym.ast.basic b"
+ },
+ {
+  "in": "**a** and *b*",
+  "want": "#strong[a] and #emph[b]"
+ },
+ {
+  "in": "***strong**em*",
+  "want": "#emph[#strong[strong]em]"
+ },
+ {
+  "in": "**strong*em***",
+  "want": "#strong[strong#emph[em]]"
+ },
+ {
+  "in": "*a*b*",
+  "want": "#emph[a]b#sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "****",
+  "want": ""
+ },
+ {
+  "in": "*****x*****",
+  "want": "#strong[#emph[#sym.ast.basic#h(0pt, weak: true) ]x]#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "\\*escaped\\*",
+  "want": "#sym.ast.basic#h(0pt, weak: true) escaped#sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "a\\_b",
+  "want": "a\\_b"
+ },
+ {
+  "in": "`a**b`",
+  "want": "`a**b`"
+ },
+ {
+  "in": "[a`b`](u)",
+  "want": "#link(\"u\")[a`b`]"
+ },
+ {
+  "in": "**[a](u)**",
+  "want": "#strong[#link(\"u\")[a]]"
+ },
+ {
+  "in": "!!! summary\n    a **b**\n    c",
+  "want": "#summary[a #strong[b] \\ c]"
+ },
+ {
+  "in": "!!! summary\n    only",
+  "want": "#summary[only]"
+ },
+ {
+  "in": "x\n!!! summary\n    y\nz",
+  "want": "x\n#summary[y]\nz"
+ },
+ {
+  "in": "- a - b",
+  "want": "- a - b"
+ },
+ {
+  "in": "1) x",
+  "want": "1) x"
+ },
+ {
+  "in": "#### h4",
+  "want": "\\#\\#\\#\\# h4"
+ },
+ {
+  "in": "    code block",
+  "want": "`code block\n`"
+ },
+ {
+  "in": "> a\n> b",
+  "want": "\\> a\n\\> b"
+ },
+ {
+  "in": "**a\nb**",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) a\nb#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "*x* *y*",
+  "want": "#emph[x] #emph[y]"
+ },
+ {
+  "in": "**x** **y**",
+  "want": "#strong[x] #strong[y]"
+ },
+ {
+  "in": "[](u)",
+  "want": "#link(\"u\")[]"
+ },
+ {
+  "in": "[a]()",
+  "want": "#link(\"https://example.com\")[a]"
+ },
+ {
+  "in": "a[b]c",
+  "want": "a\\[b\\]c"
+ },
+ {
+  "in": "**a**b",
+  "want": "#strong[a]b"
+ },
+ {
+  "in": "b**a**",
+  "want": "b#strong[a]"
+ },
+ {
+  "in": "_ _",
+  "want": "\\_ \\_"
+ },
+ {
+  "in": "* *",
+  "want": "#sym.ast.basic #sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "**a *b***",
+  "want": "#strong[a #emph[b]]"
+ },
+ {
+  "in": "*a **b***",
+  "want": "#emph[a ]#emph[b]#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "$$math$$",
+  "want": "$math$"
+ },
+ {
+  "in": "#cmd[x]",
+  "want": "#cmd[x]"
+ },
+ {
+  "in": "**$$m$$**",
+  "want": "#strong[$m$]"
+ },
+ {
+  "in": "a — b",
+  "want": "a — b"
+ },
+ {
+  "in": "ünïcode",
+  "want": "ünïcode"
+ },
+ {
+  "in": "**ü**",
+  "want": "#strong[ü]"
+ },
+ {
+  "in": "日本語",
+  "want": "日本語"
+ },
+ {
+  "in": "**日本**",
+  "want": "#strong[日本]"
+ },
+ {
+  "in": "      deeper",
+  "want": "`  deeper\n`"
+ },
+ {
+  "in": "    a **b**",
+  "want": "`a **b**\n`"
+ },
+ {
+  "in": "   three spaces",
+  "want": "three spaces"
+ },
+ {
+  "in": "\tt",
+  "want": "`t\n`"
+ },
+ {
+  "in": "a\n    indented\nb",
+  "want": "a\n`indented\n`\nb"
+ },
+ {
+  "in": "    x\n    y",
+  "want": "`x\n`\n`y\n`"
+ },
+ {
+  "in": "_a_b_",
+  "want": "#emph[a\\_b]"
+ },
+ {
+  "in": "a_b_c",
+  "want": "a\\_b\\_c"
+ },
+ {
+  "in": "__a__b",
+  "want": "\\_\\_a\\_\\_b"
+ },
+ {
+  "in": "_ _a_ _",
+  "want": "\\_ #emph[a] \\_"
+ },
+ {
+  "in": "snake_case_word",
+  "want": "snake\\_case\\_word"
+ },
+ {
+  "in": "**a**_b_",
+  "want": "#strong[a]#emph[b]"
+ },
+ {
+  "in": "_**a**_",
+  "want": "#emph[#strong[a]]"
+ },
+ {
+  "in": "___x___y",
+  "want": "#strong[#emph[x]]y"
+ },
+ {
+  "in": "a `b` _c_",
+  "want": "a `b` #emph[c]"
+ },
+ {
+  "in": "---",
+  "want": ""
+ },
+ {
+  "in": "***",
+  "want": ""
+ },
+ {
+  "in": "___",
+  "want": ""
+ },
+ {
+  "in": "- - -",
+  "want": ""
+ },
+ {
+  "in": "* * *",
+  "want": ""
+ },
+ {
+  "in": "_____",
+  "want": ""
+ },
+ {
+  "in": "--",
+  "want": "--"
+ },
+ {
+  "in": "**",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "a---b",
+  "want": "a---b"
+ },
+ {
+  "in": "---x",
+  "want": "---x"
+ },
+ {
+  "in": "  ---",
+  "want": ""
+ },
+ {
+  "in": "    ---",
+  "want": "`---\n`"
+ }
+]
