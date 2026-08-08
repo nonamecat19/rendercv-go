@@ -12,6 +12,12 @@ const (
 	portBinary     = "rendercv-go"
 )
 
+// consoleWidth is the terminal width every golden was captured at
+// (`testdata/corpus.json`'s `COLUMNS`). A line of exactly this width came out
+// of a Rich renderable that pads to the console, so its width is part of the
+// comparison.
+const consoleWidth = 80
+
 // RebindBinaryName rewrites the port's output into upstream's spelling so the
 // two can be compared, and re-pads any fixed-width panel row it shortened.
 //
@@ -41,10 +47,16 @@ func RebindBinaryName(text string) string {
 			continue
 		}
 
-		// Only a bordered row gets its padding restored. A bare line — the
-		// greeting, a usage line outside a panel — is left exactly as the
-		// substitution produced it, because nothing there is width-sensitive.
-		if !isPanelRow(line) {
+		// **A help page's padded lines are width-sensitive too.** Rich paints a
+		// `Padding` region to the console width, so the usage line and the
+		// description are runs of text followed by spaces out to column 80,
+		// exactly as fixed as a bordered row — and the earlier `isPanelRow`
+		// guard left them three characters short. D-010 records the extension.
+		//
+		// A line that was **not** full width is genuinely free text — the
+		// greeting, a stderr usage line — and keeps whatever the substitution
+		// produced.
+		if !isPanelRow(line) && width != consoleWidth {
 			lines[i] = rebound
 			continue
 		}
@@ -93,15 +105,17 @@ func isPanelRow(line string) bool {
 	return strings.HasPrefix(line, "│") && strings.HasSuffix(line, "│")
 }
 
-// repad restores a shortened panel row to its original display width by growing
-// the run of spaces before the closing border. Anything else about the row is
-// left alone.
+// repad restores a shortened row to its original display width. A bordered row
+// grows the run of spaces before its closing border; a padded line simply grows
+// its trailing run. Anything else about the line is left alone.
 func repad(line string, width int) string {
 	missing := width - utf8.RuneCountInString(line)
 	if missing <= 0 {
 		return line
 	}
-	border := "│"
-	body := strings.TrimSuffix(line, border)
-	return body + strings.Repeat(" ", missing) + border
+	const border = "│"
+	if !strings.HasSuffix(line, border) {
+		return line + strings.Repeat(" ", missing)
+	}
+	return strings.TrimSuffix(line, border) + strings.Repeat(" ", missing) + border
 }
