@@ -19,6 +19,7 @@ import (
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/valctx"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
+	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
 )
 
 // RenderOptions are `render`'s flags, after the pre-pass of args.go has turned
@@ -99,6 +100,14 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 		failPanel(stdout, err)
 		return exitValidationError
 	}
+
+	// **Overlay files the document names itself** (G-7). Upstream's
+	// `collect_input_file_paths` (`run_rendercv.py:113-122`) reads the main YAML
+	// before anything else and resolves `settings.render_command.design` and
+	// `.locale` **relative to the input file's directory**, unless the CLI flag
+	// already supplied one. Without this the port rendered `classic` where
+	// upstream rendered the named theme — 240 differing `.typ` lines.
+	resolveNamedOverlays(&options, raw)
 
 	arguments, err := buildArguments(options)
 	if err != nil {
@@ -450,6 +459,55 @@ func orDefault(value, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+// resolveNamedOverlays fills in the two overlay paths a document can name for
+// itself.
+//
+// **A parse failure is ignored, exactly as upstream ignores it.** The read sits
+// inside `contextlib.suppress(RenderCVUserValidationError)` so that a broken
+// document still reaches the validator and reports there, rather than failing
+// here with a worse message.
+func resolveNamedOverlays(options *RenderOptions, raw []byte) {
+	document, err := modelbuilder.ReadYamlWithValidationErrors(string(raw), schemaerr.SourceMain)
+	if err != nil {
+		return
+	}
+
+	block := mappingChild(mappingChild(document, "settings"), "render_command")
+	inputDir := filepath.Dir(options.InputPath)
+
+	for _, named := range []struct {
+		key    string
+		target *string
+	}{
+		{key: "design", target: &options.DesignPath},
+		{key: "locale", target: &options.LocalePath},
+	} {
+		// **The CLI flag wins** (`render_command.py:206-209`): the document's
+		// name is only consulted when the flag left the slot empty.
+		if *named.target != "" {
+			continue
+		}
+		value := mappingChild(block, named.key)
+		if value == nil || value.Kind != yamldoc.KindString || value.Raw == "" {
+			continue
+		}
+		*named.target = filepath.Join(inputDir, value.Raw)
+	}
+}
+
+// mappingChild is one key of a mapping node, or nil.
+func mappingChild(node *yamldoc.Node, key string) *yamldoc.Node {
+	if node == nil || node.Kind != yamldoc.KindMapping {
+		return nil
+	}
+	for _, item := range node.Items {
+		if item.Key == key {
+			return item.Value
+		}
+	}
+	return nil
 }
 
 // overlayFile reads one of the three overlay options. An empty path is the
