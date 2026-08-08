@@ -55,10 +55,16 @@ type RenderOptions struct {
 	// 13's work.
 	Watch bool
 
-	// Overrides are the arbitrary dotted `--cv.phone value` pairs of spec §2
-	// behavior 9. An unknown key is **not** rejected here: it is set on the
-	// document and the model reports it, which is what `err_bad_override_key`
-	// measures.
+	// Extras are the tokens the flag parser did not recognize, in order — the
+	// `--cv.phone value` pairs of spec §2 behavior 9 and anything else that
+	// looks like one. They stay a list until `Render` has read the input file,
+	// because that is where upstream parses them (`render_command.py:217`,
+	// after the read at `:205`), and the two failures order differently if it
+	// happens sooner.
+	Extras []string
+
+	// Overrides is what ParseOverrideArguments made of Extras. `Render` fills
+	// it; nothing outside sets it.
 	Overrides map[string]string
 }
 
@@ -82,6 +88,15 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 		// punctuation choice, so `ST1005` is suppressed rather than obeyed —
 		// obeying it would be a validation-error divergence (axis 4).
 		failPanel(stdout, errMissingFile(options.InputPath))
+		return exitValidationError
+	}
+
+	// **After the read, not before.** Upstream parses the extras at
+	// `render_command.py:217`, and `:205` has already opened the input file by
+	// then, so a missing file and a malformed extra report in that order.
+	options.Overrides, err = ParseOverrideArguments(options.Extras)
+	if err != nil {
+		failPanel(stdout, err)
 		return exitValidationError
 	}
 
