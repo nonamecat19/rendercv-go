@@ -137,8 +137,14 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 	// record — which is what `err_unknown_theme` compares.
 
 	pathInput := PathInput{
-		Name:         plainName(doc),
-		OutputFolder: orDefault(options.OutputFolder, DefaultOutputFolder),
+		Name: plainName(doc),
+		// **Relative to the input file, not the working directory** (G-8).
+		// Upstream types it `PlannedPathRelativeToInput`
+		// (`schema/models/settings/render_command.py:30`), so
+		// `render sub/cv.yaml` writes `sub/rendercv_output/` — measured. The
+		// port wrote `./rendercv_output/`, which is the same path only when the
+		// input is in the working directory, as it is in every corpus case.
+		OutputFolder: outputFolderFor(options),
 		Placeholders: process.BuildDatePlaceholders(doc.Settings.CurrentDate, process.Catalog{
 			MonthNames:         doc.Locale.MonthNames,
 			MonthAbbreviations: doc.Locale.MonthAbbreviations,
@@ -459,6 +465,16 @@ func orDefault(value, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+// outputFolderFor resolves the output folder against the input file's
+// directory. An absolute folder is taken as given.
+func outputFolderFor(options RenderOptions) string {
+	folder := orDefault(options.OutputFolder, DefaultOutputFolder)
+	if filepath.IsAbs(folder) {
+		return folder
+	}
+	return filepath.Join(filepath.Dir(options.InputPath), folder)
 }
 
 // resolveNamedOverlays fills in the two overlay paths a document can name for
