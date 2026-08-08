@@ -118,6 +118,12 @@ gentemplates:
 designprobe:
     go run ./tools/designprobe
 
+# Regenerate the help-page model — usage lines, descriptions and every option
+# row — from the vendored typer. Generated, never hand-edited (AGENTS.md §10.1).
+# Not a golden: no human gate. The layout is not in here; see specs/012-cli/help.md.
+helpprobe:
+    go run ./tools/helpprobe
+
 # Regenerate the entry-model field-order fixture from the vendored Python.
 # Generated, never hand-edited (AGENTS.md §10.1). Not a golden: no human gate.
 entryprobe:

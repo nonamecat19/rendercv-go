@@ -1,0 +1,396 @@
+{
+  "root": {
+    "usage": "Usage: rendercv [OPTIONS] COMMAND [ARGS]...",
+    "description": "RenderCV is a command-line tool for rendering CVs from YAML input files. For more information, see https://docs.rendercv.com.",
+    "arguments": [],
+    "options": [
+      {
+        "long": "--version",
+        "short": "-v",
+        "secondary_long": "",
+        "secondary_short": "",
+        "metavar": "",
+        "help": [
+          "Show the version"
+        ],
+        "required": false
+      },
+      {
+        "long": "--install-completion",
+        "short": "",
+        "secondary_long": "",
+        "secondary_short": "",
+        "metavar": "",
+        "help": [
+          "Install completion for the current shell."
+        ],
+        "required": false
+      },
+      {
+        "long": "--show-completion",
+        "short": "",
+        "secondary_long": "",
+        "secondary_short": "",
+        "metavar": "",
+        "help": [
+          "Show completion for the current shell, to copy it or customize the installation."
+        ],
+        "required": false
+      },
+      {
+        "long": "--help",
+        "short": "-h",
+        "secondary_long": "",
+        "secondary_short": "",
+        "metavar": "",
+        "help": [
+          "Show this message and exit."
+        ],
+        "required": false
+      }
+    ],
+    "subcommands": [
+      {
+        "name": "create-theme",
+        "help": "Create a custom theme folder with Typst templates to customize. Example: rendercv create-theme customtheme. Details: rendercv create-theme --help"
+      },
+      {
+        "name": "new",
+        "help": "Generate a YAML input file to get started. Example: rendercv new \"John Doe\". Details: rendercv new --help"
+      },
+      {
+        "name": "render",
+        "help": "Render a YAML input file. Example: rendercv render John_Doe_CV.yaml. Details: rendercv render --help"
+      }
+    ]
+  },
+  "commands": {
+    "create-theme": {
+      "usage": "Usage: rendercv create-theme [OPTIONS] THEME_NAME",
+      "description": "Create a custom theme folder with Typst templates to customize. Example: rendercv create-theme customtheme. Details: rendercv create-theme --help",
+      "arguments": [
+        {
+          "long": "",
+          "short": "theme_name",
+          "secondary_long": "",
+          "secondary_short": "",
+          "metavar": "TEXT",
+          "help": [
+            "The name of the new theme",
+            "[required]"
+          ],
+          "required": true
+        }
+      ],
+      "options": [
+        {
+          "long": "--help",
+          "short": "-h",
+          "secondary_long": "",
+          "secondary_short": "",
+          "metavar": "",
+          "help": [
+            "Show this message and exit."
+          ],
+          "required": false
+        }
+      ]
+    },
+    "new": {
+      "usage": "Usage: rendercv new [OPTIONS] FULL_NAME",
+      "description": "Generate a YAML input file to get started. Example: rendercv new \"John Doe\". Details: rendercv new --help",
+      "arguments": [
+        {
+          "long": "",
+          "short": "full_name",
+          "secondary_long": "",
+          "secondary_short": "",
+          "metavar": "TEXT",
+          "help": [
+            "Your full name",
+            "[required]"
+          ],
+          "required": true
+        }
+      ],
+      "options": [
+        {
+          "long": "--theme",
+          "short": "",
+          "secondary_long": "",
+          "secondary_short": "",
+          "metavar": "TEXT",
+          "help": [
+            "The name of the theme (available themes are: classic, ember, engineeringclassic, engineeringresumes, harvard, ink, moderncv, opal, sb2nov)",
+            "[default: classic]"
+          ],
+          "required": false
+        },
+        {
+          "long": "--locale",
+          "short": "",
+          "secondary_long": "",
+          "secondary_short": "",
+          "metavar": "TEXT",
+          "help": [
+            "The name of the locale (available locales are: english, arabic, danish, dutch, french, german, hebrew, hindi, hungarian, indonesian, italian, japanese, korean, mandarin_chinese, norwegian_bokmål, norwegian_nynorsk, persian, portuguese, russian, spanish, turkish, vietnamese). You can also continue with `English`, and then write your own `locale` field for your own language.",
+            "[default: english]"
+          ],
+          "required": false
+        },
+        {
+          "long": "--create-typst-templates",
+          "short": "",
+          "secondary_long": "",
+          "secondary_short": "",
+          "metavar": "",
+          "help": [
+            "Create Typst templates"
+          ],
+          "required": false
+        },
+        {
+          "long": "--create-markdown-templates",
+          "short": "",
+          "secondary_long": "",
+          "secondary_short": "",
+          "metavar": "",
+          "help": [
+            "Create Markdown templates"
+          ],
+          "required": false
+        },
+        {
+          "long": "--help",
+          "short": "-h",
+          "secondary_long": "",
+          "secondary_short": "",
+          "metavar": "",
+          "help": [
+            "Show this message and exit."
+          ],
+          "required": false
+        }
+      ]
+    },
+    "render": {
+      "usage": "Usage: rendercv render [OPTIONS] INPUT_FILE_NAME",
+      "description": "Render a YAML input file. Example: rendercv render John_Doe_CV.yaml. Details: rendercv render --help",
+      "arguments": [
+        {
+          "long": "",
+          "short": "input_file_name",
+          "secondary_long": "",
+          "secondary_short": "",
+          "metavar": "PATH",
+          "help": [
+            "The YAML input file.",
+            "[required]"
+          ],
+          "required": true
+        }
+      ],
+      "options": [
+        {
+          "long": "--output-folder",
+          "short": "-o",
+          "secondary_long": "",
+          "secondary_short": "",
+          "metavar": "PATH",
+          "help": [
+            "Base output folder for all generated files. Replaces the default 'rendercv_output' folder."
+          ],
+          "required": false
+        },
+        {
+          "long": "--design",
+          "short": "-d",
+          "secondary_long": "",
+          "secondary_short": "",
+          "metavar": "PATH",
+          "help": [
+            "The \"design\" field's YAML input file."
+          ],
+          "required": false
+        },
+        {
+          "long": "--locale-catalog",
+          "short": "-lc",
+          "secondary_long": "",
+          "secondary_short": "",
+          "metavar": "PATH",
+          "help": [
+            "The \"locale\" field's YAML input file."
+          ],
+          "required": false
+        },
+        {
+          "long": "--settings",
+          "short": "-s",
+          "secondary_long": "",
+          "secondary_short": "",
+          "metavar": "PATH",
+          "help": [
+            "The \"settings\" field's YAML input file."
+          ],
+          "required": false
+        },
+        {
+          "long": "--typst-path",
+          "short": "-typ",
+          "secondary_long": "",
+          "secondary_short": "",
+          "metavar": "PATH",
+          "help": [
+            "Save the generated Typst file to the specified path, relative to the input file."
+          ],
+          "required": false
+        },
+        {
+          "long": "--pdf-path",
+          "short": "-pdf",
+          "secondary_long": "",
+          "secondary_short": "",
+          "metavar": "PATH",
+          "help": [
+            "Save the generated PDF file to the specified path, relative to the input file."
+          ],
+          "required": false
+        },
+        {
+          "long": "--markdown-path",
+          "short": "-md",
+          "secondary_long": "",
+          "secondary_short": "",
+          "metavar": "PATH",
+          "help": [
+            "Save the generated Markdown file to the specified path, relative to the input file."
+          ],
+          "required": false
+        },
+        {
+          "long": "--html-path",
+          "short": "-html",
+          "secondary_long": "",
+          "secondary_short": "",
+          "metavar": "PATH",
+          "help": [
+            "Save the generated HTML file to the specified path, relative to the input file."
+          ],
+          "required": false
+        },
+        {
+          "long": "--png-path",
+          "short": "-png",
+          "secondary_long": "",
+          "secondary_short": "",
+          "metavar": "PATH",
+          "help": [
+            "Save the generated PNG files to the specified path, relative to the input file."
+          ],
+          "required": false
+        },
+        {
+          "long": "--dont-generate-markdown",
+          "short": "-nomd",
+          "secondary_long": "",
+          "secondary_short": "",
+          "metavar": "",
+          "help": [
+            "If provided, the Markdown file will not be generated. Disabling Markdown generation implicitly disables HTML."
+          ],
+          "required": false
+        },
+        {
+          "long": "--dont-generate-html",
+          "short": "-nohtml",
+          "secondary_long": "",
+          "secondary_short": "",
+          "metavar": "",
+          "help": [
+            "If provided, the HTML file will not be generated."
+          ],
+          "required": false
+        },
+        {
+          "long": "--dont-generate-typst",
+          "short": "-notyp",
+          "secondary_long": "",
+          "secondary_short": "",
+          "metavar": "",
+          "help": [
+            "If provided, the Typst file will not be generated. Disabling Typst generation implicitly disables PDF and PNG."
+          ],
+          "required": false
+        },
+        {
+          "long": "--dont-generate-pdf",
+          "short": "-nopdf",
+          "secondary_long": "",
+          "secondary_short": "",
+          "metavar": "",
+          "help": [
+            "If provided, the PDF file will not be generated."
+          ],
+          "required": false
+        },
+        {
+          "long": "--dont-generate-png",
+          "short": "-nopng",
+          "secondary_long": "",
+          "secondary_short": "",
+          "metavar": "",
+          "help": [
+            "If provided, the PNG file will not be generated."
+          ],
+          "required": false
+        },
+        {
+          "long": "--watch",
+          "short": "-w",
+          "secondary_long": "",
+          "secondary_short": "",
+          "metavar": "",
+          "help": [
+            "If provided, RenderCV will automatically re-run when the input file is updated."
+          ],
+          "required": false
+        },
+        {
+          "long": "--quiet",
+          "short": "-q",
+          "secondary_long": "",
+          "secondary_short": "",
+          "metavar": "",
+          "help": [
+            "If provided, RenderCV will not print any messages."
+          ],
+          "required": false
+        },
+        {
+          "long": "--YAMLLOCATION",
+          "short": "",
+          "secondary_long": "",
+          "secondary_short": "",
+          "metavar": "TEXT",
+          "help": [
+            "Overrides the value of YAMLLOCATION. For example, --cv.phone \"123-456-7890\"."
+          ],
+          "required": false
+        },
+        {
+          "long": "--help",
+          "short": "-h",
+          "secondary_long": "",
+          "secondary_short": "",
+          "metavar": "",
+          "help": [
+            "Show this message and exit."
+          ],
+          "required": false
+        }
+      ]
+    }
+  }
+}
+
