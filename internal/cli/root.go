@@ -65,6 +65,12 @@ func execute(args []string, stdout, stderr io.Writer, run runners) int {
 	flags.BoolVar(&options.NoMarkdown, "dont-generate-markdown", false, "")
 	flags.BoolVar(&options.NoHTML, "dont-generate-html", false, "")
 	flags.BoolVar(&options.Watch, "watch", false, "")
+	// **Declared so it parses, and deliberately discarded** (G-2). Upstream's
+	// own parameter is bound to `_`; it exists to give the help panel a row for
+	// the dotted-override mechanism. Without it the token becomes an override
+	// key and the model rejects a document upstream renders.
+	var yamlLocation string
+	flags.StringVar(&yamlLocation, "YAMLLOCATION", "", "")
 	flags.BoolVar(&options.Quiet, "quiet", false, "")
 
 	newOptions := NewOptions{}
