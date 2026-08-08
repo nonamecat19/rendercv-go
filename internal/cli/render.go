@@ -380,7 +380,27 @@ func display(path string) string {
 // the first thing `render` does that can go wrong for a reason the argument
 // vector alone cannot show.
 func buildArguments(options RenderOptions) (modelbuilder.BuildArguments, error) {
+	// The overlay file is a **whole document keyed by the field**, not the
+	// field's body: `-d` on a file reading `theme: moderncv` makes upstream die
+	// with `KeyError: 'design'`. So the content goes across unchanged and
+	// `modelbuilder` does the extraction, which it has always been able to do.
+	settingsYaml, err := overlayFile(options.SettingsPath)
+	if err != nil {
+		return modelbuilder.BuildArguments{}, err
+	}
+	designYaml, err := overlayFile(options.DesignPath)
+	if err != nil {
+		return modelbuilder.BuildArguments{}, err
+	}
+	localeYaml, err := overlayFile(options.LocalePath)
+	if err != nil {
+		return modelbuilder.BuildArguments{}, err
+	}
+
 	return modelbuilder.BuildArguments{
+		SettingsYaml:         settingsYaml,
+		DesignYaml:           designYaml,
+		LocaleYaml:           localeYaml,
 		OutputFolder:         options.OutputFolder,
 		TypstPath:            options.TypstPath,
 		PdfPath:              options.PDFPath,
@@ -408,6 +428,26 @@ func orDefault(value, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+// overlayFile reads one of the three overlay options. An empty path is the
+// option not being passed, which is the path every corpus document takes.
+//
+// **Upstream has no handling for a missing one**: `design.read_text()`
+// (`render_command.py:213`) is unguarded, so `-d nosuch.yaml` produces a
+// `FileNotFoundError` traceback — the same shape as a missing *input* file,
+// whose golden `err_missing_file` is a traceback for that reason and is
+// unreachable by construction. The port answers both with the one message it
+// already had rather than inventing a second.
+func overlayFile(path string) (string, error) {
+	if path == "" {
+		return "", nil
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return "", errMissingFile(path)
+	}
+	return string(content), nil
 }
 
 // errMissingFile carries upstream's wording verbatim.
