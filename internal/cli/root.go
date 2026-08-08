@@ -116,3 +116,11 @@ func execute(args []string, stdout, stderr io.Writer, run runners) int {
 	}
 	return code
 }
+
+// exitUsageError is click's `UsageError.exit_code` — the code every malformed
+// invocation carries, and the one shape of failure that is neither a validation
+// error (1) nor a success (0).
+//
+// **The port returned 70 for all of them**, which is this function's initial
+// value and therefore indistinguishable from an internal failure.
+const exitUsageError = 2
