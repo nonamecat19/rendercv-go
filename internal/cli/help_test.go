@@ -105,12 +105,12 @@ func TestHelpPageEndsWithABlankLine(t *testing.T) {
 // carries upstream's, and a row shortened by the substitution has its padding
 // restored.
 //
-// **It re-pads every line, where the harness re-pads only bordered rows.** A
-// help page's `Padding` regions — the usage line and the description — are
-// painted to the console width too, so they are just as width-sensitive as a
-// panel row and the harness's `isPanelRow` guard does not reach them. Extending
-// it there is the change `specs/012-cli/help.md` §7 recommends and does not
-// make: the harness is the instrument every other case is measured by.
+// **It is a second, weaker rewrite rule than the harness's, and that is a known
+// gap.** `conformance.RebindBinaryName` bounds the token to one standing alone
+// between spaces — this repository's own directory is called `rendercv-go`, so a
+// quoted path carries the token and a blind substitution corrupts it. The rule
+// here does not, and would. No help page prints a path today; if one ever does,
+// this comparison is the thing that will be wrong.
 func rebindToUpstream(text string) string {
 	lines := strings.Split(text, "\n")
 	for i, line := range lines {
