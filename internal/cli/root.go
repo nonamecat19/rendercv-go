@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -36,7 +37,7 @@ func execute(args []string, stdout, stderr io.Writer, run runners) int {
 
 	render := &cobra.Command{
 		Use:  "render [input]",
-		Args: cobra.ExactArgs(1),
+		Args: exactlyOne("[OPTIONS] INPUT_FILE_NAME", "INPUT_FILE_NAME"),
 		RunE: func(_ *cobra.Command, positional []string) error {
 			options.InputPath = positional[0]
 			code = run.render(options, stdout, stderr)
@@ -69,7 +70,7 @@ func execute(args []string, stdout, stderr io.Writer, run runners) int {
 	newOptions := NewOptions{}
 	newCmd := &cobra.Command{
 		Use:  "new [name]",
-		Args: cobra.MinimumNArgs(1),
+		Args: atLeastOne("[OPTIONS] FULL_NAME", "FULL_NAME"),
 		RunE: func(_ *cobra.Command, positional []string) error {
 			// Typer joins the positional words, so `new John Doe` — unquoted —
 			// is the same as `new "John Doe"`. Every corpus case writes it
@@ -96,6 +97,19 @@ func execute(args []string, stdout, stderr io.Writer, run runners) int {
 		Use:           "rendercv-go",
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		// A first token that names no subcommand is click's
+		// `No such command`, not cobra's own wording, and not a run of the
+		// root with leftover arguments.
+		Args: func(cmd *cobra.Command, positional []string) error {
+			if len(positional) == 0 {
+				return nil
+			}
+			return &usageError{
+				usage:   cmd.CommandPath() + " [OPTIONS] COMMAND [ARGS]...",
+				command: cmd.CommandPath(),
+				message: fmt.Sprintf("No such command '%s'.", positional[0]),
+			}
+		},
 		RunE: func(_ *cobra.Command, _ []string) error {
 			if version {
 				_, _ = fmt.Fprintf(stdout, "RenderCV v%s\n", Version)
@@ -112,9 +126,67 @@ func execute(args []string, stdout, stderr io.Writer, run runners) int {
 	root.SetErr(stderr)
 
 	if err := root.Execute(); err != nil {
+		var usage *usageError
+		if errors.As(err, &usage) {
+			writeUsageError(stderr, usage)
+			return exitUsageError
+		}
 		return 70
 	}
 	return code
+}
+
+// usageError is click's `UsageError` — a malformed invocation, as opposed to a
+// document the model rejected.
+//
+// **It prints in three parts and none of them is the panel a RenderCVUserError
+// gets**: the usage line, the `Try ... for help.` line, and only then the same
+// `Error` box. All three go to stderr, where every other error this CLI prints
+// goes to stdout.
+type usageError struct {
+	usage   string
+	command string
+	message string
+}
+
+func (e *usageError) Error() string { return e.message }
+
+func writeUsageError(stderr io.Writer, err *usageError) {
+	_, _ = fmt.Fprintf(stderr, "Usage: %s\n", err.usage)
+	_, _ = fmt.Fprintf(stderr, "Try '%s -h' for help.\n", err.command)
+	_, _ = fmt.Fprint(stderr, Panel("Error", []PanelRow{{Text: err.message}}))
+}
+
+// exactlyOne and atLeastOne are cobra argument validators that report click's
+// missing-argument text rather than cobra's `accepts 1 arg(s), received 0`.
+//
+// The two differ because `new` joins its positional words — typer's
+// `full_name` takes the rest of the line, so `new John Doe` unquoted is the
+// same invocation as `new "John Doe"`, which every corpus case relies on.
+func exactlyOne(usage, placeholder string) cobra.PositionalArgs {
+	return func(cmd *cobra.Command, positional []string) error {
+		if len(positional) != 1 {
+			return missingArgument(cmd, usage, placeholder)
+		}
+		return nil
+	}
+}
+
+func atLeastOne(usage, placeholder string) cobra.PositionalArgs {
+	return func(cmd *cobra.Command, positional []string) error {
+		if len(positional) == 0 {
+			return missingArgument(cmd, usage, placeholder)
+		}
+		return nil
+	}
+}
+
+func missingArgument(cmd *cobra.Command, usage, placeholder string) error {
+	return &usageError{
+		usage:   cmd.CommandPath() + " " + usage,
+		command: cmd.CommandPath(),
+		message: fmt.Sprintf("Missing argument '%s'.", placeholder),
+	}
 }
 
 // exitUsageError is click's `UsageError.exit_code` — the code every malformed
