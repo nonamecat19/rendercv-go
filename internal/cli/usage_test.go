@@ -48,6 +48,40 @@ func TestUsageErrors(t *testing.T) {
 				"Try 'rendercv-go new -h' for help.\n" +
 				Panel("Error", []PanelRow{{Text: "Missing argument 'FULL_NAME'."}}),
 		},
+		{
+			// **G-3, and it prints differently from every other usage error**:
+			// the panel alone, with no usage line and no `Try …` line. Measured
+			// against the vendored CLI, which quotes the spelling the user
+			// typed.
+			name: "an option missing its value",
+			args: []string{"render", "cv.yaml", "--output-folder"},
+			stderr: Panel("Error", []PanelRow{
+				{Text: "Option '--output-folder' requires an argument."},
+			}),
+		},
+		{
+			name: "a short option missing its value",
+			args: []string{"render", "cv.yaml", "-o"},
+			stderr: Panel("Error", []PanelRow{
+				{Text: "Option '-o' requires an argument."},
+			}),
+		},
+		{
+			// **G-4.** `render` never reaches this — its unknowns go to the
+			// extras — so the case has to be driven through another command.
+			name: "an unknown option on new",
+			args: []string{"new", "Jane", "-d", "foo"},
+			stderr: "Usage: rendercv-go new [OPTIONS] FULL_NAME\n" +
+				"Try 'rendercv-go new -h' for help.\n" +
+				Panel("Error", []PanelRow{{Text: "No such option: -d"}}),
+		},
+		{
+			name: "an unknown long option on new",
+			args: []string{"new", "Jane", "--nope"},
+			stderr: "Usage: rendercv-go new [OPTIONS] FULL_NAME\n" +
+				"Try 'rendercv-go new -h' for help.\n" +
+				Panel("Error", []PanelRow{{Text: "No such option: --nope"}}),
+		},
 	}
 
 	for _, row := range cases {
