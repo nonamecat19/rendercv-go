@@ -2,6 +2,8 @@ package cli
 
 import (
 	"regexp"
+	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -76,4 +78,54 @@ func runeWidth(s string) int {
 		n++
 	}
 	return n
+}
+
+// TestConsoleWidthHonoursColumns is spec 012 gaps.md G-11.
+//
+// **Rich honours `COLUMNS` even when stdout is a pipe**, and the port printed 80
+// unconditionally: 20 columns narrower than upstream at `COLUMNS=100`, and 20
+// wider at 60, where every panel overflowed the reader's terminal. Measured
+// against the vendored CLI, whose `--help` is 60, 100 and 120 columns wide at
+// those settings.
+//
+// No golden can see this — all of them are captured at 80 — so the width is
+// gated here or nowhere.
+func TestConsoleWidthHonoursColumns(t *testing.T) {
+	cases := []struct {
+		columns string
+		want    int
+	}{
+		{columns: "60", want: 60},
+		{columns: "100", want: 100},
+		{columns: "120", want: 120},
+		{columns: "80", want: 80},
+		// Rich's own `int()` guard: anything unparseable falls back.
+		{columns: "", want: PanelWidth},
+		{columns: "not-a-number", want: PanelWidth},
+		{columns: "0", want: PanelWidth},
+		{columns: "-5", want: PanelWidth},
+	}
+
+	for _, row := range cases {
+		t.Run("COLUMNS="+row.columns, func(t *testing.T) {
+			t.Setenv("COLUMNS", row.columns)
+			if got := ConsoleWidth(); got != row.want {
+				t.Errorf("ConsoleWidth() = %d, want %d", got, row.want)
+			}
+		})
+	}
+}
+
+// TestPanelTracksTheConsoleWidth is the same fact one layer up: the box is laid
+// out to the console, not to a constant.
+func TestPanelTracksTheConsoleWidth(t *testing.T) {
+	for _, width := range []int{60, 80, 100} {
+		t.Setenv("COLUMNS", strconv.Itoa(width))
+		panel := Panel("Error", []PanelRow{{Text: "a message"}})
+		for i, line := range strings.Split(strings.TrimRight(panel, "\n"), "\n") {
+			if got := len([]rune(line)); got != width {
+				t.Errorf("COLUMNS=%d: line %d is %d wide", width, i, got)
+			}
+		}
+	}
 }
