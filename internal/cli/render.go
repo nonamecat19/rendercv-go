@@ -85,7 +85,13 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 		return exitValidationError
 	}
 
-	built, err := modelbuilder.BuildDictionary(string(raw), buildArguments(options))
+	arguments, err := buildArguments(options)
+	if err != nil {
+		failPanel(stdout, err)
+		return exitValidationError
+	}
+
+	built, err := modelbuilder.BuildDictionary(string(raw), arguments)
 	if err != nil {
 		failPanel(stdout, err)
 		return exitValidationError
@@ -368,7 +374,12 @@ func display(path string) string {
 	return "./" + filepath.ToSlash(path)
 }
 
-func buildArguments(options RenderOptions) modelbuilder.BuildArguments {
+// buildArguments assembles what `modelbuilder` needs from the parsed options.
+//
+// It can fail because three of those options name **files**, and reading one is
+// the first thing `render` does that can go wrong for a reason the argument
+// vector alone cannot show.
+func buildArguments(options RenderOptions) (modelbuilder.BuildArguments, error) {
 	return modelbuilder.BuildArguments{
 		OutputFolder:         options.OutputFolder,
 		TypstPath:            options.TypstPath,
@@ -382,7 +393,7 @@ func buildArguments(options RenderOptions) modelbuilder.BuildArguments {
 		DontGenerateMarkdown: options.NoMarkdown,
 		DontGenerateHtml:     options.NoHTML,
 		Overrides:            options.Overrides,
-	}
+	}, nil
 }
 
 func plainName(doc bridge.Document) string {
