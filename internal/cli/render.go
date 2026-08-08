@@ -144,7 +144,14 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 	markdown := ""
 	typstPath := ""
 
-	if !options.NoTypst {
+	// **Gated on the merged model, not the CLI flag** (G-6). The flags were
+	// already merged into `settings.render_command` by `buildArguments`, and
+	// upstream gates inside each generator on the merged value — so a document
+	// or a `--settings` overlay switching a format off works exactly as the
+	// flag does.
+	generate := doc.Settings.RenderCommand
+
+	if !generate.DontGenerateTypst {
 		out, err := document.Render(doc, templater.FormatTypst, document.Options{InputDir: inputDir})
 		if err != nil {
 			failPanel(stdout, err)
@@ -163,7 +170,7 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 	// why upstream returns early from both when `typst_path is None`
 	// (`pdf_png.py:33,63`): `--notyp` disables them by omission, not by a flag
 	// of their own.
-	if !options.NoPDF && typstPath != "" {
+	if !generate.DontGeneratePDF && typstPath != "" {
 		path, err := renderPDF(doc, typstPath, orDefault(options.PDFPath, DefaultPDFPath), pathInput, inputDir)
 		if err != nil {
 			failPanel(stdout, err)
@@ -172,7 +179,7 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 		rows = append(rows, PanelRow{Mark: "✓", Timing: timing(started), Label: "Generated PDF:", Value: display(path)})
 	}
 
-	if !options.NoPNG && typstPath != "" {
+	if !generate.DontGeneratePNG && typstPath != "" {
 		paths, err := renderPNGs(doc, typstPath, orDefault(options.PNGPath, DefaultPNGPath), pathInput, inputDir)
 		if err != nil {
 			failPanel(stdout, err)
@@ -198,7 +205,7 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 		}
 	}
 
-	if !options.NoMarkdown {
+	if !generate.DontGenerateMarkdown {
 		out, err := document.Render(doc, templater.FormatMarkdown, document.Options{InputDir: inputDir})
 		if err != nil {
 			failPanel(stdout, err)
@@ -213,7 +220,7 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 		rows = append(rows, PanelRow{Mark: "✓", Timing: timing(started), Label: "Generated Markdown:", Value: display(path)})
 	}
 
-	if !options.NoHTML {
+	if !generate.DontGenerateHTML {
 		// **The HTML needs the Markdown's text**, and upstream disables it
 		// outright when the Markdown was not generated (`html.py:28-30`) rather
 		// than rendering one just for this.
