@@ -42,12 +42,42 @@ The 42 split three ways:
 
 5. `render <input.yaml>` writes, by default, `.typ`, `.pdf`, `.png`(s), `.md` and `.html` under
    `./rendercv_output/`, named from the CV's name — `John_Doe_CV.typ`.
-6. **Five negative flags, single-dash**: `-nopdf`, `-nopng`, `-nomd`, `-nohtml`, and their
-   companions. They are spelled with **one** dash in every golden (`render_typst_only`), which is
-   not a GNU convention and not cobra's default.
-7. **Five path flags**, also single-dash: `-typ`, `-md`, `-html`, `-pdf`, `-png`, each taking a
-   path that may name directories that do not exist yet (`render_custom_paths` writes
-   `out/nested/custom.md`).
+6. **Every option has both a long and a short spelling, and the corpus only ever uses the short
+   one.** The inventory below is read off the signature rather than off the goldens, because
+   `render_typst_only` and `render_custom_paths` between them exercise ten of the seventeen and
+   name no long form at all. Each row cites
+   `third_party/rendercv/src/rendercv/cli/render_command/render_command.py`.
+
+   | Long | Short | Kind | Line |
+   |---|---|---|---|
+   | `--output-folder` | `-o` | path | 33 |
+   | `--design` | `-d` | path | 44 |
+   | `--locale-catalog` | `-lc` | path | 52 |
+   | `--settings` | `-s` | path | 60 |
+   | `--typst-path` | `-typ` | path | 68 |
+   | `--pdf-path` | `-pdf` | path | 79 |
+   | `--markdown-path` | `-md` | path | 90 |
+   | `--html-path` | `-html` | path | 101 |
+   | `--png-path` | `-png` | path | 112 |
+   | `--dont-generate-markdown` | `-nomd` | bool | 123 |
+   | `--dont-generate-html` | `-nohtml` | bool | 134 |
+   | `--dont-generate-typst` | `-notyp` | bool | 142 |
+   | `--dont-generate-pdf` | `-nopdf` | bool | 153 |
+   | `--dont-generate-png` | `-nopng` | bool | 161 |
+   | `--watch` | `-w` | bool | 169 |
+   | `--quiet` | `-q` | bool | 180 |
+   | `--YAMLLOCATION` | — | dummy | 190 |
+
+   **The short forms are whole words, not GNU shorthands** — `-typ`, `-nopdf`, `-lc`. Neither
+   pflag nor getopt accepts that spelling, and it is the reason args.go exists.
+
+   **`--YAMLLOCATION` is never read.** It is a parameter declared solely so the help panel has a
+   row describing the dotted-override mechanism of behavior 9; the function binds it to `_`.
+
+7. **Three of the options name overlay files** — `--design`, `--locale-catalog` and `--settings`
+   (`render_command.py:205-215`). Each is read and merged ahead of the main document in the fixed
+   order settings, design, locale. No corpus case passes one, which is why they can be absent from
+   a port that passes every corpus case.
 8. `--quiet` suppresses the progress output but not the result panel (`render_quiet`).
 9. **Arbitrary dotted overrides**: any `--<dotted.path> <value>` sets that field in the parsed
    document before validation. Three shapes appear in the corpus:
@@ -60,6 +90,43 @@ The 42 split three ways:
 11. `--settings.current_date` is an ordinary override by rule 9 — `tools/docprobe` already relies
     on it, so the mechanism is exercised before this iteration begins.
 
+**11a. The override collector is not a dotted-key filter, and this is the behavior the port got
+wrong.** `render` is declared `context_settings={"allow_extra_args": True,
+"ignore_unknown_options": True}` (`render_command.py:26`), so *everything* click does not
+recognize — unknown flags, stray positionals, single-dash tokens — lands in `ctx.args` in order,
+and `parse_override_arguments` (`parse_override_arguments.py:26-55`) reads that list as
+alternating keys and values. Three consequences, each measured against the vendored CLI:
+
+| Input | Upstream |
+|---|---|
+| `render cv.yaml --nope value` | accepted as the override key `nope`, then rejected by the model as an unknown field |
+| `render cv.yaml a b c` | `There is a problem with the extra arguments (a,b,c)! Each key should have a corresponding value.` |
+| `render cv.yaml -x value` | `The key (-x) should start with double dashes!` |
+
+Both messages are an `Error` panel on **stdout** with exit 1, not a usage error. The
+odd-count message joins the arguments with `,` and **no space** (`:39`).
+
+**11b. The key strips every `--`, not the prefix.** `key.replace("--", "")`
+(`parse_override_arguments.py:51`) is unanchored, so `--cv--name` becomes `cvname`. Measured:
+upstream accepts the argument and the model then rejects `cvname` as an unknown field.
+
+**11c. A missing required argument is a *usage* error, not a RenderCV error.** `rendercv render`
+with no input file, `rendercv new` with no name, `rendercv create-theme` with no theme name and
+`rendercv bogus` all write to **stderr** and exit **2** — a different stream, panel and code from
+every `err_*` golden. The shape is three parts:
+
+```
+Usage: rendercv render [OPTIONS] INPUT_FILE_NAME
+Try 'rendercv render -h' for help.
+╭─ Error ──────────────────────────────────────────────────────────────────────╮
+│ Missing argument 'INPUT_FILE_NAME'.                                          │
+╰──────────────────────────────────────────────────────────────────────────────╯
+```
+
+with `No such command 'bogus'.` and the root's own usage line for an unknown command. **`rendercv`
+with no arguments at all is different again**: the full help on stdout, exit **0**, which is
+behavior 3's help renderer and therefore blocked on §5.
+
 ## 3. `new` and `create-theme`
 
 12. `new "John Doe"` writes a starter `John_Doe_CV.yaml` in the working directory.
@@ -67,6 +134,9 @@ The 42 split three ways:
     is an error (`err_unknown_locale`), so the name is validated against the 22-member union.
 14. `--create-typst-templates` additionally writes the theme's Typst templates beside the input, so
     a user can edit them — the override path spec 008 §2 already loads from.
+    **`--create-markdown-templates` is its companion** (`new_command.py:57`) and does the same for
+    the Markdown template set. It has no corpus case and the port does not declare it, so a user
+    passing it gets a parser error where upstream writes files.
 15. `create-theme <name>` writes a theme folder of Typst templates to customize — fourteen files:
     the four top-level fragments, the nine entry templates, and `__init__.py`.
 
