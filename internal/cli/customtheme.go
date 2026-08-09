@@ -67,12 +67,26 @@ func CreateTheme(options CreateThemeOptions, stdout, stderr io.Writer) int {
 // files `copy_templates("typst", …)` copies upstream (four top-level
 // fragments and the nine entry templates).
 func copyTypstTemplates(dest string) error {
+	return copyBuiltinTemplates("typst", dest)
+}
+
+// copyMarkdownTemplates is copyTypstTemplates' companion for the Markdown
+// template set — `copy_templates("markdown", …)`'s twelve files (three
+// top-level fragments and the nine entry templates; Markdown has no
+// `Preamble`).
+func copyMarkdownTemplates(dest string) error {
+	return copyBuiltinTemplates("markdown", dest)
+}
+
+// copyBuiltinTemplates copies one of `templater.Builtin`'s template sets into
+// dest, mirroring `copy_templates`'s directory shape.
+func copyBuiltinTemplates(kind, dest string) error {
 	root := templater.BuiltinTemplates()
-	return fs.WalkDir(root, "typst", func(path string, d fs.DirEntry, err error) error {
+	return fs.WalkDir(root, kind, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		rel, err := filepath.Rel("typst", path)
+		rel, err := filepath.Rel(kind, path)
 		if err != nil {
 			return err
 		}
