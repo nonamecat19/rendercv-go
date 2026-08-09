@@ -180,7 +180,10 @@ Each entry: what differs · upstream citation · why parity is impossible or und
   port's dialect. It renders identically to the theme it was copied from, which the Jinja
   version would not.
 - **Consequence for the suite:** the `create_theme` corpus case compares template *source*, so it
-  is unreachable by construction. It stays red, with this entry as the reason.
+  is unreachable by construction. It stays red, with this entry as the reason. `new
+  --create-typst-templates` writes the same thirteen `.typ` files through the same
+  `copyTypstTemplates` path (`internal/cli/customtheme.go`), so `new_typst_templates` fails on
+  exactly the same four fragments and stays red for the same reason — not a second divergence.
 
 ---
 
