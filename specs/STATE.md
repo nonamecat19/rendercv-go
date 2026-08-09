@@ -162,6 +162,25 @@ cases instead of one.
 template set, and no corpus case names it — left for whoever picks up G-9. No fresh-context
 verification has run over this change.
 
+## G-9 closed — 2026-08-09
+
+`new --create-markdown-templates` was declared and unread — the flag parsed, upstream writes a
+`markdown` folder, the port did nothing. `copyTypstTemplates` from the previous pass generalizes to
+`copyBuiltinTemplates(kind, dest)`, and `--create-markdown-templates` now calls it with `"markdown"`
+the way `--create-typst-templates` calls it with `"typst"` — the port's own pongo2 transform of the
+twelve Markdown fragments (three top-level, nine entries; Markdown has no `Preamble`).
+
+**The panel logic changed shape, not just grew a branch.** Upstream collects every requested
+template kind into one `created`/`existing` list before building the "Get started" panel
+(`new_command.py:117-166`), so `--create-typst-templates --create-markdown-templates` together —
+one already written, one not — produces **one panel with both an "Also created" and a "Not
+modified" section**, each item's own row. The prior pass's `typstTemplatesRows` only knew about one
+kind and one state; it is now `templateRows(created, existing []templateItem)`, verified by hand
+against that combination.
+
+No corpus case names either flag (`gaps.md` §6 recorded this at the start), so `TestParity` did not
+move — 33/43, same as before this pass. No fresh-context verification has run.
+
 ## The help renderer landed and moved no case — 2026-08-08
 
 Spec [`012-cli/help.md`](012-cli/help.md) is the measured behavior; the renderer is written and

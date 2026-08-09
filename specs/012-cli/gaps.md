@@ -98,8 +98,11 @@ reachable for the first time now that `-o` parses.
 
 ## 6. Two options are declared and unread
 
-**G-9.** `new --create-markdown-templates` parses and does nothing; upstream writes a `markdown`
-folder. `--create-typst-templates` is read, so the pair is inconsistent.
+**G-9 — closed, 2026-08-09.** `new --create-markdown-templates` now writes the `markdown` folder
+through `copyBuiltinTemplates("markdown", …)`, the same path `--create-typst-templates` uses. The
+"Get started" panel's "Also created" / "Not modified (already exist)" block generalizes to both
+flags at once (`internal/cli/new.go`). No corpus case names the flag, so nothing in `TestParity`
+moved; verified by hand against `new_command.py:150-166`'s shape.
 
 **G-10.** `render --watch` parses and does nothing; upstream loops. `spec.md` §6.2 defers the
 watcher to iteration 13, so the *feature* is out of scope — but accepting the flag and exiting 0
