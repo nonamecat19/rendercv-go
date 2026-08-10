@@ -158,6 +158,79 @@ func TestFontFamilyPartialOverrideOnABuiltinTheme(t *testing.T) {
 	}
 }
 
+// **An explicit null on a design field is a type failure, not an absence.**
+// Every design field has a default, so none is `Required` in the binder's
+// sense — but a default is not the same as upstream's `X | None`: only
+// `templates.education_entry.degree_column` (`KindOptionalString`) is
+// actually typed nullable. `!Required` alone made a null anywhere else pass
+// silently and fall back to the *base* tree's default rather than the
+// theme's own, or rather than being rejected outright — measured on five
+// field kinds across a **built-in** theme, no script involved. Found by a
+// fresh-context verifier (iteration 14's eleventh re-verification).
+func TestNullDesignFieldsAreRejectedExceptDegreeColumn(t *testing.T) {
+	tests := []struct {
+		name string
+		yaml string
+		want string
+	}{
+		{
+			name: "a color",
+			yaml: "theme: sb2nov\ncolors:\n  name: null\n",
+			want: "design.colors.name",
+		},
+		{
+			name: "a typst dimension",
+			yaml: "theme: sb2nov\npage:\n  top_margin: null\n",
+			want: "design.page.top_margin",
+		},
+		{
+			name: "a literal",
+			yaml: "theme: sb2nov\npage:\n  size: null\n",
+			want: "design.page.size",
+		},
+		{
+			name: "a bool",
+			yaml: "theme: sb2nov\nentries:\n  short_second_row: null\n",
+			want: "design.entries.short_second_row",
+		},
+		{
+			name: "a string list",
+			yaml: "theme: sb2nov\nsections:\n  show_time_spans_in: null\n",
+			want: "design.sections.show_time_spans_in",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			doc, err := yamlreader.ReadString(test.yaml)
+			if err != nil {
+				t.Fatalf("ReadString: %v", err)
+			}
+			node := &yamldoc.Node{Kind: yamldoc.KindMapping, Items: doc.Items}
+			errs := design.Validate(node, []string{"design"}, schemaerr.SourceMain, nil)
+			if len(errs) == 0 {
+				t.Fatalf("errs = none, want a failure at %s", test.want)
+			}
+			if got := strings.Join(errs[0].SchemaLocation, "."); got != test.want {
+				t.Errorf("location = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
+// The one field that genuinely admits null must keep passing.
+func TestNullDegreeColumnIsAccepted(t *testing.T) {
+	doc, err := yamlreader.ReadString(
+		"theme: sb2nov\ntemplates:\n  education_entry:\n    degree_column: null\n")
+	if err != nil {
+		t.Fatalf("ReadString: %v", err)
+	}
+	node := &yamldoc.Node{Kind: yamldoc.KindMapping, Items: doc.Items}
+	errs := design.Validate(node, []string{"design"}, schemaerr.SourceMain, nil)
+	if len(errs) != 0 {
+		t.Errorf("errs = %+v, want none — degree_column is str | None", errs)
+	}
+}
+
 // The nine built-in names, in the order the discriminated union discovers them.
 func TestBuiltInThemes(t *testing.T) {
 	want := []string{
