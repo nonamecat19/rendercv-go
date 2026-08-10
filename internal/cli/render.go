@@ -283,8 +283,23 @@ func finish(options RenderOptions, rows []PanelRow, stdout io.Writer) int {
 	if options.Quiet {
 		return 0
 	}
-	_, _ = fmt.Fprint(stdout, Panel("Your CV is ready", rows))
+	writeLivePanel(stdout, Panel("Your CV is ready", rows))
 	return 0
+}
+
+// writeLivePanel writes a panel the way `render`'s three panels reach the
+// user: through `rich.live.Live` (`progress_panel.py`'s `ProgressPanel`), not
+// a plain `print()`. `Live.stop()` only calls `console.line()` — the blank
+// line after the panel — when the console is a terminal
+// (`rich/live.py:169-172`); piped or redirected, as every golden and this
+// port's own stdout capture are, upstream's last byte is the panel's own
+// closing corner, with no trailing newline at all.
+//
+// `Panel` itself keeps its trailing `\n`, because `new` and `create-theme`
+// print through plain `rich.print`, which always ends with one — measured
+// separately and differently from `render`'s three.
+func writeLivePanel(stdout io.Writer, panel string) {
+	_, _ = fmt.Fprint(stdout, strings.TrimSuffix(panel, "\n"))
 }
 
 func writeArtifact(template string, input PathInput, content string) (string, error) {
@@ -594,7 +609,7 @@ func failPanel(stdout io.Writer, err error) {
 		validationPanel(stdout, validation.Errors)
 		return
 	}
-	_, _ = fmt.Fprint(stdout, Panel("Error", []PanelRow{{Text: err.Error()}}))
+	writeLivePanel(stdout, Panel("Error", []PanelRow{{Text: err.Error()}}))
 }
 
 // validationPanel is `print_validation_errors` (`progress_panel.py:138-169`).
@@ -622,7 +637,7 @@ func validationPanel(stdout io.Writer, records []schemaerr.ValidationError) {
 	for line := range strings.SplitSeq(strings.TrimRight(table, "\n"), "\n") {
 		panelRows = append(panelRows, PanelRow{Text: line})
 	}
-	_, _ = fmt.Fprint(stdout, Panel("There are validation errors!", panelRows))
+	writeLivePanel(stdout, Panel("There are validation errors!", panelRows))
 }
 
 // validationLocation is `format_validation_error_location`
