@@ -306,6 +306,13 @@ func TestQuotedColorTupleElementsAreNotCoerced(t *testing.T) {
 		{name: "an unquoted hex channel", yaml: `[0x10, 0, 0]`, want: false},
 		{name: "an unquoted bool-word channel", yaml: `[true, 0, 0]`, want: false},
 		{name: "a quoted hex percent alpha", yaml: `[0, 0, 0, "0x10%"]`, want: true},
+		// **Go's hex-float syntax is not a Python `float()` literal.**
+		// `strconv.ParseFloat` alone accepts it even with the bool/hex/
+		// octal/binary coercion turned off, which used to let a quoted
+		// element validate and then leak a raw `[]string` into the
+		// artifact. Found by a fresh-context verifier (iteration 14's
+		// colour-slice sweep).
+		{name: "a quoted Go hex-float channel", yaml: `["0x1p-2", 0, 0]`, want: true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

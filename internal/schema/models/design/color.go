@@ -336,6 +336,20 @@ func parseNumericText(text string, coerce bool) (float64, bool) {
 	// fourteenth re-verification).
 	text = strings.TrimSpace(text)
 	if !coerce {
+		// **Go's hex-float literal syntax (`0x1p-2`) is not a Python
+		// `float()` literal.** `strconv.ParseFloat` accepts Go's numeric
+		// grammar, which is a superset of Python's for strings — Python's
+		// `float("0x1p-2")` raises `ValueError`. A quoted colour-tuple
+		// element spelling one used to validate and then leak a raw Go
+		// slice into the artifact, because `ParseColorTuple` (the
+		// merge-time, always-coercing caller) routes anything starting
+		// `0x` to `ParseInt` instead, which rejects it — the two paths
+		// disagreed on a shape `validColorNode` had just accepted. Found
+		// by a fresh-context verifier (iteration 14's colour-slice sweep).
+		lower := strings.ToLower(strings.TrimLeft(text, "+-"))
+		if strings.HasPrefix(lower, "0x") {
+			return 0, false
+		}
 		value, err := strconv.ParseFloat(text, 64)
 		if err != nil {
 			return 0, false
@@ -494,16 +508,42 @@ func floatTo255(c float64) int {
 // formatAlpha is Python's `round(x, 2)` followed by `str`, which prints the
 // shortest form: `0.5` and not `0.50`.
 //
+// **The rounding itself must not go through `c.alpha*100`.** Python's
+// `round(x, 2)` rounds the float's *exact* binary value to two decimal
+// places — `0.075` is not exactly `0.075` in binary, its true value is
+// fractionally below it, so `round(0.075, 2)` is `0.07`. Multiplying by
+// 100 first (`math.RoundToEven(c.alpha*100)`) computes on a *different*,
+// re-rounded number — `0.075*100` lands on exactly `7.5` in float64 even
+// though the true value is fractionally below `7.5` — and rounds that
+// instead, giving `0.08`. `strconv.FormatFloat(v, 'f', 2, 64)` performs
+// the correctly-rounded decimal conversion Go already has, on the exact
+// value, with no such intermediate. Found by a fresh-context verifier
+// (iteration 14's colour-slice sweep).
+//
 // Zero is the one place Go and Python disagree: `str(0.0)` is `0.0` and Go's
 // shortest form is `0`. See Color.alphaIsInt for why the int-zero case wants
 // Go's answer and the float-zero case does not.
+//
+// **An alpha that rounds up to 1 is still a Python `float`, never an
+// `int`.** `normalizeAlpha` only drops an alpha that is already
+// `math.isclose` to 1 before rounding (spec: "an alpha of exactly 1 becomes
+// absent") — an alpha that merely *rounds* to 1, like `0.996`, still
+// reaches here and `round(0.996, 2)` is the float `1.0`, printing
+// `rgba(…, 1.0)`, not `rgba(…, 1)`. Found by a fresh-context verifier
+// (iteration 14's colour-slice sweep).
 func (c Color) formatAlpha() string {
-	rounded := math.RoundToEven(c.alpha*100) / 100
+	rounded, err := strconv.ParseFloat(strconv.FormatFloat(c.alpha, 'f', 2, 64), 64)
+	if err != nil {
+		rounded = c.alpha
+	}
 	if rounded == 0 {
 		if c.alphaIsInt {
 			return "0"
 		}
 		return "0.0"
+	}
+	if rounded == 1 {
+		return "1.0"
 	}
 	return strconv.FormatFloat(rounded, 'g', -1, 64)
 }
