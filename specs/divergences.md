@@ -266,11 +266,12 @@ re-wrapped lines, at equal length.
 
 **Status:** approved (human gate, 2026-08-09) · **Iteration:** 12
 
-- **Differs:** both goldens are ~5 KB Rich-rendered Python tracebacks: box-drawn frames, source
-  snippets, and absolute filesystem paths baked in twice over — once for every stack frame's file
-  location (`/home/nnc/Projects/rendercv-go/third_party/rendercv/src/rendercv/...`, this
-  machine's checkout) and once in the final exception message (a `testdata/.work/run/...` path
-  from the run that generated the golden). `rendercv-go` writes neither of these documents.
+- **Differs:** both goldens are Rich-rendered Python tracebacks (5,287 B for `err_missing_file`,
+  13,732 B for `err_bad_override_key`): box-drawn frames, source snippets, and absolute filesystem
+  paths baked in twice over — once for every stack frame's file location
+  (`/home/nnc/Projects/rendercv-go/third_party/rendercv/src/rendercv/...`, this machine's
+  checkout) and once in the final exception message (a `testdata/.work/run/...` path from the run
+  that generated the golden). `rendercv-go` writes neither of these documents.
 - **Upstream:** in both cases the failure is an **unhandled exception**, not a `RenderCVUserError`
   — the one path `error_handler.py:38-49`'s `handle_user_errors` decorator catches and prints as a
   clean panel. Typer's default `sys.excepthook` (via `rich.traceback`) takes over instead:
@@ -280,9 +281,10 @@ re-wrapped lines, at equal length.
     `--settings` overlay, if any) before it opens or checks the *input* file, so a missing input
     combined with certain flag shapes reaches an unguarded read rather than the `err_missing_file`
     the corpus name implies exists as a clean message.
-  - `err_bad_override_key` (`render cv.yaml --no_such_field value`): a `KeyError` from
-    `pydantic_error_handling.py:216`'s `get_inner_yaml_object_from_its_key`, reached while
-    building a validation error's YAML-span coordinates for a key the document does not have.
+  - `err_bad_override_key` (`render cv.yaml --cv.no_such_field x`, the corpus vector): a
+    `KeyError` from `pydantic_error_handling.py:216`'s `get_inner_yaml_object_from_its_key`,
+    reached while building a validation error's YAML-span coordinates for a key the document does
+    not have.
 - **Why parity is impossible:** a Go binary has no CPython call stack, no `pathlib` frames, and no
   way to print source lines from `third_party/rendercv`'s `.py` files — reproducing the traceback
   would mean shipping a Python interpreter and this repository's own source tree inside
