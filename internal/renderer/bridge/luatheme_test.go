@@ -194,6 +194,33 @@ func TestADocumentConflictingWithTheTreeIsDropped(t *testing.T) {
 	}
 }
 
+// **The one documented scalar-over-mapping override must survive tree-conflict
+// pruning.** `typography.font_family: Charter` legitimately replaces the
+// five-element `FontFamily` model wholesale (spec 006 §3.2 behavior 14); an
+// earlier version of `withoutTreeConflicts` did not know that and silently
+// discarded it on any custom theme, a regression a verifier caught the same
+// day the pruning shipped.
+func TestFontFamilyStringOverrideSurvivesTreeConflictPruning(t *testing.T) {
+	doc := resolveWithTheme(t, "mytheme", `return {}`,
+		"  typography:\n    font_family: Charter\n")
+
+	if got := design.EffectiveString(doc.Design, "typography", "font_family", "body"); got != "Charter" {
+		t.Errorf("font_family.body = %q, want the document's override widened", got)
+	}
+}
+
+// **A list where a scalar belongs leaks the same way a mapping does.** The
+// first version of `withoutTreeConflicts` only compared map-vs-non-map, so
+// `page.size: [a4]` on an empty (`create-theme`'s own) script fell through
+// unchanged and printed `<[]string Value>` into the artifact.
+func TestAListWhereAScalarBelongsIsDropped(t *testing.T) {
+	doc := resolveWithTheme(t, "mytheme", `return {}`, "  page:\n    size:\n      - a4\n")
+
+	if got := design.EffectiveString(doc.Design, "page", "size"); got != "us-letter" {
+		t.Errorf("page.size = %q, want the tree's own default, document's list dropped", got)
+	}
+}
+
 // A *document* value that mismatches what the script declared is dropped, and
 // the script's own value survives underneath it. `ValidateScript` alone
 // cannot catch this: `page.size` declared as a string is a perfectly valid

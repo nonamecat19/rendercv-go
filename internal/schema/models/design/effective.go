@@ -117,9 +117,19 @@ func EffectiveWithScript(theme string, script, document map[string]any) map[stri
 	return values
 }
 
+// fontFamilyPath is the one field in the whole tree where a bare scalar is a
+// **documented** override of a mapping — `font_family: Roboto` replaces the
+// five-element `FontFamily` model wholesale (`deepMerge`'s own comment above,
+// spec 006 §3.2 behavior 14) and `widenFontFamilyIn` turns it back into that
+// shape afterwards. `withoutTreeConflicts` must not treat that as a conflict,
+// or a legitimate `typography.font_family: Charter` override on a custom
+// theme is silently discarded — a regression a verifier caught the first time
+// this function shipped.
+const fontFamilyPath = "typography.font_family"
+
 // withoutTreeConflicts drops document keys whose shape disagrees with the
-// tree-typed value already assembled at that path — a group where a scalar
-// belongs, or the reverse — leaving the tree's (or the theme's, or the
+// tree-typed value already assembled at that path — a group or a list where a
+// scalar belongs, or the reverse — leaving the tree's (or the theme's, or the
 // script's) own value in place instead of merging the mismatch through.
 //
 // A key `values` does not know about at all is left alone: it is neither a
@@ -129,6 +139,10 @@ func EffectiveWithScript(theme string, script, document map[string]any) map[stri
 // exists to close, where a *typed* field gets overridden with the wrong shape
 // and reaches a template as a Go type name.
 func withoutTreeConflicts(document, values map[string]any) map[string]any {
+	return withoutTreeConflictsAt(document, values, "")
+}
+
+func withoutTreeConflictsAt(document, values map[string]any, prefix string) map[string]any {
 	if len(document) == 0 {
 		return document
 	}
@@ -140,18 +154,44 @@ func withoutTreeConflicts(document, values map[string]any) map[string]any {
 			continue
 		}
 
+		path := key
+		if prefix != "" {
+			path = prefix + "." + key
+		}
+		if path == fontFamilyPath {
+			if _, isString := docValue.(string); isString {
+				out[key] = docValue
+				continue
+			}
+		}
+
 		docNested, docIsMap := docValue.(map[string]any)
 		treeNested, treeIsMap := treeValue.(map[string]any)
-		switch {
-		case docIsMap && treeIsMap:
-			out[key] = withoutTreeConflicts(docNested, treeNested)
-		case docIsMap != treeIsMap:
-			// Dropped: the shapes disagree, so the typed value beneath survives.
-		default:
-			out[key] = docValue
+		if docIsMap && treeIsMap {
+			out[key] = withoutTreeConflictsAt(docNested, treeNested, path)
+			continue
 		}
+		if shapeKind(docValue) != shapeKind(treeValue) {
+			// Dropped: the shapes disagree, so the typed value beneath survives.
+			continue
+		}
+		out[key] = docValue
 	}
 	return out
+}
+
+// shapeKind classifies a value the way a template's Typst emission would —
+// a map, a list, or anything else — which is coarser than a full type match
+// but catches every shape that prints as a Go type name rather than a value.
+func shapeKind(value any) string {
+	switch value.(type) {
+	case map[string]any:
+		return "map"
+	case []string, []any:
+		return "list"
+	default:
+		return "scalar"
+	}
 }
 
 // withoutConflicts drops the document keys `luatheme.Validate` flagged,
