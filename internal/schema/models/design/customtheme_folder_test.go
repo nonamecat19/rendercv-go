@@ -31,10 +31,21 @@ func TestValidateCustomThemeFolder(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// **A regular file still `exists()` upstream.** `pathlib.Path.exists()`
+	// is true for a file, not just a directory, so a theme name that
+	// resolves to a plain file falls through to the *.j2.typ check and gets
+	// that message — not "does not exist", which `os.Stat(...).IsDir()`
+	// used to report here. Found by a fresh-context verifier (iteration
+	// 14's seventeenth re-verification).
+	if err := os.WriteFile(filepath.Join(dir, "filetheme"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
 	cases := []struct{ name, theme, want string }{
 		{"a good folder passes", "mytheme", ""},
 		{"a missing folder is reported", "absent", "does not exist"},
 		{"a folder with no template is reported", "empty", "*.j2.typ files"},
+		{"a regular file is reported as no templates, not missing", "filetheme", "*.j2.typ files"},
 	}
 
 	for _, row := range cases {

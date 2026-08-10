@@ -23,8 +23,14 @@ import (
 // there is no input file (`:56`).
 func ValidateCustomThemeFolder(theme, relativeTo string) error {
 	folder := filepath.Join(relativeTo, theme)
-	info, err := os.Stat(folder)
-	if err != nil || !info.IsDir() {
+	// **`exists()`, not `is_dir()`.** A path that resolves to a regular
+	// file still exists upstream, so it falls through to the `rglob`
+	// check next and gets "does not contain any *.j2.typ files" — not
+	// "does not exist". `os.Stat`'s error is the only thing that means
+	// the path is actually missing; `IsDir()` was a stronger predicate
+	// than upstream's. Found by a fresh-context verifier (iteration 14's
+	// seventeenth re-verification).
+	if _, err := os.Stat(folder); err != nil {
 		absolute, absErr := filepath.Abs(folder)
 		if absErr != nil {
 			absolute = folder
