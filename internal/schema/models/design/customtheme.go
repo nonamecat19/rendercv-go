@@ -31,21 +31,32 @@ func ValidateCustomThemeFolder(theme, relativeTo string) error {
 	// than upstream's. Found by a fresh-context verifier (iteration 14's
 	// seventeenth re-verification).
 	if _, err := os.Stat(folder); err != nil {
-		absolute, absErr := filepath.Abs(folder)
-		if absErr != nil {
-			absolute = folder
-		}
-		return errFolderMissing(absolute)
+		return errFolderMissing(absoluteLikePython(folder))
 	}
 
 	if !hasTemplate(folder) {
-		absolute, absErr := filepath.Abs(folder)
-		if absErr != nil {
-			absolute = folder
-		}
-		return errNoTemplates(absolute)
+		return errNoTemplates(absoluteLikePython(folder))
 	}
 	return nil
+}
+
+// absoluteLikePython is `Path.absolute()`, not `filepath.Abs`. **`Abs` calls
+// `Clean`, which collapses `..`** — `pathlib.Path.absolute()` only prepends
+// the working directory and leaves the rest of the path exactly as written,
+// `..` included, so a relative input path containing one prints a different
+// folder in both of this file's messages. Falls back to the unresolved path
+// on a `Getwd` failure, the same way the two callers already did on an
+// `Abs` failure. Found by a fresh-context verifier (iteration 14's
+// non-colour-design-slice sweep).
+func absoluteLikePython(path string) string {
+	if filepath.IsAbs(path) {
+		return path
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return path
+	}
+	return cwd + string(filepath.Separator) + path
 }
 
 // The two messages are upstream's verbatim, trailing full stops included, so
@@ -65,7 +76,20 @@ func errNoTemplates(folder string) error {
 
 // hasTemplate is upstream's `rglob("*.j2.typ")` — **recursive**, so a theme
 // keeping its templates in `entries/` alone still counts.
+//
+// **The theme folder itself may be a symlink to a directory.**
+// `filepath.WalkDir` `Lstat`s its root rather than `Stat`ing it, so a
+// symlinked root reads as "not a directory" and is never descended into —
+// upstream's `rglob` scans straight through it, since `pathlib` resolves
+// symlinks by default. `EvalSymlinks` resolves the root (and any symlink
+// segment inside `relativeTo`) before the walk starts; an unresolvable
+// path — already ruled out by the caller's `os.Stat` — falls back to the
+// original. Found by a fresh-context verifier (iteration 14's
+// non-colour-design-slice sweep).
 func hasTemplate(folder string) bool {
+	if resolved, err := filepath.EvalSymlinks(folder); err == nil {
+		folder = resolved
+	}
 	found := false
 	_ = filepath.WalkDir(folder, func(path string, _ os.DirEntry, err error) error {
 		if err != nil || found {
