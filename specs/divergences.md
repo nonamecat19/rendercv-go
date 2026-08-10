@@ -43,15 +43,26 @@ Each entry: what differs · upstream citation · why parity is impossible or und
   - `rendercv-go create-theme <name>` generates `init.lua` from the classic theme's option tree,
     mirroring upstream's copy-and-rename behavior.
   - A theme folder with no `init.lua` falls back to the classic theme's defaults with
-    `theme = <name>`, exactly as upstream does when `__init__.py` is absent.
+    `theme = <name>`. **Not yet exactly as upstream**: upstream's fallback
+    (`ThemeOptionsAreNotProvided(theme=theme_name)`, `design.py:139-142`) carries only `theme`, so
+    the document's own `design` block is discarded entirely. The port still merges the document
+    block on top regardless of whether a script exists — a document overriding
+    `design.colors.name` on a script-less custom theme changes the port's artifact and does not
+    change upstream's. Found by a fresh-context verifier 2026-08-10 (`specs/STATE.md`, iteration
+    14's second re-verification); open.
   - Upstream's other custom-theme rules are preserved unchanged: lowercase-alphanumeric theme
     name, folder beside the input file, folder must contain ≥1 `*.j2.typ`.
   - **Sandboxed.** The Lua state is opened without `io`, `os`, `package`, `debug` or `dofile`.
     A theme describes a design; it has no business touching the filesystem or the network.
     Upstream's `__init__.py` had no such limit — this divergence is strictly safer.
-  - Error parity where it can be kept: a Lua syntax error and a missing theme table produce the
-    upstream messages with `__init__.py` replaced by `init.lua`. Upstream's `ImportError` branch
-    has no analogue and is dropped, since `package`/`require` are unavailable.
+  - Error parity where it can be kept: **not landed yet.** The intent is a Lua syntax error and a
+    missing theme table producing the upstream messages with `__init__.py` replaced by `init.lua`;
+    the actual behavior today (`internal/renderer/bridge/model.go:84-86`, `:99-101`) is that every
+    script failure — a parse error, a non-table return, a shape conflict — is swallowed and the
+    theme silently falls back as though no script existed at all, at exit 0 with no message.
+    Upstream exits 1 and names the theme. Found by the same 2026-08-10 verifier pass; open.
+    Upstream's `ImportError` branch has no analogue and would stay dropped even once the rest is
+    fixed, since `package`/`require` are unavailable.
 - **User notices:** a custom theme written for Python RenderCV needs its `__init__.py` translated
   into `init.lua`. Themes with no `__init__.py` (templates only) work unchanged.
 - **Open:** the exact table shape and the generated `init.lua` are specified in iteration 6.

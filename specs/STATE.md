@@ -28,7 +28,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 11 | Markdown + HTML renderers | [011](011-markdown-and-html/spec.md) | **verified — FAIL, demoted from green.** 24/24 on the corpus, but a `"` in any CV breaks the HTML and raw HTML is dropped. Not green | 24 / 24 corpus, blockers open |
 | 12 | CLI (`new`, `render`, `create-theme`, overrides, watcher) | [012](012-cli/spec.md) | **in progress.** `render` and `new` are wired and their goldens pass, error panels included. `create-theme` is now registered and `--create-typst-templates`/`--create-markdown-templates` write their folders; two of their corpus cases stay red by construction under D-008. `err_not_yaml` is fixed. The five help panels are written and verified, four unreachable by construction under D-010; two more are D-011's unhandled-exception tracebacks | 34 / 42 `TestParity` cases (the suite has 42, not 43 — `manifest.json` was miscounted as a case), **not yet verified by a fresh context** |
 | 13 | Parity closeout (sample generator, version, error handler, packaging) | — | — | 0 |
-| 14 | Lua-scripted custom themes (D-002) + the two folder messages | [014](014-lua-custom-themes/spec.md) | **verified — FAIL, then closed to 0 open findings across three passes.** All four blockers and all 11 findings are fixed or resolved-as-designed; **not yet re-verified by a fresh context** | 4 / 4 criteria, 11 findings, 0 open |
+| 14 | Lua-scripted custom themes (D-002) + the two folder messages | [014](014-lua-custom-themes/spec.md) | **re-verified 2026-08-10 — FAIL again, 12 findings, 3 blockers.** The "0 open findings" claim two passes ago was wrong; a fresh context broke it in 15 minutes. Demoted, not green | 1 / 4 criteria hold under a real document, 3 blockers open |
 
 ## Parity axes
 
@@ -1129,8 +1129,69 @@ changed a built-in theme's artifact.
 **Iteration 14's four criteria are now fully met** by spec 014 §4's own accounting. Still true from
 the original verifier pass: the port requires `init.lua` where upstream requires `__init__.py` plus
 a `*.j2.typ` folder, so **there is no input on which both sides do the same thing** — criteria 2 and
-3 have no upstream oracle at all, and no corpus case exercises a custom theme. Not yet re-verified
-by a fresh context.
+3 have no upstream oracle at all, and no corpus case exercises a custom theme.
+
+## Iteration 14 re-verified 2026-08-10 — FAIL, 12 findings, 3 blockers
+
+A fresh context checked the "0 open findings" claim above by constructing real documents rather
+than trusting the spec's own accounting, and broke three of the four criteria.
+
+**Blockers:**
+
+1. **A theme with no script must discard the whole document `design` block, not just skip its own
+   options.** Upstream's fallback constructs `ThemeOptionsAreNotProvided(theme=theme_name)`
+   (`design.py:139-142`) — nothing but `theme` survives, so a document overriding
+   `design.colors.name` on a script-less custom theme is **silently ignored** upstream. The port's
+   `EffectiveWithScript` merges the document unconditionally regardless of script presence
+   (`effective.go:58`), so the override reaches the artifact. `specs/divergences.md`'s D-002 entry
+   claims parity here and is wrong. Measured: `colors.name: rgb(9, 9, 9)` on a script-less custom
+   theme — upstream's `.typ` still says `rgb(0, 79, 144)` (classic's own default); the port's says
+   `rgb(9, 9, 9)`.
+2. **The exact failure this iteration exists to prevent still reproduces**, on the theme
+   `create-theme` itself writes. `luatheme.Validate` only walks keys the **script** declared
+   (`luatheme/validate.go:43`), so an empty script (`return {}}`, which is what `create-theme`
+   generates) checks nothing, and a document setting `design.page.size: {a: 1}` on that theme
+   renders `page-size: "<map[string]interface {} Value>"` at **exit 0**, "Your CV is ready" — the
+   identical garbage-string failure mode iteration 6 and this iteration both already fixed once,
+   now reachable again from an un-scripted or thinly-scripted custom theme.
+3. **A custom theme's design block is not validated against anything.** `validate.go:120-121`
+   returns `nil` unconditionally once the folder checks pass. Upstream validates the raw dict
+   against `theme_data_model_class(**design)` (`design.py:135`), which rejects unknown keys.
+   Measured: `design: {theme: mytheme, nonsense: 1, colors: {nope: 1}}` — upstream exits 1, the
+   port exits 0 and writes the artifact.
+
+**Majors:** D-002's own text and spec 014 §2 behavior 9 claim the port "surfaces gopher-lua's own
+error text unmodified" for a script syntax/parse failure. It does not — `bridge/model.go:84-86` and
+`:99-101` swallow every script error and silently fall back as though the script were absent, so a
+malformed `init.lua` renders successfully with no message at all where upstream exits 1 with a named
+error. Criterion 1's pinning test (`customtheme_test.go:21-44`) calls `design.Effective("mytheme",
+nil)` — a nil document, the one input that cannot see finding 1, so the checked box rests on a test
+that structurally cannot fail against it. Word-form YAML booleans (`yes`/`no`) against a
+script-declared bool option are misclassified by `kindOf` and the user's value is deleted by
+`prunePaths` rather than compared correctly (also true, pre-existing and unrecorded, for built-in
+themes, where a word-form boolean reaches Typst as `yes,`/`no,` verbatim — uncompilable).
+
+**Minor:** the folder-exists check uses `!info.IsDir()` where upstream uses `Path.exists()`, so a
+regular file with the theme's name gets the wrong one of the two folder messages; `filepath.Abs`
+normalizes `..` where `Path.absolute()` does not, differing whenever the input path crosses a
+parent directory; spec 014 §1 row (f) undersells its own finding — the missing-class `ValueError`
+does reach the user in the same validation table at `design`, just without pydantic's `loc`
+machinery producing a longer path. Seven iteration-14 commits touch `specs/STATE.md`, which this
+file's own header forbids for a feature commit; `2ecd807` orphaned the `themeOf` unused-func lint
+issue that a later STATE.md entry claims predates all of this iteration's work — it does not.
+
+**Verified as actually holding**: the (a)(b)(c) folder/name messages, byte-identical end to end
+including exit code; the sandbox (io/os/require closed, cyclic tables bounded, the 2s budget
+measured at ~2021ms); `withoutConflicts`/`prunePaths` for nested and invented-option conflicts,
+which is finding 5's fix from the previous pass and survived independent attack. `TestParity`
+unchanged at 34/42 — no regression.
+
+**Not attempted here**: the three blockers need the theme script loaded during *validation*, not
+only at render time — `bridge.themeScript` runs after `models.Validate` has already returned, and
+finding 3 needs `theme_data_model_class`'s ForbidExtra semantics reproduced against a script's own
+declared shape. That is a control-flow change to where in the pipeline a custom theme's script is
+read, not a local patch, and belongs in a scoped tasks.md unit rather than a rushed fix on top of a
+verification pass.
 
 ## Iteration 11 was verified and it failed — demoted from green
 
