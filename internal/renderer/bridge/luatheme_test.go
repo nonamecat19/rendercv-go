@@ -142,3 +142,18 @@ func TestACorrectScriptStillApplies(t *testing.T) {
 		t.Errorf("page.size = %q, want the script's value", got)
 	}
 }
+
+// A *document* value that mismatches what the script declared is dropped, and
+// the script's own value survives underneath it. `ValidateScript` alone
+// cannot catch this: `page.size` declared as a string is a perfectly valid
+// script on its own, and only fails once the document's own
+// `page: {size: {a: 1}}` is checked against it — `luatheme.Validate`'s job,
+// which nothing called before this test (iteration 14's Finding 5).
+func TestADocumentConflictingWithTheScriptIsDropped(t *testing.T) {
+	doc := resolveWithTheme(t, "mytheme", `return { page = { size = "a5" } }`,
+		"  page:\n    size:\n      a: 1\n")
+
+	if got := design.EffectiveString(doc.Design, "page", "size"); got != "a5" {
+		t.Errorf("page.size = %q, want the script's own value, document's conflicting override dropped", got)
+	}
+}
