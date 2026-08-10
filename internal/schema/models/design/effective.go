@@ -590,6 +590,28 @@ func validateScript(tree Tree, model string, script map[string]any, prefix strin
 			*errs = append(*errs, &ScriptConflict{
 				Path: path, Declared: "a group of options", Wanted: "a value",
 			})
+			continue
+		}
+		// **A list where a scalar belongs prints a Go type name the same way a
+		// map does** — `page.size = {"a4"}` in Lua is a sequence, which
+		// `luatheme.Options` turns into `[]string`, and nothing here checked
+		// list shapes at all. `KindStringList` is the tree's one field that
+		// wants a list (`sections.show_time_spans_in`); every other kind
+		// reaching this point wants a scalar. Found by a fresh-context verifier
+		// (iteration 14's eighth re-verification).
+		isList := shapeKind(value) == "list"
+		if declared.Kind == KindStringList {
+			if !isList {
+				*errs = append(*errs, &ScriptConflict{
+					Path: path, Declared: "a value", Wanted: "a list of items",
+				})
+			}
+			continue
+		}
+		if isList {
+			*errs = append(*errs, &ScriptConflict{
+				Path: path, Declared: "a list of items", Wanted: "a value",
+			})
 		}
 	}
 }
