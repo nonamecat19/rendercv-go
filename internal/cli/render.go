@@ -167,8 +167,6 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 		}),
 	}
 
-	started := time.Now()
-
 	// **The order is upstream's**: Typst, then PDF, then PNG, then Markdown,
 	// then HTML — and it is the order the result panel lists them in.
 	var rows []PanelRow
@@ -183,6 +181,7 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 	generate := doc.Settings.RenderCommand
 
 	if !generate.DontGenerateTypst {
+		stepStart := time.Now()
 		out, err := document.Render(doc, templater.FormatTypst, document.Options{InputDir: inputDir})
 		if err != nil {
 			failPanel(stdout, err)
@@ -194,7 +193,7 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 			return exitValidationError
 		}
 		typstPath = path
-		rows = append(rows, PanelRow{Mark: "✓", Timing: timing(started), Label: "Generated Typst:", Value: display(path)})
+		rows = append(rows, PanelRow{Mark: "✓", Timing: timing(stepStart), Label: "Generated Typst:", Value: display(path)})
 	}
 
 	// **PDF and PNG both depend on the `.typ` file existing on disk**, which is
@@ -202,15 +201,17 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 	// (`pdf_png.py:33,63`): `--notyp` disables them by omission, not by a flag
 	// of their own.
 	if !generate.DontGeneratePDF && typstPath != "" {
+		stepStart := time.Now()
 		path, err := renderPDF(doc, typstPath, orDefault(options.PDFPath, DefaultPDFPath), pathInput, inputDir)
 		if err != nil {
 			failPanel(stdout, err)
 			return exitValidationError
 		}
-		rows = append(rows, PanelRow{Mark: "✓", Timing: timing(started), Label: "Generated PDF:", Value: display(path)})
+		rows = append(rows, PanelRow{Mark: "✓", Timing: timing(stepStart), Label: "Generated PDF:", Value: display(path)})
 	}
 
 	if !generate.DontGeneratePNG && typstPath != "" {
+		stepStart := time.Now()
 		paths, err := renderPNGs(doc, typstPath, orDefault(options.PNGPath, DefaultPNGPath), pathInput, inputDir)
 		if err != nil {
 			failPanel(stdout, err)
@@ -227,7 +228,7 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 			}
 			rows = append(rows, PanelRow{
 				Mark:   "✓",
-				Timing: timing(started),
+				Timing: timing(stepStart),
 				Label:  label,
 				// Upstream joins the page files with `"; "`
 				// (`progress_panel.py:102`).
@@ -237,6 +238,7 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 	}
 
 	if !generate.DontGenerateMarkdown {
+		stepStart := time.Now()
 		out, err := document.Render(doc, templater.FormatMarkdown, document.Options{InputDir: inputDir})
 		if err != nil {
 			failPanel(stdout, err)
@@ -248,7 +250,7 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 			failPanel(stdout, err)
 			return exitValidationError
 		}
-		rows = append(rows, PanelRow{Mark: "✓", Timing: timing(started), Label: "Generated Markdown:", Value: display(path)})
+		rows = append(rows, PanelRow{Mark: "✓", Timing: timing(stepStart), Label: "Generated Markdown:", Value: display(path)})
 	}
 
 	if !generate.DontGenerateHTML {
@@ -258,6 +260,7 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 		if markdown == "" {
 			return finish(options, rows, stdout)
 		}
+		stepStart := time.Now()
 		out, err := document.RenderHTML(doc, markdown, document.Options{InputDir: inputDir})
 		if err != nil {
 			failPanel(stdout, err)
@@ -268,7 +271,7 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 			failPanel(stdout, err)
 			return exitValidationError
 		}
-		rows = append(rows, PanelRow{Mark: "✓", Timing: timing(started), Label: "Generated HTML:", Value: display(path)})
+		rows = append(rows, PanelRow{Mark: "✓", Timing: timing(stepStart), Label: "Generated HTML:", Value: display(path)})
 	}
 
 	return finish(options, rows, stdout)
