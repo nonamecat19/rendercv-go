@@ -65,6 +65,47 @@ func TestUnsuppliedOverlayIsEmpty(t *testing.T) {
 	}
 }
 
+// TestDocumentNamedOverlaysResolveAgainstInputDir is G-7:
+// `settings.render_command.design` and `.locale` were never read.
+// `collect_input_file_paths` (`run_rendercv.py:113-122`) resolves each
+// relative to the **input file's** directory when the CLI flag left it
+// unset — measured before the fix at 240 differing `.typ` lines, the port
+// rendering `classic` where upstream rendered the theme the document named.
+func TestDocumentNamedOverlaysResolveAgainstInputDir(t *testing.T) {
+	options := RenderOptions{
+		InputPath: filepath.Join("sub", "cv.yaml"),
+	}
+	raw := []byte("cv:\n  name: John Doe\nsettings:\n  render_command:\n" +
+		"    design: mydesign.yaml\n    locale: mylocale.yaml\n")
+
+	resolveNamedOverlays(&options, raw)
+
+	if want := filepath.Join("sub", "mydesign.yaml"); options.DesignPath != want {
+		t.Errorf("DesignPath = %q, want %q", options.DesignPath, want)
+	}
+	if want := filepath.Join("sub", "mylocale.yaml"); options.LocalePath != want {
+		t.Errorf("LocalePath = %q, want %q", options.LocalePath, want)
+	}
+}
+
+// TestCLIFlagWinsOverDocumentNamedOverlay pins the ordering half of G-7:
+// `render_command.py:206-209` only consults the document's own name when the
+// CLI flag left the slot empty — the flag always wins.
+func TestCLIFlagWinsOverDocumentNamedOverlay(t *testing.T) {
+	options := RenderOptions{
+		InputPath:  filepath.Join("sub", "cv.yaml"),
+		DesignPath: "cli-design.yaml",
+	}
+	raw := []byte("cv:\n  name: John Doe\nsettings:\n  render_command:\n" +
+		"    design: mydesign.yaml\n")
+
+	resolveNamedOverlays(&options, raw)
+
+	if options.DesignPath != "cli-design.yaml" {
+		t.Errorf("DesignPath = %q, want the CLI flag's value untouched", options.DesignPath)
+	}
+}
+
 // TestMissingOverlayIsReported covers a shape upstream does not handle: `-d`
 // naming a file that is not there reaches `pathlib.read_text` unguarded and
 // dies with a `FileNotFoundError` traceback, the same way a missing *input*
