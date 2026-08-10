@@ -28,7 +28,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 11 | Markdown + HTML renderers | [011](011-markdown-and-html/spec.md) | **verified — FAIL, demoted from green.** 24/24 on the corpus, but a `"` in any CV breaks the HTML and raw HTML is dropped. Not green | 24 / 24 corpus, blockers open |
 | 12 | CLI (`new`, `render`, `create-theme`, overrides, watcher) | [012](012-cli/spec.md) | **in progress.** `render` and `new` are wired and their goldens pass, error panels included. `create-theme` is now registered and `--create-typst-templates`/`--create-markdown-templates` write their folders; two of their corpus cases stay red by construction under D-008. `err_not_yaml` is fixed. The five help panels are written and verified, four unreachable by construction under D-010; two more are D-011's unhandled-exception tracebacks | 34 / 42 `TestParity` cases (the suite has 42, not 43 — `manifest.json` was miscounted as a case), **not yet verified by a fresh context** |
 | 13 | Parity closeout (sample generator, version, error handler, packaging) | — | — | 0 |
-| 14 | Lua-scripted custom themes (D-002) + the two folder messages | [014](014-lua-custom-themes/spec.md) | **re-verified 2026-08-10 — FAIL again, 12 findings, 3 blockers.** The "0 open findings" claim two passes ago was wrong; a fresh context broke it in 15 minutes. Demoted, not green | 1 / 4 criteria hold under a real document, 3 blockers open |
+| 14 | Lua-scripted custom themes (D-002) + the two folder messages | [014](014-lua-custom-themes/spec.md) | **re-verified 2026-08-10 — FAIL, 12 findings.** 2 of 3 blockers fixed same day (`396b982`); the third needs the script loaded during validation, not render, and is cut to a future pass. Still not green | 1 blocker open, 9 minor/major findings recorded, not re-verified |
 
 ## Parity axes
 
@@ -1136,29 +1136,37 @@ a `*.j2.typ` folder, so **there is no input on which both sides do the same thin
 A fresh context checked the "0 open findings" claim above by constructing real documents rather
 than trusting the spec's own accounting, and broke three of the four criteria.
 
-**Blockers:**
+**Blockers, 2 of 3 fixed same day (`396b982`):**
 
-1. **A theme with no script must discard the whole document `design` block, not just skip its own
-   options.** Upstream's fallback constructs `ThemeOptionsAreNotProvided(theme=theme_name)`
+1. **Fixed.** A theme with no script must discard the whole document `design` block, not just skip
+   its own options. Upstream's fallback constructs `ThemeOptionsAreNotProvided(theme=theme_name)`
    (`design.py:139-142`) — nothing but `theme` survives, so a document overriding
-   `design.colors.name` on a script-less custom theme is **silently ignored** upstream. The port's
-   `EffectiveWithScript` merges the document unconditionally regardless of script presence
-   (`effective.go:58`), so the override reaches the artifact. `specs/divergences.md`'s D-002 entry
-   claims parity here and is wrong. Measured: `colors.name: rgb(9, 9, 9)` on a script-less custom
-   theme — upstream's `.typ` still says `rgb(0, 79, 144)` (classic's own default); the port's says
-   `rgb(9, 9, 9)`.
-2. **The exact failure this iteration exists to prevent still reproduces**, on the theme
-   `create-theme` itself writes. `luatheme.Validate` only walks keys the **script** declared
-   (`luatheme/validate.go:43`), so an empty script (`return {}}`, which is what `create-theme`
-   generates) checks nothing, and a document setting `design.page.size: {a: 1}` on that theme
-   renders `page-size: "<map[string]interface {} Value>"` at **exit 0**, "Your CV is ready" — the
-   identical garbage-string failure mode iteration 6 and this iteration both already fixed once,
-   now reachable again from an un-scripted or thinly-scripted custom theme.
-3. **A custom theme's design block is not validated against anything.** `validate.go:120-121`
-   returns `nil` unconditionally once the folder checks pass. Upstream validates the raw dict
-   against `theme_data_model_class(**design)` (`design.py:135`), which rejects unknown keys.
-   Measured: `design: {theme: mytheme, nonsense: 1, colors: {nope: 1}}` — upstream exits 1, the
-   port exits 0 and writes the artifact.
+   `design.colors.name` on a script-less custom theme is **silently ignored** upstream; the port's
+   `EffectiveWithScript` used to merge the document unconditionally regardless of script presence.
+   `EffectiveWithScript` now sets `document = nil` when `script == nil && !IsBuiltinTheme(theme)`.
+   Reproduced by hand: a script-less custom theme with `colors.name: rgb(9, 9, 9)` now renders
+   `rgb(0, 79, 144)` — classic's own default — matching upstream; pinned by
+   `TestANoScriptCustomThemeDiscardsTheWholeDocument`.
+2. **Fixed, as leak prevention rather than full parity.** The exact failure this iteration exists
+   to prevent reproduced again on the theme `create-theme` itself writes: `luatheme.Validate` only
+   walks keys the **script** declared (`luatheme/validate.go:43`), so `create-theme`'s empty
+   `return {}` checked nothing, and `design.page.size: {a: 1}` rendered
+   `page-size: "<map[string]interface {} Value>"` at exit 0. `EffectiveWithScript` now also runs
+   `withoutTreeConflicts` for any custom theme, dropping a document value whose shape disagrees
+   with the tree-typed value already assembled at that path (map where a scalar belongs, or the
+   reverse) before the final merge. `page.size` now falls back to `"us-letter"` instead of leaking
+   the Go type name. Pinned by `TestADocumentConflictingWithTheTreeIsDropped`. **This is not
+   upstream's behavior** — upstream *rejects* the document at exit 1, this port silently drops the
+   one bad key — so it closes the garbage-leak half of the finding, not the exit-code half, which
+   is blocker 3.
+3. **Still open.** A custom theme's design block is not validated against anything beyond the leak
+   guard above. `validate.go:120-121` returns `nil` unconditionally once the folder checks pass.
+   Upstream validates the raw dict against `theme_data_model_class(**design)` (`design.py:135`),
+   which rejects **unknown** keys at exit 1 — `design: {theme: mytheme, nonsense: 1, colors: {nope:
+   1}}` still exits 0 here and writes the artifact. Fixing this needs the theme's script loaded
+   during *validation* (`models.Validate` → `design.Validate`), not only at render time
+   (`bridge.themeScript`) — a control-flow change, not a local patch, and left for a scoped
+   tasks.md unit rather than rushed here.
 
 **Majors:** D-002's own text and spec 014 §2 behavior 9 claim the port "surfaces gopher-lua's own
 error text unmodified" for a script syntax/parse failure. It does not — `bridge/model.go:84-86` and
@@ -1185,6 +1193,13 @@ including exit code; the sandbox (io/os/require closed, cyclic tables bounded, t
 measured at ~2021ms); `withoutConflicts`/`prunePaths` for nested and invented-option conflicts,
 which is finding 5's fix from the previous pass and survived independent attack. `TestParity`
 unchanged at 34/42 — no regression.
+
+**Not re-verified by a fresh context yet**: blockers 1 and 2's fixes above, the two majors and
+three minors, and the D-002 text corrections both blockers required. Only self-checked here —
+`go build ./... && go test ./...` green, `just test-parity` unchanged at the same 8 pre-existing
+failures the verifier already attributed to iterations 4/12, and both fixes reproduced by hand
+against the verifier's own repro commands before being pinned as tests. That is not the same as an
+independent pass, which is why this ledger still reads "not green" rather than "closed".
 
 **Not attempted here**: the three blockers need the theme script loaded during *validation*, not
 only at render time — `bridge.themeScript` runs after `models.Validate` has already returned, and
