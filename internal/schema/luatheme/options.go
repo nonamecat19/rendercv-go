@@ -52,7 +52,55 @@ func convert(value lua.LValue) (any, bool) {
 		}
 		return float64(typed), true
 	case *lua.LTable:
+		// **A Lua sequence and a Lua map are the same type**, so a script
+		// declaring `sections.show_time_spans_in = { "Experience" }` — the tree's
+		// one list-valued option — used to fall into `Options`' string-keyed
+		// walk below, which finds no `LString` keys in a sequence and silently
+		// returns an empty map. That reached `design.ValidateScript` as a shape
+		// conflict against the tree's `[]string` field and dropped the **whole**
+		// script, every other option included, at exit 0 with no message. Found
+		// by a fresh-context verifier (`specs/STATE.md`, iteration 14's fourth
+		// re-verification).
+		if isSequence(typed) {
+			return sequenceOf(typed), true
+		}
 		return Options(typed), true
 	}
 	return nil, false
+}
+
+// isSequence reports whether a table's keys are exactly `1..table.Len()` with
+// nothing else mixed in — the shape `for _, v in ipairs(t)` walks, and the
+// only shape a `[]string`-typed design field can hold.
+func isSequence(table *lua.LTable) bool {
+	length := table.Len()
+	if length == 0 {
+		return false
+	}
+	count := 0
+	sequence := true
+	table.ForEach(func(key, _ lua.LValue) {
+		count++
+		index, isNumber := key.(lua.LNumber)
+		if !isNumber || float64(index) != float64(int(index)) ||
+			int(index) < 1 || int(index) > length {
+			sequence = false
+		}
+	})
+	return sequence && count == length
+}
+
+// sequenceOf reads a Lua sequence into the `[]string` shape `EffectiveStrings`
+// and the tree's `KindStringList` fields already expect. A non-string element
+// is dropped rather than reported, matching this file's own rule for a
+// function or userdata value: it cannot be a design value.
+func sequenceOf(table *lua.LTable) []string {
+	length := table.Len()
+	out := make([]string, 0, length)
+	for i := 1; i <= length; i++ {
+		if str, ok := table.RawGetInt(i).(lua.LString); ok {
+			out = append(out, string(str))
+		}
+	}
+	return out
 }
