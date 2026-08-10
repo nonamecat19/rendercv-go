@@ -289,6 +289,21 @@ func TestOutOfRangeColorTupleIsRejected(t *testing.T) {
 	}
 }
 
+// A null alpha is `parse_float_alpha(None)`, which returns `None` rather
+// than raising — so a four-element tuple with a null fourth element is
+// exactly the equivalent three-element tuple, not a validation failure.
+func TestNullAlphaInColorTupleIsAccepted(t *testing.T) {
+	doc, err := yamlreader.ReadString("theme: sb2nov\ncolors:\n  name: [1, 2, 3, null]\n")
+	if err != nil {
+		t.Fatalf("ReadString: %v", err)
+	}
+	node := &yamldoc.Node{Kind: yamldoc.KindMapping, Items: doc.Items}
+	errs := design.Validate(node, []string{"design"}, schemaerr.SourceMain, nil)
+	if len(errs) != 0 {
+		t.Errorf("errs = %+v, want none — a null alpha means no alpha", errs)
+	}
+}
+
 // The nine built-in names, in the order the discriminated union discovers them.
 func TestBuiltInThemes(t *testing.T) {
 	want := []string{

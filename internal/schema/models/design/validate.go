@@ -365,12 +365,25 @@ func validColorNode(node *yamldoc.Node) error {
 		// range- and type-checks each one — measured against `theme:
 		// sb2nov` with each of those three shapes. Found by a fresh-context
 		// verifier (iteration 14's twelfth re-verification).
-		elements := make([]string, len(node.Elems))
+		elements := make([]string, 0, len(node.Elems))
 		for i, elem := range node.Elems {
 			if elem == nil {
 				return errColorNotAValue
 			}
-			elements[i] = elem.Raw
+			// **A null alpha is not an error, it is no alpha at all.**
+			// `parse_float_alpha(None)` returns `None` rather than raising
+			// (`color.py:394-407`'s Python original), so `[1, 2, 3, null]`
+			// is exactly `[1, 2, 3]` — the same case `stringsOf` already
+			// produces by dropping a null element outright once the tuple
+			// reaches the merge layer. Only the fourth (alpha) position
+			// gets this exemption; a null red, green or blue is still
+			// `parse_color_value(None)`, a real failure. Found by a
+			// fresh-context verifier (iteration 14's thirteenth
+			// re-verification).
+			if i == 3 && len(node.Elems) == 4 && elem.Kind == yamldoc.KindNull {
+				continue
+			}
+			elements = append(elements, elem.Raw)
 		}
 		_, err := ParseColorTuple(elements)
 		return err

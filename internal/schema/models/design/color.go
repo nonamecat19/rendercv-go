@@ -256,14 +256,46 @@ func channels(r, g, b float64, alpha *float64) (Color, error) {
 // parseChannel is `parse_color_value`: a number scaled into 0-1, rejected
 // outside the range.
 func parseChannel(text string, max float64) (float64, error) {
-	value, err := strconv.ParseFloat(text, 64)
-	if err != nil {
+	value, ok := parseNumericText(text)
+	if !ok {
 		return 0, errors.New(messageChannelNotNumber)
 	}
 	if value < 0 || value > max {
 		return 0, fmt.Errorf(messageChannelRange, int(max))
 	}
 	return value / max, nil
+}
+
+// parseNumericText is `float(value)` for the token shapes a colour tuple's
+// element can actually carry once it comes from a YAML document rather than
+// a regex capture: a bare decimal (`strconv.ParseFloat` already handles
+// this, digit separators included), a YAML 1.1 bool word (`float(True) ==
+// 1.0` in Python), or a hex/octal/binary integer literal (`0x10`, `0o17`,
+// `0b101` all resolve to an `int` upstream, and `float(int)` never fails).
+// `strconv.ParseFloat` alone rejects all three, which is what let
+// `colors.name: [true, 0, 0]` and `colors.name: [0x10, 0, 0]` — both valid
+// upstream — fail here. Found by a fresh-context verifier (iteration 14's
+// thirteenth re-verification).
+func parseNumericText(text string) (float64, bool) {
+	switch strings.ToLower(text) {
+	case "true":
+		return 1, true
+	case "false":
+		return 0, true
+	}
+	lower := strings.ToLower(strings.TrimLeft(text, "+-"))
+	if strings.HasPrefix(lower, "0x") || strings.HasPrefix(lower, "0o") || strings.HasPrefix(lower, "0b") {
+		value, err := strconv.ParseInt(text, 0, 64)
+		if err != nil {
+			return 0, false
+		}
+		return float64(value), true
+	}
+	value, err := strconv.ParseFloat(text, 64)
+	if err != nil {
+		return 0, false
+	}
+	return value, true
 }
 
 // parseAlpha is `parse_float_alpha`. **An alpha of exactly 1 becomes absent**,
