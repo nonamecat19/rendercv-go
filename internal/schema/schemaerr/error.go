@@ -1,6 +1,10 @@
 package schemaerr
 
-import "github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
+import (
+	"strings"
+
+	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
+)
 
 // Code identifies a failure kind. It mirrors pydantic's error type
 // discriminator, which the error renderer keys on.
@@ -118,7 +122,23 @@ func RenderInput(node *yamldoc.Node) string {
 		return InputEllipsis
 	case yamldoc.KindNull:
 		return "None"
-	case yamldoc.KindBool, yamldoc.KindInt, yamldoc.KindFloat, yamldoc.KindString:
+	case yamldoc.KindBool:
+		// **The Input Value column carries the parsed Python object's
+		// `str()`, not the YAML token.** `str(True)` is `"True"`, so a
+		// plain lowercase `true` — the common spelling, reachable on any
+		// design field — showed the wrong case in the table. The function
+		// already made this distinction for `null`/`None`; it was only
+		// inconsistent for its bool arm. A numeric field's literal form
+		// (`0x1f`, `1_000`) has the same gap and is deliberately left open,
+		// same as `design.themeNameRepr`'s: it needs a full YAML-number-to-
+		// Python-`str()` resolver for a case no plausible CV reaches.
+		// Found by a fresh-context verifier (iteration 14's fourteenth
+		// re-verification).
+		if strings.EqualFold(node.Raw, "true") {
+			return "True"
+		}
+		return "False"
+	case yamldoc.KindInt, yamldoc.KindFloat, yamldoc.KindString:
 	}
 	return node.Raw
 }

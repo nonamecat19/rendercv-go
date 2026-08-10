@@ -50,9 +50,22 @@ func TestRenderInput(t *testing.T) {
 			want: "3.14",
 		},
 		{
-			name: "a bool renders as written",
+			// **The column carries Python's `str(True)`, not the YAML
+			// token.** Found by a fresh-context verifier (iteration 14's
+			// fourteenth re-verification).
+			name: "a lowercase true renders as Python's True",
 			node: &yamldoc.Node{Kind: yamldoc.KindBool, Raw: "true"},
-			want: "true",
+			want: "True",
+		},
+		{
+			name: "an uppercase TRUE renders as Python's True",
+			node: &yamldoc.Node{Kind: yamldoc.KindBool, Raw: "TRUE"},
+			want: "True",
+		},
+		{
+			name: "false renders as Python's False",
+			node: &yamldoc.Node{Kind: yamldoc.KindBool, Raw: "false"},
+			want: "False",
 		},
 		{
 			name: "a string renders as written",
