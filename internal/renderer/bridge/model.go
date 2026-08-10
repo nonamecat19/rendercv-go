@@ -3,6 +3,7 @@ package bridge
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/nonamecat19/rendercv-go/internal/renderer/templater/process"
@@ -270,8 +271,19 @@ func mappingOf(node *yamldoc.Node) map[string]any {
 			// that overrode it with the string `"false"` would read as the zero
 			// value — `hyperlink: false` and `hyperlink: true` would both turn
 			// links off.
-			out[item.Key] = item.Value.Raw == "true" || item.Value.Raw == "True" ||
-				item.Value.Raw == "yes" || item.Value.Raw == "on"
+			//
+			// **This must match every spelling `ResolveScalar` classifies as
+			// `KindBool`, not a hand-picked subset.** `ResolveScalar` recognizes
+			// `true`/`True`/`TRUE` and `false`/`False`/`FALSE` — the YAML 1.2
+			// core schema's spellings. `TRUE` is not `"true"`, `"True"`, `"yes"`
+			// or `"on"`, so it used to fall through to `false` — a value ending
+			// up on the *wrong* side of the boolean, not merely uncoerced. Word
+			// forms like `yes`/`no`/`on`/`off` never reach this branch at all —
+			// `ResolveScalar` classifies them as `KindString`, and it is
+			// `normalizeBools` (spec 014's fifth re-verification) that coerces
+			// those once the design tree is fully merged. Found by a
+			// fresh-context verifier (iteration 14's seventh re-verification).
+			out[item.Key] = strings.EqualFold(item.Value.Raw, "true")
 		default:
 			out[item.Key] = item.Value.Raw
 		}
