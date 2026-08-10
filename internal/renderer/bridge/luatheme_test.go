@@ -333,3 +333,24 @@ func TestABoolWordStringOverridesAScriptDeclaredStringOption(t *testing.T) {
 		t.Errorf("custom_note = %q, want the document's string override %q", got, "On")
 	}
 }
+
+// **A script declaring `typography.font_family` as the five-element mapping
+// must not be dropped whole.** `ValidateScript` used to flag the mapping
+// shape against `KindFontFamily` (only `KindNested` fields are allowed a
+// mapping) as a value-where-a-group conflict, and `themeScript` discards the
+// **entire script** on any `ValidateScript` error — so a script setting
+// `colors.name` alongside a mapping `font_family` lost the colour too, along
+// with every other option, silently, at exit 0. Found by a fresh-context
+// verifier (iteration 14's seventh re-verification).
+func TestAScriptDeclaringFontFamilyAsAMappingDoesNotDropTheWholeScript(t *testing.T) {
+	doc := resolveWithTheme(t, "mytheme",
+		`return { colors = { name = "rgb(1, 2, 3)" }, typography = { font_family = { body = "Lato", name = "Lato" } } }`,
+		"")
+
+	if got := design.EffectiveString(doc.Design, "colors", "name"); got != "rgb(1, 2, 3)" {
+		t.Errorf("colors.name = %q, want the script's colour — the font_family mapping must not have dropped the whole script", got)
+	}
+	if got := design.EffectiveString(doc.Design, "typography", "font_family", "body"); got != "Lato" {
+		t.Errorf("font_family.body = %q, want the script's own mapping default", got)
+	}
+}

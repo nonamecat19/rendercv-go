@@ -549,6 +549,18 @@ func validateScript(tree Tree, model string, script map[string]any, prefix strin
 			validateScript(tree, declared.Nested, nested, path, errs)
 			continue
 		}
+		// **`font_family` accepts either shape** (spec 006 §3.1 behavior 12: a
+		// bare name, or the five-element mapping) — the same carve-out
+		// `withoutTreeConflicts` and `withoutConflicts` already give a
+		// *document*'s override. A script declaring the mapping form used to be
+		// flagged here as a value-where-a-group-belongs conflict, and
+		// `ValidateScript` drops the **whole script** on any conflict, so a
+		// theme script setting `typography.font_family` as a table alongside
+		// unrelated options lost all of them. Found by a fresh-context verifier
+		// (iteration 14's seventh re-verification).
+		if declared.Kind == KindFontFamily && isNested {
+			continue
+		}
 		if isNested {
 			*errs = append(*errs, &ScriptConflict{
 				Path: path, Declared: "a group of options", Wanted: "a value",
