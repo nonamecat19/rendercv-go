@@ -260,7 +260,16 @@ func parseChannel(text string, max float64) (float64, error) {
 	if !ok {
 		return 0, errors.New(messageChannelNotNumber)
 	}
-	if value < 0 || value > max {
+	// **Python's chained comparison `0 <= color <= max_val` is false for
+	// NaN in both directions**, so the `else` (range error) branch runs.
+	// Go's `value < 0 || value > max` is *also* false in both directions
+	// for NaN — but that is the accept condition here, inverted from
+	// Python's, so NaN fell through as "in range" and `int(NaN)` produced
+	// undefined-overflow garbage in the artifact. Written as the same
+	// chained shape closes the gap for every NaN-producing input, not just
+	// a literal `nan` token. Found by a fresh-context verifier (iteration
+	// 14's fifteenth re-verification).
+	if !(value >= 0 && value <= max) {
 		return 0, fmt.Errorf(messageChannelRange, int(max))
 	}
 	return value / max, nil
@@ -287,14 +296,28 @@ func parseNumericText(text string) (float64, bool) {
 	case "false":
 		return 0, true
 	}
-	lower := strings.ToLower(strings.TrimLeft(text, "+-"))
-	if strings.HasPrefix(lower, "0x") || strings.HasPrefix(lower, "0o") || strings.HasPrefix(lower, "0b") {
+	// **The prefix has to match YAML 1.1's exact case, not either case.**
+	// `0X1F`/`0O17` are not integers to ruamel — ruamel's own resolver is
+	// lowercase-only for these — so upstream sees the plain string
+	// `"0X1F"`, and `float("0X1F")` raises. `strings.ToLower` here would
+	// route an uppercase-prefixed token into `ParseInt(text, 0, 64)`, which
+	// (unlike ruamel) accepts either case, accepting a token upstream
+	// rejects. Found by a fresh-context verifier (iteration 14's
+	// fifteenth re-verification).
+	unsigned := strings.TrimLeft(text, "+-")
+	if strings.HasPrefix(unsigned, "0x") || strings.HasPrefix(unsigned, "0o") || strings.HasPrefix(unsigned, "0b") {
 		value, err := strconv.ParseInt(text, 0, 64)
 		if err != nil {
 			return 0, false
 		}
 		return float64(value), true
 	}
+	// **A NaN or an infinity still counts as "a valid number" here** —
+	// `float("nan")` succeeds in Python too, string or not; what upstream
+	// actually rejects it on is the *range* check next, which is why this
+	// function returns it rather than failing outright, and why
+	// `parseChannel`/`normalizeAlpha` are the ones written as a chained
+	// comparison rather than this one refusing the token.
 	value, err := strconv.ParseFloat(text, 64)
 	if err != nil {
 		return 0, false
@@ -312,8 +335,14 @@ func parseAlpha(text string) (*float64, error) {
 
 	var value float64
 	if percent, found := strings.CutSuffix(text, "%"); found {
-		parsed, err := strconv.ParseFloat(percent, 64)
-		if err != nil {
+		// **`endswith('%')` is checked before anything else, including
+		// whitespace** — `parse_float_alpha` strips the `%` and then does
+		// `float(value[:-1])`, which is `parseNumericText`'s job, not a
+		// second, unrelated `ParseFloat` call. Pass 14 fixed this branch's
+		// sibling below and missed this one. Found by a fresh-context
+		// verifier (iteration 14's fifteenth re-verification).
+		parsed, ok := parseNumericText(percent)
+		if !ok {
 			return nil, errors.New(messageAlphaNotFloat)
 		}
 		value = parsed / 100
@@ -340,7 +369,13 @@ func normalizeAlpha(value float64) (*float64, error) {
 	if math.Abs(value-1) <= 1e-9 {
 		return nil, nil
 	}
-	if value < 0 || value > 1 {
+	// **The same chained-comparison shape `parseChannel` needed.**
+	// `value < 0 || value > 1` is false in both directions for a NaN
+	// alpha (`math.IsClose`'s `abs(nan-1)` also fails the branch above), so
+	// the un-chained form let it through as "in range" and printed NaN into
+	// the artifact. Found by a fresh-context verifier (iteration 14's
+	// fifteenth re-verification).
+	if !(value >= 0 && value <= 1) {
 		return nil, errors.New(messageAlphaRange)
 	}
 	return &value, nil
