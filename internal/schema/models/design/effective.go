@@ -367,12 +367,23 @@ func normalizeColors(tree Tree, model string, values map[string]any) {
 				normalizeColors(tree, declared.Nested, nested)
 			}
 		case KindColor:
-			text, isText := values[declared.Name].(string)
-			if !isText {
-				continue
-			}
-			if color, err := ParseColor(text); err == nil {
-				values[declared.Name] = color.String()
+			// **A sequence-valued colour reached the template unconverted.**
+			// `colors.name: [1, 2, 3]` validates (once `validColorNode`
+			// range-checks it) but `bridge.mappingOf` projects any YAML
+			// sequence as `[]string`, and this function only ever looked for
+			// a `string` — so the raw slice went straight to the Typst
+			// emitter, which printed the Go value rather than `rgb(1, 2,
+			// 3)`. Found by a fresh-context verifier (iteration 14's
+			// twelfth re-verification).
+			switch value := values[declared.Name].(type) {
+			case string:
+				if color, err := ParseColor(value); err == nil {
+					values[declared.Name] = color.String()
+				}
+			case []string:
+				if color, err := ParseColorTuple(value); err == nil {
+					values[declared.Name] = color.String()
+				}
 			}
 		default:
 		}

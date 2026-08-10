@@ -110,6 +110,72 @@ func TestParseColorFailures(t *testing.T) {
 	}
 }
 
+// **A tuple's elements were never range- or type-checked**, only its
+// length — `[300, 0, 0]` and `[a, b, c]` both "validated" before this,
+// where `ParseColor`'s string form already rejected the equivalent
+// `rgb(300,0,0)`. Found by a fresh-context verifier (iteration 14's
+// twelfth re-verification).
+func TestParseColorTuple(t *testing.T) {
+	tests := []struct {
+		name     string
+		elements []string
+		want     string // "" means success
+	}{
+		{name: "a valid triple", elements: []string{"1", "2", "3"}, want: ""},
+		{name: "a valid quad", elements: []string{"0", "0", "0", "0.5"}, want: ""},
+		{
+			name: "a channel over 255", elements: []string{"300", "0", "0"},
+			want: "value is not a valid color: color values must be in the range 0 to 255",
+		},
+		{
+			name: "a negative channel", elements: []string{"-1", "0", "0"},
+			want: "value is not a valid color: color values must be in the range 0 to 255",
+		},
+		{
+			name: "a non-numeric channel", elements: []string{"a", "b", "c"},
+			want: "value is not a valid color: color values must be a valid number",
+		},
+		{
+			name: "an out-of-range alpha", elements: []string{"0", "0", "0", "5"},
+			want: "value is not a valid color: alpha values must be in the range 0 to 1",
+		},
+		{
+			name: "the wrong length", elements: []string{"1", "2"},
+			want: "value is not a valid color: tuples must have length 3 or 4",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			color, err := design.ParseColorTuple(test.elements)
+			if test.want == "" {
+				if err != nil {
+					t.Fatalf("ParseColorTuple(%v) = %v, want success", test.elements, err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("ParseColorTuple(%v) = %v, want %q", test.elements, color, test.want)
+			}
+			if err.Error() != test.want {
+				t.Errorf("= %q, want %q", err.Error(), test.want)
+			}
+		})
+	}
+}
+
+// A valid tuple renders through `Effective` as `rgb(...)`, not a Go slice
+// printed by the emitter — the failure mode the tenth and ninth passes'
+// font_family findings share: a shape that validates but never gets
+// converted before it reaches the template.
+func TestSequenceColorRendersAsRGB(t *testing.T) {
+	values := design.Effective("sb2nov", map[string]any{
+		"colors": map[string]any{"name": []string{"1", "2", "3"}},
+	})
+	if got := design.EffectiveString(values, "colors", "name"); got != "rgb(1, 2, 3)" {
+		t.Errorf("colors.name = %q, want rgb(1, 2, 3)", got)
+	}
+}
+
 // The code is the library's, asserted as upstream's literal rather than as the
 // Go constant.
 func TestColorErrorCode(t *testing.T) {

@@ -111,6 +111,36 @@ func ParseColor(value string) (Color, error) {
 	return Color{}, ErrBadColor
 }
 
+// ParseColorTuple is `parse_tuple` (color.py:238-249): a 3- or 4-element
+// sequence of channel numbers, the fourth being alpha. It is the shape
+// `validColorNode`'s length-only check used to wave through unchecked — a
+// document could write `[300, 0, 0]` or `[a, b, c]` and this is what
+// actually range- and type-checks each element, the same way `ParseColor`
+// does for a string. Found by a fresh-context verifier (iteration 14's
+// twelfth re-verification).
+func ParseColorTuple(elements []string) (Color, error) {
+	if len(elements) != 3 && len(elements) != 4 {
+		return Color{}, errColorTupleLength
+	}
+	channelValues := make([]float64, 3)
+	for i := 0; i < 3; i++ {
+		value, err := parseChannel(elements[i], 255)
+		if err != nil {
+			return Color{}, err
+		}
+		channelValues[i] = value
+	}
+	var alpha *float64
+	if len(elements) == 4 {
+		value, err := parseAlpha(elements[3])
+		if err != nil {
+			return Color{}, err
+		}
+		alpha = value
+	}
+	return channels(channelValues[0], channelValues[1], channelValues[2], alpha)
+}
+
 // String is `design/color.py`'s `__str__`: `as_rgb()`, because the Typst
 // templates need `rgb(r, g, b)`. It is also what the JSON Schema shows as a
 // colour field's default, which is why `Colors.body` reads `rgb(0, 0, 0)`
