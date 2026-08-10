@@ -141,3 +141,105 @@ func TestValidateScriptColorTuple(t *testing.T) {
 		t.Fatalf("invalid tuple: got %v, want 1 error", errs)
 	}
 }
+
+// **Shape is not type.** Every check above asks only whether a script declared
+// a map, a list or a scalar where the tree wanted one — never whether the
+// scalar it declared is a value the field can hold. Upstream does ask:
+// `BaseModelWithoutExtraKeys` sets `validate_default=True` (`base.py:5`) and
+// `design.py:135` constructs `theme_data_model_class(**design)`, so a script
+// with a bad default is exit 1 with a validation panel. In this port each of
+// these used to pass `ValidateScript` clean and reach the artifact —
+// `page-size: "bogus"`, `colors-name: True` (which kills the Typst engine),
+// and a document silently typeset in a font called "True". Found by a
+// fresh-context verifier (iteration 14's twenty-first re-verification).
+func TestValidateScriptChecksDeclaredValues(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		script map[string]any
+		want   string
+	}{
+		{
+			name:   "a literal outside its members",
+			script: map[string]any{"page": map[string]any{"size": "bogus"}},
+			want: "design.page.size is invalid in this theme's script: " +
+				"Input should be 'a4', 'a5', 'us-letter' or 'us-executive'",
+		},
+		{
+			name:   "a bool where a colour belongs",
+			script: map[string]any{"colors": map[string]any{"name": true}},
+			want: "design.colors.name is invalid in this theme's script: " +
+				"value is not a valid color: value must be a tuple, list or string",
+		},
+		{
+			name:   "a number where a colour belongs",
+			script: map[string]any{"colors": map[string]any{"name": 42}},
+			want: "design.colors.name is invalid in this theme's script: " +
+				"value is not a valid color: value must be a tuple, list or string",
+		},
+		{
+			name:   "an unrecognized colour name",
+			script: map[string]any{"colors": map[string]any{"name": "nosuchcolor"}},
+			want: "design.colors.name is invalid in this theme's script: " +
+				"value is not a valid color: string not recognised as a valid color",
+		},
+		{
+			name: "a bool where a font name belongs",
+			script: map[string]any{
+				"typography": map[string]any{"font_family": map[string]any{"body": true}},
+			},
+			want: "design.typography.font_family.body is invalid in this theme's script: " +
+				"Input should be a valid string",
+		},
+		{
+			name:   "a bool where a dimension belongs",
+			script: map[string]any{"page": map[string]any{"top_margin": true}},
+			want: "design.page.top_margin is invalid in this theme's script: " +
+				"Input should be a valid string",
+		},
+		{
+			name:   "a number where a dimension belongs",
+			script: map[string]any{"page": map[string]any{"top_margin": 2}},
+			want: "design.page.top_margin is invalid in this theme's script: " +
+				"Input should be a valid string",
+		},
+		{
+			name:   "a dimension with a space before its unit",
+			script: map[string]any{"page": map[string]any{"top_margin": "2 cm"}},
+			want: "design.page.top_margin is invalid in this theme's script: " +
+				design.MessageBadTypstDimension,
+		},
+		{
+			name:   "a word a bool cannot be read as",
+			script: map[string]any{"page": map[string]any{"show_footer": "nope"}},
+			want: "design.page.show_footer is invalid in this theme's script: " +
+				"Input should be a valid boolean, unable to interpret input",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			errs := design.ValidateScript(test.script)
+			if len(errs) != 1 {
+				t.Fatalf("got %d errors %v, want 1", len(errs), errs)
+			}
+			if errs[0].Error() != test.want {
+				t.Errorf("= %q, want %q", errs[0].Error(), test.want)
+			}
+		})
+	}
+}
+
+// The values a field really does accept must still pass, or the fix above
+// would drop every legitimate script instead — including the coercions
+// `normalizeBools` and `widenFontFamilyIn` exist to perform.
+func TestValidateScriptAllowsValidDeclaredValues(t *testing.T) {
+	errs := design.ValidateScript(map[string]any{
+		"page": map[string]any{
+			"size": "a5", "top_margin": "2cm", "show_footer": true,
+			"show_top_note": "no",
+		},
+		"colors":     map[string]any{"name": "rgb(1, 2, 3)", "connections": "Black"},
+		"typography": map[string]any{"font_family": map[string]any{"body": "Charter"}},
+	})
+	if len(errs) != 0 {
+		t.Errorf("= %v, want none", errs)
+	}
+}

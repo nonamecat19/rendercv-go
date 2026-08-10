@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/nonamecat19/rendercv-go/internal/schema/binder"
 	"github.com/nonamecat19/rendercv-go/internal/schema/luatheme"
 )
 
@@ -786,6 +787,128 @@ func validateScript(tree Tree, model string, script map[string]any, prefix strin
 			*errs = append(*errs, &ScriptConflict{
 				Path: path, Declared: "a list of items", Wanted: "a value",
 			})
+			continue
+		}
+		// **Shape is not type.** Every check above asks only whether the script
+		// declared a map, a list or a scalar where the tree wanted one — never
+		// whether the scalar it declared is a value the field can *hold*.
+		// Upstream asks: `BaseModelWithoutExtraKeys` sets `validate_default=True`
+		// (`schema/models/base.py:5`) and `design.py:135` constructs
+		// `theme_data_model_class(**design)`, so a script whose default is
+		// `page.size = "bogus"` is exit 1 with a validation panel. Here all of
+		// these passed clean and reached the artifact: `page-size: "bogus"`,
+		// `colors-name: True` (which kills the Typst engine outright), and
+		// `font_family.body = true` typesetting a whole document in a font named
+		// "True" at exit 0. Found by a fresh-context verifier (iteration 14's
+		// twenty-first re-verification).
+		if message := scriptValueMessage(declared, value); message != "" {
+			*errs = append(*errs, &ScriptValueError{Path: path, Message: message})
 		}
 	}
+}
+
+// ScriptValueError is a theme script declaring a value the field's own type
+// rejects — as opposed to `ScriptConflict`, which is the wrong *shape* at that
+// field.
+//
+// **The message is upstream's own**, produced by the same rules a document's
+// value goes through (`validateField`), so the two layers cannot drift into
+// disagreeing about what `page.size` accepts. It is not yet printed: like every
+// other `ValidateScript` finding, `bridge.themeScript` drops the script and
+// falls back to the theme's defaults, because surfacing script diagnostics is
+// still the human-gated wording question of spec 014 §2 behavior 9.
+type ScriptValueError struct {
+	Path    string
+	Message string
+}
+
+func (e *ScriptValueError) Error() string {
+	return "design." + e.Path + " is invalid in this theme's script: " + e.Message
+}
+
+// messageStringType is pydantic's `string_type` text. A Lua number or boolean
+// at a `str`-typed field is this, not a coercion: pydantic's lax mode still
+// refuses an `int` where a `str` is declared.
+const messageStringType = "Input should be a valid string"
+
+// scriptValueMessage is what upstream's validator would say about `value` at a
+// field of this kind, or "" when the value is one the field accepts. It mirrors
+// `validateField` arm for arm — the difference is only the input, a Go value
+// out of `luatheme.Options` rather than a YAML node.
+func scriptValueMessage(field Field, value any) string {
+	switch field.Kind {
+	case KindString, KindOptionalString, KindThemeTag:
+		if _, ok := value.(string); !ok {
+			return messageStringType
+		}
+
+	case KindTypstDimension:
+		text, ok := value.(string)
+		if !ok {
+			return messageStringType
+		}
+		if !ValidTypstDimension(text) {
+			return MessageBadTypstDimension
+		}
+
+	case KindColor:
+		text, ok := value.(string)
+		if !ok {
+			// A tuple is handled by the caller's carve-out; anything else
+			// reaching here is a bool or a number, which `Color` refuses.
+			return errColorNotAValue.Error()
+		}
+		if _, err := ParseColor(text); err != nil {
+			return err.Error()
+		}
+
+	case KindLiteral:
+		text, isText := value.(string)
+		// A font slot is an open `str` upstream (`font_family.py:30`), so any
+		// name passes and only a non-string fails — the same exemption
+		// `validateField` makes.
+		if isFontFamilyField(field) {
+			if !isText {
+				return messageStringType
+			}
+			return ""
+		}
+		if !isText || !contains(field.Members, text) {
+			return binder.LiteralMessage(field.Members, "Input should be a valid value")
+		}
+
+	case KindFontFamily:
+		// The mapping form recursed above; a scalar here must be a font name.
+		if _, ok := value.(string); !ok {
+			return modelTypeMessage("FontFamily")
+		}
+
+	case KindBool:
+		return scriptBoolMessage(value)
+
+	case KindNested, KindStringList:
+		// Shapes, not values — the caller's own checks own both.
+	}
+	return ""
+}
+
+// scriptBoolMessage is `validBoolNode` over a Lua value: a real boolean, one of
+// pydantic's word forms, or `0`/`1`. A float is not coerced even when whole,
+// which is why the numeric arm matches `int` alone.
+func scriptBoolMessage(value any) string {
+	switch typed := value.(type) {
+	case bool:
+		return ""
+	case string:
+		if boolWords[strings.ToLower(typed)] {
+			return ""
+		}
+		return errBoolParsing.Error()
+	case int:
+		if typed == 0 || typed == 1 {
+			return ""
+		}
+		return errBoolType.Error()
+	}
+	return errBoolType.Error()
 }
