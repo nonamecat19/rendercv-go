@@ -576,7 +576,14 @@ func validateScript(tree Tree, model string, script map[string]any, prefix strin
 		// theme script setting `typography.font_family` as a table alongside
 		// unrelated options lost all of them. Found by a fresh-context verifier
 		// (iteration 14's seventh re-verification).
+		// **The mapping form is still a `FontFamily`, not an arbitrary table.**
+		// A script declaring `typography.font_family = { body = { x = 1 } }`
+		// used to be waved through by this `continue` with no check at all,
+		// reaching the artifact as a Go type name one field deeper than the
+		// carve-out was meant to reach. Found by a fresh-context verifier
+		// (iteration 14's eighth re-verification).
 		if declared.Kind == KindFontFamily && isNested {
+			validateScript(tree, "FontFamily", nested, path, errs)
 			continue
 		}
 		if isNested {
