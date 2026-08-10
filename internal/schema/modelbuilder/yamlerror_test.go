@@ -314,12 +314,41 @@ func TestUnterminatedFlowSequenceSpansToEOF(t *testing.T) {
 	}
 }
 
-// TestSpanWideningIsScopedToTheMappedCase guards the other half: a syntax
-// error the port does not recognize as the flow-sequence shape must keep a
-// single-line span rather than being pushed to EOF on the assumption every
-// syntax error works the same way — a guess the corpus cannot check.
-func TestSpanWideningIsScopedToTheMappedCase(t *testing.T) {
+// TestUnterminatedFlowMappingSpansToEOF is the flow-mapping half of the same
+// fix: goccy's token for `{John` unterminated is the `{` (the context mark),
+// the same shape as the flow-sequence case, just a different delimiter.
+// Measured against the vendored CLI: `line 2 to line 3`. A first version of
+// this fix widened only the flow-*sequence* message and left this shape
+// narrow — a fresh-context verifier caught it by sweeping more inputs than
+// the corpus has.
+func TestUnterminatedFlowMappingSpansToEOF(t *testing.T) {
 	_, err := ReadYamlWithValidationErrors("cv:\n  name: {John\n", schemaerr.SourceMain)
+
+	var userErr *schemaerr.UserValidationError
+	if !errors.As(err, &userErr) {
+		t.Fatalf("expected *schemaerr.UserValidationError, got %T: %v", err, err)
+	}
+
+	span := userErr.Errors[0].YamlLocation
+	if span == nil {
+		t.Fatal("yaml location = nil, want a start-to-EOF span")
+	}
+	if span.Start.Line != 2 {
+		t.Errorf("start line = %d, want 2 (the opening `{`)", span.Start.Line)
+	}
+	if span.End.Line != 3 {
+		t.Errorf("end line = %d, want 3 (EOF)", span.End.Line)
+	}
+}
+
+// TestSpanWideningIsScopedToTheMappedCases guards the other half: a syntax
+// error that is not one of the two unterminated-construct shapes must keep a
+// single-line span rather than being pushed to EOF on the assumption every
+// syntax error works the same way — a guess the corpus cannot check. Bad
+// indentation is measured (against the vendored CLI) to stay single-line
+// upstream too, unlike the two unterminated-construct shapes.
+func TestSpanWideningIsScopedToTheMappedCases(t *testing.T) {
+	_, err := ReadYamlWithValidationErrors("cv:\n  name: John\n   bad: 1\n", schemaerr.SourceMain)
 
 	var userErr *schemaerr.UserValidationError
 	if !errors.As(err, &userErr) {
@@ -331,6 +360,6 @@ func TestSpanWideningIsScopedToTheMappedCase(t *testing.T) {
 		t.Fatal("yaml location = nil")
 	}
 	if span.Start != span.End {
-		t.Errorf("span = %+v, want a single-line span (unmapped shape, unmeasured)", span)
+		t.Errorf("span = %+v, want a single-line span (not an unterminated construct)", span)
 	}
 }

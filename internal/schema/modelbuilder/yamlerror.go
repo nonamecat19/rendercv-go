@@ -108,26 +108,38 @@ func parserMessage(text string) string {
 	return text
 }
 
+// unterminatedConstructMessages are the goccy failure substrings whose token
+// is measurably ruamel's *context* mark (the opening delimiter) rather than
+// its *problem* mark — an unclosed flow sequence or flow mapping, where the
+// scanner reads all the way to EOF hunting for the missing `]`/`}`. Measured
+// against the vendored CLI on both shapes, nested and top-level; a bad-
+// indentation or duplicate-key failure is a different shape (the token *is*
+// the problem, matching ruamel's own single-line report there) and is not in
+// this set.
+var unterminatedConstructMessages = []string{
+	"sequence end token", // `this: [is, not, a, cv` — the corpus case
+	"flow map content",   // `name: {John` — measured separately, same shape
+}
+
 // yamlErrorLocation mirrors get_yaml_error_location
 // (rendercv_model_builder.py:42-62). Upstream picks the start mark from the
 // context mark, falling back to the problem mark, and the end mark the other
-// way around. goccy's token is the *context* mark for an unterminated
-// construct — measured on `this: [is, not, a, cv`, where the token is the
-// `[` that opened the flow sequence, at (1, 7) — but goccy exposes no second,
-// *problem* mark of its own.
+// way around. For the two shapes in `unterminatedConstructMessages`, goccy's
+// token is the *context* mark — measured on `this: [is, not, a, cv`, where
+// the token is the `[` that opened the flow sequence, at (1, 7) — but goccy
+// exposes no second, *problem* mark of its own.
 //
-// **For that one measured shape, the problem mark is EOF.** ruamel's scanner
-// reads to the true end of the stream hunting for the closing bracket, so its
-// problem_mark's line is the total newline count of the document (0-indexed,
-// so `+1` to display) regardless of where the scan started. Widening the span
-// to that line reproduces upstream's `line 1 to line 2` exactly.
+// **The problem mark is EOF for both measured shapes.** ruamel's scanner
+// reads to the true end of the stream hunting for the closing delimiter, so
+// its problem_mark's line is the total newline count of the document
+// (0-indexed, so `+1` to display) regardless of where the scan started or
+// how deeply the construct is nested. Widening the span to that line
+// reproduces upstream's `line N to line M` exactly for both.
 //
-// **Scoped to the one mapped case that needs it.** The corpus has exactly one
-// syntax error (spec 004 §7.5, plan §6 option B, `ruamelPhrasing` above), so
-// widening the span for every syntax error would be guessing at shapes never
-// measured — an unmapped or differently-shaped error keeps a single-line
-// span, which was already right before this fix, rather than being pushed to
-// EOF on the assumption it works the same way.
+// **Scoped to the two mapped shapes.** Widening every syntax error's span to
+// EOF would be guessing at shapes never measured — a bad-indentation or
+// duplicate-key failure keeps its single-line span, which matches upstream
+// there (measured: `mapping value is not allowed`'s span does not widen).
 func yamlErrorLocation(parserErr goyaml.Error, content string) *yamldoc.Span {
 	tok := parserErr.GetToken()
 	if tok == nil || tok.Position == nil {
@@ -136,9 +148,13 @@ func yamlErrorLocation(parserErr goyaml.Error, content string) *yamldoc.Span {
 	start := yamldoc.Position{Line: tok.Position.Line, Column: tok.Position.Column}
 	end := start
 
-	if strings.Contains(parserErr.Error(), "sequence end token") {
-		if eof := strings.Count(content, "\n") + 1; eof > end.Line {
-			end = yamldoc.Position{Line: eof, Column: 1}
+	message := parserErr.Error()
+	for _, unterminated := range unterminatedConstructMessages {
+		if strings.Contains(message, unterminated) {
+			if eof := strings.Count(content, "\n") + 1; eof > end.Line {
+				end = yamldoc.Position{Line: eof, Column: 1}
+			}
+			break
 		}
 	}
 
