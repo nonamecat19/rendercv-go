@@ -98,6 +98,25 @@ func TestAFontFamilyListOverrideIsDropped(t *testing.T) {
 	}
 }
 
+// A script declaring the tree's one `KindStringList` field as an empty Lua
+// table (`{}`, what `create-theme` writes for every field it doesn't set) must
+// still let a document's real list override through. `ValidateScript` already
+// accepts the empty table (ninth re-verification), but `EffectiveWithScript`
+// merged the script's un-normalized empty *map* over the tree's `[]string`
+// base default, so `withoutTreeConflictsAt` then saw a map at that path and
+// dropped the document's list as a shape conflict — a document override
+// silently lost. Tenth re-verification.
+func TestAnEmptyScriptStringListDoesNotShadowTheDocument(t *testing.T) {
+	script := map[string]any{"sections": map[string]any{"show_time_spans_in": map[string]any{}}}
+	document := map[string]any{"sections": map[string]any{"show_time_spans_in": []string{"education"}}}
+
+	values := design.EffectiveWithScript("mytheme", script, document, true)
+	got := design.EffectiveStrings(values, "sections", "show_time_spans_in")
+	if len(got) != 1 || got[0] != "education" {
+		t.Errorf("sections.show_time_spans_in = %v, want [education] from the document", got)
+	}
+}
+
 // A nil script is the built-in case: nothing changes for the nine themes that
 // have no script at all.
 func TestANilScriptChangesNothing(t *testing.T) {
