@@ -59,7 +59,7 @@ func walk(script, document map[string]any, prefix string, errs *[]error) {
 			walk(nestedScript, nestedDocument, path, errs)
 			continue
 		}
-		if kindOf(declared) != kindOf(value) {
+		if kindOf(declared) != kindOf(value) && !isBoolWordAgainstDeclaredBool(declared, value) {
 			*errs = append(*errs, &TypeError{
 				Path:     path,
 				Declared: kindOf(declared),
@@ -77,31 +77,41 @@ func walk(script, document map[string]any, prefix string, errs *[]error) {
 // types alone. Numbers and strings are therefore one kind here: what this
 // catches is a *mapping* written where a scalar belongs and the reverse, which
 // is the mistake that produces an unreadable failure further down.
-//
-// **A YAML word-form boolean is the same carve-out.** `show_footer: no`
-// resolves to the raw string `"no"`, not a Go `bool` (`ResolveScalar` only
-// recognizes `true`/`false`), but pydantic's `str_as_bool` — and this port's
-// own `validBoolNode` at the schema-validation layer — accept it as a real
-// boolean. Classifying it as "a value" against a script's declared `true or
-// false` would flag a legal override as a conflict and `withoutConflicts`
-// would prune it back out before it ever reaches the merge. Found by a
-// fresh-context verifier (iteration 14's fifth re-verification).
 func kindOf(value any) string {
-	switch v := value.(type) {
+	switch value.(type) {
 	case map[string]any:
 		return "a group of options"
 	case []string, []any:
 		return "a list"
 	case bool:
 		return "true or false"
-	case string:
-		if boolWords[strings.ToLower(v)] {
-			return "true or false"
-		}
-		return "a value"
 	default:
 		return "a value"
 	}
+}
+
+// isBoolWordAgainstDeclaredBool is the one exemption `kindOf`'s plain shape
+// match cannot express. `show_footer: no` resolves to the raw string `"no"`,
+// not a Go `bool` (`ResolveScalar` only recognizes `true`/`false`), but
+// pydantic's `str_as_bool` — and this port's own `validBoolNode` at the
+// schema-validation layer — accept it as a real boolean, so a document
+// writing it against a script-declared `bool` option is not a conflict.
+//
+// **This has to be gated on `declared` actually being a Go `bool`, not on
+// `value`'s text alone.** An earlier version made `kindOf` itself treat any
+// bool-word *string* as kind "true or false" on both sides of the comparison,
+// which meant a script declaring a **string** default like
+// `degree_column = "**DEGREE**"` no longer conflicted with a document writing
+// `degree_column: 'On'` — a legal string that happens to spell a bool word —
+// and the override was pruned as if it agreed with the script, silently
+// discarding it. Found by a fresh-context verifier (iteration 14's sixth
+// re-verification).
+func isBoolWordAgainstDeclaredBool(declared, value any) bool {
+	if _, isBool := declared.(bool); !isBool {
+		return false
+	}
+	text, isString := value.(string)
+	return isString && boolWords[strings.ToLower(text)]
 }
 
 // boolWords is the set of strings pydantic's `str_as_bool` coerces to a bool,
