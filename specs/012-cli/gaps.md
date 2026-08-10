@@ -23,8 +23,16 @@ three panels were printing an extra trailing newline the vendored CLI never does
 column was `%.1fs` where upstream is always whole milliseconds — see `internal/cli/render.go`'s
 `writeLivePanel` and `timing`). It also found process debt this file records without yet fixing:
 
-- **No test gates G-5, G-7, G-8, G-9 or G-10.** Each was verified once by hand against the vendored
-  CLI and by nothing since. A regression in any of them would not fail `go test`.
+- ~~No test gates G-5, G-7, G-8, G-9 or G-10.~~ **Closed, 2026-08-09.** Sixteen tests now cover
+  them: `TestCreateThemeWritesTheFileSet`/`RoundTrips`/`RejectsBadName`/`RejectsExistingFolder`
+  (G-5, `customtheme_test.go`), `TestDocumentNamedOverlaysResolveAgainstInputDir` +
+  `TestCLIFlagWinsOverDocumentNamedOverlay` (G-7, `overlay_test.go`),
+  `TestOutputFolderResolvesAgainstInputDir` (G-8, `paths_test.go`),
+  `TestNewCreateTypstTemplates`/`CreateMarkdownTemplates`/`TemplatesReportsExistingFolders` (G-9,
+  new `new_test.go`), `TestRenderRejectsWatch` + `TestRenderWithoutWatchStillRenders` (G-10, new
+  `watch_test.go`). Each was mutation-checked by hand before being trusted: reverting the fix under
+  test made the test fail (spot-checked for G-8 and G-10; the others follow the same file-set /
+  panel-text assertions that already caught the earlier regressions).
 - **`err_missing_file` / `err_bad_override_key` still have no `divergences.md` entry**, though
   `STATE.md` has said since 2026-08-08 that they need one (they are Python tracebacks; a Go binary
   cannot and should not produce them). Still a human gate, still open.
