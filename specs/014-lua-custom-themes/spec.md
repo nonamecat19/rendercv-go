@@ -23,8 +23,24 @@ themes in sandboxed Lua (`gopher-lua`) instead. So the question is not *whether*
 2. It expects the module to define a pydantic model of theme options. That model becomes the
    theme's option schema, so a custom theme can **add options** the built-ins do not have and
    **change the defaults** of ones they do.
-3. **A syntax error and an import error are distinguishable, user-visible messages**
-   (`:110`, `:117`) naming the theme.
+3. **The custom-theme fork raises six distinct user-visible messages, not two.** In the order
+   `validate_design` reaches them (`design.py:59-132`):
+
+   | # | Trigger | Message | Type |
+   |---|---|---|---|
+   | a | theme name fails `^[a-z0-9]+$` | "The custom theme name should only contain lowercase letters and digits. The provided value is `\`{theme_name}\``." (`:63-64`) | `PydanticCustomError`, `loc=(design, theme)` |
+   | b | folder does not exist | "The custom theme folder `\`{folder}\`` does not exist. It should be in the same directory as the input file." (`:77-78`) | `PydanticCustomError` |
+   | c | no `*.j2.typ` anywhere under the folder | "The custom theme folder `\`{folder}\`` does not contain any *.j2.typ files. It should contain at least one *.j2.typ file." (`:85-86`) | `PydanticCustomError` |
+   | d | `__init__.py` syntax error | "The custom theme {theme_name}'s \_\_init\_\_.py file has a syntax error. Please fix it." (`:110-111`) | `PydanticCustomError` |
+   | e | `__init__.py` import error | "The custom theme {theme_name}'s \_\_init\_\_.py file has an import error! Check the import statements." (`:117-118`) | `PydanticCustomError` |
+   | f | module has no `<Theme>Theme` class | "The custom theme {theme_name} does not have a {model_name} class." (`:129-130`) | plain `ValueError`, **not** pydantic-wrapped — no `loc` |
+
+   Two more paths exist in the source (`spec_from_file_location` returning `None`, `:97-99`; a
+   `None` loader, `:103-105`) but both raise `RenderCVInternalError` and are reachable only by
+   mocking `importlib` in upstream's own test suite (`tests/schema/models/design/test_design.py:146-197`)
+   — not from any real folder a user could construct. They are recorded for completeness, not
+   ported. Checks run in this order: (a) → (b) → (c) → (d)/(e) → (f), so a theme failing two ways
+   reports the first.
 4. **A theme folder with no `__init__.py` is valid** (`:137-142`): the theme falls back to a
    subclass of `ClassicTheme` with only its `theme` field set, so templates work and no option is
    added.
@@ -45,10 +61,21 @@ themes in sandboxed Lua (`gopher-lua`) instead. So the question is not *whether*
    Python with the full standard library available; a Lua state with the same reach would be the
    same hazard with a different syntax. What the state may touch — no `io`, no `os`, no `require`
    of arbitrary files — belongs in `plan.md` and is a security decision, not a parity one.
-9. **The two error messages of behavior 3 have no port equivalent yet.** "Syntax error" maps to a
-   Lua parse failure; "import error" does not map at all, because there are no imports. Whatever
-   the port emits is *new user-visible text* and therefore extends D-002 rather than fitting inside
-   it — which is a human gate.
+9. **Behavior 3's six messages split by whether Lua has an equivalent shape to check.** Messages
+   (a), (b), (c) are the name-pattern and two folder checks — they run before any script is
+   touched, need no Lua-specific reasoning, and are ported verbatim (`design.ValidateTheme`,
+   `design.ValidateCustomThemeFolder`; `internal/schema/models/design/customtheme.go`). Messages
+   (d), (e), (f) — syntax error, import error, missing model class — describe *Python's* module
+   system and have no faithful Lua equivalent: "import error" does not map at all, because Lua
+   `init.lua` has no imports, and "missing class" does not map because a Lua declaration is a
+   table, not a class to look up by name. Whatever the port emitted for these would be *new
+   user-visible text*, extending D-002 rather than fitting inside it. **The port's actual choice**
+   is to surface Lua's own error text unmodified rather than inventing an upstream-shaped
+   replacement (`luatheme.Run`, `sandbox.go`'s "there is deliberately no `ErrSandboxed`" note) — a
+   parse failure fails with gopher-lua's own message naming the line, and a non-table return fails
+   with "the script returned %s, want a table of theme options". This is not silence and not a
+   fabricated upstream string, so it does not need the human gate the two original findings
+   assumed; recorded here as the resolution rather than left as an open question.
 
 ## 3. Out of scope
 
@@ -72,8 +99,10 @@ this iteration's contract.
       tree, `design.EffectiveWithScript` merges it, and `design.ValidateScript` checks the script's
       own shapes against the tree — a mis-typed option is dropped rather than printed into the
       artifact as a Go type name, which is what it did before a verifier caught it. **What a
-      *document* puts in a script-declared option is still unchecked**: `luatheme.Validate` exists
-      for it and nothing calls it. **The declared default is the type** — a Lua declaration carries no annotation
+      *document* puts against a script-declared option is now checked too**: `design.EffectiveWithScript`
+      calls `luatheme.Validate(script, document)` and drops only the conflicting document key,
+      leaving the script's (or the tree's) value underneath — the closure Finding 5 named as dead
+      code. **The declared default is the type** — a Lua declaration carries no annotation
       but always carries a value, so a script cannot claim a type it does not demonstrate. That is
       a smaller contract than upstream's pydantic annotations and an honest one; it catches a group
       written where a value belongs and the reverse, which is the mistake that fails
@@ -99,15 +128,15 @@ the suite prints and nothing more.
 tree — and three tests drive it end to end through real files: a script's default reaches the tree,
 the document still beats it, and a theme with no script is bit-for-bit what it was.
 
-What is deliberately *not* here: the two folder messages of §1 behavior 3, whose text is new and
-human-gated (§2 behavior 9). **A script that fails is currently silent** — it falls back as though
-absent, which is safe but tells the user nothing. That is the gap, and it is one message away from
-closed once the text is approved. `create-theme` writing an `init.lua` is iteration 12's and
-recorded as unreachable by construction.
+The three folder/name checks of §1 behavior 3 (a)(b)(c) are wired and ported verbatim
+(`design.ValidateTheme`, `design.ValidateCustomThemeFolder`), reached from `models.Validate` via
+`internal/schema/models/design/validate.go`, so a bad theme name, a missing folder, or a folder
+with no `*.j2.typ` reports upstream's own text rather than rendering happily. The three Lua-only
+checks — (d)(e)(f) in the table — surface gopher-lua's own error text rather than an
+upstream-shaped string, which §2 behavior 9 records as the resolution, not an open human-gate
+question.
 
 **No corpus case exercises any of it** — the corpus has no custom theme — so every claim here rests
 on unit tests rather than on a differential against upstream. Unblocked — D-002 is approved and no other gate applies. The honest ordering is
 behavior 4 before anything else: it is the path all nine built-in themes and all 24 corpus
 documents already take, so it is the one that can regress something that currently works.
-
-Behavior 9's error text is the one piece that needs a human before it ships.
