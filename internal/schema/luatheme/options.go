@@ -1,6 +1,8 @@
 package luatheme
 
 import (
+	"strconv"
+
 	lua "github.com/yuin/gopher-lua"
 )
 
@@ -91,15 +93,30 @@ func isSequence(table *lua.LTable) bool {
 }
 
 // sequenceOf reads a Lua sequence into the `[]string` shape `EffectiveStrings`
-// and the tree's `KindStringList` fields already expect. A non-string element
-// is dropped rather than reported, matching this file's own rule for a
-// function or userdata value: it cannot be a design value.
+// and the tree's `KindStringList` fields already expect — but a sequence is
+// also how a colour tuple arrives (`colors.name = {1, 2, 3}`), whose elements
+// are numbers, not strings. **Only a function or userdata is genuinely not a
+// design value**; a number or a bool has to survive as the text a document's
+// equivalent YAML sequence would carry (`design/validate.go`'s
+// `ParseColorTuple` and `parseNumericText` parse exactly this shape), or a
+// script's own colour tuple silently loses every element and reaches the
+// artifact as an empty list. Found by a fresh-context verifier (iteration
+// 14's thirteenth re-verification).
 func sequenceOf(table *lua.LTable) []string {
 	length := table.Len()
 	out := make([]string, 0, length)
 	for i := 1; i <= length; i++ {
-		if str, ok := table.RawGetInt(i).(lua.LString); ok {
-			out = append(out, string(str))
+		switch element := table.RawGetInt(i).(type) {
+		case lua.LString:
+			out = append(out, string(element))
+		case lua.LNumber:
+			if float64(element) == float64(int64(element)) {
+				out = append(out, strconv.FormatInt(int64(element), 10))
+			} else {
+				out = append(out, strconv.FormatFloat(float64(element), 'g', -1, 64))
+			}
+		case lua.LBool:
+			out = append(out, strconv.FormatBool(bool(element)))
 		}
 	}
 	return out

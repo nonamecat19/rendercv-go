@@ -82,11 +82,18 @@ func TestASequenceBecomesAStringList(t *testing.T) {
 
 // A non-string element inside a sequence is dropped, matching this file's own
 // rule for a function or userdata value elsewhere.
-func TestASequenceDropsNonStringElements(t *testing.T) {
+// **A number or a bool survives as text, the same shape a document's
+// equivalent YAML sequence element would carry** — this used to be
+// "dropped", which was correct for the tree's one string-list field but
+// silently emptied a script's colour tuple (`colors.name = {1, 2, 3}`), since
+// `design.ParseColorTuple` parses exactly this text form. Found by a
+// fresh-context verifier (iteration 14's thirteenth re-verification).
+func TestASequenceKeepsNumberAndBoolElementsAsText(t *testing.T) {
 	got := options(t, `return { tags = { "a", 5, true, "b" } }`)
 
-	if list, ok := got["tags"].([]string); !ok || !reflect.DeepEqual(list, []string{"a", "b"}) {
-		t.Errorf("tags = %#v, want []string{\"a\", \"b\"}", got["tags"])
+	want := []string{"a", "5", "true", "b"}
+	if list, ok := got["tags"].([]string); !ok || !reflect.DeepEqual(list, want) {
+		t.Errorf("tags = %#v, want %#v", got["tags"], want)
 	}
 }
 
