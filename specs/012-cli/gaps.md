@@ -39,14 +39,53 @@ column was `%.1fs` where upstream is always whole milliseconds — see `internal
   The port's own shape on both vectors is now pinned (previous bullet).
 - ~~`err_not_yaml`'s span defect~~ **The corpus case is fixed, 2026-08-09 — `TestParity` moved to
   34/42.** `yamlErrorLocation` (`internal/schema/modelbuilder/yamlerror.go`) now widens the span to
-  EOF for the one measured shape (an unterminated flow sequence — goccy's token is ruamel's
-  `context_mark`, and the `problem_mark` upstream also reports is EOF, computable as the
-  document's own newline count). Byte-diffed against the vendored CLI: identical, not just
-  normalized-equal. **Scoped, not general**: a duplicate mapping key (goccy's "already defined" →
-  ruamel's "while constructing a mapping") is a different failure shape, unmeasured against
-  upstream's marks, and still gets a single-line span rather than a guessed one — `internal/schema/
-  modelbuilder/yamlerror_test.go`'s `TestSpanWideningIsScopedToTheMappedCase` pins that it stays
-  narrow until someone measures the duplicate-key case too.
+  EOF for the mapped unterminated-construct shapes — goccy's token is ruamel's `context_mark`, and
+  the `problem_mark` upstream also reports is EOF, computable as the document's own newline count.
+  Byte-diffed against the vendored CLI: identical, not just normalized-equal. **Scoped, not
+  general**: a bad-indentation or duplicate-key failure is a different shape (the token *is*
+  upstream's problem mark there) and still gets a single-line span rather than a guessed one —
+  `TestSpanWideningIsScopedToTheMappedCases` pins that it stays narrow.
+
+**A second fresh-context verifier ran against that whole batch** and found the first pass's own
+claims were not all true. Two real findings, both fixed:
+
+- **The `err_not_yaml` fix was scoped to one shape when it needed two.** The commit widened only
+  the flow-*sequence* message ("sequence end token"); an unterminated flow *mapping* (`name:
+  {John`) is the identical shape by the same reasoning — goccy's token is ruamel's context_mark
+  either way — and upstream widens its span too (measured: `line 2 to line 3`). The port didn't,
+  and a test (`TestSpanWideningIsScopedToTheMappedCase`) asserted the gap as correct, using the
+  flow-mapping case as its own "should stay narrow" example. Fixed: both shapes now widen, via
+  `unterminatedConstructMessages`; the wrong test replaced with a positive case
+  (`TestUnterminatedFlowMappingSpansToEOF`) and a narrow-case test using a genuinely different
+  shape (`TestSpanWideningIsScopedToTheMappedCases`, plural, bad indentation).
+- **The duration column was cumulative, not per-step.** `started := time.Now()` was set once
+  before all five render steps and reused for every `timing(started)` call, so each row reported
+  elapsed time *since the render began*, not that step's own duration. Upstream times each step
+  independently (`run_rendercv.py:54-57`). Measured: PDF/PNG's real multi-second WASI compile
+  leaked into Markdown's and HTML's rows, both near-instant in-memory renders. The harness
+  normalizes durations before comparing, so this was invisible to `TestParity` — caught only by
+  diffing raw per-step values against the vendored CLI. Fixed: each step now takes its own
+  `stepStart := time.Now()`. Gated by `TestStepTimingsAreNotCumulative`, which needs a real
+  PDF/PNG render (the slow steps) to distinguish cumulative from per-step — a fast-only test could
+  not have caught this, which is also why the first pass's tests didn't.
+
+Also found and fixed without a corpus or behavior change: neither trailing-newline fix nor the
+duration-*format* fix (the previous verifier's two blockers) had a test — mutation-reverting
+either left `go test` green. Two new tests: `TestRenderPanelHasNoTrailingNewline`,
+`TestErrorPanelHasNoTrailingNewline`. And commit `6ce47cc` (since split, unpushed at the time)
+bundled five independent G-fixes into one commit, against AGENTS.md §7 — split into five commits
+by G-number, one per file, before anything reached `origin/main`.
+
+**Still open, not fixed this pass** (lower severity, recorded rather than silently dropped):
+
+- A bad-indentation failure (`cv:\n  name: John\n   bad: 1\n`) reports the wrong **line entirely**
+  (upstream `line 3`, port `line 2`) and leaks goccy's own `[2:9]`-style coordinate prefix into the
+  message — a different, pre-existing defect from the span-width one above, not caused by either
+  verifier pass, previously undocumented.
+- `TestSchemaParity` is red with no divergence entry. `STATE.md` says it "stays red until
+  iteration 12"; iteration 12 is the one open now. The `schema` subcommand was removed as an
+  axis-2 violation (upstream has no such command), making the case unreachable by construction —
+  the same shape as `create_theme`/D-008 — but nothing records that the way D-008/D-010/D-011 do.
 
 ---
 
