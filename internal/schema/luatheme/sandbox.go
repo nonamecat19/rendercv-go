@@ -21,6 +21,22 @@ import (
 // orders of magnitude and still bounds the damage.
 const Budget = 2 * time.Second
 
+// maxMemoryMB bounds a script's process-wide memory footprint.
+//
+// **`Budget` and `maxDepth` bound *time* and *structure*; neither bounds
+// *allocation*.** `string.rep("x", 3000000000)` is a single instruction —
+// gopher-lua's context check between instructions never gets a chance to
+// fire — and Go's runtime kills the whole process with an unrecoverable
+// `fatal error: out of memory` and a multi-kilobyte stack trace on stderr,
+// exit 2: exactly the failure `maxDepth`'s own comment names as the reason
+// this sandbox exists ("unrecoverable, exit 2, from a file the user may
+// have downloaded"). `SetMx` is generous — any real theme declaration is a
+// few hundred bytes of strings and numbers — while still catching a
+// multi-gigabyte allocation attempt within its 100ms poll interval, well
+// short of `fatal error`'s ulimit-scale threshold. Found by a fresh-context
+// verifier (iteration 14's Lua-slice sweep).
+const maxMemoryMB = 512
+
 // maxDepth bounds table nesting.
 //
 // **A cyclic table used to kill the process**: `local t={} t.self=t return t`
@@ -75,6 +91,13 @@ func NewState() *lua.LState {
 	for _, name := range blocked {
 		state.SetGlobal(name, lua.LNil)
 	}
+	// **`SetMx` polls the process's total allocation, not just this
+	// state's** — it is gopher-lua's own mechanism, which calls `os.Exit`
+	// directly rather than returning an error `Run` could turn into a
+	// panel. That is still strictly better than the crash it replaces:
+	// a bounded, deliberate exit instead of an unrecoverable Go `fatal
+	// error` with a stack trace on stderr.
+	state.SetMx(maxMemoryMB)
 	return state
 }
 
