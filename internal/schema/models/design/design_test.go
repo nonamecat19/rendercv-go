@@ -133,6 +133,31 @@ func TestWordFormBooleanOnABuiltinTheme(t *testing.T) {
 	}
 }
 
+// **The font_family partial-mapping fix must hold with no script at all.**
+// `opal`'s own font is Lato; a document overriding only `body` must still
+// fall back to `FontFamily`'s own base default ("Source Sans 3") for the
+// other four elements, not to `opal`'s Lato and not to the empty string a
+// naive merge onto the theme's (by-then-scalar) value produces. Iteration
+// 14's fix landed only for the scripted-custom-theme path
+// (internal/renderer/bridge/luatheme_test.go); nothing pinned the identical
+// defect on a built-in theme, which a fresh-context verifier flagged as an
+// untested reach (iteration 14's sixth re-verification).
+func TestFontFamilyPartialOverrideOnABuiltinTheme(t *testing.T) {
+	values := design.Effective("opal", map[string]any{
+		"typography": map[string]any{
+			"font_family": map[string]any{"body": "Charter"},
+		},
+	})
+	if got := design.EffectiveString(values, "typography", "font_family", "body"); got != "Charter" {
+		t.Errorf("font_family.body = %q, want the document's override", got)
+	}
+	for _, sibling := range []string{"name", "headline", "connections", "section_titles"} {
+		if got := design.EffectiveString(values, "typography", "font_family", sibling); got != "Source Sans 3" {
+			t.Errorf("font_family.%s = %q, want the base FontFamily default, not opal's Lato or empty", sibling, got)
+		}
+	}
+}
+
 // The nine built-in names, in the order the discriminated union discovers them.
 func TestBuiltInThemes(t *testing.T) {
 	want := []string{
