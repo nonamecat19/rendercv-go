@@ -429,13 +429,6 @@ func displayAll(paths []string) []string {
 	return out
 }
 
-// themeOf reads the resolved theme name, which is the discriminator the folder
-// check is keyed on.
-func themeOf(doc bridge.Document) string {
-	theme, _ := doc.Design["theme"].(string)
-	return theme
-}
-
 // display is how the panel spells a path: relative to the working directory and
 // prefixed with `./`, which is what every golden shows.
 func display(path string) string {
