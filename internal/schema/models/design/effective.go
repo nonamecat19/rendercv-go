@@ -200,7 +200,17 @@ func withoutTreeConflictsAt(document, values map[string]any, prefix string) map[
 			// same document against `classic` correctly fails validation.
 			// Found by a fresh-context verifier (iteration 14's eighth
 			// re-verification).
-			if docNested, ok := docValue.(map[string]any); ok {
+			// **A list is neither of `font_family`'s two legal shapes.** The
+			// map and scalar arms above were the only ones this carve-out ever
+			// considered; a list fell to `out[key] = docValue` same as a
+			// scalar, reaching `deepMerge` and then pongo2 as a slice where a
+			// dict-or-string was expected — a raw template-engine error, not
+			// the panel upstream and the `classic`-theme path both produce.
+			// Found by a fresh-context verifier (iteration 14's ninth
+			// re-verification).
+			switch shapeKind(docValue) {
+			case "map":
+				docNested := docValue.(map[string]any)
 				filtered := make(map[string]any, len(docNested))
 				for element, elementValue := range docNested {
 					if shapeKind(elementValue) == "scalar" {
@@ -208,9 +218,9 @@ func withoutTreeConflictsAt(document, values map[string]any, prefix string) map[
 					}
 				}
 				out[key] = filtered
-				continue
+			case "scalar":
+				out[key] = docValue
 			}
-			out[key] = docValue
 			continue
 		}
 
