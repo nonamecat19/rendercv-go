@@ -121,3 +121,23 @@ func TestValidateScriptCatchesANonEmptyMappingForAStringList(t *testing.T) {
 		t.Errorf("= %q, want %q", errs[0].Error(), want)
 	}
 }
+
+// A valid colour tuple passes; an invalid one must still be flagged, not
+// waved through as any list shape — a shape-only carve-out would leave an
+// unparseable tuple to reach the artifact as a raw Go slice, the exact
+// failure the carve-out family exists to prevent. Found by a fresh-context
+// verifier (iteration 14's fourteenth re-verification).
+func TestValidateScriptColorTuple(t *testing.T) {
+	if errs := design.ValidateScript(map[string]any{
+		"colors": map[string]any{"name": []string{"1", "2", "3"}},
+	}); len(errs) != 0 {
+		t.Errorf("valid tuple: = %v, want none", errs)
+	}
+
+	errs := design.ValidateScript(map[string]any{
+		"colors": map[string]any{"name": []string{"300", "2", "3"}},
+	})
+	if len(errs) != 1 {
+		t.Fatalf("invalid tuple: got %v, want 1 error", errs)
+	}
+}
