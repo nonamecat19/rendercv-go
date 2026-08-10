@@ -222,6 +222,19 @@ func TestFontFamilyMappingOverrideSurvivesScriptConflictPruning(t *testing.T) {
 	if got := design.EffectiveString(doc.Design, "typography", "font_family", "body"); got != "Charter" {
 		t.Errorf("font_family.body = %q, want the document's mapping override", got)
 	}
+
+	// **A partial mapping override is not a deep merge onto the script's
+	// scalar.** Upstream builds a fresh `FontFamily` from the document's
+	// mapping, so the four fields the document does not mention fall back to
+	// `FontFamily`'s own base default ("Source Sans 3") — not the script's
+	// "Lato", and not the empty string a naive merge onto the script's
+	// (by-then-scalar) value produces. Found by a fresh-context verifier
+	// (iteration 14's fifth re-verification).
+	for _, sibling := range []string{"name", "headline", "connections", "section_titles"} {
+		if got := design.EffectiveString(doc.Design, "typography", "font_family", sibling); got != "Source Sans 3" {
+			t.Errorf("font_family.%s = %q, want the base FontFamily default, not the script's or empty", sibling, got)
+		}
+	}
 }
 
 // **A list where a scalar belongs leaks the same way a mapping does.** The
