@@ -43,3 +43,81 @@ func TestValidateScriptAllowsCorrectAndInventedOptions(t *testing.T) {
 		t.Errorf("= %v, want none", errs)
 	}
 }
+
+// A list where a scalar belongs (the ninth re-verification's second finding)
+// used to fall through every check: not `KindNested`, not the `font_family`
+// carve-out, and — before this fix — not checked against a list shape either.
+func TestValidateScriptCatchesAListForAScalar(t *testing.T) {
+	errs := design.ValidateScript(map[string]any{"page": map[string]any{"size": []string{"a4"}}})
+	if len(errs) != 1 {
+		t.Fatalf("got %v, want 1 error", errs)
+	}
+	want := "design.page.size is a list of items in this theme's script, but should be a value"
+	if errs[0].Error() != want {
+		t.Errorf("= %q, want %q", errs[0].Error(), want)
+	}
+}
+
+// A script declaring `typography.font_family` as a mapping used to be waved
+// through with no check on what was *inside* it — the eighth re-verification's
+// carve-out only checked the outer shape. A nested table one field too deep
+// must still be caught.
+func TestValidateScriptCatchesAFontFamilyElementNestedTooDeep(t *testing.T) {
+	errs := design.ValidateScript(map[string]any{
+		"typography": map[string]any{
+			"font_family": map[string]any{"body": map[string]any{"x": 1}},
+		},
+	})
+	if len(errs) != 1 {
+		t.Fatalf("got %v, want 1 error", errs)
+	}
+	want := "design.typography.font_family.body is a group of options in this theme's script, but should be a value"
+	if errs[0].Error() != want {
+		t.Errorf("= %q, want %q", errs[0].Error(), want)
+	}
+}
+
+// A script declaring `typography.font_family` as a mapping with legal string
+// elements must still pass, alongside an unrelated option — the whole point
+// of the eighth re-verification's fix.
+func TestValidateScriptAllowsAFontFamilyMappingWithSiblingOptions(t *testing.T) {
+	errs := design.ValidateScript(map[string]any{
+		"typography": map[string]any{"font_family": map[string]any{"body": "Charter"}},
+		"page":       map[string]any{"size": "a5"},
+	})
+	if len(errs) != 0 {
+		t.Errorf("= %v, want none", errs)
+	}
+}
+
+// An empty Lua table (`{}`, literally what `create-theme` writes for a field
+// it doesn't set) becomes an empty Go map, not an empty `[]string` — Lua has
+// no way to distinguish an empty sequence from an empty mapping. The tree's
+// one `KindStringList` field must accept that ambiguous shape rather than
+// having `ValidateScript` flag it as a conflict and `themeScript` drop the
+// whole script over an option the script never meant to touch. The ninth
+// re-verification's first finding.
+func TestValidateScriptAllowsAnEmptyTableForAStringList(t *testing.T) {
+	errs := design.ValidateScript(map[string]any{
+		"sections": map[string]any{"show_time_spans_in": map[string]any{}},
+		"page":     map[string]any{"size": "a5"},
+	})
+	if len(errs) != 0 {
+		t.Errorf("= %v, want none", errs)
+	}
+}
+
+// A *non-empty* mapping for a `KindStringList` field is still a real conflict
+// — only the empty-table ambiguity gets a pass.
+func TestValidateScriptCatchesANonEmptyMappingForAStringList(t *testing.T) {
+	errs := design.ValidateScript(map[string]any{
+		"sections": map[string]any{"show_time_spans_in": map[string]any{"a": "b"}},
+	})
+	if len(errs) != 1 {
+		t.Fatalf("got %v, want 1 error", errs)
+	}
+	want := "design.sections.show_time_spans_in is a group of options in this theme's script, but should be a list of items"
+	if errs[0].Error() != want {
+		t.Errorf("= %q, want %q", errs[0].Error(), want)
+	}
+}
