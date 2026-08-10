@@ -111,16 +111,19 @@ silently instead of reporting it. Both were introduced on 2026-08-08.
 
 ## 7. The console width is ignored
 
-**G-11.** `internal/cli/panel.go:10` is `const PanelWidth = 80` and nothing in the port reads
-`COLUMNS` or asks the terminal. Rich honours `COLUMNS` even when stdout is a pipe.
+**G-11 — closed, 2026-08-08 (`8594b5d`).** `internal/cli/panel.go:10` was `const PanelWidth = 80`
+and nothing in the port read `COLUMNS`. `ConsoleWidth()` now reads it (falling back to 80 on an
+absent or non-positive value, matching Rich's own `int()` guard), and `Panel`/`Table`/`HelpPage`
+all lay out to it. Verified by hand this pass: `COLUMNS=100 render …` produces a 100-column-wide
+result panel, `COLUMNS=60` a 60-column one.
 
 | Width | Upstream | Port |
 |---|---|---|
-| 100 | 100-column output | 80 — differs at byte 81 |
-| 60 | wraps at 58, boxes at 60 | 80-column boxes that overflow the terminal |
+| 100 | 100-column output | now 100-column |
+| 60 | wraps at 58, boxes at 60 | now matches |
 
-**No golden can see this**: every one is captured at 80. It reaches every panel the CLI prints —
-the result panel, both error panels, and all five help pages.
+**Still no golden can see this**: every one is captured at 80, so the fix is unverified by
+`TestParity` and rests on the hand check above plus `panel_test.go`/`helptable_test.go`.
 
 ## 8. `init.lua`'s contents — the one open design question
 
