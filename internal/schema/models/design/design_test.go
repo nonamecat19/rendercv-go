@@ -112,6 +112,27 @@ func TestThemeLocationIsPinnedThroughThePipeline(t *testing.T) {
 	}
 }
 
+// **A YAML word-form boolean must reach the effective tree as a `bool`, not
+// as the raw text a document's `no`/`yes` resolves to** — the same defect
+// reaches a *built-in* theme, with no script involved at all: `mappingOf`
+// (`internal/renderer/bridge/model.go`) keeps a design scalar's source text,
+// so `show_footer: no` becomes the string `"no"` in the document map handed
+// to `design.Effective`, and left uncoerced the Typst emitter would
+// interpolate that literal text where a `false` token belongs — output that
+// does not compile. Found by a fresh-context verifier (iteration 14's fifth
+// re-verification).
+func TestWordFormBooleanOnABuiltinTheme(t *testing.T) {
+	// `classic`'s own default is `false` (`overrides_generated.go`), so a
+	// coerced-to-zero-value bug would still read `false` here by accident;
+	// the override has to flip it to `true` to be discriminating.
+	values := design.Effective("classic", map[string]any{
+		"page": map[string]any{"show_footer": "yes"},
+	})
+	if got := design.EffectiveBool(values, "page", "show_footer"); !got {
+		t.Errorf("page.show_footer = %v, want true — the word-form override was not coerced to a bool", got)
+	}
+}
+
 // The nine built-in names, in the order the discriminated union discovers them.
 func TestBuiltInThemes(t *testing.T) {
 	want := []string{
