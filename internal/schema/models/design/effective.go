@@ -192,6 +192,24 @@ func withoutTreeConflictsAt(document, values map[string]any, prefix string) map[
 		// (`widenFontFamilyIn` runs after this merge). Found by a
 		// fresh-context verifier (iteration 14's fourth re-verification).
 		if path == fontFamilyPath {
+			// **The mapping form is still a `FontFamily`, whose five fields are
+			// each a scalar string** — this carve-out used to let the whole
+			// mapping through unchecked, so `typography.font_family.body: {x:
+			// 1}` reached `deepMerge` (via the re-apply block above) and printed
+			// a Go type name into the artifact on a custom theme, where the
+			// same document against `classic` correctly fails validation.
+			// Found by a fresh-context verifier (iteration 14's eighth
+			// re-verification).
+			if docNested, ok := docValue.(map[string]any); ok {
+				filtered := make(map[string]any, len(docNested))
+				for element, elementValue := range docNested {
+					if shapeKind(elementValue) == "scalar" {
+						filtered[element] = elementValue
+					}
+				}
+				out[key] = filtered
+				continue
+			}
 			out[key] = docValue
 			continue
 		}
