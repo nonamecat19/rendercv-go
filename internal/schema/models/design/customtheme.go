@@ -22,7 +22,15 @@ import (
 // `relativeTo` is the input file's directory, or the working directory when
 // there is no input file (`:56`).
 func ValidateCustomThemeFolder(theme, relativeTo string) error {
-	folder := filepath.Join(relativeTo, theme)
+	// **`uncleanedJoin`, not `filepath.Join`.** `Join` also calls `Clean`,
+	// which would silently collapse a `..` `relativeTo` carries here even
+	// after `validate.go`'s `relativeTo` stopped introducing one of its
+	// own — `os.Stat`/`WalkDir` handle an uncleaned `../` segment exactly
+	// as well as a cleaned one, so there is no functional reason to clean
+	// before using the path for real filesystem calls, only a reason not
+	// to when the same string reaches a message. Found by a fresh-context
+	// verifier (iteration 14's nineteenth re-verification).
+	folder := uncleanedJoin(relativeTo, theme)
 	// **`exists()`, not `is_dir()`.** A path that resolves to a regular
 	// file still exists upstream, so it falls through to the `rglob`
 	// check next and gets "does not contain any *.j2.typ files" — not
@@ -48,6 +56,15 @@ func ValidateCustomThemeFolder(theme, relativeTo string) error {
 // on a `Getwd` failure, the same way the two callers already did on an
 // `Abs` failure. Found by a fresh-context verifier (iteration 14's
 // non-colour-design-slice sweep).
+// uncleanedJoin is `PurePath.__truediv__`: `dir`'s own parsed segments
+// (`.` dropped, `..` kept literal) with `name` appended, the same parse
+// `uncleanedDir` uses for the other half of this pair.
+func uncleanedJoin(dir, name string) string {
+	absolute, parts := pathlibParts(dir)
+	parts = append(parts, name)
+	return pathlibJoin(absolute, parts)
+}
+
 func absoluteLikePython(path string) string {
 	if filepath.IsAbs(path) {
 		return path

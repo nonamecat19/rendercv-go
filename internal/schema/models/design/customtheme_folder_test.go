@@ -105,3 +105,41 @@ func TestCustomThemeFolderMessageKeepsDotDotUnresolved(t *testing.T) {
 		t.Errorf("= %v, want it to contain the unresolved path %q", err, want)
 	}
 }
+
+// **An interior `..`, not just a leading one, must survive.** Pass 18's
+// fix stopped `filepath.Abs` from cleaning, but `filepath.Dir` (building
+// `relativeTo`) and `filepath.Join` (building the theme folder) both clean
+// too — a leading `..` survives `Clean` by construction (nothing precedes
+// it to cancel against), which is why that fix's own probe passed, but an
+// interior one does not. `pathlib`'s parser also drops a bare `.` segment
+// wherever it appears, which this checks too. Found by a fresh-context
+// verifier (iteration 14's nineteenth re-verification).
+func TestCustomThemeFolderMessageKeepsInteriorDotDotUnresolved(t *testing.T) {
+	dir := t.TempDir()
+	aa := filepath.Join(dir, "aa")
+	bb := filepath.Join(aa, "bb")
+	if err := os.MkdirAll(bb, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(aa); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_ = os.Chdir(cwd)
+	}()
+
+	// `relativeTo`, not just the folder message: this input path is what
+	// `bin/rendercv-go render ./bb/../bb/CV.yaml` produces for `relativeTo`.
+	err = design.ValidateCustomThemeFolder("nosuchtheme", "./bb/../bb")
+	if err == nil {
+		t.Fatal("= nil, want a missing-folder error")
+	}
+	want := aa + "/bb/../bb/nosuchtheme"
+	if !strings.Contains(err.Error(), want) {
+		t.Errorf("= %v, want it to contain the unresolved path %q", err, want)
+	}
+}
