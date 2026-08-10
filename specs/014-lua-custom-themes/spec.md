@@ -124,15 +124,22 @@ this iteration's contract.
 
 ## 5. Status
 
-**Verified seven times by a fresh context, FAIL every time** (`specs/STATE.md`, "Iteration 14
+**Verified nine times by a fresh context, FAIL every time** (`specs/STATE.md`, "Iteration 14
 [re-]verified..." sections, 2026-08-10). Each pass found real defects the previous one's own tests
 could not see — three blockers on the first pass, regressions in the fix itself on the second,
 third and sixth passes, a fourth door into the same leak class on the fourth, two blockers reaching
-*built-in* themes (not just scripted custom ones) on the fifth, and two more on the seventh — one of
+*built-in* themes (not just scripted custom ones) on the fifth, two more on the seventh — one of
 which proved the fifth and sixth passes' scripted-`font_family`-as-mapping test coverage had been
 vacuous, because `ValidateScript` was silently discarding those scripts whole before any of the
-assertions ran. Every finding so far has been fixed and pinned by a test; the four §4 boxes above
-reflect what the fixes cover today, not a claim that the criteria are closed for good.
+assertions ran — and the eighth found the seventh's own carve-out only checked shape, not contents,
+plus a pre-existing list-shape blind spot in `ValidateScript`. The ninth found two more holes in
+exactly the code the eighth had just touched: a document-side list at `font_family` and a
+script-side empty table for the tree's one list-valued field, the latter tripping the same
+all-or-nothing script-drop as the fourth and seventh passes' findings. The ninth pass also caught
+that the eighth's three fixes had shipped with no test at all; every finding is fixed and pinned by
+a test now. The four §4 boxes above reflect what the fixes cover today, not a claim that the
+criteria are closed for good — nine passes finding a defect each time is reason to expect a tenth
+would too.
 
 **Two items are deliberately still open rather than fixed.** The first is upstream's
 forbid-extra rejection of an unknown design key on a scripted custom theme (`theme_data_model_class`,
