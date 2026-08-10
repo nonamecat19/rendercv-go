@@ -35,7 +35,7 @@ func ReadYamlWithValidationErrors(
 	}
 
 	return nil, &schemaerr.UserValidationError{
-		Errors: []schemaerr.ValidationError{yamlSyntaxValidationError(parserErr, source)},
+		Errors: []schemaerr.ValidationError{yamlSyntaxValidationError(parserErr, content, source)},
 	}
 }
 
@@ -44,11 +44,12 @@ func ReadYamlWithValidationErrors(
 // the document being parsed, the message of §4.17, and the literal input echo.
 func yamlSyntaxValidationError(
 	parserErr goyaml.Error,
+	content string,
 	source schemaerr.YamlSource,
 ) schemaerr.ValidationError {
 	return schemaerr.ValidationError{
 		SchemaLocation: nil,
-		YamlLocation:   yamlErrorLocation(parserErr),
+		YamlLocation:   yamlErrorLocation(parserErr, content),
 		YamlSource:     source,
 		Message:        fmt.Sprintf("This is not a valid YAML file. %s", parserMessage(parserErr.Error())),
 		Input:          schemaerr.InputEllipsis,
@@ -109,14 +110,37 @@ func parserMessage(text string) string {
 
 // yamlErrorLocation mirrors get_yaml_error_location
 // (rendercv_model_builder.py:42-62). Upstream picks the start mark from the
-// context mark falling back to the problem mark and the end mark the other way
-// around; goccy reports a single offending token, so both ends come from it.
-// Its positions are already 1-indexed, so no conversion is needed.
-func yamlErrorLocation(parserErr goyaml.Error) *yamldoc.Span {
+// context mark, falling back to the problem mark, and the end mark the other
+// way around. goccy's token is the *context* mark for an unterminated
+// construct — measured on `this: [is, not, a, cv`, where the token is the
+// `[` that opened the flow sequence, at (1, 7) — but goccy exposes no second,
+// *problem* mark of its own.
+//
+// **For that one measured shape, the problem mark is EOF.** ruamel's scanner
+// reads to the true end of the stream hunting for the closing bracket, so its
+// problem_mark's line is the total newline count of the document (0-indexed,
+// so `+1` to display) regardless of where the scan started. Widening the span
+// to that line reproduces upstream's `line 1 to line 2` exactly.
+//
+// **Scoped to the one mapped case that needs it.** The corpus has exactly one
+// syntax error (spec 004 §7.5, plan §6 option B, `ruamelPhrasing` above), so
+// widening the span for every syntax error would be guessing at shapes never
+// measured — an unmapped or differently-shaped error keeps a single-line
+// span, which was already right before this fix, rather than being pushed to
+// EOF on the assumption it works the same way.
+func yamlErrorLocation(parserErr goyaml.Error, content string) *yamldoc.Span {
 	tok := parserErr.GetToken()
 	if tok == nil || tok.Position == nil {
 		return nil
 	}
-	pos := yamldoc.Position{Line: tok.Position.Line, Column: tok.Position.Column}
-	return &yamldoc.Span{Start: pos, End: pos}
+	start := yamldoc.Position{Line: tok.Position.Line, Column: tok.Position.Column}
+	end := start
+
+	if strings.Contains(parserErr.Error(), "sequence end token") {
+		if eof := strings.Count(content, "\n") + 1; eof > end.Line {
+			end = yamldoc.Position{Line: eof, Column: 1}
+		}
+	}
+
+	return &yamldoc.Span{Start: start, End: end}
 }
