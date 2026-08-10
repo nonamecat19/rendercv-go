@@ -39,11 +39,11 @@ func Resolve(model *models.RenderCVModel, now time.Time) Document {
 	// anything reads the effective tree. A built-in theme has no script and
 	// `themeScript` returns nil, so the nine of them take the path they always
 	// did (spec 014 §1 behavior 4).
-	script := themeScript(model, theme)
+	script, hasScript := themeScript(model, theme)
 
 	return Document{
 		Model:    model,
-		Design:   design.EffectiveWithScript(theme, script, block),
+		Design:   design.EffectiveWithScript(theme, script, block, hasScript),
 		Locale:   locale.Resolve(model.Locale),
 		Settings: resolved,
 	}
@@ -58,9 +58,16 @@ func Resolve(model *models.RenderCVModel, now time.Time) Document {
 // that is the gap spec 014 §2 behavior 9 sends to the human gate — the two
 // folder messages are new user-visible text, so reporting them is not something
 // this port may invent.
-func themeScript(model *models.RenderCVModel, theme string) map[string]any {
+//
+// **The returned bool is whether an `init.lua` file exists at all**, distinct
+// from whether the returned `map[string]any` is usable. Both a missing file
+// and a script that fails to parse, run or validate return a nil map, but only
+// the former is upstream's `ThemeOptionsAreNotProvided` fallback —
+// `design.EffectiveWithScript` needs to tell them apart to avoid discarding a
+// document on a theme whose script merely broke.
+func themeScript(model *models.RenderCVModel, theme string) (options map[string]any, hasScript bool) {
 	if model == nil {
-		return nil
+		return nil, false
 	}
 	// **A built-in theme never reads a script**, which upstream gets by only
 	// entering the custom-theme path when the built-in discriminator *fails*
@@ -69,23 +76,26 @@ func themeScript(model *models.RenderCVModel, theme string) map[string]any {
 	// found by a verifier, measured as `page-size: "a5"` where upstream emits
 	// `"us-letter"`.
 	if design.IsBuiltinTheme(theme) {
-		return nil
+		return nil, false
 	}
 	path, ok := model.InputFilePath()
 	if !ok {
-		return nil
+		return nil, false
 	}
 
 	source, err := os.ReadFile(filepath.Join(filepath.Dir(path), theme, "init.lua"))
 	if err != nil {
-		return nil
+		return nil, false
 	}
+	// The file exists from here on, whatever it turns out to contain.
+	hasScript = true
+
 	table, err := luatheme.Run(string(source))
 	if err != nil {
-		return nil
+		return nil, hasScript
 	}
 
-	options := luatheme.Options(table)
+	options = luatheme.Options(table)
 
 	// **A script whose shapes conflict with the tree is dropped whole.** It used
 	// to reach the template and print a Go type name into the artifact —
@@ -97,9 +107,9 @@ func themeScript(model *models.RenderCVModel, theme string) map[string]any {
 	// behavior 9); dropping it is what can be done without inventing user-facing
 	// wording.
 	if errs := design.ValidateScript(options); len(errs) > 0 {
-		return nil
+		return nil, hasScript
 	}
-	return options
+	return options, hasScript
 }
 
 // Model builds the `process.Model` the templater consumes — the bridge's whole

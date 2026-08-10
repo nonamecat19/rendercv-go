@@ -221,6 +221,21 @@ func TestAListWhereAScalarBelongsIsDropped(t *testing.T) {
 	}
 }
 
+// **A script that fails to parse must not discard the document.** Both a
+// missing `init.lua` and a broken one hand `EffectiveWithScript` a nil
+// `script`, but only the missing case is upstream's
+// `ThemeOptionsAreNotProvided` fallback. Conflating them used to discard a
+// user's whole `design` block on a theme whose script merely had a typo — a
+// worse outcome than before the no-script fix shipped.
+func TestABrokenScriptStillAppliesTheDocument(t *testing.T) {
+	doc := resolveWithTheme(t, "mytheme", `this is not lua ((`,
+		"  colors:\n    name: rgb(9, 9, 9)\n")
+
+	if got := design.EffectiveString(doc.Design, "colors", "name"); got != "rgb(9, 9, 9)" {
+		t.Errorf("colors.name = %q, want the document's value even though the script is broken", got)
+	}
+}
+
 // A *document* value that mismatches what the script declared is dropped, and
 // the script's own value survives underneath it. `ValidateScript` alone
 // cannot catch this: `page.size` declared as a string is a perfectly valid

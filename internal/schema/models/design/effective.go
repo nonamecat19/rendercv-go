@@ -25,7 +25,7 @@ import (
 // silently reset every sibling to the base's value — plausible output, wrong
 // document.
 func Effective(theme string, document map[string]any) map[string]any {
-	return EffectiveWithScript(theme, nil, document)
+	return EffectiveWithScript(theme, nil, document, false)
 }
 
 // EffectiveWithScript is Effective with a custom theme's declaration merged in
@@ -37,25 +37,36 @@ func Effective(theme string, document map[string]any) map[string]any {
 // the script declares a pydantic model and the document's values override its
 // field defaults — and the port has to place the layer deliberately.
 //
-// A nil script is the built-in case and merges nothing.
-func EffectiveWithScript(theme string, script, document map[string]any) map[string]any {
+// A nil script is the built-in case, or a custom theme whose script failed to
+// load, parse, run or validate — `hasScript` is what tells those two apart.
+func EffectiveWithScript(theme string, script, document map[string]any, hasScript bool) map[string]any {
 	tree := baseTree()
 	values := defaultsOf(tree, tree.Root)
 
 	values = deepMerge(values, Overrides(theme))
 	values = deepMerge(values, script)
 
-	// **A script-less custom theme discards the whole document `design` block,
-	// not just its own (nonexistent) options.** Upstream's fallback constructs
-	// `ThemeOptionsAreNotProvided(theme=theme_name)` (`design.py:139-142`) —
-	// nothing but `theme` survives, so a document overriding, say,
-	// `design.colors.name` on a theme with no `init.lua` is silently ignored
-	// upstream: the artifact still carries classic's own default. A **built-in**
-	// theme is unaffected — it always has a nil script and must keep merging the
-	// document normally, which is why this checks the theme name and not just
-	// whether a script is present. Found by a fresh-context verifier
-	// (`specs/STATE.md`, iteration 14's second re-verification).
-	if script == nil && !IsBuiltinTheme(theme) {
+	// **A theme with genuinely no script file discards the whole document
+	// `design` block, not just its own (nonexistent) options.** Upstream's
+	// fallback constructs `ThemeOptionsAreNotProvided(theme=theme_name)`
+	// (`design.py:139-142`) — nothing but `theme` survives, so a document
+	// overriding, say, `design.colors.name` on a theme with no `init.lua` is
+	// silently ignored upstream: the artifact still carries classic's own
+	// default. A **built-in** theme is unaffected — `IsBuiltinTheme` guards it
+	// regardless of `hasScript`.
+	//
+	// **This must key on whether a script *file* exists, not on whether `script`
+	// is nil.** A script that exists but fails to parse, run or validate also
+	// hands this function a nil `script` — conflating the two used to discard a
+	// user's whole document on a theme with a merely-broken script, which is a
+	// worse outcome than upstream's (upstream refuses to render at all; this
+	// port would render with classic's silently-substituted colours instead of
+	// the ones the user asked for). That failure mode already has its own open
+	// finding (spec 014 §2 behavior 9 — a broken script should be reported, not
+	// silently ignored); this function does not compound it. Found by a
+	// fresh-context verifier (`specs/STATE.md`, iteration 14's third
+	// re-verification).
+	if !hasScript && !IsBuiltinTheme(theme) {
 		document = nil
 	}
 
