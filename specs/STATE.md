@@ -28,7 +28,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 11 | Markdown + HTML renderers | [011](011-markdown-and-html/spec.md) | **verified — FAIL, demoted from green.** 24/24 on the corpus, but a `"` in any CV breaks the HTML and raw HTML is dropped. Not green | 24 / 24 corpus, blockers open |
 | 12 | CLI (`new`, `render`, `create-theme`, overrides, watcher) | [012](012-cli/spec.md) | **in progress.** `render` and `new` are wired and their goldens pass, error panels included. `create-theme` is now registered and `--create-typst-templates`/`--create-markdown-templates` write their folders; two of their corpus cases stay red by construction under D-008. `err_not_yaml` is fixed. The five help panels are written and verified, four unreachable by construction under D-010; two more are D-011's unhandled-exception tracebacks | 34 / 42 `TestParity` cases (the suite has 42, not 43 — `manifest.json` was miscounted as a case), **not yet verified by a fresh context** |
 | 13 | Parity closeout (sample generator, version, error handler, packaging) | — | — | 0 |
-| 14 | Lua-scripted custom themes (D-002) + the two folder messages | [014](014-lua-custom-themes/spec.md) | **re-verified 2026-08-10 — FAIL, 12 findings.** 2 of 3 blockers fixed same day (`396b982`); the third needs the script loaded during validation, not render, and is cut to a future pass. Still not green | 1 blocker open, 9 minor/major findings recorded, not re-verified |
+| 14 | Lua-scripted custom themes (D-002) + the two folder messages | [014](014-lua-custom-themes/spec.md) | **re-verified 3×, 2026-08-10 — FAIL each time.** Every blocker each pass found is fixed (`396b982`, `31fc0fe`, `852d483`); each fix's own follow-up verifier pass still found a new gap in it, twice. The forbid-extra rejection on a scripted custom theme's unknown keys is cut to a future pass — needs the script loaded during validation, not render — and was not re-verified as still-open by the third pass, only assumed so. Spec/ledger text is stale in places (majors, open). Still not green | 0 blockers reproduced by the latest pass, 1 known gap cut forward, majors/minors recorded |
 
 ## Parity axes
 
@@ -1207,6 +1207,66 @@ finding 3 needs `theme_data_model_class`'s ForbidExtra semantics reproduced agai
 declared shape. That is a control-flow change to where in the pipeline a custom theme's script is
 read, not a local patch, and belongs in a scoped tasks.md unit rather than a rushed fix on top of a
 verification pass.
+
+## Iteration 14 re-verified a third time 2026-08-10 — FAIL, 8 findings, 3 blockers
+
+A fresh context checked blockers 1 and 2's fixes above by constructing real documents rather than
+trusting the commit messages, and found blocker 1's fix held exactly on the input it was written
+for while blocker 2's fix — and blocker 1's — each had a gap the first fix's own tests could not
+see.
+
+**Blockers, all 3 fixed same day (`31fc0fe`, `852d483`):**
+
+1. **Fixed (was a regression in the previous pass's own fix).** `withoutTreeConflicts` treated
+   `typography.font_family: Charter` — the one field in the whole tree where a bare scalar is a
+   **documented** override of a mapping (`deepMerge`'s own comment; spec 006 §3.2 behavior 14) — as
+   a shape conflict and silently discarded it on any custom theme. Upstream honors it; the
+   pre-regression binary did too. `withoutTreeConflicts` now checks the field's dotted path against
+   a named exemption (`fontFamilyPath`) before comparing shapes. Pinned by
+   `TestFontFamilyStringOverrideSurvivesTreeConflictPruning`.
+2. **Fixed (blocker 2 was not actually closed).** `withoutTreeConflicts` only compared *map vs
+   non-map*; a **list** where a scalar belongs — `page.size: [a4]` on `create-theme`'s own empty
+   `return {}` script — fell through untouched and still printed `<[]string Value>` into the
+   artifact at exit 0, the identical leak the previous pass's fix claimed to close. Generalized the
+   comparison to a three-way `shapeKind` (map/list/scalar). Pinned by
+   `TestAListWhereAScalarBelongsIsDropped`.
+3. **Fixed (worsened by the previous pass's blocker-1 fix).** The `script == nil` check the
+   no-script document-discard rule used cannot tell "no `init.lua` file" from "a script that
+   exists and fails to parse, run, or validate" — both hand `EffectiveWithScript` a nil `script`.
+   Conflating them meant a theme with a **broken** `init.lua` now silently discarded the user's
+   whole `design` block too, which is a worse outcome than before that fix shipped: upstream
+   refuses to render a broken script at all, and the port used to at least apply the user's
+   document, giving a visibly wrong result rather than a silently wrong one. `themeScript` now
+   returns whether an `init.lua` file exists at all, separately from whether it parsed;
+   `EffectiveWithScript` gained a `hasScript bool` parameter and only discards the document on the
+   true no-file case. Pinned by `TestABrokenScriptStillAppliesTheDocument`.
+
+**Majors, spec/ledger accuracy, still open:** `specs/014-lua-custom-themes/spec.md` §5 still reads
+"All four acceptance criteria met" and "not verified by a fresh context" — three fresh-context
+passes have now looked at this iteration and all three returned FAIL; the checked boxes in §4 are
+stale. `specs/divergences.md`'s D-002 entry has two more unverified claims beyond the ones already
+corrected: `rendercv-go create-theme` is described as generating `init.lua` "from the classic
+theme's option tree" when it actually writes an empty `return {}` plus a comment block
+(`internal/cli/customtheme.go:117-132`), and the "Instead" paragraph's justification — "themes that
+*compute* and *check* their own options" — cites an optional `validate` function nothing in
+`internal/schema/luatheme` ever looks for. Both need the same human gate as the two corrections
+already made in this file.
+
+**Minor:** `31fc0fe` and `852d483` are each still more than one logical fix by `AGENTS.md` §7's
+strict reading (shape-comparison generalization + the font-family exemption in one; the `hasScript`
+threading across two packages plus its test in the other) — smaller than `396b982`'s four units,
+recorded rather than re-split further. `just check`'s three pre-existing lint issues are unchanged.
+
+**Verified as actually holding, independently reproduced by the third-pass verifier**: blocker 1's
+original fix (script-less custom theme, byte-identical `.typ` against upstream); the scripted path
+unaffected (`create-theme`'s empty script still honors a document); nested conflicts, scalar-where-
+group, and the sandbox properties from earlier passes. `TestParity` unchanged at the same 8-case
+baseline — no regression from any of the three blocker fixes above, confirmed by both the verifier
+and a self-check after landing.
+
+**Not yet re-verified by a fresh context**: the three fixes in this section (self-checked and
+hand-reproduced against the verifier's own repro commands only, same caveat as the previous pass),
+and the majors/minor above. Iteration 14 stays demoted.
 
 ## Iteration 11 was verified and it failed — demoted from green
 
