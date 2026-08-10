@@ -14,7 +14,14 @@ import (
 //   - `1` fails. A bare number is not a dimension; the unit is required.
 //   - `1 cm` fails. No space is admitted between number and unit.
 //   - `-0.5in` passes. A negative dimension is legal, and Typst uses them.
-var typstDimensionPattern = regexp.MustCompile(`^-?\d+(?:\.\d+)?(?:cm|in|pt|mm|em)$`)
+//
+// **`\p{Nd}`, not `\d`.** Python's `\d` on a `str` (no `re.ASCII` flag) matches
+// every Unicode decimal-digit character, not just `0`-`9` — `"٢cm"` (an
+// Arabic-Indic 2) is a legal dimension upstream. Go's `\d` is ASCII-only; the
+// nearest equivalent is the Unicode general category `Nd`, which is what
+// Python's `\d` actually means here. Found by a fresh-context verifier
+// (iteration 14's non-colour-design-slice sweep).
+var typstDimensionPattern = regexp.MustCompile(`^-?\p{Nd}+(?:\.\p{Nd}+)?(?:cm|in|pt|mm|em)$`)
 
 // MessageBadTypstDimension is spec 006 §4A.1, verbatim
 // (typst_dimension.py:26-27). No dictionary row matches it, so the pipeline only

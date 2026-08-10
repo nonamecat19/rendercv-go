@@ -31,6 +31,13 @@ func TestValidTypstDimension(t *testing.T) {
 		{"1cmx", false},
 		{"", false},
 		{".5cm", false},
+
+		// **Python's `\d` on a `str` matches every Unicode decimal digit,
+		// not just ASCII.** `"٢cm"` is an Arabic-Indic 2. Found by a
+		// fresh-context verifier (iteration 14's non-colour-design-slice
+		// sweep).
+		{"٢cm", true},
+		{"١٢.٥mm", true},
 	}
 
 	for _, tc := range tests {
