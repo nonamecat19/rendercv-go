@@ -540,6 +540,15 @@ func (c Color) formatAlpha() string {
 		if c.alphaIsInt {
 			return "0"
 		}
+		// **`-0.0 == 0` is true in Go, and equality alone throws the sign
+		// away.** Python's `str(round(-0.0, 2))` is `'-0.0'`, not `'0.0'`
+		// — the same distinction this function already draws between an
+		// `int` zero and a `float` zero, one bit further down. Found by a
+		// fresh-context verifier (iteration 14's nineteenth
+		// re-verification).
+		if math.Signbit(rounded) {
+			return "-0.0"
+		}
 		return "0.0"
 	}
 	if rounded == 1 {
