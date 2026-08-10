@@ -162,6 +162,19 @@ cases instead of one.
 template set, and no corpus case names it — left for whoever picks up G-9. No fresh-context
 verification has run over this change.
 
+## `specs/012-cli/gaps.md`'s record caught up to the code — 2026-08-09
+
+All eleven G-numbered findings in `gaps.md` are now closed. Most of the work had already landed in
+earlier 2026-08-08 commits (`e78ad3d`, `c03fe1d`, `555d7e0`, `8594b5d`, and the usage-error commits
+behind G-1 through G-4) — the gap was in the ledger, not the binary, and this pass verified each
+one by hand against the vendored CLI before marking it closed rather than trusting the stale text.
+The one substantive fix in this pass: **`render --watch` now rejects** (exit 1, "not implemented")
+instead of silently doing a one-shot render and exiting 0 as though the flag had been honored
+(G-10). The watcher feature is still iteration 13's.
+
+`TestParity` is unchanged at 33/43 — none of this was reachable by the corpus, which is why the
+ledger could drift this far without a red test catching it.
+
 ## G-9 closed — 2026-08-09
 
 `new --create-markdown-templates` was declared and unread — the flag parsed, upstream writes a
