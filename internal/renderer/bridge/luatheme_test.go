@@ -143,6 +143,57 @@ func TestACorrectScriptStillApplies(t *testing.T) {
 	}
 }
 
+// **A script-less custom theme discards the whole document design block**, not
+// just the options a script would have declared. Upstream's fallback
+// (`ThemeOptionsAreNotProvided(theme=theme_name)`, `design.py:139-142`) carries
+// only `theme`; a document overriding `colors.name` on a theme with no
+// `init.lua` is silently ignored there, and the port used to merge it anyway
+// (verifier finding, iteration 14's second re-verification).
+func TestANoScriptCustomThemeDiscardsTheWholeDocument(t *testing.T) {
+	dir := t.TempDir()
+	input := filepath.Join(dir, "cv.yaml")
+	document := "cv:\n  name: John Doe\ndesign:\n  theme: mytheme\n  colors:\n    name: rgb(9, 9, 9)\n"
+	if err := os.WriteFile(input, []byte(document), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "mytheme"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "mytheme", "Preamble.j2.typ"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	node, err := yamlreader.ReadString(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	model, errs := models.Validate(node,
+		&valctx.ValidationContext{CurrentDate: now, InputFilePath: input}, schemaerr.SourceMain)
+	if len(errs) > 0 {
+		t.Fatalf("did not validate: %v", errs)
+	}
+	doc := bridge.Resolve(model, now)
+
+	classic := design.EffectiveString(design.Effective("classic", nil), "colors", "name")
+	if got := design.EffectiveString(doc.Design, "colors", "name"); got != classic {
+		t.Errorf("colors.name = %q, want classic's own default %q (document discarded)", got, classic)
+	}
+}
+
+// **A document value that conflicts with a *tree*-typed field leaks the same
+// way a script conflict does, on the theme `create-theme` itself writes.**
+// `create-theme` generates `init.lua` as `return {}` — an empty, but present,
+// script — so `luatheme.Validate` (which only walks keys the script declared)
+// sees nothing to flag, and `page.size: {a: 1}` used to merge straight through
+// to the template as a Go type name at exit 0.
+func TestADocumentConflictingWithTheTreeIsDropped(t *testing.T) {
+	doc := resolveWithTheme(t, "mytheme", `return {}`, "  page:\n    size:\n      a: 1\n")
+
+	if got := design.EffectiveString(doc.Design, "page", "size"); got != "us-letter" {
+		t.Errorf("page.size = %q, want the tree's own default, document's conflicting override dropped", got)
+	}
+}
+
 // A *document* value that mismatches what the script declared is dropped, and
 // the script's own value survives underneath it. `ValidateScript` alone
 // cannot catch this: `page.size` declared as a string is a perfectly valid
