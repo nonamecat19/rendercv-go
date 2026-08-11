@@ -438,5 +438,45 @@
  {
   "in": "**`a ` b`**",
   "want": "#strong[`a` b`]"
+ },
+ {
+  "in": "image ![alt](src.png) here",
+  "want": "image  here"
+ },
+ {
+  "in": "![a](u)",
+  "want": ""
+ },
+ {
+  "in": "a ![b](c) ![d](e) f",
+  "want": "a   f"
+ },
+ {
+  "in": "img only ![](x.png)",
+  "want": "img only"
+ },
+ {
+  "in": "img ![a](s.png \"t\") x",
+  "want": "img  x"
+ },
+ {
+  "in": "img no close ![a] x",
+  "want": "img no close !\\[a\\] x"
+ },
+ {
+  "in": "img ![a](u x",
+  "want": "img !\\[a\\](u x"
+ },
+ {
+  "in": "img nested ![a[b]c](d(e)f) x",
+  "want": "img nested  x"
+ },
+ {
+  "in": "not img \\![a](s.png) x",
+  "want": "not img !#link(\"s.png\")[a] x"
+ },
+ {
+  "in": "**![a](u)** x",
+  "want": "#strong[] x"
  }
 ]

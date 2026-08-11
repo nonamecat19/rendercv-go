@@ -128,6 +128,28 @@ func TestMarkdownToTypstFindings(t *testing.T) {
 			name: "an unclosed code span is text", in: "`a`` x", want: "`a`` x",
 		},
 		{
+			// `to_typst_string` has no `img` branch, so an image renders as
+			// nothing — and the link pattern must not see the `[alt](src)` half
+			// of it.
+			name: "an image renders as nothing",
+			in:   "image ![alt](src.png) here",
+			want: "image  here",
+		},
+		{
+			// NOIMG again: the `!` stays and the brackets are escaped when the
+			// image construct is incomplete.
+			name: "an incomplete image is not a link",
+			in:   "img no close ![a] x",
+			want: `img no close !\[a\] x`,
+		},
+		{
+			// `escape` outranks `link`, so an escaped bang is not the bang the
+			// NOIMG lookbehind is looking for.
+			name: "an escaped bang leaves a link",
+			in:   `not img \![a](s.png) x`,
+			want: `not img !#link("s.png")[a] x`,
+		},
+		{
 			// Line-by-line conversion: the asterisks do not pair across the
 			// newline.
 			name: "emphasis does not cross a line boundary",

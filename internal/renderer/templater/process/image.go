@@ -165,7 +165,7 @@ func matchBackticks[T ~[]byte | ~string](label T, start, width int) (T, int) {
 // It counts nesting, which is python-markdown's rule in both places: `getText`
 // balances `[` against `]` (`inlinepatterns.py:832-850`) and `getLink` balances
 // `(` against `)` (`:716-830`), so `![a[b]c](d(e)f)` keeps both inner pairs.
-func matchBracketed(line []byte, start int, open, close byte) ([]byte, int) {
+func matchBracketed[T ~[]byte | ~string](line T, start int, open, close byte) (T, int) {
 	depth := 1
 	for i := start; i < len(line); i++ {
 		switch line[i] {
@@ -178,5 +178,6 @@ func matchBracketed(line []byte, start int, open, close byte) ([]byte, int) {
 			}
 		}
 	}
-	return nil, -1
+	var none T
+	return none, -1
 }
