@@ -3,6 +3,7 @@ package cv
 import (
 	"github.com/nonamecat19/rendercv-go/internal/schema/binder"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv/entries"
+	"github.com/nonamecat19/rendercv-go/internal/schema/models/inputpath"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/valctx"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
@@ -177,6 +178,21 @@ func (c *Cv) validateField(
 		// arm reports — see ResolvePhoto for why the URL record must not exist.
 		if c.Photo == nil || c.Photo.Kind == yamldoc.KindNull {
 			return nil
+		}
+		// Both arms of the union take a `str`, so a non-string fails on type
+		// before either is tried. Reporting a *resolution* message for it —
+		// "The file `5` does not exist." — named a file the user never wrote,
+		// and for a mapping or a sequence, whose Raw is empty, it resolved the
+		// empty path and left the renderer to fail on `open :` at the end.
+		if c.Photo.Kind != yamldoc.KindString {
+			return []schemaerr.ValidationError{{
+				Code:           inputpath.CodePathType,
+				SchemaLocation: fieldLocation(location, "photo"),
+				YamlLocation:   &c.Photo.Span,
+				YamlSource:     source,
+				Message:        inputpath.MessagePathType,
+				Input:          schemaerr.RenderInput(c.Photo),
+			}}
 		}
 		photo, failure := ResolvePhoto(c.Photo.Raw, opts.Context)
 		c.PhotoValue = photo
