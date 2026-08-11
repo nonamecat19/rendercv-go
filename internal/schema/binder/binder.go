@@ -429,7 +429,7 @@ func checkValue(
 	}
 
 	if field.Value.isDate() {
-		if isNonScalar(value) {
+		if fitsNoScalarArm(value) {
 			return dateBranchErrors(field, value, location, source)
 		}
 		return checkScalar(field, value, location, source)
@@ -474,11 +474,30 @@ func checkValue(
 	return nil
 }
 
-// isNonScalar reports whether a value is a mapping or a sequence — the two
-// kinds that fit no arm of a date field's union.
-func isNonScalar(value *yamldoc.Node) bool {
-	return value != nil &&
-		(value.Kind == yamldoc.KindMapping || value.Kind == yamldoc.KindSequence)
+// fitsNoScalarArm reports whether a value fits no scalar arm of a field's
+// declared union: a mapping, a sequence, or a TaggedScalar. The last one is not
+// an afterthought — a `TaggedScalar` is an ordinary object with no relationship
+// to `str` or `int` (yamldoc/node.go:22-36), so `date: !!str x` fits the
+// `int | str` union exactly as poorly as `date: {}` does, and upstream reports
+// the same arms for both (measured on `cv.sections.e.0.date`).
+//
+// **Written as an exhaustive switch on purpose.** A kind that rejects by not
+// being named only rejects anything where `exhaustive` can see the omission.
+// Spelled as a chain of `==` tests, adding KindTagged to yamldoc flagged nothing
+// here and a tagged date rendered at exit 0. Any later predicate over Kind
+// belongs in this shape.
+func fitsNoScalarArm(value *yamldoc.Node) bool {
+	if value == nil {
+		return false
+	}
+	switch value.Kind {
+	case yamldoc.KindMapping, yamldoc.KindSequence, yamldoc.KindTagged:
+		return true
+	case yamldoc.KindNull, yamldoc.KindBool, yamldoc.KindInt,
+		yamldoc.KindFloat, yamldoc.KindString:
+		return false
+	}
+	return false
 }
 
 // dateBranchErrors reports one failure per declared union arm. See dateBranch
@@ -515,7 +534,7 @@ func checkScalar(
 	if field.Scalar == nil || value == nil {
 		return nil
 	}
-	if isNonScalar(value) || value.Kind == yamldoc.KindNull {
+	if fitsNoScalarArm(value) || value.Kind == yamldoc.KindNull {
 		return nil
 	}
 

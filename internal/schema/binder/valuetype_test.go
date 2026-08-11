@@ -276,3 +276,66 @@ func TestScalarRunsForValueAny(t *testing.T) {
 		})
 	}
 }
+
+// A TaggedScalar fits no arm of a date field's union, so it earns the same
+// per-arm list a mapping does — not a trip through the scalar parser.
+//
+// Measured on `cv.sections.e.0.date: !!str x`, where upstream reports
+// `Input should be a valid integer.` (the surviving `int` arm) at exit 1 while
+// the port rendered five artifacts at exit 0 with `x` printed as the date. The
+// same holds for an unregistered tag, and for `start_date`/`end_date`, whose
+// declared arm order puts `str` first.
+func TestATaggedScalarFitsNoDateArm(t *testing.T) {
+	spec := binder.Spec{Fields: []binder.Field{
+		{
+			Name:   "date",
+			Value:  binder.ValueArbitraryDate,
+			Scalar: func(string, bool) error { return nil },
+		},
+		{
+			Name:   "start_date",
+			Value:  binder.ValueExactDate,
+			Scalar: func(string, bool) error { return nil },
+		},
+	}}
+
+	tests := []struct {
+		name string
+		src  string
+		want []wantError
+	}{
+		{
+			name: "a standard tag",
+			src:  "date: !!str x\n",
+			want: []wantError{
+				{code: binder.CodeIntType, location: "date.int"},
+				{code: binder.CodeStringType, location: "date.str"},
+			},
+		},
+		{
+			name: "an unregistered tag",
+			src:  "date: !u x\n",
+			want: []wantError{
+				{code: binder.CodeIntType, location: "date.int"},
+				{code: binder.CodeStringType, location: "date.str"},
+			},
+		},
+		{
+			// The tag's own text still reaches the arms, so the Input Value
+			// column reads `2020` — a value the untagged field would accept.
+			name: "a tagged integer in an exact date",
+			src:  "start_date: !!str 2020\n",
+			want: []wantError{
+				{code: binder.CodeStringType, location: "start_date.str"},
+				{code: binder.CodeIntType, location: "start_date.int"},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, errs := binder.Bind(parse(t, test.src), spec, nil, schemaerr.SourceMain)
+			assertErrors(t, errs, test.want)
+		})
+	}
+}
