@@ -47,9 +47,7 @@ func (imageParser) Parse(_ ast.Node, block text.Reader, _ parser.Context) ast.No
 	}
 
 	image := ast.NewImage(&ast.Link{})
-	image.Destination = inner
-	splitDestination(&image.Destination, &image.Title)
-	image.Destination = trimSpaceBytes(image.Destination)
+	image.Destination, image.Title = parseDestination(inner)
 	// A String child rather than a Text one: the label is carried as bytes, not
 	// as a range of the source, because `matchBracketed` returns a slice of the
 	// line. `altText` collects both, and the attribute writer applies
@@ -59,6 +57,45 @@ func (imageParser) Parse(_ ast.Node, block text.Reader, _ parser.Context) ast.No
 	block.Advance(end)
 
 	return image
+}
+
+// parseDestination splits what stands between a link's parentheses into a
+// destination and an optional title.
+//
+// `RE_LINK` (`inlinepatterns.py:691`) tries an **angle-bracketed** form first —
+// `(<dest> "title")`, where the brackets are stripped and everything inside them
+// is the destination however it is spelled — and falls back to the scan that
+// `splitDestination` reproduces.
+func parseDestination(inner []byte) (destination, title []byte) {
+	if len(inner) > 0 && inner[0] == '<' {
+		if close := indexByteFrom(inner, '>', 1); close > 0 {
+			rest := trimSpaceBytes(inner[close+1:])
+			if quoted := dequote(rest); quoted != nil || len(rest) == 0 {
+				return trimSpaceBytes(inner[1:close]), quoted
+			}
+		}
+	}
+
+	destination = inner
+	splitDestination(&destination, &title)
+	return trimSpaceBytes(destination), title
+}
+
+func indexByteFrom(b []byte, c byte, from int) int {
+	for i := from; i < len(b); i++ {
+		if b[i] == c {
+			return i
+		}
+	}
+	return -1
+}
+
+// dequote returns the inside of a `'…'` or `"…"`, or nil when `b` is not quoted.
+func dequote(b []byte) []byte {
+	if len(b) < 2 || b[0] != b[len(b)-1] || (b[0] != '\'' && b[0] != '"') {
+		return nil
+	}
+	return b[1 : len(b)-1]
 }
 
 // resolveCodeSpans replaces every code span in an image label with its content.
