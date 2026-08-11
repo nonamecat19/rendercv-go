@@ -64,19 +64,23 @@ var converter = goldmark.New(
 			util.Prioritized(imageRenderer{writer: pythonMarkdownWriter}, 100),
 			util.Prioritized(codeSpanRenderer{writer: pythonMarkdownWriter}, 101),
 			util.Prioritized(linkRenderer{writer: pythonMarkdownWriter}, 103),
-			util.Prioritized(textRenderer{writer: pythonMarkdownWriter, inner: defaultNodeRendererFunc(
-				ast.KindText, html.NewRenderer(
-					html.WithUnsafe(), html.WithXHTML(),
-					html.WithWriter(pythonMarkdownWriter)),
-			)}, 104),
-			util.Prioritized(autoLinkRenderer{inner: defaultNodeRendererFunc(
-				ast.KindAutoLink, html.NewRenderer(
-					html.WithUnsafe(), html.WithXHTML(),
-					html.WithWriter(pythonMarkdownWriter)),
-			)}, 102),
+			util.Prioritized(textRenderer{writer: pythonMarkdownWriter, inner: defaultNodeRendererFunc(ast.KindText, defaultRenderer)}, 104),
+			util.Prioritized(blockRenderer{
+				writer: pythonMarkdownWriter,
+				inner: map[ast.NodeKind]renderer.NodeRendererFunc{
+					ast.KindParagraph: defaultNodeRendererFunc(ast.KindParagraph, defaultRenderer),
+					ast.KindTextBlock: defaultNodeRendererFunc(ast.KindTextBlock, defaultRenderer),
+				},
+			}, 105),
+			util.Prioritized(autoLinkRenderer{inner: defaultNodeRendererFunc(ast.KindAutoLink, defaultRenderer)}, 102),
 		),
 	),
 )
+
+// defaultRenderer is goldmark's own HTML renderer, kept so the node renderers
+// here can delegate the parts the two libraries already agree on.
+var defaultRenderer = html.NewRenderer(
+	html.WithUnsafe(), html.WithXHTML(), html.WithWriter(pythonMarkdownWriter))
 
 // pythonMarkdownWriter is shared between the converter and the image renderer so
 // the attribute cell and the text cell cannot drift apart.
