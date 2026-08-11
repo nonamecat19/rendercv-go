@@ -2,6 +2,7 @@ package yamlreader_test
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -488,5 +489,109 @@ func TestTabsInsideTheLegalRegions(t *testing.T) {
 				t.Errorf("err = %v, want the document to parse", err)
 			}
 		})
+	}
+}
+
+// A tag on a collection is transparent — spec 015 §5.1. ruamel's
+// `construct_unknown` branches on the *node's shape*, not on the tag
+// (`ruamel/yaml/constructor.py:1598-1610`), so a mapping stays a
+// `CommentedMap` and a sequence a `CommentedSeq` **even when the tag names a
+// scalar type**: `!!str [1,2]` is a sequence upstream.
+//
+// The reader had no tag case at all, so every one of these built a null and
+// the document lost its whole `cv` block — `cv: !!map` renders upstream and
+// was refused here.
+//
+// `!!str` (and any other *known scalar* tag) over a collection is absent on
+// purpose: goccy's parser refuses the document outright — `unexpected scalar
+// value type`, in both the flow and the block spelling — so it is not
+// something this case can reach, and it is recorded as a divergence instead.
+func TestTagOnACollectionIsTransparent(t *testing.T) {
+	tests := []struct {
+		name     string
+		tagged   string
+		untagged string
+	}{
+		{
+			name:     "mapping",
+			tagged:   "cv: !!map\n  name: John\n",
+			untagged: "cv:\n  name: John\n",
+		},
+		{
+			name:     "sequence",
+			tagged:   "cv: !!seq\n  - a\n  - b\n",
+			untagged: "cv:\n  - a\n  - b\n",
+		},
+		{
+			name:     "flow mapping",
+			tagged:   "cv: !!map {name: John}\n",
+			untagged: "cv: {name: John}\n",
+		},
+		{
+			name:     "an unknown tag on a mapping",
+			tagged:   "cv: !whatever\n  name: John\n",
+			untagged: "cv:\n  name: John\n",
+		},
+		{
+			name:     "a nested tagged mapping",
+			tagged:   "cv:\n  sections:\n    experience:\n      - !!map\n        company: Acme\n",
+			untagged: "cv:\n  sections:\n    experience:\n      - company: Acme\n",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tagged, err := yamlreader.ReadString(tc.tagged)
+			if err != nil {
+				t.Fatalf("ReadString(tagged) = %v", err)
+			}
+			untagged, err := yamlreader.ReadString(tc.untagged)
+			if err != nil {
+				t.Fatalf("ReadString(untagged) = %v", err)
+			}
+			if got := kindTree(value(t, tagged, "cv")); got != kindTree(value(t, untagged, "cv")) {
+				t.Errorf("tagged tree = %s, want the untagged %s",
+					got, kindTree(value(t, untagged, "cv")))
+			}
+		})
+	}
+}
+
+// A tag on the document root is transparent too, which is why `!!map` at the
+// top used to reach the `is None` predicate (`yaml_reader.py:55-57`) and print
+// the empty-file panel.
+func TestTagOnTheDocumentRootIsTransparent(t *testing.T) {
+	doc, err := yamlreader.ReadString("!!map\ncv:\n  name: John\n")
+	if err != nil {
+		t.Fatalf("ReadString = %v", err)
+	}
+	if doc.Kind != yamldoc.KindMapping {
+		t.Fatalf("root kind = %v, want a mapping", doc.Kind)
+	}
+	assertScalar(t, value(t, doc, "cv"), "name", "John")
+}
+
+// kindTree spells a node's shape and values compactly, so two trees can be
+// compared as strings — the point of the tag cases is that the tagged tree is
+// indistinguishable from the untagged one.
+func kindTree(node *yamldoc.Node) string {
+	if node == nil {
+		return "<nil>"
+	}
+	switch node.Kind {
+	case yamldoc.KindMapping:
+		parts := make([]string, 0, len(node.Items))
+		for _, item := range node.Items {
+			parts = append(parts, item.Key+":"+kindTree(item.Value))
+		}
+		return "{" + strings.Join(parts, ",") + "}"
+	case yamldoc.KindSequence:
+		parts := make([]string, 0, len(node.Elems))
+		for _, elem := range node.Elems {
+			parts = append(parts, kindTree(elem))
+		}
+		return "[" + strings.Join(parts, ",") + "]"
+	default:
+		return fmt.Sprintf("%d(%q)", node.Kind, node.Raw)
 	}
 }
