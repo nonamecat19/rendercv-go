@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/renderer"
 	"github.com/yuin/goldmark/renderer/html"
@@ -43,7 +44,8 @@ const pythonMarkdownTabLength = 4
 var converter = goldmark.New(
 	goldmark.WithParser(parser.NewParser(
 		parser.WithBlockParsers(withoutFencedCode(parser.DefaultBlockParsers())...),
-		parser.WithInlineParsers(parser.DefaultInlineParsers()...),
+		parser.WithInlineParsers(append(parser.DefaultInlineParsers(),
+			util.Prioritized(automailParser{}, 250))...),
 		parser.WithParagraphTransformers(parser.DefaultParagraphTransformers()...),
 		parser.WithASTTransformers(util.Prioritized(linkTitleSplitter{}, 100)),
 	)),
@@ -60,6 +62,11 @@ var converter = goldmark.New(
 			// list backwards, so the lowest priority is registered last.
 			util.Prioritized(imageRenderer{writer: pythonMarkdownWriter}, 100),
 			util.Prioritized(codeSpanRenderer{writer: pythonMarkdownWriter}, 101),
+			util.Prioritized(autoLinkRenderer{inner: defaultNodeRendererFunc(
+				ast.KindAutoLink, html.NewRenderer(
+					html.WithUnsafe(), html.WithXHTML(),
+					html.WithWriter(pythonMarkdownWriter)),
+			)}, 102),
 		),
 	),
 )
