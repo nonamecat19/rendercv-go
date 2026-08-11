@@ -83,6 +83,55 @@ func TestTableLinesAreAllTheSameWidth(t *testing.T) {
 	}
 }
 
+// Rich sanitizes every string it renders through `Text.__init__`
+// (`rich/text.py:156` → `rich/control.py:181`), which deletes exactly five
+// codepoints and leaves every other control character alone. Verified against
+// upstream with `design.page.size` probes: `"a\a4"`, `"a\b4"`, `"a\v4"`,
+// `"a\f4"` and `"a\r4"` all print `a4`, while `"a\x014"`, `"a\e4"` and
+// `"a\x7f4"` print the byte raw.
+func TestTableStripsTheControlCodesRichStrips(t *testing.T) {
+	cases := []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{"bell", "a\a4", "a4"},
+		{"backspace", "a\b4", "a4"},
+		{"vertical tab", "a\v4", "a4"},
+		{"form feed", "a\f4", "a4"},
+		{"carriage return", "a\r4", "a4"},
+		{"all five at once", "\a\b\va\f4\r", "a4"},
+		// Not in Rich's STRIP_CONTROL_CODES, so upstream emits them as-is.
+		{"start of heading", "a\x014", "a\x014"},
+		{"escape", "a\x1b4", "a\x1b4"},
+		{"delete", "a\x7f4", "a\x7f4"},
+		{"tab", "a\t4", "a\t4"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			row := []string{"design.page.size", c.value, "Input should be 'a4', 'a5', 'us-letter'"}
+			table := cli.Table(errorColumns, [][]string{row}, cli.PanelWidth-4)
+			if !strings.Contains(table, "│ "+c.want+" ") {
+				t.Errorf("cell %q did not render as %q:\n%s", c.value, c.want, table)
+			}
+		})
+	}
+}
+
+// A stripped character must not reserve a column either: upstream's `a\a4` row
+// is exactly as wide as every other, because `Text` sanitizes before Rich
+// measures anything.
+func TestTableMeasuresCellsAfterStripping(t *testing.T) {
+	explanation := "Input should be 'a4', 'a5', 'us-letter'"
+	stripped := cli.Table(errorColumns, [][]string{{"design.page.size", "a\a4", explanation}}, cli.PanelWidth-4)
+	plain := cli.Table(errorColumns, [][]string{{"design.page.size", "a4", explanation}}, cli.PanelWidth-4)
+
+	if stripped != plain {
+		t.Errorf("a bell changed the table geometry:\ngot\n%s\nwant\n%s", stripped, plain)
+	}
+}
+
 // A cell too long for a no-wrap column is cut with `…`, not folded — Rich's
 // default Column overflow, and what every long location in err_wrong_input shows.
 func TestNoWrapCellsAreTruncatedWithAnEllipsis(t *testing.T) {

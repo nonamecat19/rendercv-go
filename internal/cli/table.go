@@ -41,6 +41,22 @@ const ellipsis = "…"
 // A table that got any one of these wrong would still look plausible and would
 // differ from upstream on every row.
 func Table(columns []TableColumn, rows [][]string, maxWidth int) string {
+	// Every string Rich renders becomes a `Text`, whose constructor sanitizes
+	// it (`rich/text.py:156`). Do it once, before anything is measured, so the
+	// stripped characters cannot occupy a column.
+	columns = append([]TableColumn(nil), columns...)
+	for i := range columns {
+		columns[i].Header = stripControlCodes(columns[i].Header)
+	}
+	sanitized := make([][]string, len(rows))
+	for i, row := range rows {
+		sanitized[i] = make([]string, len(row))
+		for j, cell := range row {
+			sanitized[i][j] = stripControlCodes(cell)
+		}
+	}
+	rows = sanitized
+
 	// `box=ROUNDED` with the default edges: one divider per column plus the
 	// closing one.
 	widths := columnWidths(columns, rows, maxWidth, len(columns)+1)
@@ -308,6 +324,28 @@ func truncate(text string, width int) string {
 		return strings.Repeat(ellipsis, width)
 	}
 	return string([]rune(text)[:width-1]) + ellipsis
+}
+
+// stripControlCodes is Rich's `strip_control_codes`
+// (`rich/control.py:181-192`), which `Text.__init__` applies to every string
+// Rich is asked to render (`rich/text.py:156`).
+//
+// The set it removes is exactly five codepoints — `STRIP_CONTROL_CODES`
+// (`rich/control.py:9-15`) — and no others: a `\x01`, `\x1b` or `\x7f` in an
+// input value reaches upstream's terminal untouched, so it must reach ours too.
+// Tab and newline survive as well; Rich handles those elsewhere.
+func stripControlCodes(text string) string {
+	if !strings.ContainsAny(text, "\a\b\v\f\r") {
+		return text
+	}
+	return strings.Map(func(r rune) rune {
+		switch r {
+		case '\a', '\b', '\v', '\f', '\r':
+			return -1
+		default:
+			return r
+		}
+	}, text)
 }
 
 func sum(values []int) int {
