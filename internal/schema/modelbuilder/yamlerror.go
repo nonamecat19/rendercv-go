@@ -91,6 +91,13 @@ func yamlSyntaxValidationError(
 // first line, measured against the vendored Python.
 var ruamelPhrasing = []struct{ goccy, ruamel string }{
 	{"sequence end token", "while parsing a flow sequence"},
+	// **A block line that breaks an open flow collection is a third shape.**
+	// goccy phrases it by the closer it wanted, and it is not the
+	// unterminated-to-EOF case: `cv: [a` followed by `b: c` stops *at* the
+	// block line rather than running to the end of the stream, so it needs its
+	// own location rule too (see flowInterruptedLocation).
+	{"']' must be specified", "while parsing a flow sequence"},
+	{"'}' must be specified", "while parsing a flow mapping"},
 	{"flow map", "while parsing a flow mapping"},
 	{"quoted text", "while scanning a quoted scalar"},
 	{"tab character", "while scanning for the next token"},
@@ -203,6 +210,70 @@ func flowNodeExpectedAtEOF(message, content string) bool {
 	default:
 		return false
 	}
+}
+
+// outermostFlowOpenLine returns the line of the outermost flow delimiter that
+// is still open when line `before` is reached — ruamel's context mark for a
+// flow collection a block line interrupted.
+//
+// It is the *outermost* one, not the nearest: `cv: [[a` broken on the next
+// line reports line 1 for the outer `[`, and both open on the same line
+// anyway. Quotes are honoured so a bracket inside a scalar does not count.
+func outermostFlowOpenLine(content string, before int) int {
+	depth, openedAt := 0, 0
+	line := 1
+	inSingle, inDouble, inComment := false, false, false
+	var prev byte
+
+	for i := 0; i < len(content) && line < before; i++ {
+		c := content[i]
+		if c == '\n' {
+			line++
+			inComment = false
+			prev = c
+			continue
+		}
+
+		switch {
+		case inComment:
+		case inSingle:
+			if c == '\'' {
+				inSingle = false
+			}
+		case inDouble:
+			if c == '\\' && i+1 < len(content) {
+				i++
+				break
+			}
+			if c == '"' {
+				inDouble = false
+			}
+		case c == '#' && (prev == 0 || prev == ' ' || prev == '\t' || prev == '\n'):
+			inComment = true
+		case c == '\'':
+			inSingle = true
+		case c == '"':
+			inDouble = true
+		case c == '[' || c == '{':
+			if depth == 0 {
+				openedAt = line
+			}
+			depth++
+		case c == ']' || c == '}':
+			if depth > 0 {
+				depth--
+			}
+			if depth == 0 {
+				openedAt = 0
+			}
+		}
+		prev = c
+	}
+
+	if depth == 0 {
+		return 0
+	}
+	return openedAt
 }
 
 // mappingStartLine finds the line where the block mapping containing a key at
@@ -366,6 +437,21 @@ func yamlErrorLocation(parserErr goyaml.Error, content string) *yamldoc.Span {
 	if flowNodeExpectedAtEOF(message, content) {
 		eof := yamldoc.Position{Line: strings.Count(content, "\n") + 1, Column: 1}
 		return &yamldoc.Span{Start: eof, End: eof}
+	}
+
+	// **A block line that interrupted an open flow collection** spans from the
+	// delimiter that opened it to the line that broke it. goccy's token is
+	// ruamel's *problem* mark here — the opposite of the unterminated-to-EOF
+	// shapes, where the token is its context mark — so the opening delimiter is
+	// recovered from the source instead. Measured: `cv: [a\nb: c\nd: e` is
+	// `line 1 to line 2`, not to EOF.
+	if strings.Contains(message, "must be specified") {
+		if open := outermostFlowOpenLine(content, start.Line); open > 0 && open < start.Line {
+			return &yamldoc.Span{
+				Start: yamldoc.Position{Line: open, Column: 1},
+				End:   start,
+			}
+		}
 	}
 
 	// **A duplicate key spans the enclosing mapping, not the key.** ruamel's

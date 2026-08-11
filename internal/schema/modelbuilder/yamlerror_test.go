@@ -642,3 +642,83 @@ func TestBadIndentationStaysSingleLine(t *testing.T) {
 			span.Start.Line, span.End.Line)
 	}
 }
+
+// TestFlowInterruptedByABlockLine pins ruamel's fourth span shape, and the
+// third distinct phrasing for an unterminated flow collection.
+//
+// goccy reports `',' or ']' must be specified` when a block line breaks an
+// open flow collection, which no phrasing row covered — so the raw goccy text,
+// `[line:col]` prefix included, reached the user, at the wrong location.
+//
+// It is **not** the unterminated-to-EOF shape: ruamel stops at the line that
+// broke the flow rather than running to the end of the stream, so
+// `cv: [a\nb: c\nd: e` is `line 1 to line 2`. Here goccy's token is ruamel's
+// *problem* mark, the opposite of the EOF shapes where it is the context mark,
+// and the opening delimiter is recovered from the source.
+//
+// The last row is the control: `c: d` is legal flow content, so that document
+// really does run to EOF and must keep taking the older path.
+func TestFlowInterruptedByABlockLine(t *testing.T) {
+	tests := []struct {
+		name               string
+		src                string
+		startLine, endLine int
+		want               string
+	}{
+		{
+			name: "a block line after a flow sequence", src: "cv: [a\nb: c\n",
+			startLine: 1, endLine: 2,
+			want: "This is not a valid YAML file. while parsing a flow sequence.",
+		},
+		{
+			name: "the break is not the end of the file", src: "cv: [a\nb: c\nd: e\n",
+			startLine: 1, endLine: 2,
+			want: "This is not a valid YAML file. while parsing a flow sequence.",
+		},
+		{
+			name: "a block line after a flow mapping", src: "cv: {a: 1\nb: c\n",
+			startLine: 1, endLine: 2,
+			want: "This is not a valid YAML file. while parsing a flow mapping.",
+		},
+		{
+			// The outermost delimiter, not the nearest.
+			name: "nested flow collections", src: "cv: [[a\nb: c\n",
+			startLine: 1, endLine: 2,
+			want: "This is not a valid YAML file. while parsing a flow sequence.",
+		},
+		{
+			name: "the flow opens on a later line", src: "x: 1\ncv: [a\nb: c\n",
+			startLine: 2, endLine: 3,
+			want: "This is not a valid YAML file. while parsing a flow sequence.",
+		},
+		{
+			// `c: d` is a legal flow pair, so this one genuinely reaches EOF.
+			name: "a legal flow pair runs to EOF", src: "cv: [a,\n  b,\nc: d\n",
+			startLine: 1, endLine: 4,
+			want: "This is not a valid YAML file. while parsing a flow sequence.",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := ReadYamlWithValidationErrors(test.src, schemaerr.SourceMain)
+
+			var userErr *schemaerr.UserValidationError
+			if !errors.As(err, &userErr) {
+				t.Fatalf("expected *schemaerr.UserValidationError, got %T: %v", err, err)
+			}
+
+			if got := userErr.Errors[0].Message; got != test.want {
+				t.Errorf("message =\n  %q\nwant\n  %q", got, test.want)
+			}
+			span := userErr.Errors[0].YamlLocation
+			if span == nil {
+				t.Fatal("yaml location = nil, want a span")
+			}
+			if span.Start.Line != test.startLine || span.End.Line != test.endLine {
+				t.Errorf("location = line %d to line %d, want line %d to line %d",
+					span.Start.Line, span.End.Line, test.startLine, test.endLine)
+			}
+		})
+	}
+}
