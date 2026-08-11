@@ -124,7 +124,7 @@ func TestParserMessageNormalization(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := parserMessage(tc.text); got != tc.want {
+			if got := parserMessage(tc.text, ""); got != tc.want {
 				t.Errorf("parserMessage(%q) = %q, want %q", tc.text, got, tc.want)
 			}
 		})
@@ -311,6 +311,92 @@ func TestUnterminatedFlowSequenceSpansToEOF(t *testing.T) {
 	}
 	if span.End.Line != 2 {
 		t.Errorf("end line = %d, want 2 (EOF, one newline after the `[`)", span.End.Line)
+	}
+}
+
+// TestFlowNodeShapeReportsAtEOF pins the second of ruamel's two phrasings for
+// an unterminated flow collection. goccy reports `cv: [` and `cv: [a`
+// identically (`sequence end token ']' not found`), but ruamel does not: it
+// says `while parsing a flow node` when the stream ended while it was waiting
+// for a *node*, and puts both of its marks at EOF, so the location is a single
+// line rather than a span.
+//
+// Before this fix the port answered `line 1 to line 2` / `flow sequence` for
+// every one of these, which relaid the whole error table and put it 186 bytes
+// away from upstream's.
+//
+// Every want below is measured against ruamel on the same input: `context`,
+// `context_mark.line+1` and `problem_mark.line+1` read off the raised
+// exception, then confirmed end to end against the vendored CLI.
+func TestFlowNodeShapeReportsAtEOF(t *testing.T) {
+	tests := []struct {
+		name string
+		src  string
+		line int
+	}{
+		{name: "an empty flow sequence", src: "cv: [\n", line: 2},
+		{name: "an empty flow mapping", src: "cv: {\n", line: 2},
+		{name: "a trailing comma in a sequence", src: "cv: [a,\n", line: 2},
+		{name: "a trailing comma in a mapping", src: "cv: {a: 1,\n", line: 2},
+		{name: "a comment after the delimiter", src: "cv: [ # hi\n", line: 2},
+		{name: "a blank line after the delimiter", src: "cv: [\n   \n", line: 3},
+		{name: "a nested empty sequence", src: "cv: [[\n", line: 2},
+		{name: "a comment after a comma", src: "cv: [a, # hi\n", line: 2},
+	}
+
+	const want = "This is not a valid YAML file. while parsing a flow node."
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := ReadYamlWithValidationErrors(test.src, schemaerr.SourceMain)
+
+			var userErr *schemaerr.UserValidationError
+			if !errors.As(err, &userErr) {
+				t.Fatalf("expected *schemaerr.UserValidationError, got %T: %v", err, err)
+			}
+
+			if got := userErr.Errors[0].Message; got != want {
+				t.Errorf("message =\n  %q\nwant\n  %q", got, want)
+			}
+
+			span := userErr.Errors[0].YamlLocation
+			if span == nil {
+				t.Fatal("yaml location = nil, want a single-line location at EOF")
+			}
+			// Both of ruamel's marks are at EOF here, so the two must be equal:
+			// an unequal pair renders as `line N to line M` and would be the
+			// sequence form's answer.
+			if span.Start.Line != test.line || span.End.Line != test.line {
+				t.Errorf("location = line %d to line %d, want line %d only",
+					span.Start.Line, span.End.Line, test.line)
+			}
+		})
+	}
+}
+
+// TestQuotedContentIsNotADelimiter guards the quote-awareness of
+// lastSignificantByte: a `[` or a `#` inside a quoted scalar is content, so
+// these stay the *sequence* form. Measured against ruamel: both report
+// `while parsing a flow sequence`, line 1 to line 2.
+func TestQuotedContentIsNotADelimiter(t *testing.T) {
+	for _, src := range []string{"cv: [\"a#b\"\n", "cv: [\"a[\"\n"} {
+		t.Run(src, func(t *testing.T) {
+			_, err := ReadYamlWithValidationErrors(src, schemaerr.SourceMain)
+
+			var userErr *schemaerr.UserValidationError
+			if !errors.As(err, &userErr) {
+				t.Fatalf("expected *schemaerr.UserValidationError, got %T: %v", err, err)
+			}
+
+			const want = "This is not a valid YAML file. while parsing a flow sequence."
+			if got := userErr.Errors[0].Message; got != want {
+				t.Errorf("message =\n  %q\nwant\n  %q", got, want)
+			}
+			span := userErr.Errors[0].YamlLocation
+			if span == nil || span.Start.Line != 1 || span.End.Line != 2 {
+				t.Errorf("location = %+v, want line 1 to line 2", span)
+			}
+		})
 	}
 }
 
