@@ -69,6 +69,21 @@ func TestMarkdownToTypstFindings(t *testing.T) {
 		},
 		{"an indented line is a code block", "    x", "`x\n`"},
 		{
+			// `code_escape` again (blockprocessors.py:269,276), on the block
+			// this time: `&` first, so the `&lt;`/`&gt;` it just produced keep
+			// their single ampersand.
+			name: "a code block's body is HTML-escaped",
+			in:   "    x <y> &copy;",
+			want: "`x &lt;y&gt; &amp;copy;\n`",
+		},
+		{
+			// The admonition path does not go through the block processor, so
+			// its four-space indent escapes nothing.
+			name: "an admonition's body is not HTML-escaped",
+			in:   "!!! note\n    a & b",
+			want: "#summary[a & b]",
+		},
+		{
 			// EMPHASIS_RE's body admits no asterisk, so this is three emphases
 			// rather than one containing a strong.
 			name: "a strong inside an emphasis splits it",

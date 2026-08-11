@@ -89,6 +89,13 @@ func convertLine(line string) string {
 	// It reaches a real document through a highlight that happens to start
 	// indented; `process_summary`'s four-space indent does not, because its
 	// lines are inside an admonition block that is converted as a unit.
+	//
+	// The block's text is HTML-escaped on the way in —
+	// `util.code_escape(block.rstrip())` (`markdown/blockprocessors.py:269`
+	// and `:276`) — the second of `code_escape`'s two call sites, the other
+	// being the inline code span. `to_typst_string`'s `code` branch emits the
+	// text verbatim (`markdown_parser.py:42-45`), so an indented `a & b`
+	// has to become `` `a &amp; b\n` `` here or nowhere.
 	if isHorizontalRule(line) {
 		return ""
 	}
@@ -96,7 +103,7 @@ func convertLine(line string) string {
 	// A tab counts as the same indent.
 	for _, indent := range []string{"    ", "\t"} {
 		if body, indented := strings.CutPrefix(line, indent); indented {
-			return "`" + body + "\n`"
+			return "`" + codeEscape(body) + "\n`"
 		}
 	}
 	return strings.TrimSpace(ParseInline(line))
