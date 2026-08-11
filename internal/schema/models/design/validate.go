@@ -163,10 +163,37 @@ func Validate(
 				blockError(node, CodeTheme, err.Error(), location, source),
 			}
 		}
-		// Its options are its own; the built-in tree does not describe them.
-		return nil
+		// **The theme's script is loaded here**, which is where upstream loads
+		// it: `validate_design` imports `<theme>/__init__.py` immediately after
+		// the two folder checks and instantiates the class it finds with the
+		// whole `design` block (`design.py:90-135`). The port read
+		// `<theme>/init.lua` only at render time until now, so a custom theme's
+		// declared shape did not exist at validation time at all and this
+		// function could do nothing but return.
+		script := LoadThemeScript(relativeTo(ctx), theme.Raw)
+		return validateScriptedTheme(node, script, location, source)
 	}
 	return validateModel(node, baseTree(), baseTree().Root, theme.Raw, location, source)
+}
+
+// validateScriptedTheme is where a custom theme's `design` block is judged
+// against the shape its script declared — upstream's
+// `theme_data_model_class(**design)` (`design.py:135`).
+//
+// **It reports nothing yet, deliberately.** Loading the script during
+// validation is one unit and the checks that read the loaded shape are others,
+// so this lands as the seam they plug into rather than bundled with them: a
+// regression in the loading is then separable from a regression in a check.
+// Until they land, a custom theme's options are its own, which is what this
+// function returning nothing means.
+func validateScriptedTheme(
+	node *yamldoc.Node,
+	script ThemeScript,
+	location []string,
+	source schemaerr.YamlSource,
+) []schemaerr.ValidationError {
+	_, _, _, _ = node, script, location, source
+	return nil
 }
 
 // isBuiltIn answers the question pydantic's discriminated union answers, which
