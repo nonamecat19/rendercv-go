@@ -212,6 +212,9 @@ func (c *Cv) validateField(
 		return []schemaerr.ValidationError{located}
 
 	case "social_networks":
+		if errs := listShape(c.SocialNetworks, location, "social_networks", source); errs != nil {
+			return errs
+		}
 		if c.SocialNetworks == nil || c.SocialNetworks.Kind != yamldoc.KindSequence {
 			return nil
 		}
@@ -224,6 +227,9 @@ func (c *Cv) validateField(
 		return errs
 
 	case "custom_connections":
+		if errs := listShape(c.CustomConnections, location, "custom_connections", source); errs != nil {
+			return errs
+		}
 		if c.CustomConnections == nil || c.CustomConnections.Kind != yamldoc.KindSequence {
 			return nil
 		}
@@ -237,6 +243,20 @@ func (c *Cv) validateField(
 
 	case "sections":
 		// Spec §3.53-§3.61: every section, in input order.
+		if c.Sections != nil && c.Sections.Kind != yamldoc.KindNull &&
+			c.Sections.Kind != yamldoc.KindMapping {
+			// `sections` is `dict[str, list[...]]`, so a non-mapping is
+			// pydantic's `dict_type` and nothing under it is looked at.
+			// Skipping it silently rendered a CV from `sections: abc`.
+			return []schemaerr.ValidationError{{
+				Code:           binder.CodeDictType,
+				SchemaLocation: fieldLocation(location, "sections"),
+				YamlLocation:   &c.Sections.Span,
+				YamlSource:     source,
+				Message:        binder.MessageDictType,
+				Input:          schemaerr.RenderInput(c.Sections),
+			}}
+		}
 		if c.Sections == nil || c.Sections.Kind != yamldoc.KindMapping || opts.Registry == nil {
 			return nil
 		}
@@ -269,4 +289,30 @@ func (c *Cv) fieldNode(name string) (*yamldoc.Node, bool) {
 	default:
 		return nil, false
 	}
+}
+
+// listShape is the sequence check the two list-valued `cv` fields share. Both
+// are `list[...]` with a default of None, so a null passes and every other
+// non-sequence is pydantic's `list_type` — which the port skipped silently,
+// rendering a CV from `social_networks: 5` where upstream exits 1.
+//
+// It returns nil when the value is a sequence, a null or absent, which is what
+// the caller's `if` reads.
+func listShape(
+	node *yamldoc.Node,
+	location []string,
+	field string,
+	source schemaerr.YamlSource,
+) []schemaerr.ValidationError {
+	if node == nil || node.Kind == yamldoc.KindNull || node.Kind == yamldoc.KindSequence {
+		return nil
+	}
+	return []schemaerr.ValidationError{{
+		Code:           binder.CodeListType,
+		SchemaLocation: fieldLocation(location, field),
+		YamlLocation:   &node.Span,
+		YamlSource:     source,
+		Message:        binder.MessageListType,
+		Input:          schemaerr.RenderInput(node),
+	}}
 }
