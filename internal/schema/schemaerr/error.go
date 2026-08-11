@@ -1,6 +1,9 @@
 package schemaerr
 
 import (
+	"errors"
+	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
@@ -130,9 +133,8 @@ func RenderInput(node *yamldoc.Node) string {
 		// design field — showed the wrong case in the table. The function
 		// already made this distinction for `null`/`None`; it was only
 		// inconsistent for its bool arm. Found by a fresh-context verifier
-		// (iteration 14's fourteenth re-verification). The integer arm below
-		// closes the same gap for a numeric literal; the float one is still
-		// open.
+		// (iteration 14's fourteenth re-verification). The integer and float
+		// arms below close the same gap for a numeric literal.
 		if yamldoc.BoolIsTrue(node.Raw) {
 			return "True"
 		}
@@ -145,14 +147,20 @@ func RenderInput(node *yamldoc.Node) string {
 		// (`+905419999999`), the likeliest real CV to reach it. Measured on
 		// fourteen spellings through upstream's own loader.
 		//
-		// The float half of the same gap is still open: it needs Python's
-		// shortest-round-trip `repr`, not a FormatFloat call. Deferred since
-		// iteration 14's pass 13.
+		// The float half is pythonFloatText, below.
 		if text, ok := pythonIntText(node.Raw); ok {
 			return text
 		}
 		return node.Raw
-	case yamldoc.KindFloat, yamldoc.KindString, yamldoc.KindTagged:
+	case yamldoc.KindFloat:
+		// The float half of the same gap, and the last of it: `str(1e400)` is
+		// `inf`, `str(-.inf)` is `-inf`, `str(1e308)` is `1e+308` and
+		// `str(1.50)` is `1.5`. None of those is the token.
+		if text, ok := pythonFloatText(node.Raw); ok {
+			return text
+		}
+		return node.Raw
+	case yamldoc.KindString, yamldoc.KindTagged:
 		// KindTagged belongs with the scalars that render as written: a
 		// `TaggedScalar`'s `str()` is its value
 		// (`ruamel/yaml/constructor.py:1619-1621`), so `cv.name: !!str Bob`
@@ -202,4 +210,112 @@ func pythonIntText(raw string) (string, bool) {
 	}
 	// `-0` is `0`: Python has no negative zero for an int.
 	return strconv.FormatInt(value, 10), true
+}
+
+// pythonFloatText is `str(float)` for a YAML float token — Python's
+// shortest-round-trip `repr`, which is **not** any single strconv.FormatFloat
+// call.
+//
+// Two rules, both CPython's `format_float_short` (Objects/floatobject.c, via
+// `PyOS_double_to_string(v, 'r', 0, Py_DTSF_ADD_DOT_0)`):
+//
+//  1. The digits are the shortest that round-trip, which strconv gives with a
+//     precision of -1.
+//  2. The **form** is decimal when `-4 < decpt <= 16` and exponential
+//     otherwise, where decpt is the decimal point's position in the digit
+//     string. Go's 'g' switches on the digit count instead, so it writes
+//     `1e+16` as `1e+16` but `1e+15` as `1e+15` where Python writes
+//     `1000000000000000.0`. A decimal form always carries a fractional part,
+//     which is where the `.0` comes from; an exponential one always signs its
+//     exponent and pads it to two digits.
+//
+// It reports false for a token it cannot read, leaving the caller with the raw
+// text rather than a wrong number.
+func pythonFloatText(raw string) (string, bool) {
+	value, ok := parseYAMLFloat(raw)
+	if !ok {
+		return "", false
+	}
+
+	switch {
+	case math.IsNaN(value):
+		return "nan", true
+	case math.IsInf(value, 1):
+		return "inf", true
+	case math.IsInf(value, -1):
+		return "-inf", true
+	}
+
+	sign := ""
+	if math.Signbit(value) {
+		sign, value = "-", -value
+	}
+
+	// 'e' with precision -1 is the shortest round-trip digit string, from which
+	// both forms are built: `d.dddde±dd`.
+	digits, exponent := splitScientific(strconv.FormatFloat(value, 'e', -1, 64))
+
+	// decpt is the decimal point's position within digits.
+	decpt := exponent + 1
+	if decpt <= -4 || decpt > 16 {
+		mantissa := digits[:1]
+		if len(digits) > 1 {
+			mantissa += "." + digits[1:]
+		}
+		return fmt.Sprintf("%s%se%+03d", sign, mantissa, exponent), true
+	}
+
+	switch {
+	case decpt <= 0:
+		return sign + "0." + strings.Repeat("0", -decpt) + digits, true
+	case decpt >= len(digits):
+		return sign + digits + strings.Repeat("0", decpt-len(digits)) + ".0", true
+	default:
+		return sign + digits[:decpt] + "." + digits[decpt:], true
+	}
+}
+
+// parseYAMLFloat reads a float token the way ruamel's resolver does: the YAML
+// 1.1 infinity and not-a-number spellings by name, everything else through the
+// ordinary parser with its digit separators removed.
+//
+// An out-of-range token is a value, not a failure: `float("1e400")` is `inf` in
+// Python, and Go returns ±Inf together with ErrRange (yamlreader/resolve.go:184-191).
+func parseYAMLFloat(raw string) (float64, bool) {
+	text := strings.ReplaceAll(raw, "_", "")
+
+	sign := 1.0
+	switch {
+	case strings.HasPrefix(text, "-"):
+		sign, text = -1, text[1:]
+	case strings.HasPrefix(text, "+"):
+		text = text[1:]
+	}
+
+	switch text {
+	case ".inf", ".Inf", ".INF":
+		return sign * math.Inf(1), true
+	case ".nan", ".NaN", ".NAN":
+		return math.NaN(), true
+	}
+
+	value, err := strconv.ParseFloat(text, 64)
+	if err != nil && !errors.Is(err, strconv.ErrRange) {
+		return 0, false
+	}
+	return sign * value, true
+}
+
+// splitScientific reads strconv's `d.ddde±dd` back into its digit string and
+// its exponent.
+func splitScientific(text string) (digits string, exponent int) {
+	mantissa, exp, found := strings.Cut(text, "e")
+	if !found {
+		return text, 0
+	}
+	exponent, err := strconv.Atoi(exp)
+	if err != nil {
+		return mantissa, 0
+	}
+	return strings.Replace(mantissa, ".", "", 1), exponent
 }
