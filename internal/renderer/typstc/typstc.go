@@ -219,7 +219,11 @@ func run(
 
 	module, err := engine.runtime.InstantiateModule(ctx, engine.module, config)
 	if module != nil {
-		defer module.Close(ctx)
+		// Closing frees the instance's memory. Its error cannot inform the
+		// caller — the compile has already produced its exit code and its
+		// stderr by this point — but it must be acknowledged rather than
+		// dropped silently.
+		defer func() { _ = module.Close(ctx) }()
 	}
 	if err == nil {
 		return 0, nil
