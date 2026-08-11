@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -99,8 +100,18 @@ func repoRoot(t *testing.T) string {
 	}
 }
 
-// binaries returns the absolute paths of the two CLIs, skipping the test when
-// either is missing.
+// skipEnvVar is the explicit opt-out that turns a missing binary back into a
+// skip.
+//
+// The default is a hard failure, because a skip here is indistinguishable from
+// a pass in the run that gates the iteration: `just test-parity` (`justfile:58`)
+// depends on `build`, so the port binary is always present, but **nothing
+// creates the vendored venv**, and a skipped differential still prints `ok`.
+// A gate that disappears when its subject is missing is not a gate.
+const skipEnvVar = "RENDERCV_DIFF_ALLOW_SKIP"
+
+// binaries returns the absolute paths of the two CLIs. A missing binary fails
+// the test unless skipEnvVar is set to a true boolean.
 func binaries(t *testing.T) (upstream, port string) {
 	t.Helper()
 
@@ -109,10 +120,32 @@ func binaries(t *testing.T) (upstream, port string) {
 	port = filepath.Join(root, portBinary)
 	for _, bin := range []string{upstream, port} {
 		if _, err := os.Stat(bin); err != nil {
-			t.Skipf("%s is absent — run `just setup` and `just build` (%v)", bin, err)
+			if allowSkip(t) {
+				t.Skipf("%s is absent and %s is set (%v)", bin, skipEnvVar, err)
+			}
+			t.Fatalf("%s is absent, so this differential would silently not run — "+
+				"run `just setup` and `just build`, or set %s=1 to skip it on purpose (%v)",
+				bin, skipEnvVar, err)
 		}
 	}
 	return upstream, port
+}
+
+// allowSkip reads skipEnvVar. An unparseable value is a failure rather than a
+// silent false: a typo in the opt-out must not read as "run the gate" any more
+// than it reads as "skip it".
+func allowSkip(t *testing.T) bool {
+	t.Helper()
+
+	raw, ok := os.LookupEnv(skipEnvVar)
+	if !ok || raw == "" {
+		return false
+	}
+	allow, err := strconv.ParseBool(raw)
+	if err != nil {
+		t.Fatalf("%s=%q is not a boolean: %v", skipEnvVar, raw, err)
+	}
+	return allow
 }
 
 // childEnv is the smallest environment both binaries need, with COLUMNS pinned:
