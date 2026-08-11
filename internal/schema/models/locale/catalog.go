@@ -33,10 +33,17 @@ var catalogFields = []binder.Field{
 	// both rendered at exit 0 where upstream rejects each. An audit measured
 	// four such documents. `phrases` is a nested model, so its own unknown-key
 	// rule is `ValidatePhrases` below; the shape check belongs here.
-	// `phrases` is still untyped: the binder has no mapping shape to declare, so
-	// `phrases: hello` and `phrases: {bogus: x}` are **still accepted** where
-	// upstream rejects both. Recorded in `STATE.md` rather than half-fixed.
-	{Name: "phrases"},
+	// `phrases` is a nested model, so a non-mapping is a `model_type` failure
+	// naming it: `phrases: 5` is "Input should be a valid dictionary or instance
+	// of Phrases." An explicit null is one too — the field is `Phrases` with a
+	// default, not `Phrases | None` — which is what TypeRejectsNull says. The
+	// name is `Phrases` for every language, measured on english, danish and
+	// turkish; the variant generator does not suffix it the way the JSON schema
+	// does.
+	//
+	// Its own unknown-key rule is still missing: `phrases: {bogus: x}` is
+	// accepted where upstream rejects it. Recorded in `STATE.md`.
+	{Name: "phrases", Value: binder.ValueModel, Model: "Phrases", TypeRejectsNull: true},
 	{Name: "month_abbreviations", Value: binder.ValueStringList},
 	{Name: "month_names", Value: binder.ValueStringList},
 }

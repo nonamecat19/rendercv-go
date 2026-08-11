@@ -200,3 +200,67 @@ func TestMonthBoundAppliesToEnglishOnly(t *testing.T) {
 		})
 	}
 }
+
+// `phrases` is a nested model, so a non-mapping is a `model_type` failure that
+// names it, and an explicit null is one too: the field is `Phrases` with a
+// default, not `Phrases | None`.
+//
+// Measured on 5, a sequence, a string, a tagged scalar and null — 1411 bytes at
+// exit 1 each, where the port accepted every one of them and rendered the CV.
+// The name is `Phrases` for every language, measured on english, danish and
+// turkish.
+func TestPhrasesMustBeAMapping(t *testing.T) {
+	const want = "Input should be a valid dictionary or instance of Phrases"
+
+	for _, src := range []string{"5", "[a]", "abc", "!!str x", "null"} {
+		t.Run(src, func(t *testing.T) {
+			node, err := yamlreader.ReadString("language: english\nphrases: " + src + "\n")
+			if err != nil {
+				t.Fatalf("ReadString: %v", err)
+			}
+
+			errs := locale.ValidateCatalog(node, "english", []string{"locale"}, schemaerr.SourceMain)
+			if len(errs) != 1 {
+				t.Fatalf("errs = %+v, want exactly one", errs)
+			}
+			if errs[0].Message != want {
+				t.Errorf("message = %q, want %q", errs[0].Message, want)
+			}
+			if got := strings.Join(errs[0].SchemaLocation, "."); got != "locale.phrases" {
+				t.Errorf("location = %q", got)
+			}
+		})
+	}
+}
+
+// The failure is emitted at `phrases`'s declared position, before the two month
+// lists — which an appended check cannot do. Measured on
+// `{phrases: 5, month_names: 5}`, 1834 bytes on both sides.
+func TestPhrasesFailsInDeclarationOrder(t *testing.T) {
+	node, err := yamlreader.ReadString("language: english\nphrases: 5\nmonth_names: 5\n")
+	if err != nil {
+		t.Fatalf("ReadString: %v", err)
+	}
+
+	errs := locale.ValidateCatalog(node, "english", []string{"locale"}, schemaerr.SourceMain)
+	if len(errs) != 2 {
+		t.Fatalf("errs = %+v, want two", errs)
+	}
+	if got := strings.Join(errs[0].SchemaLocation, "."); got != "locale.phrases" {
+		t.Errorf("first failure is %q, want locale.phrases", got)
+	}
+}
+
+// A mapping still passes, so the shape check did not close the field.
+func TestPhrasesAcceptsAMapping(t *testing.T) {
+	node, err := yamlreader.ReadString(
+		"language: english\nphrases:\n  degree_with_area: \"X in Y\"\n")
+	if err != nil {
+		t.Fatalf("ReadString: %v", err)
+	}
+	if errs := locale.ValidateCatalog(
+		node, "english", []string{"locale"}, schemaerr.SourceMain,
+	); len(errs) != 0 {
+		t.Fatalf("errs = %+v, want none", errs)
+	}
+}

@@ -111,6 +111,10 @@ type Field struct {
 	// `URL input should be a string or URL.`
 	TypeAdmitsNull bool
 
+	// Model is the class name a ValueModel field's type failure quotes. It is
+	// ignored for every other shape.
+	Model string
+
 	// Value is the field's declared shape. The zero value, ValueAny, means the
 	// value is bound as a raw node and never checked, which is what every field
 	// declared before spec 003 §3.13 did.
@@ -156,6 +160,13 @@ const (
 	// string` (measured on `publications[].url: 5` and `cv.website: 5`). The
 	// distinction is invisible until a non-string reaches the field.
 	ValueURL
+
+	// ValueModel is a nested model: the value must be a mapping, and the
+	// failure names the model exactly as Spec.Model does at the top level —
+	// `locale.phrases: 5` is "Input should be a valid dictionary or instance of
+	// Phrases." The name comes from Field.Model, because it is the *field's*
+	// declared type and not the enclosing spec's.
+	ValueModel
 
 	// The three date shapes. They are value types rather than post-hoc checks so
 	// that Bind's single declaration-order pass emits them in place — upstream
@@ -245,7 +256,7 @@ func (v ValueType) branches() []dateBranch {
 			{suffix: []string{exactDateWrapper, "int"}, code: CodeIntType, message: messageIntType},
 			{suffix: []string{literalPresent}, code: CodeLiteralError, message: messageLiteralPresent},
 		}
-	case ValueAny, ValueString, ValueStringList, ValueURL:
+	case ValueAny, ValueString, ValueStringList, ValueURL, ValueModel:
 		// None of these is a union, so none has arms to report.
 	}
 	return nil
@@ -460,6 +471,14 @@ func checkValue(
 		// The shape held, so an additional per-field constraint runs here, at the
 		// field's declared position (spec 004 §3.9a behavior 33a).
 		return checkScalar(field, value, location, source)
+	case ValueModel:
+		if isNull || value.Kind != yamldoc.KindMapping {
+			return []schemaerr.ValidationError{valueError(
+				CodeModelType, modelTypeMessage(field.Model),
+				locationWith(location, field.Name), value, source,
+			)}
+		}
+		return nil
 	case ValueStringList:
 		if isNull || value.Kind != yamldoc.KindSequence {
 			return []schemaerr.ValidationError{
