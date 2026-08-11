@@ -43,7 +43,7 @@ const pythonMarkdownTabLength = 4
 // an earlier attempt that wrapped only the writer was reverted.
 var converter = goldmark.New(
 	goldmark.WithParser(parser.NewParser(
-		parser.WithBlockParsers(withoutFencedCode(parser.DefaultBlockParsers())...),
+		parser.WithBlockParsers(pythonBlockParsers()...),
 		parser.WithInlineParsers(append(parser.DefaultInlineParsers(),
 			util.Prioritized(automailParser{}, 250),
 			util.Prioritized(imageParser{}, 150))...),
@@ -113,10 +113,12 @@ func MarkdownToHTML(markdown string) (string, error) {
 	return strings.TrimRight(out.String(), "\n"), nil
 }
 
-// withoutFencedCode drops goldmark's fenced-code block parser, which has no
-// counterpart in `markdown.markdown(string)`.
+// pythonBlockParsers is goldmark's default block parser set with two changes
+// upstream forces: no fenced code, and a narrowed raw-HTML block.
 //
-// **Fenced code is an *extension* in python-markdown** (`markdown/extensions/
+// **Fenced code has no counterpart in `markdown.markdown(string)`.**
+//
+// It is an *extension* in python-markdown (`markdown/extensions/
 // fenced_code.py`) and `markdown_to_html` enables none (`markdown_parser.py:202`
 // — contrast the Typst instance at :147, which asks for `admonition`). So a
 // ``` fence is ordinary paragraph text there, and its backticks are read as
@@ -124,13 +126,21 @@ func MarkdownToHTML(markdown string) (string, error) {
 // upstream against goldmark's `<pre><code>`. Indented code blocks stay — those
 // are core Markdown and python-markdown has them.
 //
-// The parsers are goldmark singletons (`parser.NewFencedCodeBlockParser` returns
-// a package-level value), so identity is the test.
-func withoutFencedCode(parsers []util.PrioritizedValue) []util.PrioritizedValue {
+// The parsers are goldmark singletons (`parser.NewFencedCodeBlockParser` and
+// `parser.NewHTMLBlockParser` return package-level values), so identity is the
+// test.
+func pythonBlockParsers() []util.PrioritizedValue {
 	fenced := parser.NewFencedCodeBlockParser()
-	kept := make([]util.PrioritizedValue, 0, len(parsers))
-	for _, p := range parsers {
-		if p.Value != fenced {
+	htmlBlock := parser.NewHTMLBlockParser()
+
+	kept := make([]util.PrioritizedValue, 0, len(parser.DefaultBlockParsers()))
+	for _, p := range parser.DefaultBlockParsers() {
+		switch p.Value {
+		case fenced:
+		case htmlBlock:
+			kept = append(kept, util.Prioritized(
+				blockLevelHTMLParser{BlockParser: htmlBlock}, p.Priority))
+		default:
 			kept = append(kept, p)
 		}
 	}
