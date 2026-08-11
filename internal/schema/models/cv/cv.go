@@ -203,6 +203,12 @@ func (c *Cv) validateField(
 		located.SchemaLocation = fieldLocation(location, "photo")
 		located.YamlSource = source
 		located.YamlLocation = &c.Photo.Span
+		// The Input Value column is the value the user wrote, not the path the
+		// message interpolates. The two agree for an ordinary relative path,
+		// which is why the resolver's own rendering passed for so long, and
+		// disagree for an absolute path and for `photo: ""` — whose column is
+		// empty while the message names `.`.
+		located.Input = schemaerr.RenderInput(c.Photo)
 		return []schemaerr.ValidationError{located}
 
 	case "social_networks":

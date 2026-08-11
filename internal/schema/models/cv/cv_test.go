@@ -281,6 +281,25 @@ func TestANonStringPhotoIsAPathTypeFailure(t *testing.T) {
 	}
 }
 
+// The Input Value column of a photo resolution failure is the value the user
+// wrote, not the path the message interpolates. They agree for an ordinary
+// relative path and disagree for `photo: ""`, whose column is empty while the
+// message names `.` (measured: both sides 1318 bytes).
+func TestAnEmptyPhotoPathIsTheCurrentDirectory(t *testing.T) {
+	_, errs := cv.Validate(
+		parse(t, "photo: \"\"\n"), []string{"cv"}, schemaerr.SourceMain, testOptions(),
+	)
+	if len(errs) != 1 {
+		t.Fatalf("errs = %+v, want exactly one", errs)
+	}
+	if errs[0].Message != "The path `.` is not a file." {
+		t.Errorf("message = %q", errs[0].Message)
+	}
+	if errs[0].Input != "" {
+		t.Errorf("input = %q, want the empty string the user wrote", errs[0].Input)
+	}
+}
+
 // Spec 004 §3.9 behavior 32 step 3 and §6 rule 2, on the measured seven-record
 // input: every declared field first in declaration order, then the unknown keys
 // in input order — including inside a nested model, which reports entirely
