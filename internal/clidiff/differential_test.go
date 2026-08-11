@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -105,7 +106,7 @@ func repoRoot(t *testing.T) string {
 // skip.
 //
 // The default is a hard failure, because a skip here is indistinguishable from
-// a pass in the run that gates the iteration: `just test-parity` (`justfile:58`)
+// a pass in the run that gates the iteration: `just test-parity` (`justfile:71`)
 // depends on `build`, so the port binary is always present, but **nothing
 // creates the vendored venv**, and a skipped differential still prints `ok`.
 // A gate that disappears when its subject is missing is not a gate.
@@ -270,6 +271,14 @@ func compare(t *testing.T, upstream, port outcome) {
 // failure with it; only what follows is P-3's.
 const osErrorPrefix = "OS Error: "
 
+// absolutePathToken matches one absolute path in an unwrapped panel body.
+//
+// It stops at whitespace and at either quote, which is what lets the same
+// pattern count upstream's quoted `'/abs/path'` and the port's bare one as a
+// single token each. A path split across two wrapped lines is already rejoined
+// by unwrapPanel, so it counts once and not twice.
+var absolutePathToken = regexp.MustCompile(`/[^\s'"]+`)
+
 // osErrorRow is row 6 of behavior 31's table, whose message body P-3 covers.
 //
 // The narrowing is to the **wording** and nothing else. The frame is compared
@@ -304,20 +313,35 @@ func osErrorRow(t *testing.T, upstream, port outcome) {
 			t.Errorf("%s panel body does not name the file it failed to write.\nwant path: %s\nbody: %s",
 				side.name, want, body)
 		}
+		// Exactly one, not merely at least one. The panel pads each body line
+		// to a fixed width, so the byte count is a function of the line count
+		// and constrains nothing the frame does not already — measured, this
+		// row has roughly ±50 characters of slack at 722 bytes. That slack is
+		// wide enough for the port to append a *second* absolute path, a home
+		// directory or another user's file, and still match on every other
+		// dimension. Counting them is the property the row actually wants, and
+		// unlike a length tolerance it needs no magic number.
+		if found := absolutePathToken.FindAllString(body, -1); len(found) != 1 {
+			t.Errorf("%s panel body names %d absolute paths, want exactly 1: %q\nbody: %s",
+				side.name, len(found), found, body)
+		}
 		bodies[i] = strings.ReplaceAll(strings.TrimPrefix(body, osErrorPrefix), want, "<path>")
 	}
 
 	// Only claim P-3 when everything P-3 does *not* cover actually held.
-	// Reported unconditionally, this line asserted "the prefix, the path, the
-	// frame and the byte count all match" over the top of a row failing on
-	// precisely those, which is worse than silence.
+	// Reported unconditionally, this line described a row failing on precisely
+	// the things it said had matched, which is worse than silence.
 	if t.Failed() {
 		return
 	}
 	if bodies[0] != bodies[1] {
+		// Three confirmations, not four: the byte count is not independent
+		// evidence. Every body line is padded to a fixed width, so the total
+		// is a function of the line count that the frame already pins.
 		reportKnownOpen(t, "P-3", fmt.Sprintf(
-			"the OS Error wording differs; the prefix, the path, the frame and the byte count "+
-				"all match.\nupstream: %s\nport:     %s", bodies[0], bodies[1]))
+			"the OS Error wording differs; the prefix, the single absolute path and the frame "+
+				"all match (the byte count follows from the frame).\nupstream: %s\nport:     %s",
+			bodies[0], bodies[1]))
 	}
 }
 
@@ -392,6 +416,15 @@ func unwrapPanel(stdout []byte) string {
 // findingsPath is where reportKnownOpen leaves its record, outside the
 // repository (spec 013 §7.6). TestMain truncates it, so it always describes the
 // run that just happened.
+//
+// **That freshness depends on `test-parity: build`** (`justfile:71`), and the
+// dependency is not obvious. TestMain only truncates when the test binary
+// actually runs, and `go test` serves a cached result instead whenever nothing
+// the package reads has changed — leaving a fossil from an earlier run for the
+// recipe to print as if it were current. What saves the gating path is that
+// `build` rewrites `bin/rendercv-go` on every invocation and `binaries` stats
+// it, so the cache always misses. Drop the `build` dependency and the findings
+// go stale silently. A bare cached `go test` has this hazard today.
 var findingsPath = filepath.Join(os.TempDir(), "rendercv-clidiff-findings.log")
 
 // TestMain empties the findings file so a stale line from an earlier run cannot
