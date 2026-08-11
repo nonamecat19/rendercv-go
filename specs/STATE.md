@@ -188,6 +188,59 @@ residue on row 6 and is now provably the only thing that row leaves unasserted.
   request. Plain-text output from a subagent does not reach the parent; only an explicit message
   does.
 
+## Iteration 12's blocker and three gating gaps are fixed — 2026-08-11
+
+Five porters, disjoint packages, suite run alone afterwards: `just check` 0 issues, `go test ./...`
+clean, `just test-parity` exit 0 with zero FAILs.
+
+**The blocker (`8eb1502`).** `Normalize` now models click's `state.largs` as one ordered list, per
+`_process_opts`/`_match_short_opt` appending and `_process_args_for_args` unpacking it: the first
+leftover token becomes the positional. A leftover beginning with `-` is fenced as `… -- <token>` so
+pflag cannot re-parse it as an option. Six vectors, measured both sides:
+
+| Vector | upstream | port before | port after |
+|---|---|---|---|
+| `render --version` / `--nope` / `-x` / `--helpx` | exit **1** | exit **2** | exit **1** |
+| `render --typ out.typ CV.yaml` | opens `--typ` | opens **`out.typ`** | opens `--typ` |
+| `render --cv.name Jane` | opens `--cv.name` | opens **`Jane`** | opens `--cv.name` |
+
+The last two already exited 1 while silently opening the **wrong file**, which was the more dangerous
+half. Measured upstream detail worth keeping: `render -- -notyp -nomd` opens `-notyp` — a bare `--`
+does *not* exempt what follows from becoming the argument.
+
+**The stream question, answered and left alone.** There is no new failure path; the fix changes only
+which token becomes `InputPath`, after which `render --nope` and `render nosuch.yaml` are literally
+the same code path. It stays on **stdout** because D-011 says this class is answered as an ordinary
+`Error` panel there. Moving it to stderr would contradict approved divergence text and would split
+one code path across two streams; if the project wants that, it is a `divergences.md` amendment that
+should move all of D-011 at once. **Human gate, not taken.**
+
+`err_missing_file` and `err_bad_override_key` are unaffected — neither vector has an unrecognised
+token before its input file — and both are still held red by **stdout and stderr independently**,
+verified at the parse level in throwaway worktrees at `HEAD~1` and `HEAD` and at the binary level.
+
+**The three gating gaps (`f2364bc`).** G-6, the invented-long-name class, and the two override rules
+now have tests, each proven by applying the verifier's own mutation and watching it fail. The
+invented-name assertion goes through the real `execute`, asserts the token reaches `Extras` (production
+state, read by `ParseOverrideArguments`), and `reflect.DeepEqual`s the whole `RenderOptions` against a
+baseline so a port that *both* collects the token and sets the field is caught. Its table ranges over
+`renderShortFlags`, so it covers all 16 spellings and gates a future one with no edit.
+
+**The inverted guard (`4415d67`)** now rebinds the binary name, compares stderr and artifact
+*contents*, and collects every differing dimension. `new_typst_templates` fails for D-008's own reason
+at last. Exit codes are deliberately not evidence, so an exit-code-only difference reports as "now
+matches upstream" rather than quietly holding a case red.
+
+**Process finding, and it cost real work.** A porter needed to mutate `args.go` and `root.go` — files
+another porter owned and was actively editing — to prove its own tests could fail. It copied and
+byte-restored each time and disclosed it. Even so, the owner's edit was **wholesale overwritten
+mid-unit**: it found its change reverted and the mutation's `renderValueFlags["typ"]` and a matching
+`StringVar` present in the tree, and re-applied its work from scratch. Nothing was lost permanently
+and no remnant shipped (grep-verified independently), but the end state being clean is not evidence
+the process was safe. **A mutation test against a file another agent owns must be done in a throwaway
+worktree or copy of the repo, never in the shared tree** — the same conclusion the verifiers reached
+independently, all of whom mutated out-of-tree.
+
 ## Two divergence entries are misattributed — HUMAN GATE — 2026-08-11
 
 Found while rebuilding `AssertUnreachable` (`4415d67`), which now collects **every** differing
