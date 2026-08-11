@@ -20,15 +20,22 @@ type dictionaryRow struct{ Old, New string }
 // first-match-wins over a randomized order is nondeterministic. Order is
 // contractual (spec 004 §6 rule 5).
 //
-// **Five of the thirteen rows are unreachable** in the pinned tree
+// **Four of the thirteen rows are unreachable** in the pinned tree
 // (spec 004 §3.4 behavior 12), and they are kept anyway, unaltered, because
 // reachability is upstream's to decide and not the port's:
 //
 //	1  pre-empted — §3.5's `end_date` override always replaces the message first
-//	2  no int-only field exists; every int-typed field is `int | str`
 //	3  dead twice over, see below
 //	4  dead, see below
 //	10 no measured input produces it, and it maps to row 9's value anyway
+//
+// **Row 2 used to be listed here and is now live.** No field of the *design
+// tree* is int-only — every int-typed one is `int | str` — but a **theme
+// script** can declare one (`custom_count = 3`), and a non-numeric value for it
+// produces exactly this message. The rewrite then tells the user to write
+// `YYYY-MM-DD` for an option that has nothing to do with dates, which is
+// upstream's behaviour and is reproduced: the dictionary is keyed on message
+// text with no notion of which field produced it.
 //
 // Rows 3 and 4 are dead because **their keys carry doubled backslashes and
 // pydantic's messages carry single ones**. The YAML scalars are plain, so YAML

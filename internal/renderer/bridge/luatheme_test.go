@@ -329,26 +329,28 @@ func TestAScriptListOptionDoesNotDropTheRestOfTheScript(t *testing.T) {
 	}
 }
 
-// A *document* value that mismatches what the script declared is dropped, and
-// the script's own value survives underneath it. `ValidateScript` alone
-// cannot catch this: an option declared as a string is a perfectly valid
-// script on its own, and only fails once the document's own
-// `custom_note: {a: 1}` is checked against it — `luatheme.Validate`'s job,
-// which nothing called before this test (iteration 14's Finding 5).
+// A *document* value that mismatches what the script declared is **rejected**,
+// which is the last of these to move from the merge layer to validation.
 //
-// **The option has to be one the script *invents*.** This used to declare
-// `page.size`, a field the design tree owns, which no longer reaches the merge
-// layer at all: a scripted theme's document values are validated against the
-// tree now, so `page: {size: {a: 1}}` is rejected before `bridge.Resolve` runs
-// — upstream refuses it too, exit 1. A script-declared key the tree knows
-// nothing about is the only path `luatheme.Validate` still owns, and it is the
-// one this was always really about.
-func TestADocumentConflictingWithTheScriptIsDropped(t *testing.T) {
-	doc := resolveWithTheme(t, "mytheme", `return { custom_note = "hello" }`,
+// It used to assert the merge dropped `custom_note: {a: 1}` and kept the
+// script's `"hello"` underneath — the same shape of assertion `page.size`'s two
+// neighbours above already outgrew. A script-declared option's document value
+// is validated against the script's declared type now, so this document never
+// reaches `bridge.Resolve` at all. Upstream refuses it too: measured, exit 1,
+// `Input should be a valid string.` at `design`, and the port's stdout for this
+// vector is byte-identical to it.
+func TestADocumentConflictingWithTheScriptIsRejected(t *testing.T) {
+	errs := rejectWithTheme(t, "mytheme", `return { custom_note = "hello" }`,
 		"  custom_note:\n    a: 1\n")
 
-	if got := design.EffectiveString(doc.Design, "custom_note"); got != "hello" {
-		t.Errorf("custom_note = %q, want the script's own value, document's conflicting override dropped", got)
+	if len(errs) != 1 {
+		t.Fatalf("errs = %+v, want exactly one", errs)
+	}
+	if got := strings.Join(errs[0].SchemaLocation, "."); got != "design" {
+		t.Errorf("location = %q, want design", got)
+	}
+	if !strings.Contains(errs[0].Message, "Input should be a valid string") {
+		t.Errorf("message = %q, want the string_type message", errs[0].Message)
 	}
 }
 

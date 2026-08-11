@@ -221,6 +221,12 @@ func validateScriptedTheme(
 	// judged by; `unknownKeyErrors` is what forbids the keys neither declares.
 	// Field errors precede extra-key errors, which is pydantic's own order.
 	errs := validateModel(node, tree, tree.Root, theme, location, source, binder.AllowExtra)
+	// **What the script *adds* is judged by what the script declared.** The
+	// tree has no field for `custom_note`, so `AllowExtra` waves its value
+	// through above; upstream's generated class holds the user's fields
+	// alongside the copied tree ones and judges both.
+	errs = append(errs,
+		scriptOptionErrors(node, script.Options, tree, tree.Root, location, source)...)
 	errs = append(errs,
 		unknownKeyErrors(node, tree, tree.Root, script.Options, theme, location, source)...)
 	return scriptedThemeRecords(errs, node, location, source)
