@@ -236,17 +236,37 @@ func TestParserMessageUsesRuamelPhrasing(t *testing.T) {
 			want: "This is not a valid YAML file. while scanning a quoted scalar.",
 		},
 		{
+			// These two reach the sentence through yamlreader.TabError, not
+			// through ruamelPhrasing: the tab check runs before the parser and
+			// phrases the failure itself. They pin that branch's wording, which
+			// has to agree with the mapped rows below.
 			name: "a tab where a key belongs",
 			src:  "\ta: 1\n",
 			want: "This is not a valid YAML file. while scanning for the next token.",
 		},
 		{
-			// goccy's *other* tab spelling, and the commoner one. This says
-			// "found character '\t' that cannot start any token" rather than
-			// "tab character", so it matched no row and leaked raw goccy text
-			// with its [line:col] prefix; ruamel phrases both the same way.
 			name: "a tab indenting a nested key",
 			src:  "cv:\n\tname: a\n",
+			want: "This is not a valid YAML file. while scanning for the next token.",
+		},
+		{
+			// The tabs TabError deliberately lets past, and so the only inputs
+			// that exercise the two tab rows of ruamelPhrasing. Without these
+			// the rows can be deleted with the suite still green, because the
+			// two rows above pass on the TabError branch either way.
+			//
+			// A tab indenting a block scalar's content: goccy says "found a tab
+			// character where an indentation space is expected".
+			name: "a tab indenting a block scalar",
+			src:  "a: |\n\tx\n",
+			want: "This is not a valid YAML file. while scanning for the next token.",
+		},
+		{
+			// A `[` inside a plain scalar, which the tab check reads as an open
+			// flow collection (where tabs are legal) and goccy does not. goccy
+			// says "found character '\t' that cannot start any token".
+			name: "a tab after a bracket in a plain scalar",
+			src:  "a: b[\n\tc\n",
 			want: "This is not a valid YAML file. while scanning for the next token.",
 		},
 		{
@@ -277,15 +297,24 @@ func TestParserMessageUsesRuamelPhrasing(t *testing.T) {
 //
 // The assertion is that it does **not** borrow a ruamel phrase it was not
 // measured for.
+//
+// The fixture used to be `a: !!unknowntag@@ b`, which **parses**: goccy's
+// scanTag rejects only `{` and `}` and accepts every other byte in a tag, so
+// the test skipped itself and asserted nothing from the day it was written.
+// `!!tag{x}` is the shape that actually fails there, with goccy's own
+// "found invalid tag character '{'" and its `[line:col]` prefix intact.
 func TestUnmappedParserMessageFallsThrough(t *testing.T) {
-	_, err := ReadYamlWithValidationErrors("a: !!unknowntag@@ b\n", schemaerr.SourceMain)
+	_, err := ReadYamlWithValidationErrors("a: !!tag{x} b\n", schemaerr.SourceMain)
 
 	var userErr *schemaerr.UserValidationError
 	if !errors.As(err, &userErr) {
-		t.Skip("this input parses; the fallthrough needs an unmapped failure")
+		t.Fatalf("err = %v (%T), want *schemaerr.UserValidationError", err, err)
 	}
 
 	message := userErr.Errors[0].Message
+	if !strings.Contains(message, "found invalid tag character") {
+		t.Errorf("message = %q, want goccy's own text to reach the user", message)
+	}
 	for _, row := range ruamelPhrasing {
 		if strings.Contains(message, row.ruamel) {
 			t.Errorf("an unmapped failure borrowed %q: %q", row.ruamel, message)
