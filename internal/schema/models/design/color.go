@@ -179,6 +179,18 @@ type colorElement struct {
 	// int-sourced `-0` too — a value Python never produces. Found by a
 	// fresh-context verifier (iteration 14's twentieth re-verification).
 	IsPythonInt bool
+
+	// NonScalar marks an element YAML resolved to a sequence or a mapping,
+	// which `Raw` cannot carry — `yamldoc.Node.Raw` is scalar-only, so such
+	// an element arrives as the empty string and is indistinguishable from
+	// "nothing written here". In the alpha position that is fatal:
+	// `parseAlpha("")` is `parse_float_alpha(None)`, "no alpha at all", so
+	// `[1, 2, 3, [1]]` used to validate as the three-channel `rgb(1, 2, 3)`
+	// and render, at exit 0, a colour the document never asked for. Upstream
+	// has no such reading — `float(CommentedSeq)` raises `TypeError`, which
+	// `parse_float_alpha` does not catch. Found by a fresh-context verifier
+	// (iteration 15's colour-tuple sweep).
+	NonScalar bool
 }
 
 // parseColorElements is `ParseColorTuple` with each element's coercion
@@ -191,6 +203,15 @@ func parseColorElements(elements []colorElement) (Color, error) {
 	}
 	channelValues := make([]float64, 3)
 	for i := 0; i < 3; i++ {
+		// **`parse_color_value` catches `TypeError` as well as
+		// `ValueError`** (color.py:355-361), so a sequence or a mapping
+		// channel is this message and not a crash. An empty `Raw` already
+		// produced it, which is why only the alpha position ever rendered
+		// wrong — stated outright here so the two positions stop agreeing
+		// by coincidence.
+		if elements[i].NonScalar {
+			return Color{}, errors.New(messageChannelNotNumber)
+		}
 		value, err := parseChannel(elements[i].Raw, 255, elements[i].Coerce)
 		if err != nil {
 			return Color{}, err
@@ -199,6 +220,16 @@ func parseColorElements(elements []colorElement) (Color, error) {
 	}
 	var alpha *float64
 	if len(elements) == 4 {
+		// **`parse_float_alpha` catches only `ValueError`**
+		// (color.py:391), so upstream dies on a non-scalar alpha with an
+		// unhandled `TypeError` — a traceback this port declines to
+		// reproduce (D-011's territory). It reports the message the same
+		// function raises for the failure it *does* catch, which the
+		// dictionary rewrites to the text every colour failure shares and
+		// which exits 1 exactly as upstream's traceback does.
+		if elements[3].NonScalar {
+			return Color{}, errors.New(messageAlphaNotFloat)
+		}
 		value, err := parseAlpha(elements[3].Raw, elements[3].Coerce)
 		if err != nil {
 			return Color{}, err
