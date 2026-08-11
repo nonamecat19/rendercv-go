@@ -136,7 +136,13 @@ func RenderInput(node *yamldoc.Node) string {
 			return "True"
 		}
 		return "False"
-	case yamldoc.KindInt, yamldoc.KindFloat, yamldoc.KindString:
+	case yamldoc.KindInt, yamldoc.KindFloat, yamldoc.KindString, yamldoc.KindTagged:
+		// KindTagged belongs with the scalars that render as written: a
+		// `TaggedScalar`'s `str()` is its value
+		// (`ruamel/yaml/constructor.py:1619-1621`), so `cv.name: !!str Bob`
+		// shows `Bob` in this column while still failing the field. Named
+		// rather than left to the fallthrough, so the next kind added here
+		// has to make the same decision deliberately.
 	}
 	return node.Raw
 }
