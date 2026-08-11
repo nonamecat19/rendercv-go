@@ -313,10 +313,13 @@ func obfuscateEmail(address string) string {
 // span, where upstream gives "backtick `a` b` here", and a double-backtick span
 // containing a backtick was cut in half.
 //
-// The body is stripped (`BacktickInlineProcessor.handleMatch`'s
-// `m.group(3).strip()`, `:444-456`) and then **not escaped**:
-// `to_typst_string`'s `code` branch emits the child's raw text
-// (`markdown_parser.py:42-45`).
+// The body is stripped and then HTML-escaped —
+// `util.code_escape(m.group(3).strip())` (`:444-456`). `to_typst_string`'s
+// `code` branch emits the child's text verbatim and says so
+// (`markdown_parser.py:42-45`: "Code content is already escaped by the
+// parser"), so the escaping has to happen **here** or nowhere: a code span
+// holding `&copy;` came out of this port with that text intact where upstream
+// gives `&amp;copy;`.
 func matchCodeSpan(rest string) (int, string, bool) {
 	if len(rest) == 0 || rest[0] != '`' {
 		return 0, "", false
@@ -329,7 +332,23 @@ func matchCodeSpan(rest string) (int, string, bool) {
 	if after < 0 {
 		return 0, "", false
 	}
-	return after, "`" + stripSpace(content) + "`", true
+	return after, "`" + codeEscape(stripSpace(content)) + "`", true
+}
+
+// codeEscape is `markdown.util.code_escape` (`markdown/util.py:158-166`).
+//
+// **The order is load-bearing and is upstream's**: `&` first, so that the
+// ampersands of the `&lt;` and `&gt;` it is about to produce are not escaped a
+// second time.
+//
+// Nothing escapes the result again. `parseFrom` writes a matched pattern's
+// Typst straight out, bypassing EscapeTypstCharacters — which is what keeps the
+// `#` of a code span's `&#35;` bare once it is `&amp;#35;`, exactly as measured.
+func codeEscape(text string) string {
+	text = strings.ReplaceAll(text, "&", "&amp;")
+	text = strings.ReplaceAll(text, "<", "&lt;")
+	text = strings.ReplaceAll(text, ">", "&gt;")
+	return text
 }
 
 // matchImage is `IMAGE_LINK_RE` (`markdown/inlinepatterns.py:143`) plus the
