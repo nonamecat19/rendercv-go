@@ -87,7 +87,7 @@ func init() {
 			// text and the second is the nested em. `**strong*em***`
 			name: "STRONG_EM3_RE",
 			match: func(data string, pos int) (int, int, int, int, int, bool) {
-				return matchStrongEm3(data, pos, '*')
+				return matchStrongEm3(data, pos, '*', false)
 			},
 			build: func(p *inlineParser, first, second string, index int, delim byte) string {
 				return "#strong[" + p.parseFrom(first, index, delim) +
@@ -140,9 +140,16 @@ func init() {
 			build: asteriskPatterns[1].build,
 		},
 		{
+			// SMART_STRONG_EM_RE `(?<!\w)(_)\1(?!\1)(.+?)(?<!\w)\1(?!\1)(.+?)\1{3}(?!\w)` —
+			// unlike its asterisk twin, this one carries word-boundary guards
+			// before the opening pair, before the middle delimiter, and after
+			// the closing run. `__a_b___` fails all of them (the middle `_` sits
+			// right after the word character `a`) and stays wholly literal;
+			// `matchStrongEm3`'s asterisk call above never needs this because
+			// `*` is never a `\w` byte to guard against.
 			name: "SMART_STRONG_EM_RE",
 			match: func(data string, pos int) (int, int, int, int, int, bool) {
-				return matchStrongEm3(data, pos, '_')
+				return matchStrongEm3(data, pos, '_', true)
 			},
 			build: asteriskPatterns[2].build,
 		},
@@ -267,7 +274,16 @@ func matchTriple(data string, pos int, delim byte, innerRun, outerRun int) (end,
 // matchStrongEm3 is `(\*)\1(?!\1)([^*]+?)\1(?!\1)(.+?)\1{3}`: two delimiters not
 // followed by a third, a body with **no** delimiter in it, one delimiter not
 // followed by another, a lazy body, then three delimiters.
-func matchStrongEm3(data string, pos int, delim byte) (end, firstStart, firstEnd, secondStart, secondEnd int, ok bool) {
+//
+// `smart` adds the underscore twin's extra word-boundary guards —
+// `SMART_STRONG_EM_RE` is `(?<!\w)(_)\1(?!\1)(.+?)(?<!\w)\1(?!\1)(.+?)\1{3}(?!\w)`,
+// three `\w`-adjacency checks `STRONG_EM3_RE` does not have, because `*` is
+// never a word byte and the checks would be vacuous for it.
+func matchStrongEm3(data string, pos int, delim byte, smart bool) (end, firstStart, firstEnd, secondStart, secondEnd int, ok bool) {
+	if smart && pos > 0 && isWordByte(data[pos-1]) {
+		return 0, 0, 0, 0, 0, false // `(?<!\w)` before the opening pair
+	}
+
 	two := strings.Repeat(string(delim), 2)
 	if !strings.HasPrefix(data[pos:], two) {
 		return 0, 0, 0, 0, 0, false
@@ -287,16 +303,24 @@ func matchStrongEm3(data string, pos int, delim byte) (end, firstStart, firstEnd
 		if i+1 < len(rest) && rest[i+1] == delim {
 			continue // the second `(?!\1)`
 		}
+		if smart && isWordByte(rest[i-1]) {
+			continue // `(?<!\w)` before the middle delimiter
+		}
 		tail := rest[i+1:]
 		three := strings.Repeat(string(delim), 3)
 		for j := 1; j <= len(tail); j++ {
-			if strings.HasPrefix(tail[j:], three) {
-				firstStart = pos + 2
-				firstEnd = firstStart + i
-				secondStart = firstEnd + 1
-				secondEnd = secondStart + j
-				return secondEnd + 3, firstStart, firstEnd, secondStart, secondEnd, true
+			if !strings.HasPrefix(tail[j:], three) {
+				continue
 			}
+			closeEnd := pos + 2 + i + 1 + j + 3
+			if smart && closeEnd < len(data) && isWordByte(data[closeEnd]) {
+				continue // `(?!\w)` after the closing run
+			}
+			firstStart = pos + 2
+			firstEnd = firstStart + i
+			secondStart = firstEnd + 1
+			secondEnd = secondStart + j
+			return closeEnd, firstStart, firstEnd, secondStart, secondEnd, true
 		}
 	}
 	return 0, 0, 0, 0, 0, false

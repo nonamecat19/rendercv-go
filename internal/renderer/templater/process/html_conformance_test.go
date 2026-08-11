@@ -63,51 +63,28 @@ func TestMarkdownToHTMLMatchesPython(t *testing.T) {
 	}
 }
 
-// knownRemainder is the five shapes still differing. Each is pinned by an
-// **inverted** assertion above — the case still runs, still has to produce
-// output, and still has to differ — for the same reason
-// `conformance.AssertUnreachable` is: a list of tolerated mismatches that cannot
-// notice being fixed is a mute button.
+// knownRemainder is what still differs after Wave C's emphasis fix (spec 011
+// §7, T8-T10): the link-destination class, and the block-tag-in-a-list-item
+// class §9.5 leaves open. Each is pinned by an **inverted** assertion above —
+// the case still runs, still has to produce output, and still has to differ —
+// for the same reason `conformance.AssertUnreachable` is: a list of tolerated
+// mismatches that cannot notice being fixed is a mute button.
 //
-// They fall into three classes, and each is a *reimplementation*, not an
-// oversight. None is recorded in `specs/divergences.md` yet; that file is human-
-// gated (`AGENTS.md` §5) and the proposals are with the iteration owner.
+// Neither remaining class is recorded in `specs/divergences.md`; that file is
+// human-gated (`AGENTS.md` §5) and spec 011 §9.4 argues neither is
+// parity-impossible, only unbuilt.
 //
-//  1. **Emphasis.** python-markdown resolves `*` and `_` with two regex-driven
-//     tree processors (`AsteriskProcessor`, `UnderscoreProcessor`,
-//     `inlinepatterns.py:93-94`) and CommonMark uses delimiter runs, so the two
-//     disagree on nesting order, on strong inside em, and on `_` between word
-//     characters. Matching would mean replacing goldmark's emphasis parser
-//     wholesale.
-//  2. **A destination with a space.** `getLink` balances parentheses and takes
+//  1. **A destination with a space.** `getLink` balances parentheses and takes
 //     whatever is between them (`inlinepatterns.py:716-830`); CommonMark requires
-//     `<…>` around a space. goldmark's link parsing runs on a delimiter stack
-//     whose label handling is unexported, so a replacement parser cannot parse
-//     the label — the image one below it can only be written because upstream
-//     never parses an image's label at all.
-//  3. **A block-level tag inside a list item.** python-markdown stashes raw HTML
+//     `<…>` around a space. Spec 011 §8's T11-T12 own this.
+//  2. **A block-level tag inside a list item.** python-markdown stashes raw HTML
 //     in a preprocessor before any block parsing, so the `<div>` is part of the
 //     item's text; goldmark opens a real HTML block inside the item and the two
-//     differ by a newline.
+//     differ by a newline. Spec 011 §9.5, not in this wave.
 var knownRemainder = map[string]string{
-	"___strong em___":    "the two libraries nest strong and em in opposite orders",
-	"*a **bold** thing*": "python closes and reopens the em around a nested strong",
-	"_a __b__ c_":        "python does not read `__` between word characters as strong",
-	"[t](a b)":           "python accepts an unbracketed space in a destination",
 	"- <div>block</div>": "python stashes the raw block before the list item is parsed",
 
-	// Wave C, T7: pinned red ahead of the T8-T12 fix, spec 011 §7/§8. Each is
-	// dropped from this map in the same commit that fixes its class.
-	"***a***":                   "spec 011 behavior 20: outer tag order, strong,em not em,strong",
-	"___a___":                   "spec 011 behavior 20: outer tag order, strong,em not em,strong",
-	"*a **b** c*":               "spec 011 behavior 19: EMPHASIS_RE cannot cross an asterisk",
-	"*a **b***":                 "spec 011 behavior 19: EMPHASIS_RE cannot cross an asterisk",
-	"___a_b__":                  "spec 011 behavior 22: the index guard changes what nests",
-	"___a__b_":                  "spec 011 behavior 22: the index guard changes what nests",
-	"__a_b___":                  "spec 011 behavior 22: the index guard changes what nests",
-	"***a***b":                  "spec 011 behavior 20: outer tag order, strong,em not em,strong",
-	"*Lead **dev** now*":        "spec 011 behavior 19: EMPHASIS_RE cannot cross an asterisk",
-	"- *a **b** c*\n- [t](u v)": "spec 011 behavior 25: block context does not change the inline tree",
+	"- *a **b** c*\n- [t](u v)": "the second list item's link is spec 011 §8, not built yet",
 	"[t](a  b)":                 "spec 011 behavior 27: no space rule in getLink's scanner",
 	"[t](a b c)":                "spec 011 behavior 27: no space rule in getLink's scanner",
 	"[t](url (p) and s)":        "spec 011 behavior 28: getLink balances parens in the destination",
@@ -116,4 +93,5 @@ var knownRemainder = map[string]string{
 	"[t](a b \"x y  z\")":       "spec 011 behavior 30: title whitespace is normalized, not collapsed",
 	"[t](a\tb)":                 "spec 011 behavior 27: no space rule in getLink's scanner",
 	"[t](a\nb)":                 "spec 011 §9.3: a destination spanning a line break is out of scope, declined permanently",
+	"[t](a b)":                  "python accepts an unbracketed space in a destination",
 }
