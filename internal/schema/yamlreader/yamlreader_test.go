@@ -650,3 +650,53 @@ func TestATagCanForceAScalarsKind(t *testing.T) {
 		})
 	}
 }
+
+// A tag naming no type the loader constructs makes the scalar **opaque** —
+// ruamel's `TaggedScalar`, spec 015 §3.4. `!!str` is one of them, which is the
+// surprising part: `construct_yaml_str` defers to `construct_unknown` whenever
+// the node carries a tag handle (`ruamel/yaml/constructor.py:1181-1184`), so an
+// explicit `!!str` is not the no-op it reads as. The text survives, because
+// `str(TaggedScalar)` is its value and that is what reaches the Input Value
+// column.
+func TestATagWithNoConstructorIsOpaque(t *testing.T) {
+	tests := []struct {
+		input string
+		raw   string
+	}{
+		{input: "a: !!str Bob\n", raw: "Bob"},
+		{input: "a: !!str 5\n", raw: "5"},
+		{input: "a: !!str \"quoted\"\n", raw: "quoted"},
+		{input: "a: !unknown b\n", raw: "b"},
+		// `!!merge` is absent: goccy's parser refuses `a: !!merge x` outright
+		// (`could not find merge key`) where upstream gives an ordinary
+		// TaggedScalar. Recorded as a divergence with the other tags goccy
+		// will not parse.
+		{input: "a: !!value x\n", raw: "x"},
+		{input: "a: !!yaml x\n", raw: "x"},
+		{input: "a: !!python/object x\n", raw: "x"},
+		// Out of scope and recorded as divergences, but opaque is the closest
+		// of the kinds the port has: each is a Python type with no member here
+		// (`bytes`, `CommentedSet`, `CommentedOrderedMap`).
+		{input: "a: !!binary aGk=\n", raw: "aGk="},
+		// An empty tagged scalar is a TaggedScalar carrying the empty string,
+		// **not** a null — the distinction the reader lost when every tagged
+		// node became KindNull.
+		{input: "a: !!str\n", raw: ""},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			doc, err := yamlreader.ReadString(tc.input)
+			if err != nil {
+				t.Fatalf("ReadString = %v", err)
+			}
+			got := value(t, doc, "a")
+			if got.Kind != yamldoc.KindTagged {
+				t.Errorf("kind = %d, want KindTagged (%d)", got.Kind, yamldoc.KindTagged)
+			}
+			if got.Raw != tc.raw {
+				t.Errorf("raw = %q, want %q", got.Raw, tc.raw)
+			}
+		})
+	}
+}
