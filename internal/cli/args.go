@@ -1,6 +1,9 @@
 package cli
 
-import "strings"
+import (
+	"slices"
+	"strings"
+)
 
 // renderShortFlags maps every short spelling `render` declares to its long one
 // (spec 012 §2 behavior 6, `render_command.py:33-188`).
@@ -144,7 +147,22 @@ func Normalize(args []string) (rest, extras []string) {
 	}
 
 	rest = make([]string, 0, len(args))
-	seenInput := false
+
+	// leftover is click's `state.largs`: every token the parser could not
+	// consume, in the order it was typed. `INPUT_FILE_NAME` comes off the front
+	// of it once the whole vector has been walked, and only what remains is
+	// `ctx.args` — see the split below.
+	var leftover []string
+	// inputAt is where in rest the first leftover was typed, so a plain file
+	// name goes back exactly where it stood.
+	inputAt := 0
+	collect := func(token string) {
+		if len(leftover) == 0 {
+			inputAt = len(rest)
+		}
+		leftover = append(leftover, token)
+	}
+
 	endOfOptions := false
 
 	for i := 0; i < len(args); i++ {
@@ -152,12 +170,14 @@ func Normalize(args []string) (rest, extras []string) {
 		name, long := longName(arg)
 
 		// **A bare `--` ends option parsing and is itself dropped** (G-1).
-		// Click removes it from the vector and every following token becomes an
-		// extra — declared flags included, so `-- -notyp` is the override key
-		// `-notyp`, not the flag. Measured: upstream reports
-		// `extra arguments (-notyp,-nomd,-nopdf,-nopng,-q)`.
+		// Click removes it from the vector and every following token becomes a
+		// leftover — declared flags included, so `-- -notyp` is the argument
+		// `-notyp`, not the flag. `_process_args_for_options` returns on it and
+		// `_process_args_for_args` unpacks `largs + rargs`, so what follows a
+		// `--` is still eligible to be the input file: measured,
+		// `render -- -notyp -nomd` opens `-notyp` and reports `(-nomd)`.
 		if endOfOptions {
-			extras = append(extras, arg)
+			collect(arg)
 			continue
 		}
 		if arg == "--" {
@@ -179,14 +199,15 @@ func Normalize(args []string) (rest, extras []string) {
 
 		case long:
 			// **An unrecognized option does not swallow the next token.**
-			// click appends it to `ctx.args` and goes on parsing, so
-			// `--nope -nopdf` leaves one extra and a real flag, and the pairing
-			// into keys and values happens later over the whole list. Measured
-			// against the vendored CLI, which reports `(--nope)` there.
+			// click appends it to `state.largs` and goes on parsing, so
+			// `--nope -nopdf` leaves one leftover and a real flag, and the
+			// pairing into keys and values happens later over the whole list.
+			// Measured against the vendored CLI, which reports `(--nope)`
+			// there.
 			//
 			// The `=` form is not split either: `--cv.name=Jane` is one token
 			// and therefore an odd count, which is upstream's answer too.
-			extras = append(extras, arg)
+			collect(arg)
 
 		case strings.HasPrefix(arg, "-") && arg != "-":
 			// A single-dash token: one of upstream's whole-word short forms,
@@ -215,27 +236,49 @@ func Normalize(args []string) (rest, extras []string) {
 			// value.
 			consumed, unknown := splitShortCluster(arg, &rest, args, &i)
 			if unknown != "" {
-				extras = append(extras, "-"+unknown)
+				collect("-" + unknown)
 			}
 			if !consumed && unknown == "" {
-				extras = append(extras, arg)
+				collect(arg)
 			}
 
-		case arg == "render" && !seenInput && len(rest) == 0:
-			rest = append(rest, arg)
-
-		case !seenInput:
-			// The first bare token after the subcommand is `input_file_name`.
-			// Every later one is an extra, which is why `render a.yaml b.yaml`
-			// is an odd count rather than two input files.
-			seenInput = true
+		case arg == "render" && len(leftover) == 0 && len(rest) == 0:
 			rest = append(rest, arg)
 
 		default:
-			extras = append(extras, arg)
+			collect(arg)
+		}
+	}
+
+	// **`INPUT_FILE_NAME` is the first leftover, whatever it looks like.**
+	// `_process_args_for_args` unpacks `state.largs` against the declared
+	// arguments before anything else sees it, and `render`'s one argument takes
+	// the front of the list — so `render --version` opens a *file* named
+	// `--version` (measured: `FileNotFoundError: … '/<cwd>/--version'`) rather
+	// than reporting a usage error. Only what is left is `ctx.args`, which is
+	// why `render a.yaml b.yaml` is an odd count rather than two input files.
+	if len(leftover) > 0 {
+		rest = withInput(rest, inputAt, leftover[0])
+		if len(leftover) > 1 {
+			extras = leftover[1:]
 		}
 	}
 	return rest, extras
+}
+
+// withInput puts the input file name back into the vector a flag parser reads.
+//
+// A plain file name goes back where it was typed, so the vector keeps the shape
+// the user gave it. **One that begins with a dash cannot**: pflag would parse
+// `--version` as an option and fail the invocation where click opens a file of
+// that name. It is fenced behind a `--` at the end instead — pflag consumes the
+// fence and treats everything after it as positional, so `render` still sees
+// exactly one argument, spelled as typed.
+func withInput(rest []string, at int, input string) []string {
+	if !strings.HasPrefix(input, "-") {
+		return slices.Insert(rest, at, input)
+	}
+	return append(rest, "--", input)
 }
 
 // longName reports a `--flag`'s name with its value clipped off, and whether the

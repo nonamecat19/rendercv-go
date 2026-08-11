@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"io"
 	"reflect"
 	"slices"
 	"testing"
@@ -95,6 +96,155 @@ func TestNormalize(t *testing.T) {
 			}
 			if !slices.Equal(extras, row.extras) {
 				t.Errorf("extras = %q, want %q", extras, row.extras)
+			}
+		})
+	}
+}
+
+// TestNormalizeFillsInputFromFirstLeftover pins click's positional matching.
+//
+// **An unrecognized token is an argument, not an error.** `render` is declared
+// `allow_extra_args` + `ignore_unknown_options`
+// (`render_command.py:26`), so click's parser appends everything it cannot
+// match to `state.largs` (`parser.py`, `_process_opts` and `_match_short_opt`)
+// and then `_process_args_for_args` unpacks that list against the declared
+// arguments — `INPUT_FILE_NAME` takes the **first** of them, whatever it looks
+// like, and only what is left becomes `ctx.args`.
+//
+// Measured against the vendored CLI: `render --version` ends in
+// `FileNotFoundError: … '/<cwd>/--version'`, and so do `--nope`, `-x`,
+// `--helpx`, `--typ out.typ John_Doe_CV.yaml` (which opens `--typ`, not
+// `out.typ`) and `--cv.name Jane` (which opens `--cv.name`). The port routed
+// all six to the extras and reported a missing argument at exit 2.
+//
+// A leftover that begins with a dash is fenced behind a `--` at the end of the
+// vector, because it is the *input file name* and pflag would otherwise parse
+// it as an option; the fence is invisible to everything downstream, which sees
+// exactly one positional.
+func TestNormalizeFillsInputFromFirstLeftover(t *testing.T) {
+	cases := []struct {
+		name   string
+		args   []string
+		rest   []string
+		extras []string
+	}{
+		{
+			// `--version` is a root option; `render` does not declare it.
+			name: "an unknown long option is the input file",
+			args: []string{"render", "--version"},
+			rest: []string{"render", "--", "--version"},
+		},
+		{
+			name: "an unrecognized long option",
+			args: []string{"render", "--nope"},
+			rest: []string{"render", "--", "--nope"},
+		},
+		{
+			name: "an unrecognized short cluster",
+			args: []string{"render", "-x"},
+			rest: []string{"render", "--", "-x"},
+		},
+		{
+			// Not a prefix match for `--help`: click's table is exact.
+			name: "a near miss on a declared option",
+			args: []string{"render", "--helpx"},
+			rest: []string{"render", "--", "--helpx"},
+		},
+		{
+			// **`--typ` is not `-typ`.** Upstream declares the single-dash
+			// spelling, so the double-dash one is unknown, becomes the input
+			// file, and the real file name is demoted to an extra.
+			name:   "a double-dashed short form displaces the real file",
+			args:   []string{"render", "--typ", "out.typ", "John_Doe_CV.yaml"},
+			rest:   []string{"render", "--", "--typ"},
+			extras: []string{"out.typ", "John_Doe_CV.yaml"},
+		},
+		{
+			name:   "a dotted override with no input file",
+			args:   []string{"render", "--cv.name", "Jane"},
+			rest:   []string{"render", "--", "--cv.name"},
+			extras: []string{"Jane"},
+		},
+		{
+			// **`--` does not exempt what follows from being the argument.**
+			// Click returns from `_process_args_for_options` leaving the rest
+			// in `rargs`, and `_process_args_for_args` unpacks
+			// `largs + rargs` — so the first token after `--` is the input
+			// file. Measured: `render -- -notyp -nomd` opens `-notyp`.
+			name:   "the first token after a double dash",
+			args:   []string{"render", "--", "-notyp", "-nomd"},
+			rest:   []string{"render", "--", "-notyp"},
+			extras: []string{"-nomd"},
+		},
+		{
+			// A real file still wins when it comes first, and the fence is
+			// not emitted for it.
+			name:   "a plain file name keeps its place",
+			args:   []string{"render", "cv.yaml", "--nope"},
+			rest:   []string{"render", "cv.yaml"},
+			extras: []string{"--nope"},
+		},
+		{
+			// Order is the vector's, not "options first": the unknown option
+			// precedes the file and therefore takes the argument slot.
+			name:   "the earliest leftover wins",
+			args:   []string{"render", "--nope", "cv.yaml"},
+			rest:   []string{"render", "--", "--nope"},
+			extras: []string{"cv.yaml"},
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			rest, extras := Normalize(test.args)
+
+			if !reflect.DeepEqual(rest, test.rest) {
+				t.Errorf("rest = %q, want %q", rest, test.rest)
+			}
+			if !slices.Equal(extras, test.extras) {
+				t.Errorf("extras = %q, want %q", extras, test.extras)
+			}
+		})
+	}
+}
+
+// TestRenderTakesInputFromFirstLeftover is the same rule at the CLI boundary:
+// the six measured vectors must reach `render` as an input file it then fails
+// to open — upstream's `FileNotFoundError`, exit 1 — rather than dying in the
+// parser with `Missing argument 'INPUT_FILE_NAME'.` at exit 2.
+func TestRenderTakesInputFromFirstLeftover(t *testing.T) {
+	cases := []struct {
+		name  string
+		args  []string
+		input string
+	}{
+		{name: "version", args: []string{"render", "--version"}, input: "--version"},
+		{name: "unknown long", args: []string{"render", "--nope"}, input: "--nope"},
+		{name: "unknown short", args: []string{"render", "-x"}, input: "-x"},
+		{name: "near miss", args: []string{"render", "--helpx"}, input: "--helpx"},
+		{
+			name:  "double-dashed short form",
+			args:  []string{"render", "--typ", "out.typ", "John_Doe_CV.yaml"},
+			input: "--typ",
+		},
+		{name: "dotted override", args: []string{"render", "--cv.name", "Jane"}, input: "--cv.name"},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			var seen *RenderOptions
+			code := execute(test.args, io.Discard, io.Discard, runners{
+				render: func(options RenderOptions, _, _ io.Writer) int {
+					seen = &options
+					return 0
+				},
+			})
+
+			if seen == nil {
+				t.Fatalf("render was not invoked; exit code %d", code)
+			}
+			if seen.InputPath != test.input {
+				t.Errorf("InputPath = %q, want %q", seen.InputPath, test.input)
 			}
 		})
 	}
