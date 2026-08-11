@@ -83,8 +83,15 @@ func New(options NewOptions, stdout, stderr io.Writer) int {
 		return exitValidationError
 	}
 
+	// **The input file is one item of the same exists-or-create loop the
+	// template folders go through** (`new_command.py:110-119`), not a special
+	// case: a path that already exists is added to `existing_items` and its
+	// creator never runs. The port wrote unconditionally and then hardcoded
+	// the "Created" row, so `new` silently overwrote a CV the user had already
+	// filled in and reported the opposite of what it did.
 	path := strings.ReplaceAll(options.Name, " ", "_") + "_CV.yaml"
-	if err := os.WriteFile(path, content, 0o644); err != nil {
+	inputFileCreated, err := writeFileIfAbsent(path, content)
+	if err != nil {
 		fail(stderr, err)
 		return exitValidationError
 	}
@@ -126,8 +133,22 @@ func New(options NewOptions, stdout, stderr io.Writer) int {
 		}
 	}
 
-	_, _ = fmt.Fprint(stdout, newBanner(path, templateRows(created, existing)))
+	_, _ = fmt.Fprint(stdout, newBanner(path, inputFileCreated, templateRows(created, existing)))
 	return 0
+}
+
+// writeFileIfAbsent is writeTemplatesIfAbsent for a single file: upstream's
+// loop skips any item whose path exists, the input file included.
+func writeFileIfAbsent(path string, content []byte) (created bool, err error) {
+	if _, statErr := os.Stat(path); statErr == nil {
+		return false, nil
+	} else if !errors.Is(statErr, os.ErrNotExist) {
+		return false, statErr
+	}
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // templateItem is one row of the "Also created" / "Not modified" block —
@@ -212,7 +233,7 @@ const Version = "2.8"
 // divergence** (`AGENTS.md` §1, spec 012 §1 behavior 4). The instruction has to
 // name the binary the user actually has, so this line cannot match the golden
 // and must not.
-func newBanner(path string, templatesRows []PanelRow) string {
+func newBanner(path string, inputFileCreated bool, templatesRows []PanelRow) string {
 	var out strings.Builder
 	// **A leading blank line**, which Rich emits before the greeting and which
 	// is easy to lose: it is the first byte of the golden, so dropping it shifts
@@ -226,8 +247,16 @@ func newBanner(path string, templatesRows []PanelRow) string {
 		{Text: "Bug reports:    https://github.com/rendercv/rendercv/issues/"},
 	}))
 
+	// `new_command.py:126-136` picks between the two first rows on whether the
+	// input file was among the items actually created. Only the created form
+	// carries the check mark.
+	firstRow := "Your YAML input file already exists: ./" + path
+	if inputFileCreated {
+		firstRow = "✓ Created your YAML input file: ./" + path
+	}
+
 	rows := []PanelRow{
-		{Text: "✓ Created your YAML input file: ./" + path},
+		{Text: firstRow},
 		{IsText: true},
 		{Text: "Next steps:"},
 		{Text: "  1. Edit the YAML input file with your information"},
