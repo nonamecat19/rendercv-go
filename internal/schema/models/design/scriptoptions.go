@@ -121,17 +121,49 @@ func scriptOptionValueErrors(
 			return one(node, binder.CodeModelType, modelTypeMessage(scriptModelName(key)), location, source)
 		}
 		var errs []schemaerr.ValidationError
+		var extras []schemaerr.ValidationError
 		for _, item := range node.Items {
+			at := append(append([]string(nil), location...), item.Key)
 			nested, ok := typed[item.Key]
-			if !ok || nested == nil || item.Value == nil {
+			if !ok {
+				// **`extra="forbid"` reaches every level**, and the group's
+				// permitted keys are the ones the script's table holds. Upstream
+				// is exit 1 for this at any depth — by way of a traceback, since
+				// its own formatter cannot print a nested `design` location —
+				// and the port used to render it at exit 0. The record is the
+				// one the tree's groups already produce for the same mistake
+				// (`unknownKeyErrors`), so the two paths answer alike.
+				extras = append(extras, extraKeyError(item.Value, at, source)...)
 				continue
 			}
-			errs = append(errs, scriptOptionValueErrors(nested, item.Value, item.Key,
-				append(append([]string(nil), location...), item.Key), source)...)
+			if nested == nil || item.Value == nil {
+				continue
+			}
+			errs = append(errs, scriptOptionValueErrors(nested, item.Value, item.Key, at, source)...)
 		}
-		return errs
+		// A field's own failures precede the enclosing group's extra keys, which
+		// is pydantic's order and the order `unknownKeyErrors` already keeps.
+		return append(errs, extras...)
 	}
 	return nil
+}
+
+// extraKeyError is pydantic's `extra_forbidden` for a key inside a
+// script-declared group. `error_dictionary.yaml:11` rewrites the message to
+// "This field is unknown for this object. Please remove it."
+//
+// A null value still carries a location, so the node is only consulted for the
+// Input column and a missing one is not a reason to stay silent.
+func extraKeyError(
+	node *yamldoc.Node, location []string, source schemaerr.YamlSource,
+) []schemaerr.ValidationError {
+	if node == nil {
+		return []schemaerr.ValidationError{{
+			Code: binder.CodeExtraForbidden, SchemaLocation: location,
+			YamlSource: source, Message: "Extra inputs are not permitted",
+		}}
+	}
+	return one(node, binder.CodeExtraForbidden, "Extra inputs are not permitted", location, source)
 }
 
 // integerErrors is pydantic's lax `int`.

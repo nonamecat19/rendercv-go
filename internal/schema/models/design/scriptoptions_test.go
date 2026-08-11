@@ -195,3 +195,108 @@ func TestValidateScriptDeclaredOptionValues(t *testing.T) {
 		})
 	}
 }
+
+// **A key inside a script-declared group must be one the group declares.**
+//
+// `extra="forbid"` reaches every level of upstream's generated class, so an
+// unknown key nested inside a script-declared group is exit 1 there and used to
+// render at exit 0 here — at **every** depth, measured at two and three.
+//
+// **Upstream prints no record for these**, so there is nothing to be
+// byte-identical to: its location strip turns `('design','custom_group','zz')`
+// into `('design','zz')`, which does not resolve in the document, and the
+// formatter dies with `RenderCVInternalError: Key 'zz' not found in the YAML
+// file` — 13,766 B of traceback on stderr, exit 1, no artifact. The port matches
+// the exit code and the refusal and prints a clean record instead, which is
+// D-011's substitution and exactly what it already does for the same mistake in
+// a *tree* group.
+func TestValidateScriptDeclaredGroupForbidsUnknownKeys(t *testing.T) {
+	const script = `return {
+		custom_note = "hello",
+		custom_group = { x = "1", inner = { y = "1" } },
+	}`
+	const unknownKey = "This field is unknown for this object. Please remove it."
+
+	tests := []struct {
+		name        string
+		yaml        string
+		wantLoc     string
+		wantMessage string
+	}{
+		{
+			name:        "one level down",
+			yaml:        "custom_group:\n  zz: 1\n",
+			wantLoc:     "design.custom_group.zz",
+			wantMessage: unknownKey,
+		}, {
+			// Pinned rather than assumed: the recursion generalising is the
+			// claim, and depth 3 is where it would stop if it did not.
+			name:        "two levels down",
+			yaml:        "custom_group:\n  inner:\n    zz: 1\n",
+			wantLoc:     "design.custom_group.inner.zz",
+			wantMessage: unknownKey,
+		}, {
+			// The did-not-over-reject half: a declared key at the same depth
+			// renders at exit 0 on both sides.
+			name: "a declared key two levels down is untouched",
+			yaml: "custom_group:\n  inner:\n    y: \"2\"\n",
+		}, {
+			name: "a declared key one level down is untouched",
+			yaml: "custom_group:\n  x: \"2\"\n",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			raw := validateTheme(t, "mytheme", script, "theme: mytheme\n"+test.yaml)
+			errs, err := errorpipeline.Parse(raw, nil, nil)
+			if err != nil {
+				t.Fatalf("Parse: %v", err)
+			}
+
+			if test.wantLoc == "" {
+				if len(errs) != 0 {
+					t.Fatalf("errs = %+v, want none — upstream renders this at exit 0", errs)
+				}
+				return
+			}
+			if len(errs) != 1 {
+				t.Fatalf("errs = %+v, want exactly one", errs)
+			}
+			if got := strings.Join(errs[0].SchemaLocation, "."); got != test.wantLoc {
+				t.Errorf("location = %q, want %q", got, test.wantLoc)
+			}
+			if errs[0].Message != test.wantMessage {
+				t.Errorf("message = %q, want %q", errs[0].Message, test.wantMessage)
+			}
+		})
+	}
+}
+
+// **The neighbouring vector must not move.** An unknown key in a *tree* group
+// on a scripted theme is already a clean record at its true location, and it
+// travels a different path — `unknownKeyErrors`' recursion through the tree's
+// own models, not the script's. It is the assertion most likely to catch a
+// mistake in the script-group recursion, because both now walk mappings under
+// the same `design` block.
+func TestATreeGroupsUnknownKeyIsUnchanged(t *testing.T) {
+	raw := validateTheme(t, "mytheme", `return { custom_note = "hello" }`,
+		"theme: mytheme\npage:\n  zz: 1\n")
+	errs, err := errorpipeline.Parse(raw, nil, nil)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+
+	if len(errs) != 1 {
+		t.Fatalf("errs = %+v, want exactly one", errs)
+	}
+	if got := strings.Join(errs[0].SchemaLocation, "."); got != "design.page.zz" {
+		t.Errorf("location = %q, want design.page.zz", got)
+	}
+	if errs[0].Input != "1" {
+		t.Errorf("input = %q, want 1", errs[0].Input)
+	}
+	if errs[0].Message != "This field is unknown for this object. Please remove it." {
+		t.Errorf("message = %q, want the unknown-field message", errs[0].Message)
+	}
+}
