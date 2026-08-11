@@ -188,6 +188,62 @@ residue on row 6 and is now provably the only thing that row leaves unasserted.
   request. Plain-text output from a subagent does not reach the parent; only an explicit message
   does.
 
+## Lexical paths: one bug, seven sites — 2026-08-11
+
+Surveyed read-only after the theme-script half was fixed in `0848dce`. `Path.absolute()` and
+`.parent` are **purely lexical** — verified in the vendored interpreter, `.resolve()` is the only
+thing that collapses — while `filepath.Dir` and `filepath.Join` both call `Clean`. So the port lands
+on the resolved spelling everywhere upstream keeps the lexical one.
+
+Measured on `render ./bb/../bb/CV.yaml` with `bb` a symlink and `other/bb` a distinct real directory:
+upstream writes `other/bb/rendercv_output/`, the port writes `other/real/rendercv_output/`, both exit
+0, neither warns. The **document-named overlay** demonstration is stronger still: the same invocation
+reads a different `design.yaml` on each side, giving **60 differing `.typ` lines** and two different
+themes, at exit 0.
+
+| # | Site | Upstream derives it from | State |
+|---|---|---|---|
+| 1 | output folder, `outputFolderFor` | `path.py:39` `input_file_path.parent` | wrong |
+| 2 | the five artifact paths, `ResolvePath` | `path_resolver.py:108` `file_path.parent / file_name` | wrong — **and would silently undo a fix to 1**, since `Join` re-collapses what site 1 preserved |
+| 3 | template override dir, `inputDir` | `templater.py:38` | wrong |
+| 4 | font directory | `pdf_png.py:179` | wrong |
+| 5 | document-named overlays | `run_rendercv.py:120` lexical parent **then `.resolve()`** | wrong, **toward a different target** |
+| 6 | panel text, `display` | `progress_panel.py:97` `relative_to`, a lexical prefix strip | wrong — `filepath.Rel` cleans, so the printed line differs even with 1–5 fixed |
+| 7 | `WatchSet` | `watcher.py:49` `str(fp.absolute())` | wrong — **the port watches the wrong directory**, so edits never re-render |
+| — | `ValidationContext` | parent taken schema-side | **already correct** |
+
+Site 5's asymmetry is deliberate and must not be tidied: the watch set legitimately holds *resolved*
+paths for document-named overlays and *lexical* ones for CLI-supplied paths, because that is what
+`collect_input_file_paths` produces. Site 6 is the one that would have been missed by checking only
+where files land rather than where paths are displayed.
+
+## A scripted theme's own options are unvalidated too — 2026-08-11
+
+The fourth behaviour, measured over nine vectors on a theme built by upstream's own `create-theme`.
+**The rule is not type conflict — it is any value the declared field's type rejects**, and every
+rejection is exit 1 at location `design` with no artifact. The port renders at **exit 0** for all
+seven rejections.
+
+Rejected: a mapping or list where `str` is declared; a scalar where a group is declared; `5` where
+`str` is declared; `seven` or `5.5` where `int` is declared; `7` where `bool` is declared. Accepted on
+both sides: `"5"` for an `int`, and the bool words for a `bool` — pydantic's lax coercion, which the
+port matches **by accident rather than by rule**, so a fix must reproduce the coercion table
+deliberately or it will start rejecting `"5"` and break agreement in the other direction. Note `7` is
+rejected for a `bool` while `0` and `1` are accepted.
+
+**One user-visible behaviour, two root causes.** Shape conflicts *are* detected — `luatheme.Validate`
+produces a `*TypeError` — and then discarded by `withoutConflicts` at `effective.go:113`, whose own
+comment says the silent drop is pending the script being loaded at validation time; **T1 has now
+removed that blocker**. Scalar type mismatches are never detected at all: `luatheme/validate.go:80-91`
+collapses every scalar to the kind `"a value"`, so `custom_note: 5` against a declared string is not a
+conflict at any layer. The second is the larger piece of work, and `luatheme.Options` does preserve
+the Go types needed for it.
+
+**A message the port must reproduce even though it is nonsense to the user**: `error_dictionary.yaml:3`
+maps pydantic's integer-parse failure to RenderCV's *date* message, keyed on message text with no
+notion of which field produced it. So a custom theme's `int` option given `seven` tells the user to
+use `YYYY-MM-DD`. That is axis-4 text.
+
 ## Iteration 12's five fixes verified — PASS — 2026-08-11
 
 Re-verified by the same fresh context that failed the iteration, scoped to what changed. **PASS on all
