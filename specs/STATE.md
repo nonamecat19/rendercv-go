@@ -1535,11 +1535,14 @@ Neither is written into `specs/divergences.md`; that file is human-gated (`AGENT
 is the request.
 
 1. **A non-string extra key on an entry.** `flag: true` or `ratio: 3.5` makes upstream die with an
-   uncaught `TypeError: sequence item 3: expected str instance, bool found` (exit 2). The port
+   uncaught `TypeError` (`expected string or bytes-like object, got 'bool'`). The port
    exits 0 and renders, dropping the placeholder. Measured by the verifier.
 2. **A `design` block that omits `theme`.** Upstream dies with an uncaught `KeyError: 'theme'`
-   (ruamel `comments.py:854`, exit 2); the port defaults to `classic` and renders. Measured while
-   building the locale fixture case.
+   (ruamel `comments.py:854`); the port defaults to `classic` and renders. Measured while
+   building the locale fixture case. `design: {}` reaches the same fork with the same `KeyError`.
+
+**Both exit 1, not 2** — the traceback goes through typer's excepthook rather than aborting the
+interpreter. This file recorded exit 2 for both until the 21st re-verification measured them.
 
 Both are upstream *crashes*, not upstream behavior, and in both the port is friendlier. That is
 still a divergence under axis 2 — same input, different exit code — and it is the human's call
