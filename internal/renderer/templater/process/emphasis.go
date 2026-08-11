@@ -22,11 +22,24 @@ import "strings"
 // `parse_sub_patterns` (`:589-646`) only tries patterns **after** the index that
 // matched the parent, which is what stops `***x***` from re-matching itself. The
 // index is threaded through as `from`.
+//
+// # Matching and emitting are separate, spec 011 §7 / plan §3.2
+//
+// `match` reports **offsets** into `data`, not substrings, so a caller that
+// needs source positions — the HTML backend's goldmark nodes, `emphasis_html.go`
+// — can build a `text.Segment` directly instead of round-tripping through a
+// copied string. `firstStart == firstEnd == -1` marks "no second group": three
+// of the five patterns (`STRONG_RE`/`SMART_STRONG_RE`,
+// `EMPHASIS_RE`/`SMART_EMPHASIS_RE`) only ever produce one. The Typst path
+// (`build`, and `inline.go`'s `parseFrom`) slices `data[start:end]` right where
+// it used to receive the substring directly — this is a zero-output-diff
+// refactor, not a behavior change.
 type emphasisPattern struct {
 	// name is the upstream constant, for the doc trail only.
 	name string
-	// match reports the end offset and the two body groups, or ok=false.
-	match func(data string, pos int) (end int, first, second string, ok bool)
+	// match reports the end offset and the two body groups as offsets into
+	// data, or ok=false. secondStart < 0 means there is no second group.
+	match func(data string, pos int) (end, firstStart, firstEnd, secondStart, secondEnd int, ok bool)
 	// build turns the groups into Typst, recursing with the pattern index.
 	build func(p *inlineParser, first, second string, index int, delim byte) string
 }
@@ -48,8 +61,8 @@ func init() {
 			// EM_STRONG_RE `(\*)\1{2}(.+?)\1(.*?)\1{2}` → `strong,em`.
 			// `***em*strong**`
 			name: "EM_STRONG_RE",
-			match: func(data string, pos int) (int, string, string, bool) {
-				return matchTriple(data, pos, '*', 1, 2, false)
+			match: func(data string, pos int) (int, int, int, int, int, bool) {
+				return matchTriple(data, pos, '*', 1, 2)
 			},
 			build: func(p *inlineParser, first, second string, index int, delim byte) string {
 				return "#strong[" + "#emph[" + p.parseFrom(first, index, delim) + "]" +
@@ -60,8 +73,8 @@ func init() {
 			// STRONG_EM_RE `(\*)\1{2}(.+?)\1{2}(.*?)\1` → `em,strong`.
 			// `***strong**em*`
 			name: "STRONG_EM_RE",
-			match: func(data string, pos int) (int, string, string, bool) {
-				return matchTriple(data, pos, '*', 2, 1, false)
+			match: func(data string, pos int) (int, int, int, int, int, bool) {
+				return matchTriple(data, pos, '*', 2, 1)
 			},
 			build: func(p *inlineParser, first, second string, index int, delim byte) string {
 				return "#emph[" + "#strong[" + p.parseFrom(first, index, delim) + "]" +
@@ -73,7 +86,7 @@ func init() {
 			// built the **other way round**: the first group is the strong's own
 			// text and the second is the nested em. `**strong*em***`
 			name: "STRONG_EM3_RE",
-			match: func(data string, pos int) (int, string, string, bool) {
+			match: func(data string, pos int) (int, int, int, int, int, bool) {
 				return matchStrongEm3(data, pos, '*')
 			},
 			build: func(p *inlineParser, first, second string, index int, delim byte) string {
@@ -84,9 +97,9 @@ func init() {
 		{
 			// STRONG_RE `(\*{2})(.+?)\1`
 			name: "STRONG_RE",
-			match: func(data string, pos int) (int, string, string, bool) {
-				end, body, ok := matchDelimited(data, pos, "**", "**", false)
-				return end, body, "", ok
+			match: func(data string, pos int) (int, int, int, int, int, bool) {
+				end, bodyStart, bodyEnd, ok := matchDelimited(data, pos, "**", "**", false)
+				return end, bodyStart, bodyEnd, -1, -1, ok
 			},
 			build: func(p *inlineParser, first, _ string, index int, delim byte) string {
 				return "#strong[" + p.parseFrom(first, index, delim) + "]"
@@ -97,9 +110,9 @@ func init() {
 			// is the whole reason `*a **b** c*` parses as three separate emphases
 			// rather than one containing a strong. Measured.
 			name: "EMPHASIS_RE",
-			match: func(data string, pos int) (int, string, string, bool) {
-				end, body, ok := matchDelimited(data, pos, "*", "*", true)
-				return end, body, "", ok
+			match: func(data string, pos int) (int, int, int, int, int, bool) {
+				end, bodyStart, bodyEnd, ok := matchDelimited(data, pos, "*", "*", true)
+				return end, bodyStart, bodyEnd, -1, -1, ok
 			},
 			build: func(p *inlineParser, first, _ string, index int, delim byte) string {
 				return "#emph[" + p.parseFrom(first, index, delim) + "]"
@@ -114,21 +127,21 @@ func init() {
 	underscorePatterns = []emphasisPattern{
 		{
 			name: "EM_STRONG2_RE",
-			match: func(data string, pos int) (int, string, string, bool) {
-				return matchTriple(data, pos, '_', 1, 2, false)
+			match: func(data string, pos int) (int, int, int, int, int, bool) {
+				return matchTriple(data, pos, '_', 1, 2)
 			},
 			build: asteriskPatterns[0].build,
 		},
 		{
 			name: "STRONG_EM2_RE",
-			match: func(data string, pos int) (int, string, string, bool) {
-				return matchTriple(data, pos, '_', 2, 1, false)
+			match: func(data string, pos int) (int, int, int, int, int, bool) {
+				return matchTriple(data, pos, '_', 2, 1)
 			},
 			build: asteriskPatterns[1].build,
 		},
 		{
 			name: "SMART_STRONG_EM_RE",
-			match: func(data string, pos int) (int, string, string, bool) {
+			match: func(data string, pos int) (int, int, int, int, int, bool) {
 				return matchStrongEm3(data, pos, '_')
 			},
 			build: asteriskPatterns[2].build,
@@ -136,22 +149,39 @@ func init() {
 		{
 			// SMART_STRONG_RE `(?<!\w)(_{2})(?!_)(.+?)(?<!_)\1(?!\w)`
 			name: "SMART_STRONG_RE",
-			match: func(data string, pos int) (int, string, string, bool) {
-				end, body, ok := matchSmart(data, pos, "__")
-				return end, body, "", ok
+			match: func(data string, pos int) (int, int, int, int, int, bool) {
+				end, bodyStart, bodyEnd, ok := matchSmart(data, pos, "__")
+				return end, bodyStart, bodyEnd, -1, -1, ok
 			},
 			build: asteriskPatterns[3].build,
 		},
 		{
 			// SMART_EMPHASIS_RE `(?<!\w)(_)(?!_)(.+?)(?<!_)\1(?!\w)`
 			name: "SMART_EMPHASIS_RE",
-			match: func(data string, pos int) (int, string, string, bool) {
-				end, body, ok := matchSmart(data, pos, "_")
-				return end, body, "", ok
+			match: func(data string, pos int) (int, int, int, int, int, bool) {
+				end, bodyStart, bodyEnd, ok := matchSmart(data, pos, "_")
+				return end, bodyStart, bodyEnd, -1, -1, ok
 			},
 			build: asteriskPatterns[4].build,
 		},
 	}
+}
+
+// matchEmphasis tries patterns[cutoff+1:] in order at pos and returns the
+// index and offsets of the first hit. It is `parse_sub_patterns`'s pattern
+// selection (`:613-634`) alone, without the recursion or the Typst emission —
+// the piece both the Typst path (`inline.go`'s `parseFrom`) and the HTML path
+// (`emphasis_html.go`) share.
+func matchEmphasis(patterns []emphasisPattern, data string, pos, cutoff int) (index, end, firstStart, firstEnd, secondStart, secondEnd int, ok bool) {
+	for i, p := range patterns {
+		if i <= cutoff {
+			continue
+		}
+		if end, firstStart, firstEnd, secondStart, secondEnd, ok := p.match(data, pos); ok {
+			return i, end, firstStart, firstEnd, secondStart, secondEnd, true
+		}
+	}
+	return 0, 0, 0, 0, 0, 0, false
 }
 
 // matchSmart is the underscore singles, whose four guards are the whole point:
@@ -161,16 +191,16 @@ func init() {
 // Together they are why `snake_case` and `a_b` keep their underscores — the
 // character before the opening `_` is a word character — while `_em_` at a word
 // boundary becomes emphasis.
-func matchSmart(data string, pos int, run string) (int, string, bool) {
+func matchSmart(data string, pos int, run string) (end, bodyStart, bodyEnd int, ok bool) {
 	if pos > 0 && isWordByte(data[pos-1]) {
-		return 0, "", false
+		return 0, 0, 0, false
 	}
 	if !strings.HasPrefix(data[pos:], run) {
-		return 0, "", false
+		return 0, 0, 0, false
 	}
 	rest := data[pos+len(run):]
 	if len(rest) > 0 && rest[0] == '_' {
-		return 0, "", false
+		return 0, 0, 0, false
 	}
 
 	for i := 1; i <= len(rest); i++ {
@@ -184,9 +214,11 @@ func matchSmart(data string, pos int, run string) (int, string, bool) {
 		if after < len(rest) && isWordByte(rest[after]) {
 			continue
 		}
-		return pos + len(run) + i + len(run), rest[:i], true
+		bodyStart = pos + len(run)
+		bodyEnd = bodyStart + i
+		return bodyEnd + len(run), bodyStart, bodyEnd, true
 	}
-	return 0, "", false
+	return 0, 0, 0, false
 }
 
 // isWordByte is Python's `\w` over the ASCII range, with every byte above it
@@ -203,10 +235,10 @@ func isWordByte(b byte) bool {
 // `(.+?)` requires at least one character; `(.*?)` allows none — which is the
 // difference between the two bodies and why `first` is non-empty and `second`
 // may be.
-func matchTriple(data string, pos int, delim byte, innerRun, outerRun int, _ bool) (int, string, string, bool) {
+func matchTriple(data string, pos int, delim byte, innerRun, outerRun int) (end, firstStart, firstEnd, secondStart, secondEnd int, ok bool) {
 	opening := strings.Repeat(string(delim), 3)
 	if !strings.HasPrefix(data[pos:], opening) {
-		return 0, "", "", false
+		return 0, 0, 0, 0, 0, false
 	}
 	rest := data[pos+3:]
 
@@ -221,29 +253,33 @@ func matchTriple(data string, pos int, delim byte, innerRun, outerRun int, _ boo
 		tail := rest[i+len(inner):]
 		for j := 0; j <= len(tail); j++ {
 			if strings.HasPrefix(tail[j:], outer) {
-				return pos + 3 + i + len(inner) + j + len(outer), rest[:i], tail[:j], true
+				firstStart = pos + 3
+				firstEnd = firstStart + i
+				secondStart = firstEnd + len(inner)
+				secondEnd = secondStart + j
+				return secondEnd + len(outer), firstStart, firstEnd, secondStart, secondEnd, true
 			}
 		}
 	}
-	return 0, "", "", false
+	return 0, 0, 0, 0, 0, false
 }
 
 // matchStrongEm3 is `(\*)\1(?!\1)([^*]+?)\1(?!\1)(.+?)\1{3}`: two delimiters not
 // followed by a third, a body with **no** delimiter in it, one delimiter not
 // followed by another, a lazy body, then three delimiters.
-func matchStrongEm3(data string, pos int, delim byte) (int, string, string, bool) {
+func matchStrongEm3(data string, pos int, delim byte) (end, firstStart, firstEnd, secondStart, secondEnd int, ok bool) {
 	two := strings.Repeat(string(delim), 2)
 	if !strings.HasPrefix(data[pos:], two) {
-		return 0, "", "", false
+		return 0, 0, 0, 0, 0, false
 	}
 	rest := data[pos+2:]
 	if len(rest) > 0 && rest[0] == delim {
-		return 0, "", "", false // the `(?!\1)` after the opening pair
+		return 0, 0, 0, 0, 0, false // the `(?!\1)` after the opening pair
 	}
 
 	for i := 1; i <= len(rest); i++ {
 		if rest[i-1] == delim {
-			return 0, "", "", false // `[^*]+?` — no delimiter inside the first body
+			return 0, 0, 0, 0, 0, false // `[^*]+?` — no delimiter inside the first body
 		}
 		if i >= len(rest) || rest[i] != delim {
 			continue
@@ -255,28 +291,34 @@ func matchStrongEm3(data string, pos int, delim byte) (int, string, string, bool
 		three := strings.Repeat(string(delim), 3)
 		for j := 1; j <= len(tail); j++ {
 			if strings.HasPrefix(tail[j:], three) {
-				return pos + 2 + i + 1 + j + 3, rest[:i], tail[:j], true
+				firstStart = pos + 2
+				firstEnd = firstStart + i
+				secondStart = firstEnd + 1
+				secondEnd = secondStart + j
+				return secondEnd + 3, firstStart, firstEnd, secondStart, secondEnd, true
 			}
 		}
 	}
-	return 0, "", "", false
+	return 0, 0, 0, 0, 0, false
 }
 
 // matchDelimited is the simple `open … close` pair. `plain` forbids the
 // delimiter character inside the body, which is EMPHASIS_RE's `[^\*]+`.
-func matchDelimited(data string, pos int, open, close string, plain bool) (int, string, bool) {
+func matchDelimited(data string, pos int, open, close string, plain bool) (end, bodyStart, bodyEnd int, ok bool) {
 	if !strings.HasPrefix(data[pos:], open) {
-		return 0, "", false
+		return 0, 0, 0, false
 	}
 	rest := data[pos+len(open):]
 
 	for i := 1; i <= len(rest); i++ {
 		if plain && rest[i-1] == open[0] {
-			return 0, "", false
+			return 0, 0, 0, false
 		}
 		if strings.HasPrefix(rest[i:], close) {
-			return pos + len(open) + i + len(close), rest[:i], true
+			bodyStart = pos + len(open)
+			bodyEnd = bodyStart + i
+			return bodyEnd + len(close), bodyStart, bodyEnd, true
 		}
 	}
-	return 0, "", false
+	return 0, 0, 0, false
 }
