@@ -133,10 +133,13 @@ func Model(document Document, registry *entries.Registry) (process.Model, error)
 		return process.Model{}, err
 	}
 
+	name := model.CvModel.Name
+
 	return process.Model{
-		Name:     text(model.CvModel.Name),
-		Headline: text(model.CvModel.Headline),
-		Sections: Sections(model.CvModel, registry),
+		Name:       text(name),
+		Headline:   text(model.CvModel.Headline),
+		NameIsNone: name == nil || name.Kind == yamldoc.KindNull,
+		Sections:   Sections(model.CvModel, registry),
 
 		Catalog: process.Catalog{
 			MonthNames:         catalog.MonthNames,

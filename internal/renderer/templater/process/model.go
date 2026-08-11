@@ -63,6 +63,14 @@ type Model struct {
 
 	// PlainName is `cv._plain_name`, captured **before** Name is processed.
 	PlainName string
+
+	// NameIsNone distinguishes an absent or null `cv.name` from one written as
+	// the empty string. Both are falsy, so both drop the filename placeholders
+	// — but a template that interpolates the name renders `None` for the first
+	// and nothing for the second, because Jinja spells a Python `None` out
+	// (`Preamble.j2.typ:6`, `{{ cv._plain_name }}`). A Go string cannot hold
+	// that difference on its own.
+	NameIsNone bool
 	// Connections, TopNote and Footer are computed onto the model by
 	// Run, mirroring `cv._connections`, `_top_note` and `_footer`.
 	Connections []string
@@ -155,6 +163,15 @@ func Run(model Model, format Format) Model {
 		}
 	}
 	return out
+}
+
+// PlainNameForTemplate is `cv._plain_name` as a Jinja expression renders it:
+// its text, or the four letters `None` when the field is absent or null.
+func (m Model) PlainNameForTemplate() string {
+	if m.NameIsNone {
+		return "None"
+	}
+	return m.PlainName
 }
 
 // stringProcessors is the chain of `:80-85`.
