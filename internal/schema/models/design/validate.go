@@ -147,7 +147,7 @@ func Validate(
 	if errs := ValidateTheme(theme, location, source); len(errs) > 0 {
 		return errs
 	}
-	if !isBuiltIn(theme.Raw) {
+	if !isBuiltIn(theme) {
 		// A custom theme passed the name-shape check, so the two folder checks
 		// run next (`design.py:72-86`).
 		//
@@ -169,9 +169,22 @@ func Validate(
 	return validateModel(node, baseTree(), baseTree().Root, theme.Raw, location, source)
 }
 
-func isBuiltIn(theme string) bool {
+// isBuiltIn answers the question pydantic's discriminated union answers, which
+// is about the *value* and not only its text.
+//
+// **A tagged scalar spelling a built-in theme's name is not that theme.**
+// `design.theme: !!str classic` is a `TaggedScalar` upstream, which equals no
+// string, so the union fails to discriminate and `validate_design` falls
+// through to the custom-theme path — where `str(design["theme"])`
+// (`design.py:57`) turns it back into `classic`, passes the name-shape check,
+// and reports the *folder* message. Comparing text alone matched `classic` here
+// and validated the built-in option tree instead.
+func isBuiltIn(theme *yamldoc.Node) bool {
+	if theme == nil || theme.Kind != yamldoc.KindString {
+		return false
+	}
 	for _, known := range BuiltInThemes {
-		if known == theme {
+		if known == theme.Raw {
 			return true
 		}
 	}
