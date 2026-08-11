@@ -416,10 +416,20 @@ func validBoolNode(node *yamldoc.Node) error {
 	return errBoolType
 }
 
-// isWholeNumber is Python's `float.is_integer()`, which is false for both a NaN
-// and an infinity as well as for a fractional value.
+// isWholeNumber reports whether pydantic would treat a number as an integer
+// when deciding *which* boolean error to raise.
+//
+// It is `float.is_integer()` — false for a NaN, an infinity and any fractional
+// value — **and additionally bounded by the range of an `i64`**, because
+// pydantic-core converts through one: a float too large to be an integer there
+// is `bool_type` rather than `bool_parsing`. Measured against pydantic on both
+// sides of the boundary — `9.2e18` is `bool_parsing`, `9.3e18` is `bool_type` —
+// which is also why `1e308` and `inf` take the type error.
 func isWholeNumber(value float64) bool {
-	return !math.IsNaN(value) && !math.IsInf(value, 0) && value == math.Trunc(value)
+	if math.IsNaN(value) || math.IsInf(value, 0) || value != math.Trunc(value) {
+		return false
+	}
+	return value >= math.MinInt64 && value <= math.MaxInt64
 }
 
 // boolCode reads the code off the error `validBoolNode` returned rather than off
