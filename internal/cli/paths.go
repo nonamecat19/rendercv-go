@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/nonamecat19/rendercv-go/internal/renderer/templater/process"
+	"github.com/nonamecat19/rendercv-go/internal/schema/models/design"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/locale"
 )
 
@@ -54,8 +55,15 @@ func ResolvePath(template string, input PathInput) (string, error) {
 	dir, name := filepath.Split(path)
 	name = process.SubstitutePlaceholders(name, namePlaceholders(input))
 
-	resolved := filepath.Join(dir, name)
-	if parent := filepath.Dir(resolved); parent != "" && parent != "." {
+	// **`design.Join`, not `filepath.Join`** — upstream is
+	// `resolved_file_path = file_path.parent / file_name`
+	// (`path_resolver.py:108`), `PurePath`'s `/`, which does not clean. `Join`
+	// would collapse the `..` that `outputFolderFor` just preserved, undoing
+	// the lexical resolution one line before it is used. Likewise the parent
+	// below: `:109` creates the directories of the uncleaned path, and
+	// `MkdirAll` walks a `../` segment as happily as the kernel does.
+	resolved := design.Join(dir, name)
+	if parent := design.Parent(resolved); parent != "" && parent != "." {
 		if err := os.MkdirAll(parent, 0o755); err != nil {
 			return "", err
 		}
