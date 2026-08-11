@@ -303,9 +303,19 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 //
 // **`--quiet` produces no stdout at all** — measured on `render_quiet`, whose
 // golden stdout is zero bytes, not a panel without the progress lines.
+// **A run that completed no steps still has a body.**
+// `print_progress_panel` ends with
+// `content = "\n".join(lines) if lines else "Rendering..."`
+// (`progress_panel.py:110`), so switching every format off — `-notyp -nopdf
+// -nopng -nomd -nohtml` — leaves the literal `Rendering...` in the finished
+// panel, where the port printed an empty box. No corpus case disables
+// everything, which is why the suite never saw it.
 func finish(options RenderOptions, rows []PanelRow, stdout io.Writer) int {
 	if options.Quiet {
 		return 0
+	}
+	if len(rows) == 0 {
+		rows = []PanelRow{{Text: "Rendering..."}}
 	}
 	writeLivePanel(stdout, Panel("Your CV is ready", rows))
 	return 0

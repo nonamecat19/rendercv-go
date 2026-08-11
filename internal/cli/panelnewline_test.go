@@ -211,3 +211,31 @@ func TestQuietSilencesTheLiveConsoleOnly(t *testing.T) {
 		})
 	}
 }
+
+// TestFinishedPanelWithNoSteps pins the body of a run that generated nothing.
+//
+// `print_progress_panel` ends with
+// `content = "\n".join(lines) if lines else "Rendering..."`
+// (`progress_panel.py:110`), so switching every format off leaves that literal
+// in the finished panel. The port printed an empty box — 530 bytes upstream
+// against a shorter one here. No corpus case disables all five formats, which
+// is why the suite never saw it.
+func TestFinishedPanelWithNoSteps(t *testing.T) {
+	dir := t.TempDir()
+	input := filepath.Join(dir, "cv.yaml")
+	if err := os.WriteFile(input, []byte("cv:\n  name: John Doe\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	if code := Render(RenderOptions{
+		InputPath: input,
+		NoTypst:   true, NoPDF: true, NoPNG: true, NoMarkdown: true, NoHTML: true,
+	}, &stdout, &stderr); code != 0 {
+		t.Fatalf("exit = %d, stderr = %q", code, stderr.String())
+	}
+
+	if !strings.Contains(stdout.String(), "Rendering...") {
+		t.Errorf("finished panel has no body:\n%s", stdout.String())
+	}
+}
