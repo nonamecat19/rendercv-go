@@ -188,6 +188,32 @@ residue on row 6 and is now provably the only thing that row leaves unasserted.
   request. Plain-text output from a subagent does not reach the parent; only an explicit message
   does.
 
+## The dead `ruamelPhrasing` row was two rows — closed by `8967ad7` — 2026-08-11
+
+**Do not strike the claim; extend it.** Two of the eight rows were vacuous, and the cause sits
+upstream of the table: `yamlreader.checkTabs` (`build.go:60-100`) runs **before** the parser and
+returns a `TabError` whose own text is already `while scanning for the next token`, consumed by the
+branch at `yamlerror.go:51-63`. So `\ta: 1` and `cv:\n\tname: a` never reach `parserMessage` at all —
+the `tab character` and `cannot start any token` rows were unreachable by their named inputs, their
+test rows passed on the wrong branch, and **deleting either row left the whole package green**. The
+row comments described goccy's spellings accurately in isolation and falsely for this pipeline; both
+are corrected in place. Same shape as iteration 14's two vacuous sandbox tests.
+
+Both rows are genuinely reachable through tabs `checkTabs` deliberately permits — `a: |\n\tx\n` (a tab
+indenting block-scalar content) and `a: b[\n\tc\n` (`checkTabs` counts the `[` in a plain scalar as an
+open flow where goccy does not) — each measured against ruamel in the submodule before being asserted.
+**All eight rows now kill their deletion mutant.**
+
+`flowNodeExpectedAtEOF` does shadow two rows for `cv: [` and `cv: {`, which was the other failure mode
+looked for; but each of those rows has an unshadowed input, so neither is vacuous.
+
+**The self-voiding test is closed too.** `TestUnmappedParserMessageFallsThrough` fed
+`a: !!unknowntag@@ b`, which **parses** — goccy's `scanTag` rejects only `{` and `}`, so `@` is a legal
+tag character and the skip was unconditional in effect, from the test's first commit. The fixture is
+now `a: !!tag{x} b`, which reaches `found invalid tag character '{'`, and the test positively asserts
+the fallthrough is reached rather than merely not borrowing a row. Proven red two ways: reverting the
+fixture, and adding a row that would capture the message.
+
 ## Iteration 12's blocker and three gating gaps are fixed — 2026-08-11
 
 Five porters, disjoint packages, suite run alone afterwards: `just check` 0 issues, `go test ./...`
