@@ -141,6 +141,131 @@ func TestEndOfOptions(t *testing.T) {
 	}
 }
 
+// TestUnrecognizedOptionDoesNotSwallowTheNextToken is the discriminating vector
+// for the first of `Normalize`'s three override rules, which nothing gated.
+//
+// **`--nope value` cannot tell the two behaviors apart.** Whether the unknown
+// option swallows the following token or leaves it to the loop, the extras come
+// out `--nope value` either way — which is exactly the case
+// `TestNormalizeSeparatesExtras` has, so making `case long:` consume `args[i+1]`
+// unconditionally left the whole suite green.
+//
+// `--nope -nopdf` separates them. Click appends the unknown option to
+// `ctx.args` and **goes on parsing**, so `-nopdf` is still matched as
+// `--dont-generate-pdf`; a swallowing port would eat it as `--nope`'s value and
+// produce an even, silently-accepted pair where upstream reports `(--nope)`.
+func TestUnrecognizedOptionDoesNotSwallowTheNextToken(t *testing.T) {
+	cases := []struct {
+		name   string
+		args   []string
+		rest   []string
+		extras []string
+	}{
+		{
+			// The vector: the swallowed token is a *declared* flag, so eating
+			// it changes both halves of the split at once.
+			name:   "a declared short flag after an unknown option still parses",
+			args:   []string{"render", "cv.yaml", "--nope", "-nopdf"},
+			rest:   []string{"render", "cv.yaml", "--dont-generate-pdf"},
+			extras: []string{"--nope"},
+		},
+		{
+			name:   "and a declared long flag likewise",
+			args:   []string{"render", "cv.yaml", "--nope", "--quiet"},
+			rest:   []string{"render", "cv.yaml", "--quiet"},
+			extras: []string{"--nope"},
+		},
+		{
+			// A value option after an unknown one keeps its own value, which a
+			// swallowing port turns into a stray positional.
+			name:   "a declared value option after an unknown option keeps its value",
+			args:   []string{"render", "cv.yaml", "--nope", "-o", "out"},
+			rest:   []string{"render", "cv.yaml", "--output-folder", "out"},
+			extras: []string{"--nope"},
+		},
+		{
+			// Two unknowns in a row are two extras — an even count, and
+			// therefore a key/value pair upstream accepts. A swallowing port
+			// produces one extra and an odd count.
+			name:   "two unknown options are two extras",
+			args:   []string{"render", "cv.yaml", "--nope", "--alsonope"},
+			rest:   []string{"render", "cv.yaml"},
+			extras: []string{"--nope", "--alsonope"},
+		},
+	}
+
+	for _, row := range cases {
+		t.Run(row.name, func(t *testing.T) {
+			rest, extras := Normalize(row.args)
+			if !slices.Equal(rest, row.rest) {
+				t.Errorf("rest = %q, want %q", rest, row.rest)
+			}
+			if !slices.Equal(extras, row.extras) {
+				t.Errorf("extras = %q, want %q", extras, row.extras)
+			}
+		})
+	}
+}
+
+// TestUnknownEqualsFormStaysOneToken is the second ungated override rule.
+//
+// **`--cv.name=Jane` is one token, and that is what makes it an error.**
+// `parse_override_arguments` pairs `ctx.args` two at a time and rejects an odd
+// count (`parse_override_arguments.py:35-42`), so the single token upstream
+// appends is `There is a problem with the extra arguments (--cv.name=Jane)!`,
+// not the override `cv.name: Jane`.
+//
+// The existing `=` case pins `--output-folder=out`, a **declared** option, which
+// takes the `renderValueFlags` branch — so splitting an *unknown* long option on
+// `=` left the suite green. Every case here is an undeclared key, the only shape
+// that reaches `case long:`.
+func TestUnknownEqualsFormStaysOneToken(t *testing.T) {
+	cases := []struct {
+		name   string
+		args   []string
+		extras []string
+	}{
+		{
+			name:   "a dotted override with an equals sign",
+			args:   []string{"render", "cv.yaml", "--cv.name=Jane"},
+			extras: []string{"--cv.name=Jane"},
+		},
+		{
+			// The value's own `=` is not a separator either: click splits on
+			// the first one only, and the port splits on none.
+			name:   "an equals sign inside the value",
+			args:   []string{"render", "cv.yaml", "--cv.email=a=b"},
+			extras: []string{"--cv.email=a=b"},
+		},
+		{
+			// The even-count shape: two `=` tokens are a key and a value to
+			// `parse_override_arguments`, however odd that reads.
+			name:   "two equals tokens stay two",
+			args:   []string{"render", "cv.yaml", "--cv.name=Jane", "--cv.phone=123"},
+			extras: []string{"--cv.name=Jane", "--cv.phone=123"},
+		},
+		{
+			// The space form is still two tokens; the rule is about not
+			// *creating* a second one, not about rejecting the pair.
+			name:   "the space form is unaffected",
+			args:   []string{"render", "cv.yaml", "--cv.name", "Jane"},
+			extras: []string{"--cv.name", "Jane"},
+		},
+	}
+
+	for _, row := range cases {
+		t.Run(row.name, func(t *testing.T) {
+			rest, extras := Normalize(row.args)
+			if want := []string{"render", "cv.yaml"}; !slices.Equal(rest, want) {
+				t.Errorf("rest = %q, want %q", rest, want)
+			}
+			if !slices.Equal(extras, row.extras) {
+				t.Errorf("extras = %q, want %q", extras, row.extras)
+			}
+		})
+	}
+}
+
 // TestYamlLocationIsADeclaredFlag is G-2: upstream declares --YAMLLOCATION and
 // binds it to `_`, so it must parse and vanish rather than becoming an override
 // key the model rejects.
