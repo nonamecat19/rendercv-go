@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 
 	"github.com/fsnotify/fsnotify"
+
+	"github.com/nonamecat19/rendercv-go/internal/schema/models/design"
 )
 
 // watchContext is the context the watch loop runs under, and the port's
@@ -63,11 +65,19 @@ func WatchSet(options RenderOptions) []string {
 		if path == "" {
 			continue
 		}
-		// `pathlib.Path.absolute()` prepends the working directory without
-		// resolving symlinks, which is what `filepath.Abs` does.
-		absolute, err := filepath.Abs(path)
-		if err != nil {
-			continue
+		// **`Path.absolute()`, not `filepath.Abs`.** Upstream's set is
+		// `str(fp.absolute())` (`watcher.py:49`), and `absolute()` only
+		// prepends the working directory — it resolves nothing and cleans
+		// nothing, so a `..` segment survives into the set. `Abs` calls
+		// `Clean`, which collapses it, and through a symlinked component that
+		// is a different file. See lexicalpath_test.go's header.
+		absolute := path
+		if !filepath.IsAbs(absolute) {
+			cwd, err := os.Getwd()
+			if err != nil {
+				continue
+			}
+			absolute = design.Join(cwd, path)
 		}
 		if _, duplicate := seen[absolute]; duplicate {
 			continue
@@ -100,11 +110,21 @@ func watchLoop(ctx context.Context, set []string, render func() int) error {
 	}
 	defer func() { _ = watcher.Close() }()
 
+	// **The set is upstream's spelling; the observer needs the real one.**
+	// Upstream schedules `fp.absolute().parent` (`watcher.py:52`) — the
+	// lexical parent — and watchdog reports events under the same string, so
+	// its filter compares like with like. **fsnotify cleans what it is given**
+	// (`backend_inotify.go:228` → `recursivePath` → `filepath.Clean`), so
+	// handing it the lexical spelling would register the *cleaned* directory:
+	// through a symlink, the wrong one, and one whose events could never match
+	// the set either. Resolving both sides registers the directory upstream
+	// watches and keeps the comparison consistent.
 	watched := make(map[string]struct{}, len(set))
 	directories := make(map[string]struct{}, len(set))
 	for _, path := range set {
-		watched[path] = struct{}{}
-		directories[filepath.Dir(path)] = struct{}{}
+		directory := resolveLikePython(design.Parent(path))
+		watched[filepath.Join(directory, filepath.Base(path))] = struct{}{}
+		directories[directory] = struct{}{}
 	}
 	for directory := range directories {
 		if err := watcher.Add(directory); err != nil {
