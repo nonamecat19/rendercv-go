@@ -108,22 +108,29 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 		return exitValidationError
 	}
 
-	// **After the read, not before.** Upstream parses the extras at
-	// `render_command.py:217`, and `:205` has already opened the input file by
-	// then, so a missing file and a malformed extra report in that order.
-	options.Overrides, err = ParseOverrideArguments(options.Extras)
-	if err != nil {
-		failPanel(stdout, err)
-		return exitValidationError
-	}
-
 	// **Overlay files the document names itself** (G-7). Upstream's
 	// `collect_input_file_paths` (`run_rendercv.py:113-122`) reads the main YAML
 	// before anything else and resolves `settings.render_command.design` and
 	// `.locale` **relative to the input file's directory**, unless the CLI flag
 	// already supplied one. Without this the port rendered `classic` where
 	// upstream rendered the named theme — 240 differing `.typ` lines.
-	resolveNamedOverlays(&options, raw)
+	//
+	// **It runs before the extras are parsed** (`render_command.py:205` against
+	// `:228`), which is what an empty file passed with an odd override reports:
+	// upstream names the empty file, not the override.
+	if err := resolveNamedOverlays(&options, raw); err != nil {
+		failPrintedPanel(stdout, err)
+		return exitValidationError
+	}
+
+	// **After the read, not before.** Upstream parses the extras at
+	// `render_command.py:228`, and `:205` has already opened the input file by
+	// then, so a missing file and a malformed extra report in that order.
+	options.Overrides, err = ParseOverrideArguments(options.Extras)
+	if err != nil {
+		failPrintedPanel(stdout, err)
+		return exitValidationError
+	}
 
 	arguments, err := buildArguments(options)
 	if err != nil {
@@ -302,6 +309,19 @@ func finish(options RenderOptions, rows []PanelRow, stdout io.Writer) int {
 // separately and differently from `render`'s three.
 func writeLivePanel(stdout io.Writer, panel string) {
 	_, _ = fmt.Fprint(stdout, strings.TrimSuffix(panel, "\n"))
+}
+
+// writePrintedPanel is the other way a panel reaches the user: `rich.print`
+// inside the `@handle_user_errors` decorator (`cli/error_handler.py:40-47`),
+// which wraps the command function and therefore only ever sees failures raised
+// **before** `with ProgressPanel(...)` (`render_command.py:231`).
+//
+// `rich.print` terminates with a newline, so this panel's last byte is `\n`
+// where `writeLivePanel`'s is the closing corner. Measured on an empty input
+// file (553 bytes, last byte `0a`) and on an odd override vector (638 bytes,
+// last byte `0a`) against the vendored Python at `COLUMNS=80`.
+func writePrintedPanel(stdout io.Writer, panel string) {
+	_, _ = fmt.Fprint(stdout, panel)
 }
 
 func writeArtifact(template string, input PathInput, content string) (string, error) {
@@ -511,10 +531,21 @@ func outputFolderFor(options RenderOptions) string {
 // inside `contextlib.suppress(RenderCVUserValidationError)` so that a broken
 // document still reaches the validator and reports there, rather than failing
 // here with a worse message.
-func resolveNamedOverlays(options *RenderOptions, raw []byte) {
+func resolveNamedOverlays(options *RenderOptions, raw []byte) error {
 	document, err := modelbuilder.ReadYamlWithValidationErrors(string(raw), schemaerr.SourceMain)
 	if err != nil {
-		return
+		// **`contextlib.suppress(RenderCVUserValidationError)`
+		// (`run_rendercv.py:113`) suppresses that one class and nothing else.**
+		// A YAML *syntax* error is swallowed here and raised again inside the
+		// progress panel, which is why it prints a validation table with no
+		// trailing newline; an *empty* file is a plain `RenderCVUserError`,
+		// escapes to the decorator, and prints one with. Measured: 553 bytes
+		// ending `0a` against 1411 ending `af`.
+		var userError *schemaerr.UserError
+		if errors.As(err, &userError) {
+			return userError
+		}
+		return nil
 	}
 
 	block := mappingChild(mappingChild(document, "settings"), "render_command")
@@ -538,6 +569,8 @@ func resolveNamedOverlays(options *RenderOptions, raw []byte) {
 		}
 		*named.target = filepath.Join(inputDir, value.Raw)
 	}
+
+	return nil
 }
 
 // mappingChild is one key of a mapping node, or nil.
@@ -605,6 +638,23 @@ func failPanel(stdout io.Writer, err error) {
 		return
 	}
 	writeLivePanel(stdout, Panel("Error", []PanelRow{{Text: err.Error()}}))
+}
+
+// failPrintedPanel is `failPanel`'s pre-progress-panel twin: the `Error` box the
+// `@handle_user_errors` decorator prints (`cli/error_handler.py:40-47`) for a
+// `RenderCVUserError` raised before `with ProgressPanel(...)`
+// (`render_command.py:231`).
+//
+// **The choice between the two is positional, not type-based.** Upstream raises
+// `RenderCVUserError` on both sides of that line — a Typst compile failure is
+// one too — and only the ones raised earlier get the decorator's trailing
+// newline. So this is called from the two pre-panel phases and nowhere else.
+//
+// The decorator never renders a validation table: `collect_input_file_paths`
+// suppresses `RenderCVUserValidationError` (`run_rendercv.py:113`), so the only
+// box that can reach `rich.print` is the one-message one.
+func failPrintedPanel(stdout io.Writer, err error) {
+	writePrintedPanel(stdout, Panel("Error", []PanelRow{{Text: err.Error()}}))
 }
 
 // validationPanel is `print_validation_errors` (`progress_panel.py:138-169`).
