@@ -1,7 +1,7 @@
 package yamlreader
 
 import (
-	"math"
+	"errors"
 	"strconv"
 	"strings"
 
@@ -144,11 +144,12 @@ func isFloat(s string) bool {
 		return false
 	}
 
+	// **An overflowing float is still a float.** `float("1e400")` is `inf` in
+	// Python and ruamel resolves the scalar to one, where Go's `ParseFloat`
+	// returns `+Inf` *together with* `ErrRange` — so testing `err == nil`
+	// dropped the value to a string, and it reached a bool field carrying the
+	// wrong pydantic error. Underflow is the same shape: `1e-400` is `0.0` to
+	// both, and `ErrRange` to Go alone.
 	_, err := strconv.ParseFloat(s, 64)
-	return err == nil && !math.IsInf(parseFloatRaw(s), 0)
-}
-
-func parseFloatRaw(s string) float64 {
-	f, _ := strconv.ParseFloat(s, 64)
-	return f
+	return err == nil || errors.Is(err, strconv.ErrRange)
 }

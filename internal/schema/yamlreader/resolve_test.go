@@ -102,3 +102,21 @@ func kindFromName(name string) (yamldoc.Kind, bool) {
 		return 0, false
 	}
 }
+
+// TestOverflowingFloatIsStillAFloat pins that a float too large to represent
+// resolves as a float, not a string.
+//
+// `float("1e400")` is `inf` in Python and ruamel resolves the scalar to one.
+// Go's `ParseFloat` returns `+Inf` *together with* `ErrRange`, so a bare
+// `err == nil` test dropped the value to a string and it reached a bool field
+// carrying the wrong pydantic error. Underflow is the same shape: `1e-400` is
+// `0.0` to both, and `ErrRange` to Go alone.
+func TestOverflowingFloatIsStillAFloat(t *testing.T) {
+	for _, raw := range []string{"1e400", "-1e400", "1e309", "1.0e400", "1e-400", "1e308"} {
+		t.Run(raw, func(t *testing.T) {
+			if got := yamlreader.ResolveScalar(raw, yamldoc.StylePlain); got != yamldoc.KindFloat {
+				t.Errorf("ResolveScalar(%q) = %v, want KindFloat", raw, got)
+			}
+		})
+	}
+}
