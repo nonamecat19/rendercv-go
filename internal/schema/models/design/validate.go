@@ -423,8 +423,9 @@ func validBoolNode(node *yamldoc.Node) error {
 			return errBoolParsing
 		}
 		return errBoolType
-	case yamldoc.KindNull, yamldoc.KindMapping, yamldoc.KindSequence:
-		// A collection is never coerced.
+	case yamldoc.KindNull, yamldoc.KindMapping, yamldoc.KindSequence, yamldoc.KindTagged:
+		// A collection is never coerced, and neither is a TaggedScalar: it is
+		// an object, so pydantic will not even try to read a bool out of it.
 	}
 	return errBoolType
 }
@@ -504,8 +505,10 @@ func validColorNode(node *yamldoc.Node) error {
 		_, err := parseColorElements(elements)
 		return err
 	case yamldoc.KindNull, yamldoc.KindBool, yamldoc.KindInt, yamldoc.KindFloat,
-		yamldoc.KindMapping:
-		// Fall through to the shape message below.
+		yamldoc.KindMapping, yamldoc.KindTagged:
+		// Fall through to the shape message below. A TaggedScalar belongs here
+		// and not with the string arm: `parse_color_value` runs on the object,
+		// not on its `str()`.
 	}
 	// An int, a float, a bool or a mapping. Not `string_type`: the colour type
 	// owns the message, and dictionary row 13 rewrites it like any other.
