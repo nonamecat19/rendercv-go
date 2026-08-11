@@ -1,6 +1,7 @@
 package process
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 )
@@ -15,10 +16,10 @@ import (
 // iteration 11 owns, does need a tree and keeps goldmark.
 type inlineParser struct{}
 
-// The three patterns that run **before** emphasis, in upstream's registry order
-// (markdown/inlinepatterns.py:73-95). Only these three reach the Typst path:
-// references, images, autolinks and inline HTML are either unused by RenderCV's
-// content or produce tags `to_typst_string` drops.
+// The patterns that run **before** emphasis, in upstream's registry order
+// (markdown/inlinepatterns.py:73-95). References are the one entry still
+// missing: they need the link-definition map the block pass builds, which the
+// line-at-a-time Typst path never has.
 var (
 	// ESCAPE_RE `\\(.)`.
 	escapePattern = regexp.MustCompile(`(?s)^\\(.)`)
@@ -35,6 +36,17 @@ var (
 
 	// linkTitlePattern is the trailing `"title"` python-markdown splits off.
 	linkTitlePattern = regexp.MustCompile(`(?s)^(.*?)\s+["'][^"']*["']\s*$`)
+
+	// AUTOLINK_RE (`inlinepatterns.py:155`), registered at 120. Only `http`,
+	// `https`, `ftp` and `ftps` are spelled out there, and the scheme match is
+	// case-insensitive while the rest of the URL is not.
+	autolinkInlinePattern = regexp.MustCompile(`^<((?:[Ff]|[Hh][Tt])[Tt][Pp][Ss]?://[^<>]*)>`)
+
+	// AUTOMAIL_RE (`:158`), registered at 110 — **after** autolink, so a
+	// userinfo `@` in `<http://a@b.com>` is a plain link and not an obfuscated
+	// mail one. The grammar is deliberately loose: any run without space, `<`,
+	// `>` or `!`, an `@`, then a run without those or a second `@`.
+	automailInlinePattern = regexp.MustCompile(`^<([^<> !]+@[^@<> ]+)>`)
 
 	// NOT_STRONG_RE — a lone `*` or `_` surrounded by whitespace is literal
 	// text, which is why `a * b` survives unchanged.
@@ -167,7 +179,65 @@ func (p *inlineParser) matchPrefix(data string, pos, pending int) (int, string, 
 		}
 		return pos + match[1], `#link("` + href + `")[` + p.parseFrom(text, -1, 0) + `]`, true
 	}
+	if end, typst, ok := matchAutolink(rest); ok {
+		return pos + end, typst, true
+	}
 	return 0, "", false
+}
+
+// matchAutolink is `AutolinkInlineProcessor` and `AutomailInlineProcessor`
+// (`markdown/inlinepatterns.py:958-995`), in their registry order.
+//
+// Both build an `a`, so both take `to_typst_string`'s link branch
+// (`markdown_parser.py:47-51`): the `href` attribute goes into the Typst string
+// **unescaped**, and the element's text goes through `escape_typst_characters`.
+// Neither had a case here, so `<https://go.dev>` came out as escaped angle
+// brackets.
+func matchAutolink(rest string) (int, string, bool) {
+	if match := autolinkInlinePattern.FindStringSubmatch(rest); match != nil {
+		return len(match[0]), `#link("` + match[1] + `")[` + EscapeTypstCharacters(match[1]) + `]`, true
+	}
+	if match := automailInlinePattern.FindStringSubmatch(rest); match != nil {
+		return len(match[0]), obfuscateEmail(match[1]), true
+	}
+	return 0, "", false
+}
+
+// obfuscateEmail is `AutomailInlineProcessor.handleMatch`'s spam-harvester
+// obfuscation (`inlinepatterns.py:971-995`): **every character** of the address
+// becomes a character reference, and the two halves of the link do not use the
+// same encoding.
+//
+//	<user@host.com>  →  #link("&#109;&#97;…")[&\#117;&\#115;…]
+//
+// The href is `mailto:` prepended and then written entirely in decimal (`:992-994`
+// builds it with a bare `'#%d;'` and never consults the name table), and it is
+// interpolated raw. The text uses `codepoint2name` first (`:980-990`), so a `"`
+// is `&quot;` there and `&#34;` in the href of the same link — and it is then
+// escaped, which is where the `#` of each decimal reference picks up its
+// backslash.
+//
+// Upstream writes `util.AMP_SUBSTITUTE` rather than `&` and a postprocessor puts
+// the ampersand back after serialization; a literal `&` is equivalent here
+// because `escape_typst_characters` does not touch one.
+func obfuscateEmail(address string) string {
+	// python strips a `mailto:` the author wrote and adds its own back, so the
+	// two spellings of the same address obfuscate identically (`:977-978`).
+	email := strings.TrimPrefix(address, "mailto:")
+
+	var href, text strings.Builder
+	for _, r := range "mailto:" + email {
+		fmt.Fprintf(&href, "&#%d;", r)
+	}
+	for _, r := range email {
+		if name, named := codepointNames[r]; named {
+			fmt.Fprintf(&text, "&%s;", name)
+			continue
+		}
+		fmt.Fprintf(&text, "&#%d;", r)
+	}
+
+	return `#link("` + href.String() + `")[` + EscapeTypstCharacters(text.String()) + `]`
 }
 
 // matchCodeSpan is `BACKTICK_RE` (`markdown/inlinepatterns.py:104`) at the head
