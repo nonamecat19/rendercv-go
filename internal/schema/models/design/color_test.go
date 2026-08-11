@@ -324,6 +324,72 @@ func TestAlphaRoundsOnTheExactBinaryValue(t *testing.T) {
 	}
 }
 
+// **Python's `float(str)` transliterates every Unicode `Nd` digit to ASCII
+// before parsing**, so `float("١٢٣")` is `123.0` and a colour tuple written in
+// Arabic-Indic, Devanagari or fullwidth digits is as valid upstream as its
+// ASCII spelling. `strconv.ParseFloat` is ASCII-only, so every row here used to
+// exit 1 where upstream renders at exit 0. Each `want` was measured against the
+// vendored Python: `colors.body: [١٢٣, 2, 3]` renders `colors-body: rgb(123, 2,
+// 3)` into the `.typ`, byte for byte what `[123, 2, 3]` renders.
+func TestParseColorTupleAcceptsNonASCIIDigits(t *testing.T) {
+	tests := []struct {
+		name     string
+		elements []string
+		want     string
+	}{
+		{name: "an Arabic-Indic channel", elements: []string{"١٢٣", "2", "3"}, want: "rgb(123, 2, 3)"},
+		{name: "a Devanagari channel", elements: []string{"१२३", "2", "3"}, want: "rgb(123, 2, 3)"},
+		{name: "a fullwidth channel", elements: []string{"１２３", "2", "3"}, want: "rgb(123, 2, 3)"},
+		{name: "an Eastern-Arabic channel", elements: []string{"۱۲۳", "2", "3"}, want: "rgb(123, 2, 3)"},
+		// `float()` transliterates per character, so a mixed spelling and a
+		// fractional one both parse — measured as `float("1٢3") == 123.0`
+		// and `float("٣.٥") == 3.5`.
+		{name: "a mixed-script channel", elements: []string{"1٢3", "2", "3"}, want: "rgb(123, 2, 3)"},
+		{name: "a fractional Arabic-Indic channel", elements: []string{"٣.٥", "2", "3"}, want: "rgb(4, 2, 3)"},
+		{name: "an Arabic-Indic exponent", elements: []string{"١٢٣e٠", "2", "3"}, want: "rgb(123, 2, 3)"},
+		{name: "an Arabic-Indic alpha", elements: []string{"1", "2", "3", "٠.٥"}, want: "rgba(1, 2, 3, 0.5)"},
+		{name: "an Arabic-Indic percent alpha", elements: []string{"1", "2", "3", "٥٠%"}, want: "rgba(1, 2, 3, 0.5)"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			color, err := design.ParseColorTuple(test.elements)
+			if err != nil {
+				t.Fatalf("ParseColorTuple(%v) = %v, want success", test.elements, err)
+			}
+			if got := color.String(); got != test.want {
+				t.Errorf("= %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
+// The transliteration must not open the hole the ASCII-only parse was
+// incidentally closing: it runs *before* the `0x` guard, exactly as CPython's
+// runs before its own parse, so a Go hex-float literal spelled in non-ASCII
+// digits is rejected for the same reason `0x1p-2` is. And a non-`Nd` numeral —
+// a superscript, a Roman numeral, a Han numeral — is left alone, because
+// `float()` leaves it alone too: `float("²")` raises.
+func TestParseColorTupleRejectsNonDecimalNumerals(t *testing.T) {
+	tests := []struct {
+		name     string
+		elements []string
+	}{
+		{name: "a non-ASCII Go hex-float channel", elements: []string{"٠x١p-٢", "0", "0"}},
+		{name: "a superscript channel", elements: []string{"²", "0", "0"}},
+		{name: "a Han numeral channel", elements: []string{"一二三", "0", "0"}},
+		{name: "a Roman numeral channel", elements: []string{"Ⅻ", "0", "0"}},
+		// Still range-checked after transliteration: `٣٠٠` is 300.
+		{name: "an out-of-range Arabic-Indic channel", elements: []string{"٣٠٠", "0", "0"}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := design.ParseColorTuple(test.elements); err == nil {
+				t.Errorf("ParseColorTuple(%v) succeeded, want a failure", test.elements)
+			}
+		})
+	}
+}
+
 // The code is the library's, asserted as upstream's literal rather than as the
 // Go constant.
 func TestColorErrorCode(t *testing.T) {

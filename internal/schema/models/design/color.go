@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 )
@@ -399,13 +401,29 @@ func parseChannel(text string, max float64, coerce bool) (float64, error) {
 // `"0x10"`/`"true"` the same as an unquoted one, accepting documents
 // upstream rejects. Found by a fresh-context verifier (iteration 14's
 // sixteenth re-verification).
+//
+// **A digit is any Unicode `Nd` character, not just an ASCII one** —
+// `float("١٢٣")` is `123.0`, where `strconv.ParseFloat` is ASCII-only. See
+// `asciiDecimalDigits`.
 func parseNumericText(text string, coerce bool) (float64, bool) {
 	// `float(" 1 ")` succeeds in Python — surrounding whitespace is stripped
 	// before anything else, coerced or not (a plain decimal string strips
 	// the same way). Found by a fresh-context verifier (iteration 14's
 	// fourteenth re-verification).
 	text = strings.TrimSpace(text)
-	if !coerce {
+	// **Python parses a `str` float on the ASCII *transliteration* of its
+	// digits, not on the digits as written** — see `asciiDecimalDigits`.
+	//
+	// A token the transform *changes* contained a character outside ASCII,
+	// and so is a token ruamel's resolvers — ASCII regexes, every one —
+	// could never have turned into a bool or an int. It is a Python `str`
+	// however the caller found it, which is why a changed token takes the
+	// string branch below even when `coerce` is set: `٠x١p-٢` has to be
+	// rejected by the same `0x` guard `0x1p-2` is, not slip past a guard
+	// that only knows ASCII and then be accepted by Go's hex-float parser.
+	ascii := asciiDecimalDigits(text)
+	if !coerce || ascii != text {
+		text = ascii
 		// **Go's hex-float literal syntax (`0x1p-2`) is not a Python
 		// `float()` literal.** `strconv.ParseFloat` accepts Go's numeric
 		// grammar, which is a superset of Python's for strings — Python's
@@ -454,11 +472,86 @@ func parseNumericText(text string, coerce bool) (float64, bool) {
 	// function returns it rather than failing outright, and why
 	// `parseChannel`/`normalizeAlpha` are the ones written as a chained
 	// comparison rather than this one refusing the token.
+	//
+	// `text` is pure ASCII by here — anything else took the string branch
+	// above — so this call needs no transliteration of its own.
 	value, err := strconv.ParseFloat(text, 64)
 	if err != nil {
 		return 0, false
 	}
 	return value, true
+}
+
+// asciiDecimalDigits is the digit half of CPython's
+// `_PyUnicode_TransformDecimalAndSpaceToASCII`, which `float(str)` runs over
+// its argument before parsing it (`Objects/floatobject.c`'s
+// `PyFloat_FromString`). Every character in Unicode's `Nd` category is
+// replaced by the ASCII digit of the same value, so `float("١٢٣")` is
+// `123.0` — Arabic-Indic, Devanagari and fullwidth digits all parse, and all
+// parse to exactly the value their ASCII spelling would give (measured
+// against upstream: `colors.body: [١٢٣, 2, 3]`, `[१२३, 2, 3]` and
+// `[１２３, 2, 3]` each render `rgb(123, 2, 3)` at exit 0).
+// `strconv.ParseFloat` is ASCII-only by documented contract, so without this
+// pass those three documents exited 1 here — the port rejecting what upstream
+// accepts, the wrong direction of divergence. Found by a fresh-context
+// verifier (iteration 14's colour-slice sweep, deferred there and recorded in
+// specs/STATE.md).
+//
+// The space half of the same CPython transform is already covered:
+// `parseNumericText` calls `strings.TrimSpace`, whose `unicode.IsSpace` is
+// the same set of characters.
+func asciiDecimalDigits(text string) string {
+	if isASCIIOnly(text) {
+		return text
+	}
+	var out strings.Builder
+	out.Grow(len(text))
+	for _, r := range text {
+		if digit, ok := asciiDigitOf(r); ok {
+			out.WriteRune(digit)
+			continue
+		}
+		out.WriteRune(r)
+	}
+	return out.String()
+}
+
+// isASCIIOnly is the fast path out of `asciiDecimalDigits`: nothing outside
+// ASCII means nothing to transliterate, which is every colour a document
+// realistically writes.
+func isASCIIOnly(text string) bool {
+	for i := 0; i < len(text); i++ {
+		if text[i] >= utf8.RuneSelf {
+			return false
+		}
+	}
+	return true
+}
+
+// asciiDigitOf maps an `Nd` rune to the ASCII digit of the same numeric
+// value. The standard library has no "decimal value of this rune" call —
+// `unicode.IsDigit` answers only the category question — so the value comes
+// from the structure of `unicode.Nd` itself: every one of its ranges has
+// stride 1 and lists whole ten-digit blocks starting at that script's zero,
+// making the value `(r - Lo) % 10`. Verified exhaustively against Python's
+// `unicodedata.decimal` over all 680 runes in Go's table: zero mismatches.
+// A range with any other stride would break that arithmetic, so one is
+// refused rather than guessed at.
+func asciiDigitOf(r rune) (rune, bool) {
+	if !unicode.Is(unicode.Nd, r) {
+		return 0, false
+	}
+	for _, rg := range unicode.Nd.R16 {
+		if r >= rune(rg.Lo) && r <= rune(rg.Hi) && rg.Stride == 1 {
+			return '0' + (r-rune(rg.Lo))%10, true
+		}
+	}
+	for _, rg := range unicode.Nd.R32 {
+		if r >= rune(rg.Lo) && r <= rune(rg.Hi) && rg.Stride == 1 {
+			return '0' + (r-rune(rg.Lo))%10, true
+		}
+	}
+	return 0, false
 }
 
 // parseAlpha is `parse_float_alpha`. **An alpha of exactly 1 becomes absent**,
