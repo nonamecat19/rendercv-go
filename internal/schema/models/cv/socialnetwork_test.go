@@ -132,6 +132,26 @@ func TestValidateSocialNetwork(t *testing.T) {
 			input:     "network: Friendster\nusername: johndoe\n",
 			wantCodes: []schemaerr.Code{cv.CodeLiteral},
 		},
+		{
+			// `network` is a `Literal[...]`, and a TaggedScalar is no member of
+			// it however the tag's text reads: upstream reports the whole
+			// enumeration where the port rendered the CV at exit 0.
+			name:      "a tagged member name is not a member",
+			input:     "network: !!str LinkedIn\nusername: johndoe\n",
+			wantCodes: []schemaerr.Code{cv.CodeLiteral},
+		},
+		{
+			name:      "an unregistered tag is not a member either",
+			input:     "network: !u GitHub\nusername: johndoe\n",
+			wantCodes: []schemaerr.Code{cv.CodeLiteral},
+		},
+		{
+			// Not `string_type`: upstream never reports a type failure for this
+			// field, only the literal enumeration (measured on 5 and on null).
+			name:      "a non-string is the same literal failure",
+			input:     "network: 5\nusername: johndoe\n",
+			wantCodes: []schemaerr.Code{cv.CodeLiteral},
+		},
 	}
 
 	for _, tc := range tests {
