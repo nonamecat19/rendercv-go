@@ -241,6 +241,15 @@ func TestParserMessageUsesRuamelPhrasing(t *testing.T) {
 			want: "This is not a valid YAML file. while scanning for the next token.",
 		},
 		{
+			// goccy's *other* tab spelling, and the commoner one. This says
+			// "found character '\t' that cannot start any token" rather than
+			// "tab character", so it matched no row and leaked raw goccy text
+			// with its [line:col] prefix; ruamel phrases both the same way.
+			name: "a tab indenting a nested key",
+			src:  "cv:\n\tname: a\n",
+			want: "This is not a valid YAML file. while scanning for the next token.",
+		},
+		{
 			name: "a duplicate key",
 			src:  "a: 1\na: 2\n",
 			want: "This is not a valid YAML file. while constructing a mapping.",

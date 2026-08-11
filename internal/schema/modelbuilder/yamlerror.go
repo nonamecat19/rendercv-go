@@ -100,7 +100,13 @@ var ruamelPhrasing = []struct{ goccy, ruamel string }{
 	{"'}' must be specified", "while parsing a flow mapping"},
 	{"flow map", "while parsing a flow mapping"},
 	{"quoted text", "while scanning a quoted scalar"},
+	// goccy has two spellings for a tab and only one says "tab character":
+	// `\ta: 1` at the root is `tab character cannot use as a map key
+	// directly`, but the far commoner `cv:\n\tname: a` is `found character
+	// '\t' that cannot start any token`, which matched no row and leaked.
+	// ruamel says the same thing for both.
 	{"tab character", "while scanning for the next token"},
+	{"cannot start any token", "while scanning for the next token"},
 	{"already defined", "while constructing a mapping"},
 }
 
