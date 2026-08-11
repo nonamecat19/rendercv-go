@@ -390,6 +390,100 @@ func TestParseColorTupleRejectsNonDecimalNumerals(t *testing.T) {
 	}
 }
 
+// The colour *string* forms take the same Unicode digits a colour tuple's
+// elements do, for a different reason: upstream's `r_rgb`/`r_hsl` patterns are
+// `str` patterns compiled without `re.ASCII`, and Python's `\d` there matches
+// every Unicode decimal digit. Go's `\d` is ASCII-only, so each row below used
+// to exit 1 against upstream's exit 0 — measured end to end,
+// `colors.body: "rgb(١٢٣, 2, 3)"` renders where this port refused the file.
+// Each `want` is the vendored Python's `Color(input).as_rgb()`, which is what
+// `design/color.py`'s `__str__` returns.
+func TestParseColorAcceptsNonASCIIDigits(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		// `r255`, in all four scripts the tuple path was measured in.
+		{name: "an Arabic-Indic channel", input: "rgb(١٢٣, 2, 3)", want: "rgb(123, 2, 3)"},
+		{name: "a Devanagari channel", input: "rgb(१२३, 2, 3)", want: "rgb(123, 2, 3)"},
+		{name: "a fullwidth channel", input: "rgb(１２３, 2, 3)", want: "rgb(123, 2, 3)"},
+		{name: "an Eastern-Arabic channel", input: "rgb(۱۲۳, 2, 3)", want: "rgb(123, 2, 3)"},
+		// The class is per character, so a mixed spelling and a fractional one
+		// both parse.
+		{name: "a mixed-script channel", input: "rgb(1٢3, 2, 3)", want: "rgb(123, 2, 3)"},
+		{name: "a fractional channel", input: "rgb(٣.٥, 2, 3)", want: "rgb(4, 2, 3)"},
+		// The CSS4 space form is a separate pattern built from the same pieces.
+		{name: "a spaced channel", input: "rgb(1 2 ٣)", want: "rgb(1, 2, 3)"},
+		{name: "a spaced-form alpha", input: "rgb(1 2 3 / ٠.٥)", want: "rgba(1, 2, 3, 0.5)"},
+		// `rAlpha`, both its decimal and its percent branch.
+		{name: "a decimal alpha", input: "rgba(1,2,3,٠.٥)", want: "rgba(1, 2, 3, 0.5)"},
+		{name: "a percent alpha", input: "rgba(1, 2, 3, ٥٠%)", want: "rgba(1, 2, 3, 0.5)"},
+		// An alpha of 1 still becomes absent, whatever script spells it.
+		{name: "an alpha of one", input: "rgba(1,2,3,١)", want: "rgb(1, 2, 3)"},
+		// `rHue`, each unit — the hue is the one capture not parsed through
+		// `parseNumericText`, so it needs its own transliteration.
+		{name: "a bare hue", input: "hsl(١٢٠, 50%, 50%)", want: "rgb(64, 191, 64)"},
+		{name: "a degree hue", input: "hsl(١٢٠deg, ٥٠%, 50%)", want: "rgb(64, 191, 64)"},
+		{name: "a turn hue", input: "hsl(٠.٥turn, 50%, 50%)", want: "rgb(64, 191, 191)"},
+		{name: "a radian hue", input: "hsl(٣.١٤rad, 50%, 50%)", want: "rgb(64, 191, 191)"},
+		// A negative hue still wraps forward through Python's `%`.
+		{name: "a negative hue", input: "hsl(-٩٠, 50%, 50%)", want: "rgb(127, 64, 191)"},
+		// `rSL`, both percentages.
+		{name: "a saturation and a lightness", input: "hsl(120,٥٠%,٥٠%)", want: "rgb(64, 191, 64)"},
+		{name: "an hsla alpha", input: "hsla(120,50%,50%,٠.٢٥)", want: "rgba(64, 191, 64, 0.25)"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			color, err := design.ParseColor(test.input)
+			if err != nil {
+				t.Fatalf("ParseColor(%q) = %v, want success", test.input, err)
+			}
+			if got := color.String(); got != test.want {
+				t.Errorf("= %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
+// Widening the numeric groups must not widen anything else. Every row is a
+// rejection measured on the vendored Python, with the message it raises: the
+// hex patterns are a literal `[0-9a-f]` class upstream too and stay ASCII, a
+// non-`Nd` numeral is not a `\d` in either language, and the length and range
+// limits survive the wider class.
+func TestParseColorRejectsNonASCIINonDigits(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{name: "an Arabic-Indic hex short", input: "#١٢٣", want: design.MessageBadColor},
+		{name: "an Arabic-Indic hex long", input: "#١٢٣٤٥٦", want: design.MessageBadColor},
+		{name: "a non-ASCII Go hex float", input: "٠x١p-٢", want: design.MessageBadColor},
+		{name: "a superscript channel", input: "rgb(²,0,0)", want: design.MessageBadColor},
+		{name: "a Han numeral channel", input: "rgb(一,0,0)", want: design.MessageBadColor},
+		{name: "a four-digit channel", input: "rgb(١٢٣٤,2,3)", want: design.MessageBadColor},
+		{name: "an unpercented saturation", input: "hsl(١٢٠,50,50)", want: design.MessageBadColor},
+		{name: "a bare numeral", input: "١٢٣", want: design.MessageBadColor},
+		{
+			name:  "an out-of-range channel",
+			input: "rgb(٣٠٠,0,0)",
+			want:  "value is not a valid color: color values must be in the range 0 to 255",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := design.ParseColor(test.input)
+			if err == nil {
+				t.Fatalf("ParseColor(%q) succeeded, want %q", test.input, test.want)
+			}
+			if err.Error() != test.want {
+				t.Errorf("= %q, want %q", err.Error(), test.want)
+			}
+		})
+	}
+}
+
 // The code is the library's, asserted as upstream's literal rather than as the
 // Go constant.
 func TestColorErrorCode(t *testing.T) {
