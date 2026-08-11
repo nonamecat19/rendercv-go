@@ -381,3 +381,54 @@ func TestExplicitNullDocumentIsEmpty(t *testing.T) {
 		})
 	}
 }
+
+// TestTabIndentedQuotedContinuation pins a valid document the port used to
+// reject.
+//
+// A tab is an error nearly everywhere in YAML, but **not inside a quoted
+// scalar**: ruamel loads `name: "a\n\tb"` and upstream renders a CV from it,
+// while goccy's scanner refuses the tab and the port exited 1 on a valid input
+// file.
+//
+// The leading whitespace of a continuation line is folded away, so a tab and a
+// space yield the same value — which is what makes the substitution safe. Only
+// the lines goccy itself names are touched, so a document that already parses
+// is never rewritten.
+func TestTabIndentedQuotedContinuation(t *testing.T) {
+	tests := []struct {
+		name string
+		src  string
+		want string
+	}{
+		{name: "double-quoted", src: "cv:\n  name: \"a\n\tb\"\n", want: "a b"},
+		{name: "single-quoted", src: "cv:\n  name: 'a\n\tb'\n", want: "a b"},
+		{name: "a tab then a space", src: "cv:\n  name: \"a\n\t b\"\n", want: "a b"},
+		{name: "several continuations", src: "cv:\n  name: \"a\n\tb\n\tc\"\n", want: "a b c"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			node, err := yamlreader.ReadString(test.src)
+			if err != nil {
+				t.Fatalf("err = %v, want the document to parse", err)
+			}
+
+			cv := node.Items[0].Value
+			if got := cv.Items[0].Value.Raw; got != test.want {
+				t.Errorf("name = %q, want %q — folding must give the same value a space would", got, test.want)
+			}
+		})
+	}
+}
+
+// A tab that is *not* quoted-scalar indentation must still be the error it
+// always was, so the retry cannot quietly accept what upstream rejects.
+func TestTabOutsideAQuotedScalarStillFails(t *testing.T) {
+	for _, src := range []string{"cv:\n\tname: a\n", "\ta: 1\n"} {
+		t.Run(src, func(t *testing.T) {
+			if _, err := yamlreader.ReadString(src); err == nil {
+				t.Error("err = nil, want a parse failure")
+			}
+		})
+	}
+}

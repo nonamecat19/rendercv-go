@@ -1,9 +1,11 @@
 package yamlreader
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
+	goyaml "github.com/goccy/go-yaml"
 	"github.com/goccy/go-yaml/ast"
 	"github.com/goccy/go-yaml/lexer"
 	"github.com/goccy/go-yaml/parser"
@@ -13,8 +15,7 @@ import (
 )
 
 func parse(src string) (*yamldoc.Node, error) {
-	tokens := Dealias(lexer.Tokenize(src))
-	file, err := parser.Parse(tokens, 0)
+	file, err := parseTolerantOfQuotedTabs(src)
 	if err != nil {
 		return nil, fmt.Errorf("yaml parse: %w", err)
 	}
@@ -29,6 +30,76 @@ func parse(src string) (*yamldoc.Node, error) {
 		return nil, nil
 	}
 	return buildNode(body), nil
+}
+
+// quotedTabIndent is goccy's complaint about a continuation line inside a
+// quoted scalar that is indented with a tab.
+const quotedTabIndent = "tab character cannot be used for indentation in"
+
+// parseTolerantOfQuotedTabs parses `src`, retrying lines goccy rejects only
+// because they continue a quoted scalar with a tab.
+//
+// **ruamel accepts a tab there and the port rejected the document.** A tab is
+// an error almost everywhere in YAML, but not inside a quoted scalar: `name:
+// "a\n\tb"` loads fine upstream and rendered a CV, while goccy's scanner
+// refuses it, so a valid input file failed here at exit 1.
+//
+// The leading whitespace of a continuation line inside a quoted scalar is
+// folded away entirely, so a tab and a space produce **the same value** —
+// which is what makes the substitution safe. It is applied one line at a time,
+// and only to lines goccy itself named, so a document that already parses is
+// never touched and no hand-written tab rule can reject something valid.
+func parseTolerantOfQuotedTabs(src string) (*ast.File, error) {
+	file, err := parser.Parse(Dealias(lexer.Tokenize(src)), 0)
+
+	// Each pass fixes the one line goccy reported, so the bound is the number
+	// of lines that could carry the fault.
+	for attempts := strings.Count(src, "\n") + 1; err != nil && attempts > 0; attempts-- {
+		if !strings.Contains(err.Error(), quotedTabIndent) {
+			break
+		}
+		fixed, ok := untabLine(src, errorLine(err))
+		if !ok {
+			break
+		}
+		src = fixed
+		file, err = parser.Parse(Dealias(lexer.Tokenize(src)), 0)
+	}
+	return file, err
+}
+
+// errorLine is the 1-based line a goccy error points at, or 0.
+func errorLine(err error) int {
+	var parserErr goyaml.Error
+	if !errors.As(err, &parserErr) {
+		return 0
+	}
+	if tok := parserErr.GetToken(); tok != nil && tok.Position != nil {
+		return tok.Position.Line
+	}
+	return 0
+}
+
+// untabLine replaces the leading tabs of one line with spaces, one for one so
+// that every later column is unchanged and the error coordinates a failure
+// would report stay exact.
+func untabLine(src string, line int) (string, bool) {
+	if line < 1 {
+		return src, false
+	}
+	lines := strings.Split(src, "\n")
+	if line > len(lines) {
+		return src, false
+	}
+
+	text := lines[line-1]
+	trimmed := strings.TrimLeft(text, "\t")
+	if trimmed == text {
+		return src, false
+	}
+
+	lines[line-1] = strings.Repeat(" ", len(text)-len(trimmed)) + trimmed
+	return strings.Join(lines, "\n"), true
 }
 
 // MultiDocumentError is ruamel's composer failure for a stream carrying more
