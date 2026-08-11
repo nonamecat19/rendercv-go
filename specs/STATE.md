@@ -215,8 +215,34 @@ one bypass, two symptoms.
 present and sentence+`"."` absent, after `Contains(text, "..")` false-positived on the elided `...` in
 the Input Value column.
 
-**Still open:** the fourth behaviour — a document value conflicting with a **script-declared** option's
-type is exit 1 at `design` upstream and silently dropped here. Both prerequisites are now in place.
+**The fourth behaviour is closed** — `e0225fa`. A document value that a script-declared option's type
+rejects is now exit 1 at `design`, and **all fifteen rejecting vectors are byte-identical to upstream
+on whole stdout**, compared with `cmp` on both binaries' captured output rather than by scraping panel
+text — which also sidesteps the panel-wrap trap that caught four agents today. Suite re-run at that
+commit with the tree clean: `just check` 0 issues, `go test ./...` green, `just test-parity` exit 0
+with 0 FAILs, `TestParity` 42/42.
+
+**The five accepting vectors are asserted as accepts**, which matters more than it looks: `"5"` for an
+`int`, `true` for an `int`, `5.0` for an `int`, `no` for a `bool` and `2` for a `float` agreed between
+the sides only because the port validated nothing. A later tightening would have started rejecting
+them and broken parity in the other direction, silently. Now it breaks a test.
+
+**A narrow divergence judged not worth the human gate, recorded here instead.** A nested group's
+message names a Python class — `Input should be a valid dictionary or instance of CustomGroup` — which
+Lua does not have. The port derives it from the key exactly as upstream's own `create-theme` derives
+its class names (`custom_group` → `CustomGroup`), so it is **byte-identical for every theme that tool
+generates**. Only a hand-written `__init__.py` naming its class something else diverges, and that is a
+Python artefact the port has no equivalent of. Measurement is here if a human later wants an entry.
+
+**Still open, found by the same work:** a nested **unknown** key inside a script-declared group
+(`custom_group: {zz: 1}`) is accepted here and exit 1 upstream — T3's unknown-key behaviour one level
+down. T3 deliberately did not descend into script-invented keys, reasoning that whatever they hold is
+the script's business; upstream disagrees for the unknown-key case specifically. Being measured before
+implementation.
+
+Also of note: `TestADocumentConflictingWithTheScriptIsDropped` became `...IsRejected` — **the third
+test in that file to make the same move**. The merge layer's pruning tests are steadily becoming
+validation tests as the leak moves upstream of them, which is the right direction.
 
 ## All seven lexical-path sites are fixed — 2026-08-11
 
