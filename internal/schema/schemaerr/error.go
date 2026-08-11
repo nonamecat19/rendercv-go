@@ -1,6 +1,9 @@
 package schemaerr
 
 import (
+	"strconv"
+	"strings"
+
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
 )
 
@@ -126,17 +129,30 @@ func RenderInput(node *yamldoc.Node) string {
 		// plain lowercase `true` — the common spelling, reachable on any
 		// design field — showed the wrong case in the table. The function
 		// already made this distinction for `null`/`None`; it was only
-		// inconsistent for its bool arm. A numeric field's literal form
-		// (`0x1f`, `1_000`) has the same gap and is deliberately left open,
-		// same as `design.themeNameRepr`'s: it needs a full YAML-number-to-
-		// Python-`str()` resolver for a case no plausible CV reaches.
-		// Found by a fresh-context verifier (iteration 14's fourteenth
-		// re-verification).
+		// inconsistent for its bool arm. Found by a fresh-context verifier
+		// (iteration 14's fourteenth re-verification). The integer arm below
+		// closes the same gap for a numeric literal; the float one is still
+		// open.
 		if yamldoc.BoolIsTrue(node.Raw) {
 			return "True"
 		}
 		return "False"
-	case yamldoc.KindInt, yamldoc.KindFloat, yamldoc.KindString, yamldoc.KindTagged:
+	case yamldoc.KindInt:
+		// **The column carries `str()` of the parsed Python object, not the
+		// token.** An integer's spelling is not its value: `0x1f` is `31`,
+		// `1_000` is `1000`, `007` is `7`, and a leading `+` is gone — which is
+		// how this surfaced, on an unquoted WhatsApp username
+		// (`+905419999999`), the likeliest real CV to reach it. Measured on
+		// fourteen spellings through upstream's own loader.
+		//
+		// The float half of the same gap is still open: it needs Python's
+		// shortest-round-trip `repr`, not a FormatFloat call. Deferred since
+		// iteration 14's pass 13.
+		if text, ok := pythonIntText(node.Raw); ok {
+			return text
+		}
+		return node.Raw
+	case yamldoc.KindFloat, yamldoc.KindString, yamldoc.KindTagged:
 		// KindTagged belongs with the scalars that render as written: a
 		// `TaggedScalar`'s `str()` is its value
 		// (`ruamel/yaml/constructor.py:1619-1621`), so `cv.name: !!str Bob`
@@ -150,3 +166,40 @@ func RenderInput(node *yamldoc.Node) string {
 // InputEllipsis is what a mapping or a sequence renders as
 // (pydantic_error_handling.py:126, spec 004 §4.15).
 const InputEllipsis = "..."
+
+// pythonIntText is `str(int)` for a YAML integer token: the value in decimal,
+// with the base prefix, the underscores, the leading zeros and a `+` sign all
+// gone. It reports false for a token it cannot read, leaving the caller with the
+// raw text rather than a wrong number.
+func pythonIntText(raw string) (string, bool) {
+	text := strings.ReplaceAll(raw, "_", "")
+	negative := false
+	switch {
+	case strings.HasPrefix(text, "-"):
+		negative, text = true, text[1:]
+	case strings.HasPrefix(text, "+"):
+		text = text[1:]
+	}
+
+	base := 10
+	if len(text) > 2 && text[0] == '0' {
+		switch text[1] {
+		case 'x', 'X':
+			base, text = 16, text[2:]
+		case 'o', 'O':
+			base, text = 8, text[2:]
+		case 'b', 'B':
+			base, text = 2, text[2:]
+		}
+	}
+
+	value, err := strconv.ParseInt(text, base, 64)
+	if err != nil {
+		return "", false
+	}
+	if negative {
+		value = -value
+	}
+	// `-0` is `0`: Python has no negative zero for an int.
+	return strconv.FormatInt(value, 10), true
+}

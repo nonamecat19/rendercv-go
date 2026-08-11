@@ -90,6 +90,59 @@ func TestRenderInput(t *testing.T) {
 			node: &yamldoc.Node{Kind: yamldoc.KindBool, Raw: "off"},
 			want: "False",
 		},
+		// **An integer's spelling is not its value.** The column carries `str()`
+		// of the parsed object, so the base prefix, the underscores, the leading
+		// zeros and a `+` sign are all gone. Measured on fourteen spellings
+		// through upstream's own loader; `+905419999999` is the one that matters,
+		// an unquoted WhatsApp username.
+		{
+			name: "a leading plus is dropped",
+			node: &yamldoc.Node{Kind: yamldoc.KindInt, Raw: "+905419999999"},
+			want: "905419999999",
+		},
+		{
+			name: "hexadecimal renders in decimal",
+			node: &yamldoc.Node{Kind: yamldoc.KindInt, Raw: "0x1f"},
+			want: "31",
+		},
+		{
+			name: "octal renders in decimal",
+			node: &yamldoc.Node{Kind: yamldoc.KindInt, Raw: "0o17"},
+			want: "15",
+		},
+		{
+			name: "binary renders in decimal",
+			node: &yamldoc.Node{Kind: yamldoc.KindInt, Raw: "0b101"},
+			want: "5",
+		},
+		{
+			name: "underscores are dropped",
+			node: &yamldoc.Node{Kind: yamldoc.KindInt, Raw: "1_000"},
+			want: "1000",
+		},
+		{
+			name: "leading zeros are dropped",
+			node: &yamldoc.Node{Kind: yamldoc.KindInt, Raw: "007"},
+			want: "7",
+		},
+		{
+			name: "an int has no negative zero",
+			node: &yamldoc.Node{Kind: yamldoc.KindInt, Raw: "-0"},
+			want: "0",
+		},
+		{
+			name: "a negative integer keeps its sign",
+			node: &yamldoc.Node{Kind: yamldoc.KindInt, Raw: "-42"},
+			want: "-42",
+		},
+		{
+			// Unreadable as an int64 — the raw text is better than a wrong
+			// number. The same value's Python `str()` would be exact, which is
+			// the float/bignum half of the gap and still open.
+			name: "a token too large to parse stays as written",
+			node: &yamldoc.Node{Kind: yamldoc.KindInt, Raw: "99999999999999999999999"},
+			want: "99999999999999999999999",
+		},
 		// An opaque tagged scalar renders as its text, not as `None`: upstream's
 		// TaggedScalar keeps the value it could not type, and the table echoes
 		// it while the field still fails.
