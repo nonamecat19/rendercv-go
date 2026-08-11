@@ -27,7 +27,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 | 10 | wazero + WASI typst → PDF, then PNG | [010](010-typst-compilation/spec.md) | **gate cleared 2026-08-08; landed and running in the suite.** The compiler, the fonts and `fontawesome` are vendored and embedded (D-007). Every render case now produces a PDF and its PNGs, and `AssertPDF` compares text, page count and geometry. **Not yet verified by a fresh context** | 14 / 14 in the suite |
 | 11 | Markdown + HTML renderers | [011](011-markdown-and-html/spec.md) | **both blockers closed; awaiting a fresh context to re-promote.** Raw HTML passes through, and the `"` defect that demoted this iteration is fixed: python-markdown escapes in **three contexts** where goldmark uses one. Measured in an isolated worktree at the commit before the fix, 33 of 75 differential shapes differed; 4 do now, each a different defect (whitespace, emphasis nesting, URL escaping) and each pinned by an inverted assertion. **verified 2026-08-11 — FAIL, stays demoted.** The 71/75 figure is a property of the 75-row fixture, not of the renderer: at least **8 further divergence classes** are reachable end-to-end from an ordinary CV highlight, none in `knownRemainder`, none in `divergences.md` (emphasis-nesting split, image `alt` losing emphasis, the decimal-entity mailto obfuscation, a ``` fence python-markdown has no extension for, list-continuation `<p>` placement, a spaced link URL, a raw block `<div>` in a list item, and a bare `\r`). What *did* check out: all 75 `html.json` rows reproduce byte-for-byte under the submodule's own `markdown.markdown` (0 mismatches, §10.1 satisfied), and all four `knownRemainder` keys still genuinely differ, so the inverted assertions are load-bearing **Re-verified 2026-08-11 after the fixes: all 8 classes closed, and 5 more the fix work found — including the one that matters operationally, a CV field ending in a stray space producing a differing `.html`. `html.json` is 118 rows, all reproducing under the submodule's own `markdown.markdown`. NOT promoted**: three real divergences remain (emphasis nesting, a link destination with an unbracketed space, a block tag in a list item), each reachable from an ordinary CV, and `divergences.md` is human-gated | 24 / 24 corpus, **113 / 118 HTML differential**; the 5 pinned by inverted assertions, each confirmed still-differing end-to-end. Three of the previous four `knownRemainder` entries had gone **vacuous** — asserting a difference that no longer existed — and were removed |
 | 12 | CLI (`new`, `render`, `create-theme`, overrides, watcher) | [012](012-cli/spec.md) | **in progress.** `render` and `new` are wired and their goldens pass, error panels included. `create-theme` is now registered and `--create-typst-templates`/`--create-markdown-templates` write their folders; two of their corpus cases stay red by construction under D-008. `err_not_yaml` is fixed. The five help panels are written and verified, four unreachable by construction under D-010; two more are D-011's unhandled-exception tracebacks | 34 / 42 `TestParity` cases (the suite has 42, not 43 — `manifest.json` was miscounted as a case), **not yet verified by a fresh context** |
-| 13 | Parity closeout (sample generator, version, error handler, packaging) | — | — | 0 |
+| 13 | Parity closeout (sample generator, version, error handler, watcher, packaging) | [013](013-parity-closeout/spec.md) | **verified 2026-08-11 — PASS, 0 blockers.** Verified three times by one fresh context: the initial pass (3 majors, 4 minors), a scoped re-pass over the four fixes (PASS, 3 new minors), and a final scoped pass (PASS, 1 new minor). Findings 5–10 are closed; 2 majors and 4 minors stay open, listed below. **The first iteration in this port to pass a fresh context on its first attempt** | 42 / 42 `TestParity`, 3468 verbose PASS / 0 FAIL / 1 SKIP under the conformance tag, 7 / 7 behavior-31 differential rows |
 | 14 | Lua-scripted custom themes (D-002) + the two folder messages | [014](014-lua-custom-themes/spec.md) | **re-verified 21×, 2026-08-10 — FAIL every pass through the 21st.** Pass 21 fixed a blocker (script default value-checking); 1 major + 1 minor still open, see below. **re-verified 16×, 2026-08-10 — FAIL every pass through the 16th.** Pass 16 found and fixed (`7947929`) the one blocker it turned up: `parseNumericText` applied its bool-word/hex/octal/binary coercion to every colour-tuple element's raw text regardless of the YAML node's actual kind, so a *quoted* string that merely spelled the same token (`colors.name: ["0x10", 0, 0]`) was coerced the same as an unquoted one — upstream's `float(value)` runs on whatever Python object YAML resolved, and a quoted `"0x10"` is a `str`, which `float()` rejects. `parseChannel`/`parseAlpha`/`parseNumericText` now take a `coerce bool`; `validColorNode` sets it from each element's real `yamldoc.Kind`, and the percent branch is always non-coercing (only a string can carry a literal `%`). `ParseColorTuple` (the merge-time caller with no Kind info left by then) keeps the old permissive behavior. Landed with 5 new cases. Two more findings recorded, not fixed: a colour tuple with a nested collection (`[1,2,3,[1]]`) as its 4th element silently drops it as "no alpha" and renders at exit 0, where upstream's `float()` on a `CommentedSeq` is an unhandled `TypeError` — a *port succeeds where upstream crashes* case, the same class as the two behaviors already awaiting the human gate in this file's "Two measured behaviors" section, left alone for the same reason (matching an uncaught Python traceback is D-011's territory, not a validation record this port can produce); and a script's `KindColor` **string** (not tuple) is never `ParseColor`-checked by `ValidateScript`, an asymmetry inside the already-cut "value validation skipped when a script exists" gap rather than a new one. Pass 15's three fixes (chained NaN comparisons, percent-alpha routing, prefix case-sensitivity) confirmed correct and complete on 60+ probes including `.inf`/`.nan` spellings, negative infinity, and whitespace-plus-hex/bool combinations. Pass 15's two out-of-scope findings and the `df4a82a` commit-bundling minor are unchanged. | 0 blockers reproduced by the 16th pass's fix (unverified by a 17th), 2 deferred findings (1 minor), 2 out-of-scope findings, 2 new minors recorded (upstream-crash case, script-string-color asymmetry), 2 known gaps cut forward, 1 coverage gap open, 3 process findings open |
 | 15 | Explicit YAML tags | [015](015-yaml-tags/spec.md) | **implemented, not yet verified by a fresh context.** The reader had no case for a tag node at all, so every tagged node became `KindNull`. **62 of a 71-case differential matrix are byte-identical, up from 1**; the 9 remaining are all recorded (D-012's three groups, or upstream `RenderCVInternalError`s tags did not cause). **Six defects the work *exposed* and that predate it are fixed here too** — the acceptance criteria could not pass around them, and three of the six rendered a wrong CV at exit 0. **verified 2026-08-11 — FAIL, demoted. 3 blockers, 6 majors, 2 minors.** The central design bet — a new `KindTagged` that typed fields reject *by not naming it*, enforced by `golangci-lint`'s `exhaustive` check — has a hole: the mechanism only works inside a `switch` the linter sees. `binder.go:479-482`'s `isNonScalar` is a **bool predicate**, so a `TaggedScalar` at a date field routes to `checkScalar` and **renders at exit 0** where upstream emits a 2020-byte table (B1). `social_networks[].network` is the **fifth** shapeless `binder.Field` with a typed upstream annotation, the answer to the open question the previous sweep left (B2). And `boolAsInteger` is a **sixth** `BoolIsTrue` call site that was missed, still deciding truth by `HasPrefix(raw,"t")` under a doc comment iteration 15 itself made false (B3). Majors: `locale.language`'s union-tag Input Value is wrong **on plain YAML**, and `cv.photo` reports a file-existence error where upstream reports a path-type error. Coverage: spec 015 §3.4 claims *every* typed field rejects a tag and tests exactly three — B1 and B2 are two nobody probed **All five findings fixed and independently red-checked 2026-08-11 (B1 `283b448`, B2 `ece367c`, B3 `224cd81`, M1 `a671a11`, M2 `185252d`), each failing on its assertion after a clean build. Still NOT green**, because the *systemic* half of B1 is open: `fitsNoScalarArm` is now an exhaustive switch the linter enforces, but it is **one predicate out of 115** — the rule "any later predicate over Kind belongs in this shape" is a comment, not a constraint, and F2 below is a live consequence | 62 / 71 differential; `TestParity` 42/42 (8 of them inverted, see below); typed-field matrix **34/34**, tag matrix 28/37 |
 
@@ -60,6 +60,133 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 **All three slices reported the parity suite as non-deterministic — and the cause was the fan-out itself, not the suite.** Two runs at the same commit gave 8 and 22 failures, and slice B saw all 14 render cases fail together on `mkdir rendercv_output: no such file or directory`, which no input can produce upstream. Diagnosed after the slices finished: `caseWorkDir` (`internal/conformance/conformance.go:211-222`) runs every case in a **fixed, shared** path — `testdata/.work/run/<case>` — and `os.RemoveAll`s it first. Case names are unique and only one test binary uses those directories, so the suite does not race *itself*; what raced was three agents sharing one working tree, with slice B running its own differential harness under `testdata/.work/` while the others ran the suite. Re-measured alone afterwards: **five consecutive runs, 8 failures every time** (three of `./internal/conformance/...`, two of the full `./...`), so the suite is deterministic and the reported flakiness was self-inflicted. Every number in this entry was taken that way regardless.
 
 **The underlying fragility is real but cannot be fixed without the human gate.** The shared path is deliberate — `caseWorkDir`'s own comment records why a `t.TempDir` is impossible — and `err_unknown_theme`'s golden bakes the absolute run directory into the bytes being compared, so isolating runs per process would change the path and break that golden. Hardening it therefore means regenerating `testdata/golden`, which is human-gated (AGENTS.md §5). **Until then the operational rule is that the parity suite must not be run concurrently with anything else touching the repository** — including a parallel verifier fan-out, which is how this pass produced three false reports. | 6 blockers fixed (unverified by a 23rd), 6 blockers + 9 majors/minors open, 4 items awaiting the human gate, suite flakiness diagnosed as self-inflicted and the real fragility gated
+
+## Iteration 13 was verified and it passed — 2026-08-11
+
+The first iteration to pass a fresh context on its first attempt. Five units, fanned out across
+four porters with disjoint file ownership; the reachability half of `render.go` stayed with the
+merge owner, per AGENTS.md §5's rule that the spine does not fan out. Verified three times by one
+fresh context — a full pass, then two scoped re-passes over the fixes its own findings produced.
+
+**What the verifier printed, tree quiet, suite run alone:** `just check` 0 issues, `go test ./...`
+green over 30 packages, `just test-parity` exit 0 across three consecutive runs, `just schema-diff`
+empty, `TestParity` **42 PASS / 0 FAIL / 0 SKIP**, and a full verbose conformance census of
+**3468 PASS / 0 FAIL / 1 SKIP** (the skip is `TestUnmappedParserMessageFallsThrough`, pre-existing).
+
+### What landed
+
+- **The watcher** (b45–49). `WatchSet` is `collect_input_file_paths`' values; `watchLoop` schedules
+  parent directories non-recursively and filters events back to the file set, which is watchdog's
+  own split; a failing render is swallowed rather than exiting. Confirmed end to end against
+  upstream: a watch over a *failing* render emits the 1411-byte validation table, stays alive, and
+  exits 0 on interrupt, byte-exact on both sides.
+- **`--watch` + SIGINT went from exit 130 to upstream's 0**, 965 bytes of stdout unchanged.
+  `signal.NotifyContext(…, os.Interrupt)` installed before the first render. SIGTERM deliberately
+  left at the default (143 both sides) — upstream installs no handler for it.
+- **`read_yaml`'s existence check and extension whitelist, removed** (b43). They are unreachable
+  from upstream's CLI, so the port was stricter than upstream; `render <valid CV>.txt` now exits 0
+  on both sides. Spec 002 §3.1 corrected in consequence (`4de1a84`).
+- **The exit-70 sentinel, removed.** `{0,1,2}` is now proved by AST reachability walks over package
+  `cli` (seeded from `Execute`) and over package `main`.
+- **`OS Error: ` and an absolute path** (§4.7, b35). The port emitted neither; the panel is now
+  **722 bytes against upstream's 722**, geometry exact, with only the errno wording residual.
+- **The packaging inventories** (b22, b54–56), every count measured against the submodule.
+- **`internal/clidiff`** — a raw-byte differential over behavior 31's seven rows, run in scratch
+  directories outside the repository with no trailing-newline normalization. It is the first gate
+  in this port that can see the byte §7.4 blinds every golden to.
+
+### The verdict rests on a vacuity sweep, not on green
+
+Roughly forty mutate/build/run/revert cycles across the three passes, each in a throwaway copy.
+Representative reds: an exit code injected inside `Render` and inside `CreateTheme`, not merely in
+`root.go`; a **same-length** message change (`empty!` → `empty.`) proving the differential compares
+bytes rather than sizes; path A rewired to the Live writer so it loses its trailing `\n`; a fourth
+`AddCommand`; a deleted Markdown template; four empty-message shapes including a two-link constant
+chain; and four mutations of the new missing-input guard, including degrading its test double back
+to a version that stores-and-returns instead of modelling `runtime.Goexit`.
+
+**Three mutations passed, and each became a finding.** That is the whole value of the sweep:
+
+1. Row 6's `openProposal` downgrade did not drop "the message body's byte count" as its author
+   believed — it dropped **every assertion on that row's stdout content**. The row passed with the
+   panel text replaced by `banana banana banana banana`.
+2. After the first fix, a second absolute path appended to the panel still passed — **at 722 bytes
+   against upstream's 722**. A private path could leak while the byte count matched exactly.
+3. `TestUserErrorMessagesAreNonEmpty` passed on a statically unresolvable message, logging instead
+   of failing.
+
+### Two claims made during the work were wrong and are corrected here
+
+1. *"SIGINT during a non-watch render exits 130 where upstream exits 1."* **Refuted.** Measured on
+   both sides at four delays with `subprocess.Popen` and a direct `send_signal` — no shell job
+   control, so no `SIG_IGN` trap — shell `$?` is **130 on both sides**. What differs is stdout
+   content, and it is timing-dependent.
+2. *Row 6's downgrade is scoped to the message body.* Wrong, as above.
+
+**A measurement trap worth keeping**: a non-interactive shell sets SIGINT to `SIG_IGN` for
+*background* jobs, so `cmd & ; kill -INT` measures nothing. Two runs were lost to it before the
+foreground-plus-pre-launched-killer recipe was found.
+
+### `go test` hides a passing package's output, and it hid a known-open for the whole iteration
+
+The verifier grepped the parity log for the `KNOWN OPEN` line and found it **zero times** while the
+divergence was live. The cause was not the choice of `t.Logf`: **`go test` discards a passing
+package's output entirely without `-v`, `os.Stderr` included**, so no code inside `internal/clidiff`
+could have put that line in the log. This generalises to every future known-open in this suite.
+
+The fix is split. `internal/clidiff` writes findings to a file outside the repository, truncated per
+run; `test-parity` cats it. `-v` on the whole suite was the alternative and buries forty packages to
+surface one line. `test-parity` is now a bash recipe that captures `go test`'s status, prints the
+findings and re-raises, because `just` aborts a recipe at the first non-zero line — so a known-open
+was previously invisible in exactly the runs that also failed for another reason.
+
+**Load-bearing and now documented**: the findings file is non-stale only because `test-parity: build`
+rewrites `bin/rendercv-go` and the test stats it, forcing a cache miss. A planted fossil survives a
+bare cached `go test`. Dropping the `build` dependency makes findings go stale silently.
+
+### Gate-void skips are now zero
+
+A skip that fires because an *input* is missing prints `ok` while the assertion vanishes. Three
+existed. All three are now fatal by default behind an explicit opt-out, and an unparseable opt-out
+value is fatal too, so a typo cannot read as "run the gate": `internal/clidiff` (both binaries, via
+`RENDERCV_DIFF_ALLOW_SKIP`), and `TestTypstPackageMetadata` plus the 113-row python-markdown
+differential (via `internal/conformance.RequireInput` and `RENDERCV_ALLOW_MISSING_INPUT`). The
+opt-out cannot mute an assertion whose input is present. The three remaining `t.Skip` sites are
+genuine capability guards — symlink support, running as root, and one self-documenting in-test
+conditional.
+
+### Open findings
+
+| # | Sev | Finding |
+|---|---|---|
+| 1 | major | **8 of 13 commits in the first range fail `go vet ./...`** because their test package does not compile. Red-first is satisfiable with a red *assertion*; a red *compile* left `internal/cli` unbisectable for six consecutive commits, two of them `fix:` commits whose own tests could not run. History, not rewritten. |
+| 2 | major | §8's "`tools/sampleprobe` is deleted" is unmet, and **the criterion contradicts itself** — that tool generates the fixture holding the 198-case criterion. **HUMAN GATE: needs a decision, not a tree change.** |
+| 3 | minor | The 198-case theme×locale and name criteria say "differential" but are md5 digests against a captured fixture (`20c1437`, predates this iteration). |
+| 8′ | minor | Row 6's remaining slack is **−19 to +44 characters**, bisected. The port could delete the errno entirely and say only `OS Error: open <path>` and the row would stay green. Inside P-3's letter; recorded as the honest measure of what P-3 covers. |
+| 11 | minor | A second absolute path **glued** to the first with no separator counts as one token and passes; the space-separated case is closed. Being fixed. |
+| — | minor | **A panic escaping `internal/cli` exits 2** — inside §6.5's allowed set by accident, while printing a goroutine dump upstream never prints. The `main` walk bans `panic` in package `main` only; the `cli` walk reads `return` expressions and cannot see a panic. **Nothing holds it.** |
+| — | minor | The goldens bake an absolute path, so `just test-parity` is **not location-independent** — a copy of the repo elsewhere fails `err_unknown_theme` on the path alone. Iteration 1's audit finding, re-confirmed; a second way the suite returns exit 1 for a non-parity reason. |
+
+**Human-gated, untouched**: P-1 through P-4 in spec 013 §10 (`divergences.md` is gated), the golden
+trailing-newline blindness (§7.4), and `caseWorkDir`'s shared-path fragility (§7.6). P-3 is the sole
+residue on row 6 and is now provably the only thing that row leaves unasserted.
+
+### Process findings
+
+- **One agent ran `git stash push` against another agent's in-flight file** to quiet `just check`.
+  The pop hit add/add conflicts on two files outside its pathspec
+  (`internal/renderer/templater/process/date.go` and its test), auto-resolved by rerere.
+  Independently verified clean: both blobs byte-identical at HEAD, at `9580be2` and at `0a0ee1f`,
+  `.git/MERGE_RR` empty, and the surviving `stash@{0}` is an unrelated Aug 7 entry. Nothing lost.
+- **`rerere.enabled=true` with a warm cache** will silently auto-resolve that same conflict again.
+  Invisible at the point it fires. Decide on it before the next fan-out.
+- **The merge owner broke the no-concurrent-runs rule** and got a false `exit 1` from a torn tree,
+  while T5 was mid-commit — the same rule pass 22 recorded and that this session enforced on every
+  agent. Three subsequent runs with the tree quiet were exit 0, and the verifier independently found
+  nothing real in that range. The rule is not advisory.
+- **Four agents went idle without their reports reaching the merge owner**, each needing a second
+  request. Plain-text output from a subagent does not reach the parent; only an explicit message
+  does.
 
 ## Parity axes
 
