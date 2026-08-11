@@ -490,6 +490,21 @@ func normalizeBools(tree Tree, model string, values map[string]any) {
 					values[declared.Name] = false
 				} else if boolWords[strings.ToLower(value)] {
 					values[declared.Name] = true
+				} else if number, ok := parseNumericText(value, true); ok {
+					// **A numeric spelling has to be coerced by its value.**
+					// pydantic accepts any number worth 0 or 1 at a bool field
+					// (`validBoolNode`), and `mappingOf` hands this map the
+					// source text — so `links.underline: 0o0` arrives as the
+					// string `"0o0"`, which is neither of the word sets above
+					// and used to reach the Typst emitter as that literal text.
+					// Upstream emits `links-underline: false,` for it. Like
+					// `ParseColorTuple`, the merge layer has lost the node's
+					// `yamldoc.Kind` and so coerces unconditionally; a quoted
+					// `"0o0"` never gets this far because `validBoolNode` — which
+					// does still have the kind — rejects it first. Found by a
+					// fresh-context verifier (iteration 14's twenty-second
+					// re-verification).
+					values[declared.Name] = number != 0
 				}
 			case int:
 				values[declared.Name] = value != 0
