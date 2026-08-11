@@ -47,12 +47,21 @@ type helpSubcommand struct {
 	Help string `json:"help"`
 }
 
+// loadHelpModel decodes the embedded capture once.
+//
+// **A decode failure yields the zero model rather than a panic.** The data is
+// embedded and generated, so a failure is a build problem no user can cause —
+// and a build problem belongs in a build's tests, which is where
+// `TestEmbeddedHelpModelParses` and every `cli_*_help` golden comparison put it.
+// Panicking would move it to the user's terminal instead, ending the process at
+// exit 2 with a goroutine dump: neither of the two shapes upstream produces for
+// a failure of its own (exit 1 with a traceback, exit 2 with a usage message).
+// The zero model renders an empty page, which the exit-code contract can
+// represent.
 var loadHelpModel = sync.OnceValue(func() helpModel {
 	var model helpModel
-	// The data is embedded and generated, so a failure here is a build
-	// problem rather than anything a user can cause.
 	if err := json.Unmarshal(helpJSON, &model); err != nil {
-		panic("cli: embedded help model is not valid JSON: " + err.Error())
+		return helpModel{}
 	}
 	return model
 })
