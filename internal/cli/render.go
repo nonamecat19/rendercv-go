@@ -525,11 +525,25 @@ func buildArguments(options RenderOptions) (modelbuilder.BuildArguments, error) 
 	}, nil
 }
 
-func plainName(doc bridge.Document) string {
-	if doc.Model == nil || doc.Model.CvModel == nil || doc.Model.CvModel.Name == nil {
-		return ""
+// plainName is `rendercv_model.cv.name` as the path resolver reads it
+// (`path_resolver.py:76-102`), which drops every name placeholder when the name
+// is falsy.
+//
+// **A null name has no text.** `cv.name: null` is `None` upstream, so the
+// placeholders are dropped and the file keeps its literal
+// `NAME_IN_SNAKE_CASE_CV.typ` name; the port read the node's raw token and
+// wrote `null_CV.typ`, naming the CV after the YAML keyword the user typed.
+// Only a null can reach this now — every other non-string fails the field
+// (cv.py:32).
+func plainName(doc bridge.Document) *string {
+	if doc.Model == nil || doc.Model.CvModel == nil {
+		return nil
 	}
-	return doc.Model.CvModel.Name.Raw
+	name := doc.Model.CvModel.Name
+	if name == nil || name.Kind != yamldoc.KindString {
+		return nil
+	}
+	return &name.Raw
 }
 
 func orDefault(value, fallback string) string {
