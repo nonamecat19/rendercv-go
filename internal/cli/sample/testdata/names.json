@@ -1,0 +1,438 @@
+[
+ {
+  "name": "John Doe",
+  "region": "  name: John Doe\n"
+ },
+ {
+  "name": "A: B",
+  "region": "  name: 'A: B'\n"
+ },
+ {
+  "name": "*Star*",
+  "region": "  name: '*Star*'\n"
+ },
+ {
+  "name": "#hash",
+  "region": "  name: '#hash'\n"
+ },
+ {
+  "name": "  pad  ",
+  "region": "  name: '  pad  '\n"
+ },
+ {
+  "name": "",
+  "region": "  name: ''\n"
+ },
+ {
+  "name": "yes",
+  "region": "  name: yes\n"
+ },
+ {
+  "name": "line1\nline2",
+  "region": "  name: |-\n    line1\n    line2\n"
+ },
+ {
+  "name": "Matías",
+  "region": "  name: Matías\n"
+ },
+ {
+  "name": "Zoë  Ölçer",
+  "region": "  name: Zoë  Ölçer\n"
+ },
+ {
+  "name": "José  ",
+  "region": "  name: 'José  '\n"
+ },
+ {
+  "name": "日本 語",
+  "region": "  name: 日本 語\n"
+ },
+ {
+  "name": "עברית",
+  "region": "  name: עברית\n"
+ },
+ {
+  "name": "emoji 😀",
+  "region": "  name: emoji 😀\n"
+ },
+ {
+  "name": " nbsp",
+  "region": "  name:  nbsp\n"
+ },
+ {
+  "name": "true",
+  "region": "  name: 'true'\n"
+ },
+ {
+  "name": "True",
+  "region": "  name: 'True'\n"
+ },
+ {
+  "name": "TRUE",
+  "region": "  name: 'TRUE'\n"
+ },
+ {
+  "name": "false",
+  "region": "  name: 'false'\n"
+ },
+ {
+  "name": "False",
+  "region": "  name: 'False'\n"
+ },
+ {
+  "name": "null",
+  "region": "  name: 'null'\n"
+ },
+ {
+  "name": "Null",
+  "region": "  name: 'Null'\n"
+ },
+ {
+  "name": "NULL",
+  "region": "  name: 'NULL'\n"
+ },
+ {
+  "name": "~",
+  "region": "  name: '~'\n"
+ },
+ {
+  "name": "123",
+  "region": "  name: '123'\n"
+ },
+ {
+  "name": "-5",
+  "region": "  name: '-5'\n"
+ },
+ {
+  "name": "+5",
+  "region": "  name: '+5'\n"
+ },
+ {
+  "name": "1.5",
+  "region": "  name: '1.5'\n"
+ },
+ {
+  "name": "1e3",
+  "region": "  name: '1e3'\n"
+ },
+ {
+  "name": "0x1F",
+  "region": "  name: '0x1F'\n"
+ },
+ {
+  "name": "0o17",
+  "region": "  name: '0o17'\n"
+ },
+ {
+  "name": "0b101",
+  "region": "  name: '0b101'\n"
+ },
+ {
+  "name": "1_000",
+  "region": "  name: '1_000'\n"
+ },
+ {
+  "name": ".inf",
+  "region": "  name: '.inf'\n"
+ },
+ {
+  "name": "-.inf",
+  "region": "  name: '-.inf'\n"
+ },
+ {
+  "name": ".nan",
+  "region": "  name: '.nan'\n"
+ },
+ {
+  "name": "\u003c\u003c",
+  "region": "  name: '\u003c\u003c'\n"
+ },
+ {
+  "name": "=",
+  "region": "  name: '='\n"
+ },
+ {
+  "name": "2020-01-01",
+  "region": "  name: '2020-01-01'\n"
+ },
+ {
+  "name": "2020-01-01T00:00:00",
+  "region": "  name: '2020-01-01T00:00:00'\n"
+ },
+ {
+  "name": "no",
+  "region": "  name: no\n"
+ },
+ {
+  "name": "On",
+  "region": "  name: On\n"
+ },
+ {
+  "name": "OFF",
+  "region": "  name: OFF\n"
+ },
+ {
+  "name": "Y",
+  "region": "  name: Y\n"
+ },
+ {
+  "name": "n",
+  "region": "  name: n\n"
+ },
+ {
+  "name": "12:30",
+  "region": "  name: 12:30\n"
+ },
+ {
+  "name": "null_",
+  "region": "  name: null_\n"
+ },
+ {
+  "name": "--",
+  "region": "  name: --\n"
+ },
+ {
+  "name": "a",
+  "region": "  name: a\n"
+ },
+ {
+  "name": "-",
+  "region": "  name: '-'\n"
+ },
+ {
+  "name": "- x",
+  "region": "  name: '- x'\n"
+ },
+ {
+  "name": "-  x",
+  "region": "  name: '-  x'\n"
+ },
+ {
+  "name": "-x",
+  "region": "  name: -x\n"
+ },
+ {
+  "name": "?",
+  "region": "  name: '?'\n"
+ },
+ {
+  "name": "? q",
+  "region": "  name: '? q'\n"
+ },
+ {
+  "name": "!bang",
+  "region": "  name: '!bang'\n"
+ },
+ {
+  "name": "\u0026anchor",
+  "region": "  name: '\u0026anchor'\n"
+ },
+ {
+  "name": "%pct",
+  "region": "  name: '%pct'\n"
+ },
+ {
+  "name": "@at",
+  "region": "  name: '@at'\n"
+ },
+ {
+  "name": "`tick",
+  "region": "  name: '`tick'\n"
+ },
+ {
+  "name": "|pipe",
+  "region": "  name: '|pipe'\n"
+ },
+ {
+  "name": "\u003egt",
+  "region": "  name: '\u003egt'\n"
+ },
+ {
+  "name": "{brace}",
+  "region": "  name: '{brace}'\n"
+ },
+ {
+  "name": "[bracket]",
+  "region": "  name: '[bracket]'\n"
+ },
+ {
+  "name": "comma, sep",
+  "region": "  name: comma, sep\n"
+ },
+ {
+  "name": "::",
+  "region": "  name: '::'\n"
+ },
+ {
+  "name": "a: ",
+  "region": "  name: 'a: '\n"
+ },
+ {
+  "name": "a: b",
+  "region": "  name: 'a: b'\n"
+ },
+ {
+  "name": "a :b",
+  "region": "  name: a :b\n"
+ },
+ {
+  "name": "a #b",
+  "region": "  name: 'a #b'\n"
+ },
+ {
+  "name": "a# b",
+  "region": "  name: a# b\n"
+ },
+ {
+  "name": "x#y",
+  "region": "  name: x#y\n"
+ },
+ {
+  "name": "http://x.com/#f",
+  "region": "  name: http://x.com/#f\n"
+ },
+ {
+  "name": "key:value",
+  "region": "  name: key:value\n"
+ },
+ {
+  "name": "--- doc",
+  "region": "  name: '--- doc'\n"
+ },
+ {
+  "name": "...end",
+  "region": "  name: '...end'\n"
+ },
+ {
+  "name": "\u003chtml\u003e",
+  "region": "  name: \u003chtml\u003e\n"
+ },
+ {
+  "name": " lead",
+  "region": "  name: ' lead'\n"
+ },
+ {
+  "name": "end ",
+  "region": "  name: 'end '\n"
+ },
+ {
+  "name": "   ",
+  "region": "  name: '   '\n"
+ },
+ {
+  "name": "quote'd",
+  "region": "  name: quote'd\n"
+ },
+ {
+  "name": "'quoted'",
+  "region": "  name: \"'quoted'\"\n"
+ },
+ {
+  "name": "dq\"uote",
+  "region": "  name: dq\"uote\n"
+ },
+ {
+  "name": "\"dquoted\"",
+  "region": "  name: '\"dquoted\"'\n"
+ },
+ {
+  "name": "x\"y'z",
+  "region": "  name: x\"y'z\n"
+ },
+ {
+  "name": "back\\slash",
+  "region": "  name: back\\slash\n"
+ },
+ {
+  "name": "\u0007bell",
+  "region": "  name: \"\\abell\"\n"
+ },
+ {
+  "name": "del",
+  "region": "  name: \"\\x7Fdel\"\n"
+ },
+ {
+  "name": "﻿bom",
+  "region": "  name: \"\\uFEFFbom\"\n"
+ },
+ {
+  "name": "\tstart",
+  "region": "  name: \"\\tstart\"\n"
+ },
+ {
+  "name": "tab\there",
+  "region": "  name: \"tab\\there\"\n"
+ },
+ {
+  "name": "\u001bescape",
+  "region": "  name: \"\\eescape\"\n"
+ },
+ {
+  "name": "\u0000nul",
+  "region": "  name: \"\\0nul\"\n"
+ },
+ {
+  "name": "two\n\nlines",
+  "region": "  name: |-\n    two\n\n    lines\n"
+ },
+ {
+  "name": "first\n  indented",
+  "region": "  name: |-\n    first\n      indented\n"
+ },
+ {
+  "name": "  lead\nsecond",
+  "region": "  name: |2-\n      lead\n    second\n"
+ },
+ {
+  "name": "tab\tstart\nsecond",
+  "region": "  name: |-\n    tab\tstart\n    second\n"
+ },
+ {
+  "name": "trailing\n",
+  "region": "  name: \"trailing\\n\"\n"
+ },
+ {
+  "name": "end\n\n",
+  "region": "  name: |+\n    end\n\n"
+ },
+ {
+  "name": "\n",
+  "region": "  name: \"\\n\"\n"
+ },
+ {
+  "name": "\n\n",
+  "region": "  name: |2+\n\n\n"
+ },
+ {
+  "name": "a\rb",
+  "region": "  name: |-\n    a\rb\n"
+ },
+ {
+  "name": "a\r\nb",
+  "region": "  name: |-\n    a\r\n    b\n"
+ },
+ {
+  "name": "\u2028ls",
+  "region": "  name: |2-\n\u2028    ls\n"
+ },
+ {
+  "name": "nel",
+  "region": "  name: |2-\n    nel\n"
+ },
+ {
+  "name": "a\u000bb",
+  "region": "  name: |-\n    a\u000bb\n"
+ },
+ {
+  "name": "a\fb",
+  "region": "  name: |-\n    a\fb\n"
+ },
+ {
+  "name": "settings:\nx",
+  "region": "  name: |-\n    settings:\n    x\n"
+ },
+ {
+  "name": "x\n  - a - b",
+  "region": "  name: |-\n    x\n      - a\n            - b\n"
+ }
+]
