@@ -6,7 +6,10 @@ import (
 	"strings"
 
 	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/renderer"
 	"github.com/yuin/goldmark/renderer/html"
+	"github.com/yuin/goldmark/util"
 )
 
 // converter is goldmark configured to match python-markdown's defaults where it
@@ -34,18 +37,32 @@ const pythonMarkdownTabLength = 4
 // otherwise, so a `<b>` in a summary vanished and a `<tag>` in prose took its
 // surrounding text with it. The input is the user's own CV, which the port
 // already renders verbatim into Typst.
-var converter = goldmark.New(goldmark.WithRendererOptions(html.WithUnsafe()))
+// Its escaping is python-markdown's, not goldmark's, which needs a writer and
+// one node renderer — see `htmlescape.go` for the three-context rule and for why
+// an earlier attempt that wrapped only the writer was reverted.
+var converter = goldmark.New(
+	goldmark.WithParserOptions(parser.WithASTTransformers(
+		util.Prioritized(linkTitleSplitter{}, 100),
+	)),
+	goldmark.WithRendererOptions(
+		html.WithUnsafe(),
+		// python-markdown's serializer is XHTML: `<br />`, `<hr />`, `<img … />`
+		// (measured on all three). goldmark writes HTML5 void elements by
+		// default.
+		html.WithXHTML(),
+		html.WithWriter(pythonMarkdownWriter),
+		renderer.WithNodeRenderers(
+			// Below the default HTML renderer's 1000, which is what lets this one
+			// win: goldmark registers node renderers from the end of the sorted
+			// list backwards, so the lowest priority is registered last.
+			util.Prioritized(imageRenderer{writer: pythonMarkdownWriter}, 100),
+		),
+	),
+)
 
-// **A custom writer was tried here and reverted**, and the reason is worth
-// keeping. goldmark escapes `"` in text where python-markdown does not, so a
-// quote in any CV produces a differing `.html`. Overriding the renderer's text
-// `Write` fixed exactly that case — and broke image alt text, which goldmark
-// renders through the *same* text path into an **attribute**:
-// `alt="alt "q""`, unparseable HTML. Worse than the mismatch it fixed.
-//
-// The extended differential in `html_conformance_test.go` is what caught it,
-// after the four-case version had passed. A real fix has to distinguish text
-// from attribute context inside goldmark's renderer, not wrap its writer.
+// pythonMarkdownWriter is shared between the converter and the image renderer so
+// the attribute cell and the text cell cannot drift apart.
+var pythonMarkdownWriter = pythonWriter{inner: html.DefaultWriter}
 
 // MarkdownToHTML is `markdown_to_html` (markdown_parser.py:193-202), which is
 // `markdown.markdown(string)` with no extensions and no configuration.

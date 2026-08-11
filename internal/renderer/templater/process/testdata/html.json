@@ -1,1 +1,302 @@
-[{"In": "He said \"hello\".", "Out": "<p>He said \"hello\".</p>"}, {"In": "A <b>bold</b> tag.", "Out": "<p>A <b>bold</b> tag.</p>"}, {"In": "A & an amp.", "Out": "<p>A &amp; an amp.</p>"}, {"In": "- one\n- two", "Out": "<ul>\n<li>one</li>\n<li>two</li>\n</ul>"}, {"In": "Plain text.", "Out": "<p>Plain text.</p>"}, {"In": "**bold** and *em*", "Out": "<p><strong>bold</strong> and <em>em</em></p>"}, {"In": "[link](https://x.com)", "Out": "<p><a href=\"https://x.com\">link</a></p>"}, {"In": "<div>block</div>", "Out": "<div>block</div>"}, {"In": "[a \"quoted\" link](https://x.com/?q=\"v\")", "Out": "<p><a href=\"https://x.com/?q=\" title=\"v\">a \"quoted\" link</a></p>"}, {"In": "![alt \"q\"](img.png \"title\")", "Out": "<p><img alt=\"alt &quot;q&quot;\" src=\"img.png\" title=\"title\" /></p>"}, {"In": "`code \"q\"`", "Out": "<p><code>code \"q\"</code></p>"}, {"In": "A > B and A < B", "Out": "<p>A &gt; B and A &lt; B</p>"}, {"In": "- item with \"quotes\"", "Out": "<ul>\n<li>item with \"quotes\"</li>\n</ul>"}, {"In": "# Head \"q\"", "Out": "<h1>Head \"q\"</h1>"}]
+[
+  {
+    "In": "He said \"hello\".",
+    "Out": "<p>He said \"hello\".</p>"
+  },
+  {
+    "In": "A <b>bold</b> tag.",
+    "Out": "<p>A <b>bold</b> tag.</p>"
+  },
+  {
+    "In": "A & an amp.",
+    "Out": "<p>A &amp; an amp.</p>"
+  },
+  {
+    "In": "- one\n- two",
+    "Out": "<ul>\n<li>one</li>\n<li>two</li>\n</ul>"
+  },
+  {
+    "In": "Plain text.",
+    "Out": "<p>Plain text.</p>"
+  },
+  {
+    "In": "**bold** and *em*",
+    "Out": "<p><strong>bold</strong> and <em>em</em></p>"
+  },
+  {
+    "In": "[link](https://x.com)",
+    "Out": "<p><a href=\"https://x.com\">link</a></p>"
+  },
+  {
+    "In": "<div>block</div>",
+    "Out": "<div>block</div>"
+  },
+  {
+    "In": "[a \"quoted\" link](https://x.com/?q=\"v\")",
+    "Out": "<p><a href=\"https://x.com/?q=\" title=\"v\">a \"quoted\" link</a></p>"
+  },
+  {
+    "In": "![alt \"q\"](img.png \"title\")",
+    "Out": "<p><img alt=\"alt &quot;q&quot;\" src=\"img.png\" title=\"title\" /></p>"
+  },
+  {
+    "In": "`code \"q\"`",
+    "Out": "<p><code>code \"q\"</code></p>"
+  },
+  {
+    "In": "A > B and A < B",
+    "Out": "<p>A &gt; B and A &lt; B</p>"
+  },
+  {
+    "In": "- item with \"quotes\"",
+    "Out": "<ul>\n<li>item with \"quotes\"</li>\n</ul>"
+  },
+  {
+    "In": "# Head \"q\"",
+    "Out": "<h1>Head \"q\"</h1>"
+  },
+  {
+    "In": "&quot;",
+    "Out": "<p>&quot;</p>"
+  },
+  {
+    "In": "&#34;",
+    "Out": "<p>&#34;</p>"
+  },
+  {
+    "In": "&#x22;",
+    "Out": "<p>&#x22;</p>"
+  },
+  {
+    "In": "&unknown;",
+    "Out": "<p>&unknown;</p>"
+  },
+  {
+    "In": "&nbsp;",
+    "Out": "<p>&nbsp;</p>"
+  },
+  {
+    "In": "&frac12;",
+    "Out": "<p>&frac12;</p>"
+  },
+  {
+    "In": "&amp;quot;",
+    "Out": "<p>&amp;quot;</p>"
+  },
+  {
+    "In": "& alone",
+    "Out": "<p>&amp; alone</p>"
+  },
+  {
+    "In": "AT&T",
+    "Out": "<p>AT&amp;T</p>"
+  },
+  {
+    "In": "&; ",
+    "Out": "<p>&amp;; </p>"
+  },
+  {
+    "In": "&#;",
+    "Out": "<p>&amp;#;</p>"
+  },
+  {
+    "In": "& ;",
+    "Out": "<p>&amp; ;</p>"
+  },
+  {
+    "In": "&a",
+    "Out": "<p>&amp;a</p>"
+  },
+  {
+    "In": "&123;",
+    "Out": "<p>&123;</p>"
+  },
+  {
+    "In": "&#abc;",
+    "Out": "<p>&amp;#abc;</p>"
+  },
+  {
+    "In": "x&y;z",
+    "Out": "<p>x&y;z</p>"
+  },
+  {
+    "In": "\\*a\\*",
+    "Out": "<p>*a*</p>"
+  },
+  {
+    "In": "\\\" quote",
+    "Out": "<p>\\\" quote</p>"
+  },
+  {
+    "In": "\\&amp;",
+    "Out": "<p>\\&amp;</p>"
+  },
+  {
+    "In": "\\<",
+    "Out": "<p>\\&lt;</p>"
+  },
+  {
+    "In": "\\\\",
+    "Out": "<p>\\</p>"
+  },
+  {
+    "In": "\\_a\\_",
+    "Out": "<p>_a_</p>"
+  },
+  {
+    "In": "\\`x\\`",
+    "Out": "<p>`x`</p>"
+  },
+  {
+    "In": "`a<b>`",
+    "Out": "<p><code>a&lt;b&gt;</code></p>"
+  },
+  {
+    "In": "`a & b`",
+    "Out": "<p><code>a &amp; b</code></p>"
+  },
+  {
+    "In": "`&quot;`",
+    "Out": "<p><code>&amp;quot;</code></p>"
+  },
+  {
+    "In": "`\\*`",
+    "Out": "<p><code>\\*</code></p>"
+  },
+  {
+    "In": "`&unknown;`",
+    "Out": "<p><code>&amp;unknown;</code></p>"
+  },
+  {
+    "In": "![a](i.png)",
+    "Out": "<p><img alt=\"a\" src=\"i.png\" /></p>"
+  },
+  {
+    "In": "[t](u \"ti\")",
+    "Out": "<p><a href=\"u\" title=\"ti\">t</a></p>"
+  },
+  {
+    "In": "[t](<u> \"ti\")",
+    "Out": "<p><a href=\"u\" title=\"ti\">t</a></p>"
+  },
+  {
+    "In": "[a \"b\"](u)",
+    "Out": "<p><a href=\"u\">a \"b\"</a></p>"
+  },
+  {
+    "In": "<b>raw \"q\"</b>",
+    "Out": "<p><b>raw \"q\"</b></p>"
+  },
+  {
+    "In": "1. one\n2. two",
+    "Out": "<ol>\n<li>one</li>\n<li>two</li>\n</ol>"
+  },
+  {
+    "In": "> quote \"q\"",
+    "Out": "<blockquote>\n<p>quote \"q\"</p>\n</blockquote>"
+  },
+  {
+    "In": "**bold \"q\"** and `code` and [l](u)",
+    "Out": "<p><strong>bold \"q\"</strong> and <code>code</code> and <a href=\"u\">l</a></p>"
+  },
+  {
+    "In": "text\n\nsecond \"para\"",
+    "Out": "<p>text</p>\n<p>second \"para\"</p>"
+  },
+  {
+    "In": "- a\n  - b\n- c",
+    "Out": "<ul>\n<li>a</li>\n<li>b</li>\n<li>c</li>\n</ul>"
+  },
+  {
+    "In": "| a | b |\n| - | - |\n| 1 | 2 |",
+    "Out": "<p>| a | b |\n| - | - |\n| 1 | 2 |</p>"
+  },
+  {
+    "In": "http://auto.link",
+    "Out": "<p>http://auto.link</p>"
+  },
+  {
+    "In": "a  \nb",
+    "Out": "<p>a<br />\nb</p>"
+  },
+  {
+    "In": "*em with \"q\"*",
+    "Out": "<p><em>em with \"q\"</em></p>"
+  },
+  {
+    "In": "___strong em___",
+    "Out": "<p><strong><em>strong em</em></strong></p>"
+  },
+  {
+    "In": "![](empty.png)",
+    "Out": "<p><img alt=\"\" src=\"empty.png\" /></p>"
+  },
+  {
+    "In": "[](empty)",
+    "Out": "<p><a href=\"empty\"></a></p>"
+  },
+  {
+    "In": "line with trailing spaces   \nnext",
+    "Out": "<p>line with trailing spaces <br />\nnext</p>"
+  },
+  {
+    "In": "&lt;script&gt;",
+    "Out": "<p>&lt;script&gt;</p>"
+  },
+  {
+    "In": "100% & more",
+    "Out": "<p>100% &amp; more</p>"
+  },
+  {
+    "In": "a — dash",
+    "Out": "<p>a — dash</p>"
+  },
+  {
+    "In": "naïve café",
+    "Out": "<p>naïve café</p>"
+  },
+  {
+    "In": "日本語 \"q\"",
+    "Out": "<p>日本語 \"q\"</p>"
+  },
+  {
+    "In": "[t](u'\"title\")",
+    "Out": "<p><a href=\"u'\" title=\"title\">t</a></p>"
+  },
+  {
+    "In": "[t](u\"notitle)",
+    "Out": "<p><a href=\"u&quot;notitle\">t</a></p>"
+  },
+  {
+    "In": "![alt](i.png'x')",
+    "Out": "<p><img alt=\"alt\" src=\"i.png\" title=\"x\" /></p>"
+  },
+  {
+    "In": "# H1\n## H2\n### H3",
+    "Out": "<h1>H1</h1>\n<h2>H2</h2>\n<h3>H3</h3>"
+  },
+  {
+    "In": "---",
+    "Out": "<hr />"
+  },
+  {
+    "In": "**a**b**c**",
+    "Out": "<p><strong>a</strong>b<strong>c</strong></p>"
+  },
+  {
+    "In": "a*b*c",
+    "Out": "<p>a<em>b</em>c</p>"
+  },
+  {
+    "In": "<a href=\"x\">raw link</a>",
+    "Out": "<p><a href=\"x\">raw link</a></p>"
+  },
+  {
+    "In": "<!-- comment -->",
+    "Out": "<!-- comment -->"
+  },
+  {
+    "In": "text <br/> more",
+    "Out": "<p>text <br/> more</p>"
+  }
+]
