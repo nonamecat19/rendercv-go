@@ -80,7 +80,7 @@ func uncleanedJoin(dir, name string) string {
 // A second implementation of "like `PurePath.parent`" is what let the two sites
 // drift apart, so this is the one place either of them asks.
 func ThemeScriptPath(inputPath, theme string) string {
-	return uncleanedJoin(uncleanedJoin(uncleanedDir(inputPath), theme), scriptFileName)
+	return themeScriptPathIn(uncleanedDir(inputPath), theme)
 }
 
 func absoluteLikePython(path string) string {

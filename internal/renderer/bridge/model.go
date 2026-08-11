@@ -1,21 +1,14 @@
 package bridge
 
 import (
-	"errors"
-	"os"
-	"strings"
 	"time"
 
-	lua "github.com/yuin/gopher-lua"
-
 	"github.com/nonamecat19/rendercv-go/internal/renderer/templater/process"
-	"github.com/nonamecat19/rendercv-go/internal/schema/luatheme"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv/entries"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/design"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/locale"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/settings"
-	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
 )
 
@@ -29,16 +22,6 @@ type Document struct {
 	// Locale is the resolved catalog, and Settings the three resolved fields.
 	Locale   locale.Catalog
 	Settings settings.Resolved
-	// ScriptError is why a custom theme's `init.lua` could not be used, and nil
-	// when there is no script or the script is fine. It is a
-	// `*schemaerr.UserValidationError` carrying one record per failure, so the
-	// CLI prints it through the same `There are validation errors!` panel every
-	// other validation failure gets (D-013).
-	//
-	// **It is a field rather than a second return from `Resolve`** so that this
-	// lands without touching `Resolve`'s eight call sites while T1 is in flight
-	// in the same file.
-	ScriptError error
 }
 
 // Resolve performs the three resolutions and returns the Document the rest of
@@ -53,41 +36,35 @@ func Resolve(model *models.RenderCVModel, now time.Time) Document {
 	// anything reads the effective tree. A built-in theme has no script and
 	// `themeScript` returns nil, so the nine of them take the path they always
 	// did (spec 014 §1 behavior 4).
-	script, hasScript, scriptErr := themeScript(model, theme)
+	script, hasScript := themeScript(model, theme)
 
 	return Document{
-		Model:       model,
-		Design:      design.EffectiveWithScript(theme, script, block, hasScript),
-		Locale:      locale.Resolve(model.Locale),
-		Settings:    resolved,
-		ScriptError: scriptErr,
+		Model:    model,
+		Design:   design.EffectiveWithScript(theme, script, block, hasScript),
+		Locale:   locale.Resolve(model.Locale),
+		Settings: resolved,
 	}
 }
 
 // themeScript loads `<theme>/init.lua` from beside the input file — D-002's
 // replacement for upstream's `<theme>/__init__.py` (spec 014 §1 behavior 1).
 //
-// **A missing script is not an error**, which is upstream's behavior too: a
-// theme folder with no module is valid and falls back to the base tree
-// (`design.py:137-142`) — measured against the vendored binary at exit 0.
+// **It is `design.LoadThemeScript`, and nothing else.** The loading used to be
+// duplicated here because the script was read at render time and validation
+// could not see it; validation owns the read now, so a second implementation
+// could only drift from the first — and the two disagreeing about which script
+// a document uses is exactly the class of defect this file has already been
+// through once, over `filepath.Dir` versus `PurePath.parent`.
 //
-// **A script that fails is an error**, and used to be silent: every failure
-// returned the same nil map a missing file does, so the document rendered with
-// the theme's base defaults at exit 0 with no signal at all. Upstream refuses to
-// render and exits 1 for each of them (spec 014 §2 behavior 9, tasks 014 T4), so
-// the third return carries the reason and `Resolve` hands it to the CLI.
-//
-// **The returned bool is whether an `init.lua` file exists at all**, distinct
-// from whether the returned `map[string]any` is usable. Both a missing file
-// and a script that fails to parse, run or validate return a nil map, but only
-// the former is upstream's `ThemeOptionsAreNotProvided` fallback —
-// `design.EffectiveWithScript` needs to tell them apart to avoid discarding a
-// document on a theme whose script merely broke.
+// **A failing script is not reported here.** `design.Validate` reports it, so a
+// document that reaches `Resolve` at all has a script that loaded or no script;
+// what is left for this function is the options and the has-a-script bit that
+// `EffectiveWithScript` needs to tell an absent script from a broken one.
 func themeScript(model *models.RenderCVModel, theme string) (
-	options map[string]any, hasScript bool, failure error,
+	options map[string]any, hasScript bool,
 ) {
 	if model == nil {
-		return nil, false, nil
+		return nil, false
 	}
 	// **A built-in theme never reads a script**, which upstream gets by only
 	// entering the custom-theme path when the built-in discriminator *fails*
@@ -96,139 +73,15 @@ func themeScript(model *models.RenderCVModel, theme string) (
 	// found by a verifier, measured as `page-size: "a5"` where upstream emits
 	// `"us-letter"`.
 	if design.IsBuiltinTheme(theme) {
-		return nil, false, nil
+		return nil, false
 	}
 	path, ok := model.InputFilePath()
 	if !ok {
-		return nil, false, nil
+		return nil, false
 	}
 
-	// **`design.ThemeScriptPath`, not `filepath.Dir` + `filepath.Join`.** Both
-	// of those call `Clean`, which collapses a `..` segment; upstream's
-	// `PurePath.parent` is purely lexical and keeps it, and `design.Validate`
-	// resolves the same folder that way. The obvious idiomatic Go spelling is
-	// the wrong one here: through a symlink the two resolutions reach different
-	// directories, so the document was validated against one script and rendered
-	// with another — measured, `render ./bb/../bb/CV.yaml` with `bb` a symlink,
-	// two different themes at exit 0. Do not "simplify" this back.
-	source, err := os.ReadFile(design.ThemeScriptPath(path, theme))
-	if err != nil {
-		// **Not a failure, which is the point of this whole unit**: a theme
-		// folder with no script is upstream's `ThemeOptionsAreNotProvided`
-		// fallback and renders at exit 0 on both sides. `nilerr` reads this as a
-		// swallowed error; it is the one place here where swallowing is the
-		// specified behavior.
-		return nil, false, nil //nolint:nilerr // an absent script is the documented fallback
-	}
-	// The file exists from here on, whatever it turns out to contain.
-	hasScript = true
-
-	table, err := luatheme.Run(string(source))
-	if err != nil {
-		return nil, hasScript, scriptFailure(theme, err)
-	}
-
-	options = luatheme.Options(table)
-
-	// **A script whose shapes conflict with the tree is dropped whole.** It used
-	// to reach the template and print a Go type name into the artifact —
-	// `page-size: "<map[string]interface {} Value>"` at exit 0, and then, once
-	// dropping it was added, the theme's own defaults at exit 0 — silently wrong
-	// either way. Now it is reported, which is upstream's behavior: a declared
-	// default the model rejects is exit 1 with no artifact (`design.py:135`).
-	if errs := design.ValidateScript(options); len(errs) > 0 {
-		return nil, hasScript, scriptValidationFailure(theme, errs)
-	}
-	return options, hasScript, nil
-}
-
-// scriptFailure turns `luatheme.Run`'s error into the record the panel prints,
-// distinguishing the two modes it can fail in.
-//
-// **The two must stay apart**: a script that could not be parsed or run and a
-// script that ran fine but handed back a number are different mistakes, and a
-// user cannot act on a message that conflates them. gopher-lua returns a
-// `*lua.ApiError` for the first and `Run`'s own error for the second, so the
-// distinction is already in the type.
-//
-// Upstream's counterparts are a `SyntaxError` and a missing `{Theme}Theme`
-// class; neither text can be reproduced, because Lua has no `SyntaxError` and a
-// Lua declaration is a table with no class to be missing. That is D-013, and it
-// is the only part of this failure that diverges.
-func scriptFailure(theme string, err error) error {
-	var apiError *lua.ApiError
-	if errors.As(err, &apiError) {
-		// **`Object`, not `Error()`.** `ApiError.Error` appends the Lua stack
-		// traceback (`state.go:49-54`), and a runtime failure's is five lines of
-		// `[G]: in function 'error'` that would be rendered as five bordered rows
-		// inside the panel — `Panel` treats a newline as a hard break. The object
-		// alone is the one line that names the script's own line number, which is
-		// the whole reason this text is worth carrying.
-		reason := strings.TrimSpace(apiError.Object.String())
-		return scriptRecord(theme, "'s init.lua file could not be run: "+reason, scriptInputElided)
-	}
-	return scriptRecord(theme, "'s init.lua file did not return a table of theme options", scriptInputElided)
-}
-
-// scriptValidationFailure reports what `design.ValidateScript` found, one record
-// per finding in the order it found them — pydantic reports every problem with a
-// model's declared defaults, not just the first.
-func scriptValidationFailure(theme string, errs []error) error {
-	records := make([]schemaerr.ValidationError, 0, len(errs))
-	for _, err := range errs {
-		// **A rejected declared value is upstream's own sentence, unprefixed.**
-		// `ScriptValueError` carries the text `validateField` would produce for
-		// the same value in a document, which is what
-		// `theme_data_model_class(**design)` prints — so this mode is parity, and
-		// prefixing it to name the option would be a divergence chosen for
-		// helpfulness. Upstream names no option either; its location column says
-		// `design` and nothing narrower.
-		var valueError *design.ScriptValueError
-		if errors.As(err, &valueError) {
-			records = append(records, scriptRecordOf(valueError.Message, valueError.Input))
-			continue
-		}
-		records = append(records, scriptRecordOf(
-			"The custom theme "+theme+"'s init.lua file declares an option the design tree "+
-				"cannot hold: "+err.Error(), scriptInputElided))
-	}
-	return &schemaerr.UserValidationError{Errors: records}
-}
-
-// scriptInputElided is what upstream's Input Value column holds for a script
-// failure with no single offending value: pydantic's repr of the whole `design`
-// dictionary, truncated to `...`. Measured against the vendored binary.
-const scriptInputElided = "..."
-
-func scriptRecord(theme, tail, input string) error {
-	return &schemaerr.UserValidationError{
-		Errors: []schemaerr.ValidationError{scriptRecordOf("The custom theme "+theme+tail, input)},
-	}
-}
-
-// scriptRecordOf builds one record at the location upstream reports these at.
-//
-// **`design`, for every mode** — upstream raises inside `validate_design`, whose
-// records carry the whole design block's location and nothing narrower
-// (`design.py:72-133`); measured on all four modes against the vendored binary.
-//
-// **The trailing period is applied here** because this record is synthesized at
-// render time and so never passes through `errorpipeline.Parse`, whose step 8
-// (`appendPeriod`, `pydantic_error_handling.py:94-95`) puts it on every record
-// the validator produces. When T1 moves script loading into `design.Validate`
-// the record will flow through `Parse` like any other and **this call must come
-// back out**, or the message ends in two periods.
-func scriptRecordOf(message, input string) schemaerr.ValidationError {
-	if !strings.HasSuffix(message, ".") {
-		message += "."
-	}
-	return schemaerr.ValidationError{
-		SchemaLocation:  []string{"design"},
-		YamlSource:      schemaerr.SourceMain,
-		Message:         message,
-		Input:           input,
-		LocationIsFinal: true,
-	}
+	script := design.LoadThemeScriptForInput(path, theme)
+	return script.Options, script.Exists
 }
 
 // Model builds the `process.Model` the templater consumes — the bridge's whole

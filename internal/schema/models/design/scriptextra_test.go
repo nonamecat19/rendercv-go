@@ -161,15 +161,9 @@ func TestValidateWithoutAScriptForbidsNothing(t *testing.T) {
 	}
 }
 
-// A script that could not be loaded declares no shape, so there is no union to
-// forbid against. Reporting the broken script itself is another unit's.
-func TestValidateWithABrokenScriptForbidsNothing(t *testing.T) {
-	errs := validateTheme(t, "mytheme", "return {", "theme: mytheme\nundeclared_key: x\n")
-
-	if len(errs) != 0 {
-		t.Errorf("errs = %+v, want none — a broken script declares no union", errs)
-	}
-}
+// A script that could not be loaded declares no union to forbid against, so
+// no key is judged — the failure itself is reported instead, pinned in
+// `scriptfailure_test.go` alongside the suppression it causes.
 
 // The built-in path keeps the true location: a built-in theme's error really
 // does carry the discriminator element upstream's strip removes, so

@@ -198,6 +198,14 @@ func validateScriptedTheme(
 	location []string,
 	source schemaerr.YamlSource,
 ) []schemaerr.ValidationError {
+	// **A failing script is reported, and stops the document being judged.**
+	// Upstream raises out of `validate_design` before
+	// `theme_data_model_class(**design)` is ever constructed
+	// (`design.py:107-135`), so the block's own mistakes are never reached: one
+	// record, the script's, not two.
+	if len(script.Failures) > 0 {
+		return script.Failures
+	}
 	if !script.Exists || script.Options == nil {
 		return nil
 	}

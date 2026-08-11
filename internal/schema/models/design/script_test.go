@@ -139,6 +139,9 @@ func TestLoadThemeScriptIgnoresBuiltInThemes(t *testing.T) {
 // T1 loads the script during validation and changes nothing else. These are
 // the documents that validate today: they must still validate, with the
 // script now loaded on the way through.
+//
+// A **broken** script is no longer among them — reporting it moved into this
+// package and it is exit 1 now, pinned in `scriptfailure_test.go`.
 func TestValidateWithAThemeScriptIsUnchanged(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -161,11 +164,6 @@ func TestValidateWithAThemeScriptIsUnchanged(t *testing.T) {
 		{
 			name:   "a theme with no script validates",
 			script: "",
-			yaml:   "theme: mytheme\n",
-		},
-		{
-			name:   "a broken script does not fail validation",
-			script: "return {",
 			yaml:   "theme: mytheme\n",
 		},
 	}
