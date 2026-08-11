@@ -29,6 +29,22 @@ func ReadYamlWithValidationErrors(
 		return node, nil
 	}
 
+	// A multi-document stream is ruamel's *composer* failure rather than its
+	// parser's, so it carries marks of its own instead of a failing token —
+	// see yamlreader.MultiDocumentError.
+	var multiDoc *yamlreader.MultiDocumentError
+	if errors.As(err, &multiDoc) {
+		return nil, &schemaerr.UserValidationError{
+			Errors: []schemaerr.ValidationError{{
+				SchemaLocation: nil,
+				YamlLocation:   &yamldoc.Span{Start: multiDoc.Start, End: multiDoc.End},
+				YamlSource:     source,
+				Message:        fmt.Sprintf("This is not a valid YAML file. %s.", multiDoc.Error()),
+				Input:          schemaerr.InputEllipsis,
+			}},
+		}
+	}
+
 	var parserErr goyaml.Error
 	if !errors.As(err, &parserErr) {
 		return nil, err

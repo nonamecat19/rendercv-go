@@ -21,11 +21,53 @@ func parse(src string) (*yamldoc.Node, error) {
 	if len(file.Docs) == 0 {
 		return nil, nil
 	}
+	if err := checkSingleDocument(file.Docs); err != nil {
+		return nil, err
+	}
 	body := file.Docs[0].Body
 	if body == nil {
 		return nil, nil
 	}
 	return buildNode(body), nil
+}
+
+// MultiDocumentError is ruamel's composer failure for a stream carrying more
+// than one document. Upstream reads the input with a plain `YAML().load`,
+// which composes a *single* document and raises when a second one begins —
+// the port read `Docs[0]` and ignored the rest, so a two-document stream
+// rendered the first document's CV at exit 0 where upstream exits 1.
+//
+// It carries its own marks because ruamel's are not the failing token's: the
+// context mark is where the first document's *content* began and the problem
+// mark is the second document's `---`. Measured on four shapes (explicit and
+// implicit first document, a `...` end marker between the two, and three
+// documents, which reports the first extra one).
+type MultiDocumentError struct {
+	Start yamldoc.Position
+	End   yamldoc.Position
+}
+
+func (e *MultiDocumentError) Error() string {
+	return "expected a single document in the stream"
+}
+
+// checkSingleDocument reproduces the marks described on MultiDocumentError.
+// goccy exposes both directly: the first document's body token is ruamel's
+// context mark, and the second document's `---` token is its problem mark.
+func checkSingleDocument(docs []*ast.DocumentNode) error {
+	if len(docs) < 2 {
+		return nil
+	}
+
+	err := &MultiDocumentError{}
+	if body := docs[0].Body; body != nil && body.GetToken() != nil {
+		pos := body.GetToken().Position
+		err.Start = yamldoc.Position{Line: pos.Line, Column: pos.Column}
+	}
+	if start := docs[1].Start; start != nil && start.Position != nil {
+		err.End = yamldoc.Position{Line: start.Position.Line, Column: start.Position.Column}
+	}
+	return err
 }
 
 func buildNode(n ast.Node) *yamldoc.Node {
