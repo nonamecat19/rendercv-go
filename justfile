@@ -64,10 +64,22 @@ test-coverage:
 # known-open findings to a file outside the repository, truncated per run, and
 # this prints them. `-v` on the whole suite is the other fix and is worse: it
 # buries the result of 40-odd packages to surface one line.
+# The findings must print on a FAILING run too. `just` aborts a recipe at the
+# first non-zero line, so a plain `go test` followed by a `cat` shows the
+# known-opens only when everything passed — the opposite of when a reader needs
+# them. The status is captured and re-raised after the cat instead.
 test-parity: build
+    #!/usr/bin/env bash
+    set -uo pipefail
     go test -tags conformance ./...
-    @f="${TMPDIR:-/tmp}/rendercv-clidiff-findings.log"; \
-     if [ -s "$f" ]; then echo; echo "Known-open divergences asserted by the differential gate:"; cat "$f"; fi
+    status=$?
+    f="${TMPDIR:-/tmp}/rendercv-clidiff-findings.log"
+    if [ -s "$f" ]; then
+        echo
+        echo "Known-open divergences asserted by the differential gate:"
+        cat "$f"
+    fi
+    exit $status
 
 # Run one conformance case: `just parity-case classic_full`
 parity-case case: build
