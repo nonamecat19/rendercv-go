@@ -100,6 +100,24 @@ settings_yaml_file
 
 ### 3.1 Reading a document from a path
 
+> **Corrected 2026-08-11 by spec 013 behavior 43 — behaviors 1, 2, 3 and 5 below are accurate
+> about upstream and were wrong as port requirements.** They describe `read_yaml`'s `Path`
+> branch, and **the CLI never takes it**: `read_yaml` accepts `pathlib.Path | str`
+> (`schema/yaml_reader.py:11`), and the render path's only caller
+> (`schema/rendercv_model_builder.py:85`) passes the file's *contents* as a string, so neither
+> the existence check nor the extension whitelist runs. Measured against the vendored binary — a
+> valid CV named `ok.txt` renders at **exit 0**, 965 bytes of success panel, and a missing input
+> file reaches the traceback of spec 013 behavior 40, not a message.
+>
+> Implementing either check reachably makes the port **stricter than upstream**. It did:
+> `internal/schema/yamlreader.ReadFile` performed both, and §4.1's and §4.2's messages lived
+> there where nothing user-facing could surface them. Both branches were removed in `4b981bb`,
+> together with the tests that pinned them, and `internal/cli/reachability_test.go` now asserts
+> neither message appears anywhere in the port's source.
+>
+> §4.1, §4.2 and §5.1's ordering claim stand as **records of upstream's `Path` branch**. They are
+> not acceptance criteria for the port, and nothing may re-derive one from them.
+
 1. If the path does not exist, fail with the nonexistent-file message (§4.1).
    `schema/yaml_reader.py:34-37`.
 2. Otherwise, if the path's final extension is not one of `.yaml`, `.yml`, `.json`, `.json5`,
