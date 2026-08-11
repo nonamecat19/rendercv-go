@@ -470,5 +470,169 @@
   {
     "In": "\ta: 1",
     "Out": "<pre><code>a: 1\n</code></pre>"
+  },
+  {
+    "In": "***a***",
+    "Out": "<p><strong><em>a</em></strong></p>"
+  },
+  {
+    "In": "___a___",
+    "Out": "<p><strong><em>a</em></strong></p>"
+  },
+  {
+    "In": "*a **b** c*",
+    "Out": "<p><em>a </em><em>b</em><em> c</em></p>"
+  },
+  {
+    "In": "*a **b***",
+    "Out": "<p><em>a </em><em>b</em>**</p>"
+  },
+  {
+    "In": "___a_b__",
+    "Out": "<p><strong><em>a</em>b</strong></p>"
+  },
+  {
+    "In": "___a__b_",
+    "Out": "<p><em><strong>a</strong>b</em></p>"
+  },
+  {
+    "In": "__a_b___",
+    "Out": "<p>__a_b___</p>"
+  },
+  {
+    "In": "***a***b",
+    "Out": "<p><strong><em>a</em></strong>b</p>"
+  },
+  {
+    "In": "**a**",
+    "Out": "<p><strong>a</strong></p>"
+  },
+  {
+    "In": "*a*",
+    "Out": "<p><em>a</em></p>"
+  },
+  {
+    "In": "_a_",
+    "Out": "<p><em>a</em></p>"
+  },
+  {
+    "In": "__a__",
+    "Out": "<p><strong>a</strong></p>"
+  },
+  {
+    "In": "***a*b**",
+    "Out": "<p><strong><em>a</em>b</strong></p>"
+  },
+  {
+    "In": "***a**b*",
+    "Out": "<p><em><strong>a</strong>b</em></p>"
+  },
+  {
+    "In": "**a*b***",
+    "Out": "<p><strong>a<em>b</em></strong></p>"
+  },
+  {
+    "In": "**a *b* c**",
+    "Out": "<p><strong>a <em>b</em> c</strong></p>"
+  },
+  {
+    "In": "__a _b_ c__",
+    "Out": "<p><strong>a <em>b</em> c</strong></p>"
+  },
+  {
+    "In": "**_a_**",
+    "Out": "<p><strong><em>a</em></strong></p>"
+  },
+  {
+    "In": "**a**b**",
+    "Out": "<p><strong>a</strong>b**</p>"
+  },
+  {
+    "In": "*a*b*",
+    "Out": "<p><em>a</em>b*</p>"
+  },
+  {
+    "In": "*a [b](c) d*",
+    "Out": "<p><em>a <a href=\"c\">b</a> d</em></p>"
+  },
+  {
+    "In": "*a `b` c*",
+    "Out": "<p><em>a <code>b</code> c</em></p>"
+  },
+  {
+    "In": "foo_bar_baz",
+    "Out": "<p>foo_bar_baz</p>"
+  },
+  {
+    "In": "_foo_bar_baz_",
+    "Out": "<p><em>foo_bar_baz</em></p>"
+  },
+  {
+    "In": "__foo__bar__baz__",
+    "Out": "<p><strong>foo__bar__baz</strong></p>"
+  },
+  {
+    "In": "*Lead **dev** now*",
+    "Out": "<p><em>Lead </em><em>dev</em><em> now</em></p>"
+  },
+  {
+    "In": "**Lead *dev* now**",
+    "Out": "<p><strong>Lead <em>dev</em> now</strong></p>"
+  },
+  {
+    "In": "- *a **b** c*\n- [t](u v)",
+    "Out": "<ul>\n<li><em>a </em><em>b</em><em> c</em></li>\n<li><a href=\"u v\">t</a></li>\n</ul>"
+  },
+  {
+    "In": "[t](a  b)",
+    "Out": "<p><a href=\"a  b\">t</a></p>"
+  },
+  {
+    "In": "[t](a b c)",
+    "Out": "<p><a href=\"a b c\">t</a></p>"
+  },
+  {
+    "In": "[t](url (p) and s)",
+    "Out": "<p><a href=\"url (p) and s\">t</a></p>"
+  },
+  {
+    "In": "[t](a b \"ti\")",
+    "Out": "<p><a href=\"a b\" title=\"ti\">t</a></p>"
+  },
+  {
+    "In": "[t](a b 'ti')",
+    "Out": "<p><a href=\"a b\" title=\"ti\">t</a></p>"
+  },
+  {
+    "In": "[t](a b \"x y  z\")",
+    "Out": "<p><a href=\"a b\" title=\"x y  z\">t</a></p>"
+  },
+  {
+    "In": "[t](a\"b)",
+    "Out": "<p><a href=\"a&quot;b\">t</a></p>"
+  },
+  {
+    "In": "[t](a\tb)",
+    "Out": "<p><a href=\"a   b\">t</a></p>"
+  },
+  {
+    "In": "[t]( a )",
+    "Out": "<p><a href=\"a\">t</a></p>"
+  },
+  {
+    "In": "[t](a)b)",
+    "Out": "<p><a href=\"a\">t</a>b)</p>"
+  },
+  {
+    "In": "[t](a(b)c)",
+    "Out": "<p><a href=\"a(b)c\">t</a></p>"
+  },
+  {
+    "In": "![a](b c)",
+    "Out": "<p><img alt=\"a\" src=\"b c\" /></p>"
+  },
+  {
+    "In": "[t](a\nb)",
+    "Out": "<p><a href=\"a\nb\">t</a></p>"
   }
 ]
