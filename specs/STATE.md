@@ -188,6 +188,36 @@ residue on row 6 and is now provably the only thing that row leaves unasserted.
   request. Plain-text output from a subagent does not reach the parent; only an explicit message
   does.
 
+## Iteration 14: T1–T5 are in, one item open — 2026-08-11
+
+Chain: `98a5614` T1, `76179f7` T3, `77564f0` fixture re-point, `ad13070` T2, `fc00966` T5.
+**Suite run by the merge owner at `fc00966` with the tree verified clean** — `just check` 0 issues,
+`go test ./...` all pass with **0 skips**, `just test-parity` exit 0 with 0 FAILs, `TestParity` 42/42,
+`schema-diff` empty, P-3 the only known-open.
+
+**Three vectors are byte-identical to upstream** where this morning there were none: T3's unknown key
+(1411 B), T2's depth-1 shape error (1411 B), and T5's bad-script colour (1504 B). Mode 4's 1411 B
+differential survived T5's move, re-diffed literally before the commit rather than after.
+
+**T5 was a move, not the cleanup its predecessor's commit body implied**, and stopping to say so was
+the right call — removing T4's `render.go` guard and hand-appended period on their own would have
+returned a broken `init.lua` to rendering at exit 0. Reporting now lives in `design.Validate`, which
+suppresses the document's own checks the way upstream raises out of `validate_design` before
+`theme_data_model_class(**design)` exists — one record, not two, and pinned.
+
+**The colour message was a free parity gain from the same move.** A synthesised record bypassed
+`errorpipeline.Parse` and so never met the error dictionary, whose row 13 rewrites exactly that text.
+Routing script records through `Parse` supplied the trailing period *and* the dictionary rewrite —
+one bypass, two symptoms.
+
+`internal/cli/themescript_test.go` exists because **the single period can only be asserted after
+`Parse`**, and nothing in the tree tested for it. Its doubled-period check asserts the sentence is
+present and sentence+`"."` absent, after `Contains(text, "..")` false-positived on the elided `...` in
+the Input Value column.
+
+**Still open:** the fourth behaviour — a document value conflicting with a **script-declared** option's
+type is exit 1 at `design` upstream and silently dropped here. Both prerequisites are now in place.
+
 ## All seven lexical-path sites are fixed — 2026-08-11
 
 Landed across `b3b5413`, `ee796cb`, `22a4000` (sites 1–6), `4fde610` (site 3's templater half) and
