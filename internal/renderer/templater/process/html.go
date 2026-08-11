@@ -100,7 +100,7 @@ var pythonMarkdownWriter = pythonWriter{inner: html.DefaultWriter}
 // reading the diff rather than reducing it.
 func MarkdownToHTML(markdown string) (string, error) {
 	var out bytes.Buffer
-	source := flattenShallowLists(normalizeNewlines(markdown))
+	source := flattenShallowLists(normalizeWhitespace(markdown))
 	if err := converter.Convert([]byte(source), &out); err != nil {
 		return "", err
 	}
@@ -133,18 +133,47 @@ func withoutFencedCode(parsers []util.PrioritizedValue) []util.PrioritizedValue 
 	return kept
 }
 
-// normalizeNewlines is python-markdown's `NormalizeWhitespace` preprocessor
-// (`markdown/preprocessors.py:66-72`), which runs before any parsing and folds
-// both `\r\n` and a lone `\r` into `\n`.
+// normalizeWhitespace is python-markdown's `NormalizeWhitespace` preprocessor
+// (`markdown/preprocessors.py:66-73`), which runs before any parsing and does
+// two things: it folds both `\r\n` and a lone `\r` into `\n`, and it expands
+// tabs.
 //
-// goldmark treats a lone `\r` as an ordinary character, so `a\rb` stayed one
-// line and a `\r`-separated list stayed one item. A CV pasted from a Windows
-// editor reaches this.
-func normalizeNewlines(markdown string) string {
-	if !strings.ContainsRune(markdown, '\r') {
+// goldmark treats a lone `\r` as an ordinary character, so `a\rb` stayed one line
+// and a `\r`-separated list stayed one item — a CV pasted from a Windows editor
+// reaches that. And it keeps a tab as a tab, so an indented line came out with
+// the tab still in it against upstream's spaces.
+func normalizeWhitespace(markdown string) string {
+	if strings.ContainsRune(markdown, '\r') {
+		markdown = strings.ReplaceAll(markdown, "\r\n", "\n")
+		markdown = strings.ReplaceAll(markdown, "\r", "\n")
+	}
+	return expandTabs(markdown)
+}
+
+// expandTabs is Python's `str.expandtabs(4)`: a tab advances to the next
+// multiple of `tab_length`, counted from the start of the line, so its width
+// depends on what precedes it and a blind replacement with four spaces is wrong.
+func expandTabs(markdown string) string {
+	if !strings.ContainsRune(markdown, '\t') {
 		return markdown
 	}
-	return strings.ReplaceAll(strings.ReplaceAll(markdown, "\r\n", "\n"), "\r", "\n")
+	var out strings.Builder
+	column := 0
+	for _, r := range markdown {
+		switch r {
+		case '\t':
+			width := pythonMarkdownTabLength - column%pythonMarkdownTabLength
+			out.WriteString(strings.Repeat(" ", width))
+			column += width
+		case '\n':
+			out.WriteRune(r)
+			column = 0
+		default:
+			out.WriteRune(r)
+			column++
+		}
+	}
+	return out.String()
 }
 
 // flattenShallowLists moves every list marker indented by less than a tab length
