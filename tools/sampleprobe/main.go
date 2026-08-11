@@ -177,10 +177,10 @@ func check(p probe) error {
 	// (`schema/sample_generator.py:168-190`), so a block that does not start
 	// with its own discriminator would break the surgery silently.
 	if !strings.HasPrefix(p.Cv, "cv:\n  name: John Doe\n") {
-		return fmt.Errorf("the cv block does not start with cv:/name:")
+		return fmt.Errorf("the cv block does not open with a `cv:` key and a `name` field")
 	}
 	if !strings.HasPrefix(p.Settings, "settings:\n") {
-		return fmt.Errorf("the settings block does not start with settings:")
+		return fmt.Errorf("the settings block does not open with a `settings:` key")
 	}
 	for theme, block := range p.Design {
 		if !strings.HasPrefix(block, "design:\n  theme: "+theme+"\n") {
