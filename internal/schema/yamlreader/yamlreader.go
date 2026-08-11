@@ -52,7 +52,13 @@ func ReadString(input string) (*yamldoc.Node, error) {
 		return nil, err
 	}
 
-	if doc == nil {
+	// **The predicate is `yaml.load(...) is None`** (`yaml_reader.py:55-57`),
+	// not "the file had no content": a document whose whole value is `null`
+	// (or `~`, or `Null`) loads to `None` exactly as an empty file does, and
+	// upstream reports it the same way. The port keyed on the absence of a
+	// document, so an explicit null fell through to the model builder and came
+	// back as a validation table instead of the `Error` panel.
+	if doc == nil || doc.Kind == yamldoc.KindNull {
 		return nil, &schemaerr.UserError{
 			Message: "The input file is empty!",
 		}
