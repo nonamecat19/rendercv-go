@@ -374,6 +374,54 @@ func TestFlowNodeShapeReportsAtEOF(t *testing.T) {
 	}
 }
 
+// TestUnterminatedQuotedScalarSpansToEOF is the third construct whose scanner
+// runs to the end of the stream. goccy's token is the opening quote — ruamel's
+// context_mark — and ruamel's problem_mark is EOF, so the location is a span
+// and not the single line the port reported before this fix.
+//
+// The last row is the reason the quoted case is kept out of
+// unterminatedConstructMessages: its content ends in a comma, which is the
+// flow-node discriminator, but ruamel calls it a quoted-scalar failure.
+func TestUnterminatedQuotedScalarSpansToEOF(t *testing.T) {
+	tests := []struct {
+		name    string
+		src     string
+		endLine int
+	}{
+		{name: "a double-quoted scalar", src: "cv: \"a\n", endLine: 2},
+		{name: "a single-quoted scalar", src: "cv: 'a\n", endLine: 2},
+		{name: "spanning several lines", src: "cv: \"a\nb\nc\n", endLine: 4},
+		{name: "inside a flow sequence", src: "cv: ['a\n", endLine: 2},
+		{name: "content ending in a comma", src: "cv: [\"a,\n", endLine: 2},
+	}
+
+	const want = "This is not a valid YAML file. while scanning a quoted scalar."
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := ReadYamlWithValidationErrors(test.src, schemaerr.SourceMain)
+
+			var userErr *schemaerr.UserValidationError
+			if !errors.As(err, &userErr) {
+				t.Fatalf("expected *schemaerr.UserValidationError, got %T: %v", err, err)
+			}
+
+			if got := userErr.Errors[0].Message; got != want {
+				t.Errorf("message =\n  %q\nwant\n  %q", got, want)
+			}
+
+			span := userErr.Errors[0].YamlLocation
+			if span == nil {
+				t.Fatal("yaml location = nil, want a start-to-EOF span")
+			}
+			if span.Start.Line != 1 || span.End.Line != test.endLine {
+				t.Errorf("location = line %d to line %d, want line 1 to line %d",
+					span.Start.Line, span.End.Line, test.endLine)
+			}
+		})
+	}
+}
+
 // TestQuotedContentIsNotADelimiter guards the quote-awareness of
 // lastSignificantByte: a `[` or a `#` inside a quoted scalar is content, so
 // these stay the *sequence* form. Measured against ruamel: both report
