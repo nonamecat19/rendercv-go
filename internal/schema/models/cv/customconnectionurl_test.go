@@ -36,6 +36,30 @@ func TestCustomConnectionURL(t *testing.T) {
 			src:  "fontawesome_icon: fa\nplaceholder: p\nurl: ftp://example.com\n",
 			want: "URL scheme should be 'http' or 'https'",
 		},
+		// HttpUrl names both shapes it takes in its *type* error, and a
+		// non-string never reaches the parser: the port ran every one of these
+		// through it and reported a parse failure instead — and accepted the
+		// tagged one outright, since its text parses as a URL.
+		{
+			name: "an integer is a type failure, not a parse failure",
+			src:  "fontawesome_icon: fa\nplaceholder: p\nurl: 5\n",
+			want: "URL input should be a string or URL",
+		},
+		{
+			name: "a bool is a type failure",
+			src:  "fontawesome_icon: fa\nplaceholder: p\nurl: true\n",
+			want: "URL input should be a string or URL",
+		},
+		{
+			name: "a sequence is a type failure",
+			src:  "fontawesome_icon: fa\nplaceholder: p\nurl: []\n",
+			want: "URL input should be a string or URL",
+		},
+		{
+			name: "a tagged scalar is a type failure however its text parses",
+			src:  "fontawesome_icon: fa\nplaceholder: p\nurl: !!str https://example.com\n",
+			want: "URL input should be a string or URL",
+		},
 	}
 
 	for _, test := range tests {
