@@ -339,6 +339,25 @@ func hasWrittenValue(node *ast.TagNode) bool {
 	return tok.Position.Column >= node.Start.Position.Column+len(node.Start.Value)
 }
 
+// untagKey strips an explicit tag from a mapping key, reporting whether the tag
+// left the key opaque.
+//
+// A tag that names a constructed type does not: `!!int 1` is the integer 1
+// upstream, which is not a string either, but it fails further along in a way
+// this port does not reproduce (`RenderCVInternalError: Key '1' not found in the
+// YAML file.`, the D-011 class) and so is left where an untagged `1: x` already
+// is.
+func untagKey(key ast.Node) (ast.Node, bool) {
+	tag, ok := key.(*ast.TagNode)
+	if !ok || tag.Value == nil {
+		return key, false
+	}
+	if _, forced := ResolveTag(tagName(tag)); forced {
+		return tag.Value, false
+	}
+	return tag.Value, true
+}
+
 // tagName is the tag as written — `!!str`, `!unknown`, `!!python/object`.
 func tagName(node *ast.TagNode) string {
 	if node.Start == nil {
@@ -365,7 +384,14 @@ func buildPlainScalar(tok *token.Token) *yamldoc.Node {
 func buildMapping(n *ast.MappingNode) *yamldoc.Node {
 	node := &yamldoc.Node{Kind: yamldoc.KindMapping}
 	for _, mv := range n.Values {
-		keyTok := mv.Key.GetToken()
+		// A tagged key is upstream's TaggedScalar again, and a mapping key is
+		// the one place its opacity is not the field's problem to report:
+		// pydantic never looks the field up, and says `Keys should be strings.`
+		// against the enclosing mapping (measured on `cv: {!!str name: Bob}`).
+		// The tag itself is not part of the key's text, so the inner scalar is
+		// what the span and the Input Value column read.
+		keyNode, keyTagged := untagKey(mv.Key)
+		keyTok := keyNode.GetToken()
 		// The token's value, not the node's source form: `mv.Key.String()` keeps
 		// the quotes a quoted key was written with, so `"name": John` would bind
 		// the field `"name"` and then report it as an unknown key. Upstream's
@@ -381,9 +407,10 @@ func buildMapping(n *ast.MappingNode) *yamldoc.Node {
 		}
 
 		item := yamldoc.Item{
-			Key:     key,
-			KeySpan: keySpan,
-			Value:   buildNode(mv.Value),
+			Key:       key,
+			KeySpan:   keySpan,
+			Value:     buildNode(mv.Value),
+			KeyTagged: keyTagged,
 		}
 		node.Items = append(node.Items, item)
 	}
