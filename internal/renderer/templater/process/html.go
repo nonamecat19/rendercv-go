@@ -64,7 +64,7 @@ var converter = goldmark.New(
 			util.Prioritized(imageRenderer{writer: pythonMarkdownWriter}, 100),
 			util.Prioritized(codeSpanRenderer{writer: pythonMarkdownWriter}, 101),
 			util.Prioritized(linkRenderer{writer: pythonMarkdownWriter}, 103),
-			util.Prioritized(textRenderer{inner: defaultNodeRendererFunc(
+			util.Prioritized(textRenderer{writer: pythonMarkdownWriter, inner: defaultNodeRendererFunc(
 				ast.KindText, html.NewRenderer(
 					html.WithUnsafe(), html.WithXHTML(),
 					html.WithWriter(pythonMarkdownWriter)),
