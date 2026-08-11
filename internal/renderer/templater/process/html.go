@@ -82,12 +82,27 @@ var pythonMarkdownWriter = pythonWriter{inner: html.DefaultWriter}
 // reading the diff rather than reducing it.
 func MarkdownToHTML(markdown string) (string, error) {
 	var out bytes.Buffer
-	if err := converter.Convert([]byte(flattenShallowLists(markdown)), &out); err != nil {
+	source := flattenShallowLists(normalizeNewlines(markdown))
+	if err := converter.Convert([]byte(source), &out); err != nil {
 		return "", err
 	}
 	// goldmark ends the document with a newline; upstream's `markdown.markdown`
 	// returns the body without one, and `Full.html` supplies the layout.
 	return strings.TrimRight(out.String(), "\n"), nil
+}
+
+// normalizeNewlines is python-markdown's `NormalizeWhitespace` preprocessor
+// (`markdown/preprocessors.py:66-72`), which runs before any parsing and folds
+// both `\r\n` and a lone `\r` into `\n`.
+//
+// goldmark treats a lone `\r` as an ordinary character, so `a\rb` stayed one
+// line and a `\r`-separated list stayed one item. A CV pasted from a Windows
+// editor reaches this.
+func normalizeNewlines(markdown string) string {
+	if !strings.ContainsRune(markdown, '\r') {
+		return markdown
+	}
+	return strings.ReplaceAll(strings.ReplaceAll(markdown, "\r\n", "\n"), "\r", "\n")
 }
 
 // flattenShallowLists moves every list marker indented by less than a tab length
