@@ -1,6 +1,11 @@
 package conformance
 
-import "testing"
+import (
+	"bytes"
+	"path/filepath"
+	"strings"
+	"testing"
+)
 
 // Unreachable records a corpus case that **cannot** pass, with the approved
 // divergence that makes it so.
@@ -89,22 +94,120 @@ func UnreachableCases() []Unreachable {
 func AssertUnreachable(t *testing.T, entry Unreachable, golden Golden, got Result) {
 	t.Helper()
 
-	if got.Stdout == "" && got.Stderr == "" && len(got.Files) == 0 {
+	verdict := evaluateUnreachable(golden, got)
+	switch verdict.kind {
+	case verdictSilent:
 		t.Errorf("%s is unreachable under %s, but the port produced no output at all"+
 			" — that is a crash, not a divergence", entry.Case, entry.Divergence)
-		return
+	case verdictUnreadable:
+		t.Errorf("%s is unreachable under %s, but the comparison could not be made: %s",
+			entry.Case, entry.Divergence, verdict.detail)
+	case verdictDiffers:
+		t.Logf("%s differs from upstream as %s requires: %s",
+			entry.Case, entry.Divergence, verdict.detail)
+	case verdictMatches:
+		t.Errorf("%s now matches upstream, but %s says it cannot (%s).\n"+
+			"Either the divergence is closed — remove the entry from unreachableCases and"+
+			" update specs/divergences.md — or it was recorded for something reproducible.",
+			entry.Case, entry.Divergence, entry.Why)
+	}
+}
+
+// verdictKind is what the inverted comparison found.
+type verdictKind int
+
+const (
+	// verdictSilent: the port produced nothing — a crash, not a divergence.
+	verdictSilent verdictKind = iota
+	// verdictDiffers: the port differs from upstream, as the divergence requires.
+	verdictDiffers
+	// verdictMatches: the port reproduced the golden, which the divergence forbids.
+	verdictMatches
+	// verdictUnreadable: an artifact the comparison needs could not be read.
+	verdictUnreadable
+)
+
+// unreachableVerdict is a kind plus one line naming the evidence behind it, so a
+// case that stays red says *which* difference held it up rather than only that
+// one existed.
+type unreachableVerdict struct {
+	kind   verdictKind
+	detail string
+}
+
+// evaluateUnreachable performs the inverted comparison. It is separate from
+// AssertUnreachable, and pure, because a guard whose verdict cannot be observed
+// without failing a test is a guard nothing pins.
+//
+// **It compares what `parity_test.go` compares, on the same terms.** Two of those
+// terms were missing until iteration 13, and together they let `new_typst_templates`
+// stay red for a divergence other than its own:
+//
+//   - the port's name is rebound first, as the normal path does. Without that,
+//     D-009's rename counted as evidence of D-008, and closing D-008 would not
+//     have failed the suite.
+//   - artifact *contents* are compared, not only their names. D-008 is entirely
+//     about what is inside the thirteen template files the case writes; a guard
+//     reading only the file list could not see the divergence it was guarding.
+//
+// Exit codes are deliberately **not** evidence: no recorded divergence is about
+// one, so a differing exit code is a defect that should surface as a matching
+// verdict's loud failure rather than quietly hold a case red.
+// It reports **every** dimension that differs rather than the first, because the
+// short-circuit is what hid the defect: a case whose only listed evidence is a
+// dimension its own divergence is not about is a case borrowing another's reason,
+// and that is visible in the log only if the whole list is there.
+func evaluateUnreachable(golden Golden, got Result) unreachableVerdict {
+	if got.Stdout == "" && got.Stderr == "" && len(got.Files) == 0 {
+		return unreachableVerdict{kind: verdictSilent}
 	}
 
-	if Normalize(golden.Stdout) != Normalize(got.Stdout) {
-		return
+	var differences []string
+	if Normalize(golden.Stdout) != Normalize(RebindBinaryName(got.Stdout)) {
+		differences = append(differences, "stdout")
+	}
+	if Normalize(golden.Stderr) != Normalize(RebindBinaryName(got.Stderr)) {
+		differences = append(differences, "stderr")
 	}
 	if !sameFileSet(golden.Files, got.Files) {
-		return
+		differences = append(differences, "the set of files written")
 	}
-	t.Errorf("%s now matches upstream, but %s says it cannot (%s).\n"+
-		"Either the divergence is closed — remove the entry from unreachableCases and"+
-		" update specs/divergences.md — or it was recorded for something reproducible.",
-		entry.Case, entry.Divergence, entry.Why)
+
+	for _, rel := range golden.Files {
+		// A file only one side has is already reported by the set difference;
+		// reading it would say "missing", which is the same fact twice.
+		if !contentComparable(rel) || !contains(got.Files, rel) {
+			continue
+		}
+		want, err := golden.artifactBytes(rel)
+		if err != nil {
+			return unreachableVerdict{kind: verdictUnreadable, detail: "golden artifact " + rel + ": " + err.Error()}
+		}
+		have, err := got.artifactBytes(rel)
+		if err != nil {
+			return unreachableVerdict{kind: verdictUnreadable, detail: "produced artifact " + rel + ": " + err.Error()}
+		}
+		if !bytes.Equal(want, have) {
+			differences = append(differences, "the contents of "+rel)
+		}
+	}
+
+	if len(differences) == 0 {
+		return unreachableVerdict{kind: verdictMatches}
+	}
+	return unreachableVerdict{kind: verdictDiffers, detail: strings.Join(differences, "; ")}
+}
+
+// contentComparable is `parity_test.go`'s isByteComparable, reachable from the
+// package itself: PDF and PNG bytes carry a creation timestamp, a document ID and
+// a different Typst build, so a difference in them is never evidence of anything.
+func contentComparable(rel string) bool {
+	switch strings.ToLower(filepath.Ext(rel)) {
+	case ".pdf", ".png":
+		return false
+	default:
+		return true
+	}
 }
 
 func sameFileSet(want, got []string) bool {
