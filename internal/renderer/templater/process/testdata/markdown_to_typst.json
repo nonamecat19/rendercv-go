@@ -594,5 +594,73 @@
  {
   "in": "mail-ish <a@b> and <b>x</b>",
   "want": "mail-ish #link(\"&#109;&#97;&#105;&#108;&#116;&#111;&#58;&#97;&#64;&#98;\")[&\\#97;&\\#64;&\\#98;] and <b>x</b>"
+ },
+ {
+  "in": "!!! summary\n    a **bold\n    spanning** lines",
+  "want": "#summary[a #strong[bold \\ spanning] lines]"
+ },
+ {
+  "in": "!!! summary\n    one\n    two",
+  "want": "#summary[one \\ two]"
+ },
+ {
+  "in": "!!! note\n    a *em\n    x* b",
+  "want": "#summary[a #emph[em \\ x] b]"
+ },
+ {
+  "in": "!!! note\n    trailing  \n    two",
+  "want": "#summary[trailing \\ two]"
+ },
+ {
+  "in": "!!! note\n    a `co\n    de` b",
+  "want": "#summary[a `co \\ de` b]"
+ },
+ {
+  "in": "!!! note\n    a\n    \n    b",
+  "want": "#summary[a \\ b]"
+ },
+ {
+  "in": "!!! note\n    - x\n    - y",
+  "want": "#summary[- x \\ - y]"
+ },
+ {
+  "in": "!!! note",
+  "want": "#summary[]"
+ },
+ {
+  "in": "!!! note\n    a [l](u)\n    b",
+  "want": "#summary[a #link(\"u\")[l] \\ b]"
+ },
+ {
+  "in": "!!! n\n    a \n    b",
+  "want": "#summary[a  \\ b]"
+ },
+ {
+  "in": "!!! n\n    a   \n    b",
+  "want": "#summary[a  \\ b]"
+ },
+ {
+  "in": "!!! n\n    a\n    b\n    c",
+  "want": "#summary[a \\ b \\ c]"
+ },
+ {
+  "in": "!!! n\n     a\n     b",
+  "want": "#summary[a \\  b]"
+ },
+ {
+  "in": "!!! n\n    a\n\n    b",
+  "want": "#summary[a]\n\n`b\n`"
+ },
+ {
+  "in": "!!! n\n    a\n      \n    b",
+  "want": "#summary[a \\ b]"
+ },
+ {
+  "in": "!!! n\n    #hash\n    b",
+  "want": "#summary[#hash \\ b]"
+ },
+ {
+  "in": "!!! note\n    a\n    b\nafter",
+  "want": "#summary[a \\ b]\nafter"
  }
 ]

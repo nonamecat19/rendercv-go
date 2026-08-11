@@ -109,12 +109,76 @@ func convertLine(line string) string {
 // **The admonition's title line is dropped.** `to_typst_string` skips any child
 // whose class is `admonition-title` (`:60-62`), so `!!! summary` and `!!! note`
 // produce the same wrapper — the keyword selects nothing.
+//
+// # The inline pass runs over the whole paragraph, not over each line
+//
+// `markdown_to_typst` hands the block to one `md.convert("\n".join(block))`
+// (`markdown_parser.py:186`) precisely because an admonition "spans multiple
+// lines by design" (`:164-167`). Parsing each line on its own instead broke
+// every construct that crosses a line boundary — `**bold\nspanning**`, the shape
+// `process_summary` produces whenever a bold run wraps, came out as two stray
+// `#sym.ast.basic` pairs.
+//
+// What the block parser does before the inline pass is reproduced here in three
+// steps, because each is observable:
+//
+//  1. `NormalizeWhitespace`'s `re.sub(r'(?<=\n) +\n', '\n', source)`
+//     (`markdown/preprocessors.py:74`) empties a whitespace-only line;
+//  2. `AdmonitionProcessor` detabs by `tab_length` (`blockprocessors.py:85-98`);
+//  3. `BlockParser.parseChunk` splits on a blank line and `ParagraphProcessor`
+//     lstrips each block (`:612-640`), and `PrettifyTreeprocessor` puts a single
+//     `"\n"` between the resulting paragraphs.
 func convertAdmonition(block []string) string {
 	body := make([]string, 0, len(block))
 	for _, line := range block[1:] {
-		body = append(body, ParseInline(strings.TrimPrefix(line, "    ")))
+		if strings.TrimSpace(line) == "" {
+			body = append(body, "")
+			continue
+		}
+		body = append(body, strings.TrimPrefix(line, indentWidth))
 	}
 
-	content := strings.Trim(strings.Join(body, "\n"), "\n")
+	paragraphs := make([]string, 0, len(body))
+	for _, lines := range splitOnBlank(body) {
+		text := lineBreakPattern.ReplaceAllString(strings.Join(lines, "\n"), "\n")
+		paragraphs = append(paragraphs, ParseInline(strings.TrimLeft(text, " \t\n\r\f\v")))
+	}
+
+	content := strings.Trim(strings.Join(paragraphs, "\n"), "\n")
 	return "#summary[" + strings.ReplaceAll(content, "\n", ` \ `) + "]"
+}
+
+// indentWidth is python-markdown's `tab_length`, four spaces.
+const indentWidth = "    "
+
+// lineBreakPattern is `LINE_BREAK_RE` (`markdown/inlinepatterns.py:173`), two
+// spaces at the end of a line.
+//
+// It builds a `br`, which `to_typst_string` renders as nothing, and
+// `PrettifyTreeprocessor` then puts a `"\n"` back in front of the element's tail
+// (`treeprocessors.py:437-441`). The net effect on the Typst side is that the
+// two spaces vanish and the newline stays, which is what dropping them here
+// reproduces.
+var lineBreakPattern = regexp.MustCompile(`  \n`)
+
+// splitOnBlank groups lines into paragraphs the way `BlockParser.parseChunk`'s
+// `text.split('\n\n')` does, dropping the empty blocks `ParagraphProcessor`
+// throws away (`blockprocessors.py:612-614`).
+func splitOnBlank(lines []string) [][]string {
+	var groups [][]string
+	var current []string
+	for _, line := range lines {
+		if line == "" {
+			if len(current) > 0 {
+				groups = append(groups, current)
+				current = nil
+			}
+			continue
+		}
+		current = append(current, line)
+	}
+	if len(current) > 0 {
+		groups = append(groups, current)
+	}
+	return groups
 }
