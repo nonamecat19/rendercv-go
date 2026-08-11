@@ -11,7 +11,6 @@ package binder
 import (
 	"errors"
 	"strconv"
-	"strings"
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
@@ -572,10 +571,14 @@ func checkScalar(
 }
 
 // boolAsInteger spells a KindBool node the way pydantic's lax mode coerces it.
-// The resolver admits exactly six spellings and they differ only in case
-// (yamlreader/resolve.go:22-24), so the first letter decides.
+//
+// The truth test is yamldoc.BoolIsTrue's and must stay that way. A tagged
+// `!!bool` admits YAML 1.1's spellings, so the set is wider than the plain
+// resolver's and the first letter decides nothing: reading the prefix made
+// `start_date: !!bool yes` coerce to 0, and the date parser then reported
+// `'0-01-01'` where upstream reports `'1-01-01'`.
 func boolAsInteger(raw string) string {
-	if strings.HasPrefix(raw, "t") || strings.HasPrefix(raw, "T") {
+	if yamldoc.BoolIsTrue(raw) {
 		return "1"
 	}
 	return "0"

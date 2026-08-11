@@ -339,3 +339,50 @@ func TestATaggedScalarFitsNoDateArm(t *testing.T) {
 		})
 	}
 }
+
+// A KindBool date is coerced to an integer before the scalar hook sees it, and
+// the coercion must use yamldoc.BoolIsTrue's spelling set.
+//
+// An explicit `!!bool` admits YAML 1.1's `yes`/`y`/`on`, which no plain scalar
+// resolves to a bool. Deciding truth from the first letter read every one of
+// them as false, so `start_date: !!bool yes` reached the date parser as `0` and
+// reported `Invalid isoformat string: '0-01-01'.` where upstream reports
+// `'1-01-01'.` (measured, both sides 2113 bytes).
+func TestABoolDateCoercesWithTheFullSpellingSet(t *testing.T) {
+	var seen string
+	spec := binder.Spec{Fields: []binder.Field{{
+		Name:   "date",
+		Value:  binder.ValueArbitraryDate,
+		Scalar: func(raw string, _ bool) error { seen = raw; return nil },
+	}}}
+
+	tests := []struct {
+		src  string
+		want string
+	}{
+		{src: "date: !!bool true\n", want: "1"},
+		{src: "date: !!bool yes\n", want: "1"},
+		{src: "date: !!bool y\n", want: "1"},
+		{src: "date: !!bool on\n", want: "1"},
+		{src: "date: !!bool YES\n", want: "1"},
+		{src: "date: !!bool On\n", want: "1"},
+		{src: "date: !!bool false\n", want: "0"},
+		{src: "date: !!bool no\n", want: "0"},
+		{src: "date: !!bool n\n", want: "0"},
+		{src: "date: !!bool off\n", want: "0"},
+		{src: "date: true\n", want: "1"},
+		{src: "date: false\n", want: "0"},
+	}
+
+	for _, test := range tests {
+		t.Run(strings.TrimSpace(test.src), func(t *testing.T) {
+			seen = ""
+			if _, errs := binder.Bind(parse(t, test.src), spec, nil, schemaerr.SourceMain); len(errs) != 0 {
+				t.Fatalf("errs = %+v, want none", errs)
+			}
+			if seen != test.want {
+				t.Errorf("scalar saw %q, want %q", seen, test.want)
+			}
+		})
+	}
+}
