@@ -114,21 +114,31 @@ another's output) closed all the small/leaf items from the list above.** Landed:
 3. **Iteration 1** — goldens still bake this machine's absolute path
    (`testdata/golden/err_unknown_theme/stdout.txt` and two others). Needs a golden regeneration,
    human-gated.
-4. **Iteration 8** — the sixth divergence found while fixing #4 (raw HTML): `ENTITY_RE`-style decimal
-   character entities (`&#35;`) are escaped instead of passed through, same stash mechanism as the
-   fix that just landed. Small, likely single-commit, not yet done.
-5. **Iteration 14** — two very low-reach residuals noted by the control-char fix: tab expansion
+4. **Iteration 14** — two very low-reach residuals noted by the control-char fix: tab expansion
    inside a table cell (upstream expands to the next multiple of 8, the port emits the raw tab —
    `rich/text.py:817-857`), and Rich's own `cell_len` scoring an unstripped zero-width control char
    (`\x01`) as width 0, which makes upstream's own panel one column *over* its stated width for that
    input — matching it means reproducing `cell_len`'s scoring, not obviously worth it.
-6. **Iteration 14** — a new, unverified lead from the colour-parsing fix: Go's `\d` in
-   `rHue`/`r255`'s regexes is ASCII-only, where Python's `re` module matches `\d` against any Unicode
-   decimal digit by default — so a colour written as the *string* form `"rgb(١٢٣, 2, 3)"` may be
-   accepted upstream and rejected here. Not probed against upstream yet.
-7. **Iteration 15** — `fitsNoScalarArm` (`binder.go:520-544`) is still the only Kind predicate
+5. **Iteration 14** — a new, unverified lead from the colour-string fix (below): Python's `\s` is
+   Unicode-aware on a `str` pattern (matches `\x0b`, `\xa0`, ...) where Go's `\s` is exactly
+   `[\t\n\f\r ]`; `rComma` and the surrounding anchors in `color.go` use `\s*` throughout. Measured
+   upstream-only: `rgb(1,\x0b2,3)`, `rgb(1,\xa02,3)`, and a leading `\x0b` before `rgb(...)` all
+   parse fine upstream and are rejected here. Unchecked whether a `\x0b`/`\xa0` survives the YAML
+   reader into a quoted scalar at all — needs a verify-first task before assuming it's reachable.
+6. **Iteration 15** — `fitsNoScalarArm` (`binder.go:520-544`) is still the only Kind predicate
    enforced exhaustively by the linter; the rule that any later Kind predicate belongs in the same
    shape is a comment, not a lint constraint. No new failure found from it, but nothing prevents one.
+
+**Also resolved this session, both from a second wave of 4 parallel porters closing out leads the
+first wave found:** the `ENTITY_RE` lead turned out **already fixed** by `1adbd49` itself — verified
+with an 18-case probe and a byte-identical end-to-end render, no code change needed. Two real fixes
+landed: colour **strings** (not just tuple elements) with non-ASCII digits — `rgb(١٢٣, 2, 3)`,
+`hsl(...)`, `rgba(...)` — now parse via `\p{Nd}` regexes and the same transliteration
+`282e672` added, confirmed byte-identical on 8 forms (`8a2d560`); and an inline code span's body is
+now HTML-escaped for `&`/`<`/`>` the way upstream's `code_escape` does, found while verifying the
+`ENTITY_RE` lead and fixed same day (`e54c2a3`, confirmed red-before-green and byte-identical
+end-to-end). One more lead surfaced and left open: indented code blocks go through a different
+render path and were not probed for the same `&`/`<`/`>` escaping gap.
 
 **Checked and correctly NOT on this list**: iteration 3's "constructed-entry half of the
 discrimination criterion is untested" (spec F5) is not a coverage gap — the test's own comment
