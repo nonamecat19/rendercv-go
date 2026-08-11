@@ -41,8 +41,11 @@ const pythonMarkdownTabLength = 4
 // one node renderer — see `htmlescape.go` for the three-context rule and for why
 // an earlier attempt that wrapped only the writer was reverted.
 var converter = goldmark.New(
-	goldmark.WithParserOptions(parser.WithASTTransformers(
-		util.Prioritized(linkTitleSplitter{}, 100),
+	goldmark.WithParser(parser.NewParser(
+		parser.WithBlockParsers(withoutFencedCode(parser.DefaultBlockParsers())...),
+		parser.WithInlineParsers(parser.DefaultInlineParsers()...),
+		parser.WithParagraphTransformers(parser.DefaultParagraphTransformers()...),
+		parser.WithASTTransformers(util.Prioritized(linkTitleSplitter{}, 100)),
 	)),
 	goldmark.WithRendererOptions(
 		html.WithUnsafe(),
@@ -89,6 +92,30 @@ func MarkdownToHTML(markdown string) (string, error) {
 	// goldmark ends the document with a newline; upstream's `markdown.markdown`
 	// returns the body without one, and `Full.html` supplies the layout.
 	return strings.TrimRight(out.String(), "\n"), nil
+}
+
+// withoutFencedCode drops goldmark's fenced-code block parser, which has no
+// counterpart in `markdown.markdown(string)`.
+//
+// **Fenced code is an *extension* in python-markdown** (`markdown/extensions/
+// fenced_code.py`) and `markdown_to_html` enables none (`markdown_parser.py:202`
+// — contrast the Typst instance at :147, which asks for `admonition`). So a
+// ``` fence is ordinary paragraph text there, and its backticks are read as
+// **inline code spans**: ```` ```\ncode\n``` ```` is `<p><code>code</code></p>`
+// upstream against goldmark's `<pre><code>`. Indented code blocks stay — those
+// are core Markdown and python-markdown has them.
+//
+// The parsers are goldmark singletons (`parser.NewFencedCodeBlockParser` returns
+// a package-level value), so identity is the test.
+func withoutFencedCode(parsers []util.PrioritizedValue) []util.PrioritizedValue {
+	fenced := parser.NewFencedCodeBlockParser()
+	kept := make([]util.PrioritizedValue, 0, len(parsers))
+	for _, p := range parsers {
+		if p.Value != fenced {
+			kept = append(kept, p)
+		}
+	}
+	return kept
 }
 
 // normalizeNewlines is python-markdown's `NormalizeWhitespace` preprocessor
