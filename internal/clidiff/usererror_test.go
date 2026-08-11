@@ -114,9 +114,21 @@ func TestUserErrorMessagesAreNonEmpty(t *testing.T) {
 		t.Fatal("found no schemaerr.UserError construction at all — the walk is broken, " +
 			"not the port")
 	}
-	t.Logf("%d error constructors, %d of them schemaerr.UserError; %d could not be resolved "+
-		"statically:\n%s", total, userErrors, len(unresolved), strings.Join(unresolved, "\n"))
+	t.Logf("%d error constructors, %d of them schemaerr.UserError; %d unresolved",
+		total, userErrors, len(unresolved))
 
+	// An unresolvable message is a failure, not a note. Behavior 38's claim is
+	// that *no* construction can carry an empty message; a message this walk
+	// cannot read is a message the claim is not made about, and logging it
+	// lets the guarantee erode one `&schemaerr.UserError{Message: m}` at a
+	// time. The remainder is 0 today, so this costs nothing until someone
+	// writes the construction that would have slipped through — at which point
+	// the fix is to give resolveString the shape, or to hoist the message to
+	// where it can be read.
+	for _, where := range unresolved {
+		t.Errorf("%s constructs an error whose message cannot be resolved statically, so "+
+			"behavior 38 is unchecked for it", where)
+	}
 	for _, where := range empty {
 		t.Errorf("%s constructs an error with an empty message, which would reach §4.8's "+
 			"unreachable fallback", where)
