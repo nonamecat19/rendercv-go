@@ -634,5 +634,73 @@
   {
     "In": "[t](a\nb)",
     "Out": "<p><a href=\"a\nb\">t</a></p>"
+  },
+  {
+    "In": "[**b**](u)",
+    "Out": "<p><a href=\"u\"><strong>b</strong></a></p>"
+  },
+  {
+    "In": "[a `b`](u)",
+    "Out": "<p><a href=\"u\">a <code>b</code></a></p>"
+  },
+  {
+    "In": "[*a*](u)",
+    "Out": "<p><a href=\"u\"><em>a</em></a></p>"
+  },
+  {
+    "In": "[a **b** c](u)",
+    "Out": "<p><a href=\"u\">a <strong>b</strong> c</a></p>"
+  },
+  {
+    "In": "[![i](p.png)](u)",
+    "Out": "<p><a href=\"u\"><img alt=\"i\" src=\"p.png\" /></a></p>"
+  },
+  {
+    "In": "**![alt](i.png)**",
+    "Out": "<p><strong><img alt=\"alt\" src=\"i.png\" /></strong></p>"
+  },
+  {
+    "In": "**![i](p.png) t**",
+    "Out": "<p><strong><img alt=\"i\" src=\"p.png\" /> t</strong></p>"
+  },
+  {
+    "In": "*text ![img](i.png) more*",
+    "Out": "<p><em>text <img alt=\"img\" src=\"i.png\" /> more</em></p>"
+  },
+  {
+    "In": "**a<em>b</em>**",
+    "Out": "<p><strong>a<em>b</em></strong></p>"
+  },
+  {
+    "In": "**<b>x</b>**",
+    "Out": "<p><strong><b>x</b></strong></p>"
+  },
+  {
+    "In": "*a<br />b*",
+    "Out": "<p><em>a<br />b</em></p>"
+  },
+  {
+    "In": "**a `b` <i>c</i>**",
+    "Out": "<p><strong>a <code>b</code> <i>c</i></strong></p>"
+  },
+  {
+    "In": "**<http://x.com>**",
+    "Out": "<p><strong><a href=\"http://x.com\">http://x.com</a></strong></p>"
+  },
+  {
+    "In": "*<a@b.com>*",
+    "Out": "<p><em><a href=\"&#109;&#97;&#105;&#108;&#116;&#111;&#58;&#97;&#64;&#98;&#46;&#99;&#111;&#109;\">&#97;&#64;&#98;&#46;&#99;&#111;&#109;</a></em></p>"
+  },
+  {
+    "In": "*a\\*b*",
+    "Out": "<p><em>a*b</em></p>"
+  },
+  {
+    "In": "*a & \\* b*",
+    "Out": "<p><em>a &amp; * b</em></p>"
+  },
+  {
+    "In": "**a [b **c** d](u)**",
+    "Out": "<p><strong>a <a href=\"u\">b <strong>c</strong> d</a></strong></p>"
   }
 ]

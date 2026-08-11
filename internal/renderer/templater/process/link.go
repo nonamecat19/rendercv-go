@@ -70,7 +70,16 @@ type linkParser struct{}
 func (linkParser) Trigger() []byte { return []byte{'['} }
 
 // Parse claims one `[label](destination)`, or returns nil.
-func (linkParser) Parse(_ ast.Node, block text.Reader, _ parser.Context) ast.Node {
+//
+// The label is parsed as inline Markdown, not stashed as raw text — python's
+// own `LinkInlineProcessor.handleMatch` recursively calls
+// `self.parser.parseChunk(el, text)` on it (`inlinepatterns.py:698-699`), so
+// `[**bold**](u)` and `[a ` + "`b`" + `](u)` nest a real `<strong>`/`<code>`
+// inside the `<a>`, the same as goldmark's own link parser already did before
+// this one replaced it for the direct-paren form. `buildBodyLink`
+// (`emphasis_html.go`) is the same construction reused for a link inside an
+// emphasis body.
+func (linkParser) Parse(_ ast.Node, block text.Reader, pc parser.Context) ast.Node {
 	line, segment := block.PeekLine()
 	if len(line) == 0 || line[0] != '[' {
 		return nil
@@ -84,7 +93,7 @@ func (linkParser) Parse(_ ast.Node, block text.Reader, _ parser.Context) ast.Nod
 	if after < 0 || after >= len(line) || line[after] != '(' {
 		return nil
 	}
-	href, title, hasTitle, end, ok := getLink(line, after)
+	href, title, hasTitle, parenEnd, ok := getLink(line, after)
 	if !ok {
 		return nil
 	}
@@ -94,11 +103,11 @@ func (linkParser) Parse(_ ast.Node, block text.Reader, _ parser.Context) ast.Nod
 	if hasTitle {
 		link.Title = title
 	}
-	labelSegment := segment.WithStop(segment.Start + after - 1)
-	labelSegment = labelSegment.WithStart(segment.Start + 1)
-	link.AppendChild(link, ast.NewTextSegment(labelSegment))
 
-	block.Advance(end)
+	block.Advance(1) // the opening `[`
+	parseEmphasisBody(link, block, pc, segment.Start+after-1, -1, noCutoffDelim)
+	block.Advance(parenEnd - (after - 1)) // the closing `]` through the `)`
+
 	return link
 }
 

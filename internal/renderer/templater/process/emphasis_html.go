@@ -23,9 +23,10 @@ import (
 // *pattern index*, not by proximity, which does not fit that stack; §7.1's
 // behavior 20-23 are the reason. `parseEmphasisBody` is this file's version of
 // `inline.go`'s `matchPrefix` loop, walking a matched body for the inline
-// elements that still need to run inside it — code spans and links, `plan.md`
-// §3.3's third bullet — while consuming the reader exactly, so it composes with
-// whatever consumed it.
+// elements that still need to run inside it — code spans, links, images, raw
+// HTML, autolinks and escapes, `plan.md` §3.3's third bullet — while consuming
+// the reader exactly, so it composes with whatever consumed it. `linkParser`
+// (`link.go`) reuses the same dispatcher for a link's label.
 type emphasisParser struct{}
 
 // Trigger is both delimiter characters python-markdown's two processors claim.
@@ -33,7 +34,7 @@ func (emphasisParser) Trigger() []byte { return []byte{'*', '_'} }
 
 // Parse claims one full emphasis span — open delimiters to close — at the
 // trigger position, or declines by returning nil.
-func (emphasisParser) Parse(_ ast.Node, block text.Reader, _ parser.Context) ast.Node {
+func (emphasisParser) Parse(_ ast.Node, block text.Reader, pc parser.Context) ast.Node {
 	line, segment := block.PeekLine()
 	if len(line) == 0 {
 		return nil
@@ -63,7 +64,7 @@ func (emphasisParser) Parse(_ ast.Node, block text.Reader, _ parser.Context) ast
 		return nil
 	}
 
-	return buildEmphasis(block, segment.Start, index, delim, end, firstStart, firstEnd, secondStart, secondEnd)
+	return buildEmphasis(block, pc, segment.Start, index, delim, end, firstStart, firstEnd, secondStart, secondEnd)
 }
 
 // buildEmphasis builds the node tree for one matched pattern and advances
@@ -73,7 +74,7 @@ func (emphasisParser) Parse(_ ast.Node, block text.Reader, _ parser.Context) ast
 //
 // It assumes block is positioned at the match's start; every offset parameter
 // is relative to that start, matching what `matchEmphasis` returns.
-func buildEmphasis(block text.Reader, spanStart int, index int, delim byte, end, firstStart, firstEnd, secondStart, secondEnd int) ast.Node {
+func buildEmphasis(block text.Reader, pc parser.Context, spanStart int, index int, delim byte, end, firstStart, firstEnd, secondStart, secondEnd int) ast.Node {
 	block.Advance(firstStart)
 
 	switch index {
@@ -81,49 +82,62 @@ func buildEmphasis(block text.Reader, spanStart int, index int, delim byte, end,
 		strong := ast.NewEmphasis(2)
 		em := ast.NewEmphasis(1)
 		strong.AppendChild(strong, em)
-		parseEmphasisBody(em, block, spanStart+firstEnd, index, delim)
+		parseEmphasisBody(em, block, pc, spanStart+firstEnd, index, delim)
 		block.Advance(secondStart - firstEnd)
-		parseEmphasisBody(strong, block, spanStart+secondEnd, index, delim)
+		parseEmphasisBody(strong, block, pc, spanStart+secondEnd, index, delim)
 		block.Advance(end - secondEnd)
 		return strong
 	case 1: // STRONG_EM_RE / STRONG_EM2_RE: em[ strong[first] second ]
 		em := ast.NewEmphasis(1)
 		strong := ast.NewEmphasis(2)
 		em.AppendChild(em, strong)
-		parseEmphasisBody(strong, block, spanStart+firstEnd, index, delim)
+		parseEmphasisBody(strong, block, pc, spanStart+firstEnd, index, delim)
 		block.Advance(secondStart - firstEnd)
-		parseEmphasisBody(em, block, spanStart+secondEnd, index, delim)
+		parseEmphasisBody(em, block, pc, spanStart+secondEnd, index, delim)
 		block.Advance(end - secondEnd)
 		return em
 	case 2: // STRONG_EM3_RE / SMART_STRONG_EM_RE: strong[ first em[second] ]
 		strong := ast.NewEmphasis(2)
-		parseEmphasisBody(strong, block, spanStart+firstEnd, index, delim)
+		parseEmphasisBody(strong, block, pc, spanStart+firstEnd, index, delim)
 		block.Advance(secondStart - firstEnd)
 		em := ast.NewEmphasis(1)
-		parseEmphasisBody(em, block, spanStart+secondEnd, index, delim)
+		parseEmphasisBody(em, block, pc, spanStart+secondEnd, index, delim)
 		strong.AppendChild(strong, em)
 		block.Advance(end - secondEnd)
 		return strong
 	case 3: // STRONG_RE / SMART_STRONG_RE: strong[first]
 		strong := ast.NewEmphasis(2)
-		parseEmphasisBody(strong, block, spanStart+firstEnd, index, delim)
+		parseEmphasisBody(strong, block, pc, spanStart+firstEnd, index, delim)
 		block.Advance(end - firstEnd)
 		return strong
 	default: // 4, EMPHASIS_RE / SMART_EMPHASIS_RE: em[first]
 		em := ast.NewEmphasis(1)
-		parseEmphasisBody(em, block, spanStart+firstEnd, index, delim)
+		parseEmphasisBody(em, block, pc, spanStart+firstEnd, index, delim)
 		block.Advance(end - firstEnd)
 		return em
 	}
 }
 
+// noCutoffDelim is what a fresh inline context — a link's label, which is not
+// nested inside any emphasis pattern's body — passes as `delim` to
+// `parseEmphasisBody`. It never equals a real trigger byte, so the cutoff
+// check below always takes its `nestedCutoff = -1` branch: every pattern is
+// available, matching `inline.go`'s `parseFrom(text, -1, 0)` at a link's text.
+const noCutoffDelim = 0
+
 // parseEmphasisBody walks block from its current position up to the absolute
-// offset endAbs, appending children to container — literal text, a code span,
-// a plain inline link, or a nested emphasis matched at the same cutoff
-// `inline.go`'s `parseFrom` uses (spec 011 behavior 22; wired up in T10).
+// offset endAbs, appending children to container: literal text, a code span,
+// a link, an image, an autolink or raw HTML, an escape, or a nested emphasis
+// matched at the same cutoff `inline.go`'s `parseFrom` uses (spec 011 behavior
+// 22). It leaves block positioned at exactly endAbs.
 //
-// It leaves block positioned at exactly endAbs.
-func parseEmphasisBody(container ast.Node, block text.Reader, endAbs, cutoff int, delim byte) {
+// The trigger set and the parsers behind it are exactly `matchPrefix`'s list
+// (`inline.go`), reimplemented against goldmark's `[]byte` reader instead of
+// the Typst path's `string`, plus the emphasis recursion `matchPrefix` does
+// not need. Escapes are handled here because goldmark's own escape handling
+// lives in its core dispatch loop (`parser.go`'s `escaped` flag), which this
+// dispatcher bypasses entirely.
+func parseEmphasisBody(container ast.Node, block text.Reader, pc parser.Context, endAbs, cutoff int, delim byte) {
 	for {
 		line, segment := block.PeekLine()
 		if segment.Start >= endAbs || len(line) == 0 {
@@ -137,7 +151,7 @@ func parseEmphasisBody(container ast.Node, block text.Reader, endAbs, cutoff int
 
 		trigger := -1
 		for i, c := range line {
-			if c == '`' || c == '[' || c == '*' || c == '_' {
+			if c == '`' || c == '[' || c == '*' || c == '_' || c == '\\' || c == '!' || c == '<' {
 				trigger = i
 				break
 			}
@@ -160,8 +174,38 @@ func parseEmphasisBody(container ast.Node, block text.Reader, endAbs, cutoff int
 				continue
 			}
 		case '[':
-			if node, ok := buildBodyLink(block, endAbs); ok {
+			if node, ok := buildBodyLink(block, pc, endAbs); ok {
 				container.AppendChild(container, node)
+				continue
+			}
+		case '!':
+			if node := (imageParser{}).Parse(container, block, pc); node != nil {
+				container.AppendChild(container, node)
+				continue
+			}
+		case '<':
+			// Priority order: automail (250), autolink (300), raw HTML (400) —
+			// the same order `pythonInlineParsers` registers them at the top
+			// level (`html.go`), since all three share the `<` trigger.
+			if node := (automailParser{}).Parse(container, block, pc); node != nil {
+				container.AppendChild(container, node)
+				continue
+			}
+			if node := bodyAutoLinkParser.Parse(container, block, pc); node != nil {
+				container.AppendChild(container, node)
+				continue
+			}
+			if node := bodyRawHTMLParser.Parse(container, block, pc); node != nil {
+				container.AppendChild(container, node)
+				continue
+			}
+		case '\\':
+			// ESCAPE_RE `\(.)`: the backslash is dropped and the next byte is
+			// literal, whatever it is.
+			if len(line) > 1 {
+				escaped := segment.WithStart(segment.Start + 1)
+				ast.MergeOrAppendTextSegment(container, escaped.WithStop(segment.Start+2))
+				block.Advance(2)
 				continue
 			}
 		case '*', '_':
@@ -177,7 +221,7 @@ func parseEmphasisBody(container ast.Node, block text.Reader, endAbs, cutoff int
 			}
 			data := string(line)
 			if index, end, fs, fe, ss, se, ok := matchEmphasis(nestedPatterns, data, 0, nestedCutoff); ok {
-				node := buildEmphasis(block, segment.Start, index, line[0], end, fs, fe, ss, se)
+				node := buildEmphasis(block, pc, segment.Start, index, line[0], end, fs, fe, ss, se)
 				container.AppendChild(container, node)
 				continue
 			}
@@ -188,6 +232,17 @@ func parseEmphasisBody(container ast.Node, block text.Reader, endAbs, cutoff int
 		block.Advance(1)
 	}
 }
+
+// bodyAutoLinkParser and bodyRawHTMLParser are goldmark's own stock parsers,
+// reused as-is inside an emphasis body or a link label: both are stateless
+// single-shot matchers (unlike the link-label bracket state machine goldmark's
+// own `NewLinkParser` carries), so there is nothing to reimplement — and
+// `pc` is threaded through to them for real, not `nil`, since `rawHTMLParser`
+// uses it for a multi-line comment/processing-instruction's continuation state.
+var (
+	bodyAutoLinkParser = parser.NewAutoLinkParser()
+	bodyRawHTMLParser  = parser.NewRawHTMLParser()
+)
 
 // buildBodyCodeSpan is `BacktickInlineProcessor` (spec 008), reused unchanged:
 // content between a run of N backticks and the next run of exactly N, stripped
@@ -211,14 +266,14 @@ func buildBodyCodeSpan(block text.Reader) (ast.Node, bool) {
 	return span, true
 }
 
-// buildBodyLink is a minimal `[label](destination)` matcher for a link inside
-// an emphasis body — python-markdown parses the label as plain text here
-// (unlike a top-level link, which the label range is handed back to goldmark's
-// own `linkParser` for at the top level, per `html.go`'s registration), because
-// none of spec 011's shapes need a formatted label inside emphasis. It declines
-// anything reference-style, unbalanced, or reaching past endAbs, the same
-// narrowness `imageParser` already documents.
-func buildBodyLink(block text.Reader, endAbs int) (ast.Node, bool) {
+// buildBodyLink is `[label](destination)` inside an emphasis body, sharing
+// `linkParser`'s label handling (`link.go`): the label is parsed as inline
+// Markdown through `parseEmphasisBody`, not stashed as raw text, so
+// `*a [b **c** d](u) e*` nests a strong inside the link exactly as upstream's
+// own recursive `self.parser.parseChunk` does. It declines anything
+// reference-style, unbalanced, or reaching past endAbs, the same narrowness
+// `imageParser` already documents.
+func buildBodyLink(block text.Reader, pc parser.Context, endAbs int) (ast.Node, bool) {
 	line, segment := block.PeekLine()
 	if len(line) < 2 || line[0] != '[' {
 		return nil, false
@@ -227,8 +282,8 @@ func buildBodyLink(block text.Reader, endAbs int) (ast.Node, bool) {
 	if after < 0 || after >= len(line) || line[after] != '(' {
 		return nil, false
 	}
-	href, title, hasTitle, end, ok := getLink(line, after)
-	if !ok || segment.Start+end > endAbs {
+	href, title, hasTitle, parenEnd, ok := getLink(line, after)
+	if !ok || segment.Start+parenEnd > endAbs {
 		return nil, false
 	}
 
@@ -237,10 +292,10 @@ func buildBodyLink(block text.Reader, endAbs int) (ast.Node, bool) {
 	if hasTitle {
 		link.Title = title
 	}
-	labelSegment := segment.WithStop(segment.Start + after - 1)
-	labelSegment = labelSegment.WithStart(segment.Start + 1)
-	link.AppendChild(link, ast.NewTextSegment(labelSegment))
 
-	block.Advance(end)
+	block.Advance(1) // the opening `[`
+	parseEmphasisBody(link, block, pc, segment.Start+after-1, -1, noCutoffDelim)
+	block.Advance(parenEnd - (after - 1)) // the closing `]` through the `)`
+
 	return link, true
 }
