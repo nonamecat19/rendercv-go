@@ -188,6 +188,85 @@ residue on row 6 and is now provably the only thing that row leaves unasserted.
   request. Plain-text output from a subagent does not reach the parent; only an explicit message
   does.
 
+## One ordering bug in five packages, and the fix already exists — 2026-08-11
+
+Investigated read-only across iterations 3, 4 and 6. **The port batches validation by error
+*category* where upstream orders by field *declaration*** — all shape errors from one pass, then all
+value errors from a second. Upstream's pydantic interleaves them.
+
+**The primitive that fixes it is already in the tree and already has one consumer.**
+`binder.Field.Scalar` (`binder/binder.go:135-142`) is a per-field hook run inside `Bind`'s single
+declaration-order pass (`:399-408`), "at the field's declared position and only after its shape check
+passed". `entries/bases/complexfieldsentry.go:58-83` uses it for `start_date`/`end_date`, and
+`entries/education.go:28-47` already feeds `Bind` upstream's true declared order. So **entries is not
+missing infrastructure — it is built and wired**, which means iteration 3's "re-audited — FAIL again"
+row may predate this code and must be reconciled before a porter treats it as greenfield.
+
+Four call sites never migrated. Each binds for shape, then runs a second loop for value:
+
+| Site | Second loop |
+|---|---|
+| `design/validate.go:225-249` | `validateField` at `:232-247`; **no `.Scalar` set anywhere in the package** |
+| `cv.go:89-149` | `validateFields` → `validateField` at `:148-270` |
+| `locale/catalog.go:119-148` | `validateMonthList` at `:140-145` |
+| `socialnetwork.go:350-415` | `usernameErrs` appended at `:404-407` |
+
+`customconnection.go:52-88` is already single-pass and clean.
+
+Measured inversion, design (upstream run from a scratch dir): `page.size: not-a-size` declared first
+at `classic_theme.py:32` with `page.top_margin: {}` declared second at `:39` — upstream emits `size`
+then `top_margin`; the port emits the reverse. A `cv.go` vector is predicted by construction and
+**not yet measured**: `{email: <bad>, photo: 123}` should invert, since `email` is declared first and
+its failure is value-category while `photo`'s is shape-category. A porter must confirm that before
+committing to the fix. `locale` and `socialnetwork` are "structurally the same shape" only; no
+inverting vector was worked out for either.
+
+**Dedup coupling, which decides the task order**: `pydantic_error_handling.py:167-176`'s dedup only
+bites when two records collide at the same `schema_location`. Design's fields never collide, so
+design's ordering bug has **no safety net and is directly axis-4-visible** — but it is also *not* a
+prerequisite for iteration 4's pipeline the way entries' is, because nothing in design collapses two
+locations into one the way `date`/`start_date`'s union branches do. **Design is parallel-safe leaf
+work; the entries findings are not.**
+
+Recommended shape: document `binder.Field.Scalar` as *the* pattern so nobody reinvents it, migrate
+`design` first as the template, then `cv` (after measuring its vector), then `locale` and
+`socialnetwork`. All four are mechanical once the first is done.
+
+## Iteration 15's `exhaustive` guarantee is weaker than recorded — 2026-08-11
+
+Iteration 15's safety argument is that a typed field rejects `KindTagged` *by not naming it* in a
+switch, enforced by `golangci-lint`'s `exhaustive`. **`.golangci.yaml:24-25` sets
+`default-signifies-exhaustive: true`, so a switch carrying a `default:` arm is treated as exhaustive
+no matter which Kinds it names.** Five production `yamldoc.Kind` switches have one and are therefore
+outside the linter completely: `entries/dump.go:150-176`, `bridge/model.go:264-289`,
+`design/validate.go:339-345`, and both `design/design.go` repr functions. The five the linter does
+enforce are the ones with no `default:` — which is exactly the set the ledger credits it with
+flagging when `KindTagged` was added.
+
+**No new B1-class bug was found**, and one was looked for specifically. The three bare bool
+predicates that name a Kind (`binder.isTextKind`, `socialnetwork.isTextNode`, `design.isBuiltIn`) are
+single positive-equality tests, which **fail closed** against any unnamed Kind — the opposite shape
+from B1's predecessor, which computed "is non-scalar" as a whitelist of two and let everything else
+through as scalar. The one double-exclusion found (`cv.go:246-247`) triggers an error rather than
+permitting a value, so a tagged `sections:` fails closed into `dict_type`, matching upstream. The
+five unenforced switches all happen to do the right thing for `KindTagged` today. **The gap is
+forward-looking**: add an eighth Kind and none of the five would be flagged, each silently routing it
+through whatever its `default:` does — B1's failure mode exactly, untriggered only because nothing
+follows `KindTagged` yet.
+
+**Answer to "can the mechanism be a constraint rather than a comment": partly, and the cheap half is
+concrete.** Setting `default-signifies-exhaustive: false` immediately puts those five switches under
+the linter. The other ~104 sites are bare `==`/`!=` comparisons, which no enabled linter inspects and
+which Go cannot make exhaustive outside a `switch`; for those the honest answer is **convention plus
+review**. A `forbidigo` pattern banning `.Kind ==` outside a `case` was considered and is reported as
+a capability, not a proposal — it matches source text, not types, so it cannot distinguish
+`yamldoc.Kind` from `design.Kind` or `cv.PhotoKind`, which share the field name.
+
+**The ledger's "115 predicates" could not be reconciled**: a grep over non-test `internal/` finds
+**104** bare comparisons (89 in `schema/`, 15 in `bridge`+`cli`) after excluding the two unrelated
+enums that share the identifier. Either the counts used different definitions or the figure drifted
+since `3f0833f`, which already marks it a snapshot.
+
 ## Parity axes
 
 | Axis | Gate command | Status |
