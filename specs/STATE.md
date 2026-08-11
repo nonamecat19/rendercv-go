@@ -188,6 +188,47 @@ residue on row 6 and is now provably the only thing that row leaves unasserted.
   request. Plain-text output from a subagent does not reach the parent; only an explicit message
   does.
 
+## Iteration 14: T4 and T1 are in — 2026-08-11
+
+**T4 (`81a4943`, `ac24fee`) — a broken theme script is reported instead of discarded.** All four
+failure modes — a parse or run failure, a non-table return, a shape conflict with the design tree, and
+an illegal declared value — now exit 1, refuse to render, and print the `There are validation errors!`
+panel at location `design`. Previously every one of them returned the same `nil` as an absent script
+and the document rendered with base defaults at **exit 0**. **Mode 4 is byte-identical to upstream** —
+both stdouts 1411 B, both stderr empty, both exit 1, diffed directly; the other three upstream cannot
+produce. An absent script is unchanged at exit 0 and is pinned against the broken case.
+
+The human gate was taken twice. The first answer was a generic `Error` panel; the porter then measured
+upstream and found all four modes raise `PydanticCustomError` inside `validate_design` and print the
+**validation table**, so the gate was re-taken and the closer shape approved. **D-013** (`divergences.md`)
+records what remains: the reason string for three modes, each because the mode has no counterpart —
+Python's `SyntaxError` text is fixed and detail-free where gopher-lua's names the line; a Lua
+declaration is a table, so there is no missing class; `ImportError` is unreachable because D-002's
+sandbox removes `package` and `require`; and the shape conflict is a mode upstream cannot produce.
+Mode 4 matches exactly. Two things were argued **out** of the entry rather than into it: an
+option-path prefix that would have been more useful than upstream and is therefore a divergence, and
+the Input Value column, which was a missing struct field rather than a language difference.
+
+**T1 (`98a5614`) — the theme script is loaded at validation time.** `design.LoadThemeScript` mirrors
+what `bridge.themeScript` does at render time; `Validate`'s custom-theme branch calls a deliberately
+empty `validateScriptedTheme` seam, so no behavior changed. T2 and T3 plug into that seam.
+
+### Two findings from this work, neither yet fixed
+
+1. **Validation and render can resolve the theme folder to different directories.** `design.Validate`
+   uses `relativeTo`/`uncleanedDir`, which keeps `..` because `PurePath.parent` is purely lexical;
+   `bridge.themeScript` uses `filepath.Dir`, which cleans. On an ordinary tree both spellings name the
+   same file. **They diverge when a path component is a symlink** — `render ./bb/../bb/CV.yaml` with
+   `bb` a symlink can validate against one script and render with another, or validate against a
+   script render cannot find. `relativeTo` is the side matching upstream. Latent before T1; live now
+   that both sites use the path. Wants its own commit and test.
+2. **gopher-lua names the chunk `<string>`**, not the file, because `luatheme.Run` uses `DoString`, so
+   a parse error reads `<string> at EOF: syntax error`. Harmless today — the surrounding sentence names
+   the file — and fixing it means naming the chunk in `luatheme/sandbox.go`.
+
+Also worth keeping: `apiError.Object` is used rather than `err.Error()`, because `ApiError.Error`
+appends the Lua stack traceback, which the panel would render as five bordered rows inside the box.
+
 ## Upstream's error formatter is broken for scripted themes — 2026-08-11
 
 Measured against the vendored binary with a theme built by upstream's own `create-theme`, two invented
