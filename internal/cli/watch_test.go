@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -269,6 +270,58 @@ func TestWatchSetIsLexical(t *testing.T) {
 	}
 	if want := cwd + "/bb/../bb/CV.yaml"; set[0] != want {
 		t.Errorf("WatchSet[0] = %q, want %q", set[0], want)
+	}
+}
+
+// TestWatchSetMixesLexicalAndResolvedPaths pins the asymmetry inside one set,
+// which neither of the tests either side of it can show on its own.
+//
+// `collect_input_file_paths` produces **two different shapes** and upstream
+// keeps them: the input file and the CLI-supplied overlays are
+// `str(fp.absolute())` (`watcher.py:49`) — lexical, `..` intact — while a
+// document-named overlay has already been through
+// `(input_file_path.parent / rc["design"]).resolve()`
+// (`run_rendercv.py:120,122`) and is therefore fully resolved, symlinks and
+// all.
+//
+// **Do not make this uniform.** A single rule would be wrong in one direction
+// or the other, and the set is what the watcher matches events against.
+func TestWatchSetMixesLexicalAndResolvedPaths(t *testing.T) {
+	_, lexical, _, input := symlinkTree(t)
+
+	if err := os.WriteFile(filepath.Join(lexical, "mydesign.yaml"), []byte("design: {}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	options := RenderOptions{InputPath: input}
+	raw := []byte("cv:\n  name: John Doe\nsettings:\n  render_command:\n    design: mydesign.yaml\n")
+	if err := resolveNamedOverlays(&options, raw); err != nil {
+		t.Fatalf("resolveNamedOverlays: %v", err)
+	}
+
+	set := WatchSet(options)
+	if len(set) != 2 {
+		t.Fatalf("WatchSet = %v, want the input and the named design", set)
+	}
+
+	// The input keeps its `..`: `Path.absolute()` cleans nothing.
+	if set[0] != input {
+		t.Errorf("WatchSet[0] = %q, want the lexical input %q", set[0], input)
+	}
+	if !strings.Contains(set[0], "/../") {
+		t.Errorf("WatchSet[0] = %q, want the `..` segment kept", set[0])
+	}
+
+	// The named overlay does not: `.resolve()` has already run on it.
+	wantDesign, err := filepath.EvalSymlinks(filepath.Join(lexical, "mydesign.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if set[1] != wantDesign {
+		t.Errorf("WatchSet[1] = %q, want the resolved %q", set[1], wantDesign)
+	}
+	if strings.Contains(set[1], "/../") {
+		t.Errorf("WatchSet[1] = %q, want no `..` segment", set[1])
 	}
 }
 
