@@ -214,6 +214,26 @@ func TestValidateScriptChecksDeclaredValues(t *testing.T) {
 			want: "design.page.show_footer is invalid in this theme's script: " +
 				"Input should be a valid boolean, unable to interpret input",
 		},
+		{
+			// **A whole number that is not 0 or 1 is bool_parsing**, the same
+			// rule `validBoolNode` follows on a document — pydantic narrows it
+			// to an int and fails reading it as a bool. This arm reported the
+			// `bool_type` message instead. Found by a fresh-context verifier
+			// (iteration 14's twenty-second re-verification).
+			name:   "a number a bool cannot be read as",
+			script: map[string]any{"page": map[string]any{"show_footer": 2}},
+			want: "design.page.show_footer is invalid in this theme's script: " +
+				"Input should be a valid boolean, unable to interpret input",
+		},
+		{
+			// A Lua number only stays a `float64` when it is fractional
+			// (`luatheme.convert`), and a fractional value is the one case that
+			// really is `bool_type`.
+			name:   "a fractional number where a bool belongs",
+			script: map[string]any{"page": map[string]any{"show_footer": 1.5}},
+			want: "design.page.show_footer is invalid in this theme's script: " +
+				"Input should be a valid boolean",
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			errs := design.ValidateScript(test.script)

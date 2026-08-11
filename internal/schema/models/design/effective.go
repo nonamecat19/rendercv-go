@@ -908,8 +908,13 @@ func scriptValueMessage(field Field, value any) string {
 }
 
 // scriptBoolMessage is `validBoolNode` over a Lua value: a real boolean, one of
-// pydantic's word forms, or `0`/`1`. A float is not coerced even when whole,
-// which is why the numeric arm matches `int` alone.
+// pydantic's word forms, or a number worth `0`/`1`. A Lua number arrives here as
+// an `int` whenever it is whole (`luatheme.convert`), so the `int` arm is the
+// whole-number arm and a `float64` is by construction fractional.
+//
+// **A whole number that is not 0 or 1 is `bool_parsing`, the same rule
+// `validBoolNode` follows on a document**: pydantic narrows it to an int and
+// fails reading it as a bool. Only the fractional case is `bool_type`.
 func scriptBoolMessage(value any) string {
 	switch typed := value.(type) {
 	case bool:
@@ -923,7 +928,7 @@ func scriptBoolMessage(value any) string {
 		if typed == 0 || typed == 1 {
 			return ""
 		}
-		return errBoolType.Error()
+		return errBoolParsing.Error()
 	}
 	return errBoolType.Error()
 }
