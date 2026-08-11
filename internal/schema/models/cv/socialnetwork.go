@@ -79,8 +79,13 @@ type SocialNetwork struct {
 // socialNetworkFields is SocialNetworkFields in binder form: both keys are
 // required, and unknown keys are rejected (social_network.py:53-57).
 var socialNetworkFields = []binder.Field{
+	// `network` is a literal set, whose own non-member message covers a
+	// non-string; `username` is a plain `str` (social_network.py:55), and was
+	// declared with no shape, so **`username: 5` rendered a CV at exit 0** where
+	// upstream reports `Input should be a valid string.` Found by the sweep spec
+	// 015's own `cv.name` fix asked for.
 	{Name: "network", Required: true},
-	{Name: "username", Required: true},
+	{Name: "username", Required: true, Value: binder.ValueString},
 }
 
 // CodeLiteral marks a value outside a fixed set of literals. The text is
@@ -375,8 +380,19 @@ func ValidateSocialNetwork(
 
 	model.Network = name
 
-	// The username rules run only once the network is known to be valid.
+	// The username rules run only once the network is known to be valid — and
+	// only once the username is known to be a **string**. A field validator is
+	// pydantic's after-validator, so it never runs on a value that failed the
+	// declared type: `username: 905419999999` (an integer to YAML) reports
+	// `Input should be a valid string.` alone upstream, not that plus the
+	// per-network rule. Measured on WhatsApp, whose usernames are phone numbers
+	// and so the likeliest to be written unquoted.
 	usernameNode, _ := result.Value("username")
+	if !isTextNode(usernameNode) {
+		// A non-string username has already failed its declared type; neither
+		// the per-network rule nor the model-level URL check can run on it.
+		return model, append(errs, result.ExtraErrors...)
+	}
 	usernameErrs := checkUsername(name, model.Username, usernameNode, location, source)
 	errs = append(errs, usernameErrs...)
 
@@ -404,4 +420,10 @@ func fieldLocation(location []string, key string) []string {
 	out := make([]string, 0, len(location)+1)
 	out = append(out, location...)
 	return append(out, key)
+}
+
+// isTextNode reports whether a node is a real string — the precondition every
+// after-validator in this file shares.
+func isTextNode(node *yamldoc.Node) bool {
+	return node != nil && node.Kind == yamldoc.KindString
 }

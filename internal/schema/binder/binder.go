@@ -36,6 +36,7 @@ const (
 	CodeModelType      schemaerr.Code = "model_type"
 	CodeStringType     schemaerr.Code = "string_type"
 	CodeListType       schemaerr.Code = "list_type"
+	CodeURLType        schemaerr.Code = "url_type"
 
 	// CodeInvalidKey is pydantic-core's code for a mapping key that is not a
 	// string, which only an explicit tag produces here (spec 015 §3.3).
@@ -66,6 +67,11 @@ const (
 	// rewrites — the pipeline only adds its trailing period.
 	messageInvalidKey = "Keys should be strings"
 	messageListType   = "Input should be a valid list"
+
+	// pydantic's `url_type`, HttpUrl's own. No dictionary row matches it — row 5
+	// keys on `Input should be a valid URL`, which is the *parse* failure — so
+	// the pipeline only adds its trailing period.
+	messageURLType = "URL input should be a string or URL"
 
 	// The union-arm texts of ValueType.branches, pydantic's own as well.
 	// `literalPresent` is the location element, not a message: pydantic spells the
@@ -133,6 +139,12 @@ const (
 	ValueString
 	// ValueStringList is Python's `list[str]`.
 	ValueStringList
+	// ValueURL is `pydantic.HttpUrl`, which accepts a `str` exactly as
+	// ValueString does but **names both shapes it takes in its type error**:
+	// `URL input should be a string or URL`, not `Input should be a valid
+	// string` (measured on `publications[].url: 5` and `cv.website: 5`). The
+	// distinction is invisible until a non-string reaches the field.
+	ValueURL
 
 	// The three date shapes. They are value types rather than post-hoc checks so
 	// that Bind's single declaration-order pass emits them in place — upstream
@@ -222,7 +234,8 @@ func (v ValueType) branches() []dateBranch {
 			{suffix: []string{exactDateWrapper, "int"}, code: CodeIntType, message: messageIntType},
 			{suffix: []string{literalPresent}, code: CodeLiteralError, message: messageLiteralPresent},
 		}
-	case ValueAny, ValueString, ValueStringList:
+	case ValueAny, ValueString, ValueStringList, ValueURL:
+		// None of these is a union, so none has arms to report.
 	}
 	return nil
 }
@@ -423,10 +436,14 @@ func checkValue(
 	}
 
 	switch field.Value {
-	case ValueString:
+	case ValueString, ValueURL:
 		if isNull || !isTextKind(value.Kind) {
+			code, message := CodeStringType, messageStringType
+			if field.Value == ValueURL {
+				code, message = CodeURLType, messageURLType
+			}
 			return []schemaerr.ValidationError{
-				valueError(CodeStringType, messageStringType, locationWith(location, field.Name), value, source),
+				valueError(code, message, locationWith(location, field.Name), value, source),
 			}
 		}
 		// The shape held, so an additional per-field constraint runs here, at the
