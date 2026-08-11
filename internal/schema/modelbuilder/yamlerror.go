@@ -137,10 +137,15 @@ func parserMessage(text, content string) string {
 // is measurably ruamel's *context* mark (the opening delimiter) rather than
 // its *problem* mark — an unclosed flow sequence or flow mapping, where the
 // scanner reads all the way to EOF hunting for the missing `]`/`}`. Measured
-// against the vendored CLI on both shapes, nested and top-level; a bad-
-// indentation or duplicate-key failure is a different shape (the token *is*
-// the problem, matching ruamel's own single-line report there) and is not in
-// this set.
+// against the vendored CLI on both shapes, nested and top-level.
+//
+// A bad-indentation failure is a different shape — the token *is* the problem
+// and ruamel reports no context mark at all, so it keeps a single-line span
+// and is not in this set. **A duplicate key is a third shape**, handled
+// separately by mappingStartLine: ruamel reports a context mark there too, but
+// it is the enclosing mapping's first key rather than anything at EOF. This
+// comment used to claim a duplicate key was single-line like bad indentation,
+// which was measurably false.
 var unterminatedConstructMessages = []string{
 	"sequence end token", // `this: [is, not, a, cv` — the corpus case
 	"flow map content",   // `name: {John` — measured separately, same shape
@@ -197,6 +202,63 @@ func flowNodeExpectedAtEOF(message, content string) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+// mappingStartLine finds the line where the block mapping containing a key at
+// (line, column) began — ruamel's context mark for a duplicate-key failure.
+//
+// It walks upward from the key, skipping blank and comment lines, and keeps
+// the highest line whose own key sits at the same column. A line indented
+// further belongs to some nested value and is stepped over; a line indented
+// less closes the mapping, as does a document marker. A `- ` sequence
+// indicator counts as indentation, so the `a` of `  - a: 1` is at column 5 and
+// matches the `a` of `    a: 2`.
+//
+// Measured against ruamel on ten shapes: adjacent and distant duplicates, a
+// duplicate that is not the mapping's first key (the case where goccy's own
+// "already defined at" line is the wrong answer), nesting, a value block
+// between the two keys, blank lines, comments, a sequence of mappings, and a
+// document marker.
+func mappingStartLine(content string, line, column int) int {
+	lines := strings.Split(content, "\n")
+	if line < 1 || line > len(lines) {
+		return line
+	}
+
+	start := line
+	for i := line - 1; i >= 1; i-- {
+		text := lines[i-1]
+		trimmed := strings.TrimLeft(text, " \t")
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue // not part of any mapping
+		}
+		if strings.HasPrefix(trimmed, "---") || strings.HasPrefix(trimmed, "...") {
+			break // a document boundary closes everything
+		}
+
+		switch indent := keyColumn(text); {
+		case indent == column:
+			start = i
+		case indent < column:
+			return start // the mapping is closed by something less indented
+		}
+	}
+	return start
+}
+
+// keyColumn is the 1-based column a line's own key starts at, counting any
+// `- ` sequence indicators as part of the indentation.
+func keyColumn(text string) int {
+	column := 1
+	for {
+		rest := text[min(column-1, len(text)):]
+		trimmed := strings.TrimLeft(rest, " \t")
+		column += len(rest) - len(trimmed)
+		if !strings.HasPrefix(trimmed, "- ") && trimmed != "-" {
+			return column
+		}
+		column += 2 // step over the indicator and its space
 	}
 }
 
@@ -282,10 +344,11 @@ func lastSignificantByte(content string) byte {
 // how deeply the construct is nested. Widening the span to that line
 // reproduces upstream's `line N to line M` exactly for both.
 //
-// **Scoped to the two mapped shapes.** Widening every syntax error's span to
-// EOF would be guessing at shapes never measured — a bad-indentation or
-// duplicate-key failure keeps its single-line span, which matches upstream
-// there (measured: `mapping value is not allowed`'s span does not widen).
+// **Scoped to the mapped shapes.** Widening every syntax error's span to EOF
+// would be guessing at shapes never measured — a bad-indentation failure keeps
+// its single-line span, which matches upstream there (measured: `mapping value
+// is not allowed`'s span does not widen). A duplicate key also spans, but to
+// the enclosing mapping's first key rather than to EOF; see mappingStartLine.
 func yamlErrorLocation(parserErr goyaml.Error, content string) *yamldoc.Span {
 	tok := parserErr.GetToken()
 	if tok == nil || tok.Position == nil {
@@ -303,6 +366,22 @@ func yamlErrorLocation(parserErr goyaml.Error, content string) *yamldoc.Span {
 	if flowNodeExpectedAtEOF(message, content) {
 		eof := yamldoc.Position{Line: strings.Count(content, "\n") + 1, Column: 1}
 		return &yamldoc.Span{Start: eof, End: eof}
+	}
+
+	// **A duplicate key spans the enclosing mapping, not the key.** ruamel's
+	// context mark is where the *mapping* began and its problem mark is the
+	// offending key, so `cv: 1\ncv: 2` is `line 1 to line 2`. The port reported
+	// the key's line alone, and the comment below this one used to assert that
+	// was correct.
+	//
+	// goccy names the key's *first occurrence* in its message, which is a
+	// different line whenever the duplicated key is not the mapping's first —
+	// `a: 1\nb: 2\nb: 3` is context line 1 to ruamel and first-occurrence line
+	// 2 to goccy — so the mapping's start is computed from the source instead.
+	if strings.Contains(message, "already defined") {
+		if start.Line = mappingStartLine(content, start.Line, start.Column); start.Line < end.Line {
+			return &yamldoc.Span{Start: start, End: end}
+		}
 	}
 
 	for _, unterminated := range spanToEOFMessages {

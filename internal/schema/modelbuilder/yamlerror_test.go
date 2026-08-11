@@ -571,3 +571,74 @@ func TestSpanWideningIsScopedToTheMappedCases(t *testing.T) {
 		t.Errorf("span = %+v, want a single-line span (not an unterminated construct)", span)
 	}
 }
+
+// TestDuplicateKeySpansItsMapping pins ruamel's third span shape. Its context
+// mark for a duplicate key is where the enclosing **mapping** began, not the
+// key's first occurrence and not the key itself, so `cv: 1\ncv: 2` reports
+// `line 1 to line 2` where the port reported `line 2` alone.
+//
+// goccy's own message names the first occurrence (`already defined at [1:1]`),
+// which is a *different* line whenever the duplicated key is not the mapping's
+// first — the `dup not first` rows below are exactly that case, and taking
+// goccy's number there would be wrong. The mapping's start is computed from
+// the source instead.
+//
+// Every pair was read off the raised ruamel exception.
+func TestDuplicateKeySpansItsMapping(t *testing.T) {
+	tests := []struct {
+		name               string
+		src                string
+		startLine, endLine int
+	}{
+		{name: "adjacent", src: "cv: 1\ncv: 2\n", startLine: 1, endLine: 2},
+		{name: "distant", src: "cv: 1\nx: 2\ny: 3\ncv: 4\n", startLine: 1, endLine: 4},
+		{name: "dup not first", src: "a: 1\nb: 2\nb: 3\n", startLine: 1, endLine: 3},
+		{name: "dup not first, nested", src: "x:\n  p: 0\n  q: 1\n  q: 2\n", startLine: 2, endLine: 4},
+		{name: "nested", src: "a:\n  b: 1\n  b: 2\n", startLine: 2, endLine: 3},
+		{name: "deeply nested", src: "x:\n  y:\n    k: 1\n    k: 2\n", startLine: 3, endLine: 4},
+		{name: "a value block between", src: "a: 1\nb:\n  c: 1\na: 2\n", startLine: 1, endLine: 4},
+		{name: "blank lines between", src: "a: 1\n\n\na: 2\n", startLine: 1, endLine: 4},
+		{name: "a comment between", src: "a: 1\n# hi\na: 2\n", startLine: 1, endLine: 3},
+		{name: "a sequence of mappings", src: "x:\n  - a: 1\n    a: 2\n", startLine: 2, endLine: 3},
+		{name: "after a document marker", src: "---\na: 1\na: 2\n", startLine: 2, endLine: 3},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := ReadYamlWithValidationErrors(test.src, schemaerr.SourceMain)
+
+			var userErr *schemaerr.UserValidationError
+			if !errors.As(err, &userErr) {
+				t.Fatalf("expected *schemaerr.UserValidationError, got %T: %v", err, err)
+			}
+
+			span := userErr.Errors[0].YamlLocation
+			if span == nil {
+				t.Fatal("yaml location = nil, want a span")
+			}
+			if span.Start.Line != test.startLine || span.End.Line != test.endLine {
+				t.Errorf("location = line %d to line %d, want line %d to line %d",
+					span.Start.Line, span.End.Line, test.startLine, test.endLine)
+			}
+		})
+	}
+}
+
+// Bad indentation is the shape that genuinely has no context mark, so it must
+// keep a single-line location. It is the control for the span rules above.
+func TestBadIndentationStaysSingleLine(t *testing.T) {
+	_, err := ReadYamlWithValidationErrors("a: 1\n  b: 2\n", schemaerr.SourceMain)
+
+	var userErr *schemaerr.UserValidationError
+	if !errors.As(err, &userErr) {
+		t.Fatalf("expected *schemaerr.UserValidationError, got %T: %v", err, err)
+	}
+	span := userErr.Errors[0].YamlLocation
+	if span == nil {
+		t.Fatal("yaml location = nil")
+	}
+	if span.Start.Line != span.End.Line {
+		t.Errorf("location = line %d to line %d, want a single line",
+			span.Start.Line, span.End.Line)
+	}
+}
