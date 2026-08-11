@@ -405,3 +405,52 @@ Recorded here because this is where they were measured; each is D-011's class, n
 | `cv.website: []` | `RenderCVInternalError: website key present but value is None` | renders at exit 0 |
 
 The last is the only case in this entry where the port renders and upstream does not.
+
+---
+
+## D-013 — A broken theme script's reason string is Lua's, not Python's
+
+**Status:** approved (human gate, 2026-08-11) · **Iteration:** 14
+
+- **Differs:** the *text* of the message shown when a custom theme's script fails to load, for
+  three of the port's four failure modes. Nothing else about the failure differs.
+- **Upstream:** `src/rendercv/schema/models/design/design.py:89-133` — `validate_design`'s
+  `exec_module` block raises a `PydanticCustomError` for a `SyntaxError` and for an `ImportError`,
+  a `ValueError` for a missing `{Theme}Theme` class, and lets pydantic's own message through when
+  `theme_data_model_class(**design)` rejects a declared default.
+- **What matches** — measured against the vendored binary, not asserted: the exit code (1), the
+  refusal to render (no `rendercv_output/` is created), the `There are validation errors!` panel
+  rather than the one-message `Error` box, the `design` location column, the Input Value column
+  (`...`, or the offending value for an illegal declared default — upstream prints `bogus`, `True`,
+  `10`, `1.5`), and the stream and trailing byte (stdout, empty stderr, last byte the panel's `╯`,
+  1411 B for the syntax vector at `COLUMNS=80`).
+- **What does not:** the Explanation column, for three modes.
+- **Why it cannot be closed:** the two sides' failure modes do not correspond.
+  - upstream `SyntaxError` ↔ port **parse or run failure**. Same mode, different text: Python's
+    message is fixed and detail-free ("… has a syntax error. Please fix it."), gopher-lua's names
+    where the parser stopped (`<string> at EOF:   syntax error`). Discarding that to imitate a
+    sentence about a file the port does not read would be worse, not closer.
+  - upstream missing `{Theme}Theme` class ↔ port **non-table return**. Analogous, not the same
+    thing: a Lua declaration is a table, so there is no class to be missing and no class name to
+    put in the message.
+  - upstream `ImportError` ↔ **nothing**. D-002's sandbox removes `package` and `require`, so a
+    script has nothing to import and this mode is unreachable here.
+  - port **shape conflict with the design tree** ↔ **nothing**. Upstream's pydantic annotations do
+    this typing when the class is defined; the port has to check it after the fact, so it is a mode
+    upstream cannot produce.
+  - port **illegal declared value** ↔ upstream's pydantic message, **exactly**: `ScriptValueError`
+    carries upstream's own sentence, produced by the same `validateField` rules, and the port emits
+    it unchanged and unprefixed at the same `design` location — the two stdouts for that vector are
+    byte-identical, 1411 B, diffed. Not a divergence; listed here only so the count is complete. A
+    boolean declared in Lua is echoed in the Input Value column as Lua spells it (`true`), where
+    upstream prints Python's `True`, which is D-002's substitution showing through rather than a
+    second gap.
+- **Not licensed by this — the boundary of the entry:** a theme folder with **no script at all** is
+  not a failure. Measured on both sides: exit 0, the CV renders, the theme falls back to its base
+  defaults. That path is unchanged.
+- **What this closes:** all four modes used to fail *silently* — `bridge.themeScript` returned the
+  same `nil` for a broken script as for an absent one, and the document rendered with base defaults
+  at exit 0. That was the divergence that mattered. It supersedes D-002's "Error parity where it
+  can be kept: not landed yet" paragraph.
+- **User notices:** a broken theme script is reported instead of ignored, naming the script and the
+  reason, in Lua's terms rather than Python's.
