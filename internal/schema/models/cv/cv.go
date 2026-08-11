@@ -12,9 +12,15 @@ import (
 // (schema/models/cv/cv.py:32-118). All ten fields are optional and default to
 // absent, and unknown keys are rejected (spec §3.45, cv.py:31).
 var fieldOrder = []binder.Field{
-	{Name: "name"},
-	{Name: "headline"},
-	{Name: "location"},
+	// **The three plain-text fields are typed `str | None`** (cv.py:32, :36,
+	// :40), so a non-string is `Input should be a valid string` — pydantic's
+	// lax mode does not coerce an `int`, a `float` or a `bool` to a `str`.
+	// They were declared with no shape at all, so `cv.name: 200` rendered a CV
+	// named `200` at exit 0 where upstream exits 1, and any value the reader
+	// resolved to something other than a string reached the artifact.
+	{Name: "name", Value: binder.ValueString},
+	{Name: "headline", Value: binder.ValueString},
+	{Name: "location", Value: binder.ValueString},
 	{Name: "email"},
 	{Name: "photo"},
 	{Name: "phone"},
