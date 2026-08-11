@@ -11,21 +11,23 @@ import (
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamlreader"
 )
 
-func languageNode(t *testing.T, value string) *yamldoc.Node {
+// localeBlock parses a whole `locale:` mapping and returns it together with its
+// `language` value. Both halves are needed: the discriminator failure quotes the
+// tag but reports against the block.
+func localeBlock(t *testing.T, value string) (block, language *yamldoc.Node) {
 	t.Helper()
 	doc, err := yamlreader.ReadString("language: " + value + "\n")
 	if err != nil {
 		t.Fatalf("ReadString: %v", err)
 	}
-	return doc.Items[0].Value
+	return doc, doc.Items[0].Value
 }
 
 // Spec 004 §3.17 behavior 67 and §4.30, asserted as the whole literal — the
 // enumeration order is pydantic's and nothing weaker would catch a reordering.
 func TestUnknownLanguage(t *testing.T) {
-	errs := locale.ValidateLanguage(
-		languageNode(t, "klingon"), []string{"locale"}, schemaerr.SourceMain,
-	)
+	block, language := localeBlock(t, "klingon")
+	errs := locale.ValidateLanguage(block, language, []string{"locale"}, schemaerr.SourceMain)
 	if len(errs) != 1 {
 		t.Fatalf("errs = %+v, want exactly one", errs)
 	}
@@ -44,6 +46,13 @@ func TestUnknownLanguage(t *testing.T) {
 	// while resolving which union member to use.
 	if got := strings.Join(errs[0].SchemaLocation, "."); got != "locale" {
 		t.Errorf("location = %q, want locale", got)
+	}
+
+	// The Input Value column is the **block**, so it renders as a mapping does.
+	// Upstream's `input` for a discriminator failure is the object it was
+	// resolving a member for, never the tag the message already quotes.
+	if errs[0].Input != "..." {
+		t.Errorf("input = %q, want the locale mapping's rendering", errs[0].Input)
 	}
 
 	// No dictionary row matches, so the pipeline only appends a period.
@@ -67,9 +76,8 @@ func TestEveryLanguageAccepted(t *testing.T) {
 	}
 
 	for _, language := range locale.Languages {
-		errs := locale.ValidateLanguage(
-			languageNode(t, `"`+language+`"`), []string{"locale"}, schemaerr.SourceMain,
-		)
+		block, tag := localeBlock(t, `"`+language+`"`)
+		errs := locale.ValidateLanguage(block, tag, []string{"locale"}, schemaerr.SourceMain)
 		if len(errs) != 0 {
 			t.Errorf("%s: errs = %+v, want none", language, errs)
 		}
