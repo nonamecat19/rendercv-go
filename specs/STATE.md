@@ -234,11 +234,26 @@ its class names (`custom_group` → `CustomGroup`), so it is **byte-identical fo
 generates**. Only a hand-written `__init__.py` naming its class something else diverges, and that is a
 Python artefact the port has no equivalent of. Measurement is here if a human later wants an entry.
 
-**Still open, found by the same work:** a nested **unknown** key inside a script-declared group
-(`custom_group: {zz: 1}`) is accepted here and exit 1 upstream — T3's unknown-key behaviour one level
-down. T3 deliberately did not descend into script-invented keys, reasoning that whatever they hold is
-the script's business; upstream disagrees for the unknown-key case specifically. Being measured before
-implementation.
+**Closed too — `8b3e3ea`.** An unknown key inside a script-declared group is now exit 1 with no
+artifact, at **every depth**: `design.custom_group.zz` and `design.custom_group.inner.zz`, with depth 3
+pinned rather than assumed, since "the recursion generalises" was precisely the claim. A declared key
+at depth 3 still renders at exit 0, and the tree-group vector (`page: {zz: 1}` → `design.page.zz`) is
+unchanged — it travels a different path, `unknownKeyErrors` over the tree's models rather than the
+script's tables, so it earns its place as the regression guard.
+
+**Nothing here can be byte-compared, and the commit says so.** Upstream dies in its own error formatter
+with `RenderCVInternalError: Key 'zz' not found` — 13,766 B of traceback — so only the exit code, the
+empty artifact set and the refusal to render are portable. **The rule this settled, now applied
+throughout iteration 14: byte-identical where upstream prints; exit code, stream and refusal where it
+crashes; never invent a record upstream never shows.** The deciding argument was self-consistency — the
+port already answers the *tree*-group version of this vector with a clean record where upstream
+tracebacks, so rendering silently for a *script* group would have made the port behave differently for
+two cases upstream treats identically.
+
+`unknownKeyErrors`' doc comment claimed a script-invented key "is not descended into", reasoning that
+whatever a script declares is its own type's business. **That is right for values and wrong for unknown
+keys** — upstream's forbid-extra reaches inside the group regardless — and the comment would have argued
+a future reader out of this very fix. Corrected in place.
 
 Also of note: `TestADocumentConflictingWithTheScriptIsDropped` became `...IsRejected` — **the third
 test in that file to make the same move**. The merge layer's pruning tests are steadily becoming
