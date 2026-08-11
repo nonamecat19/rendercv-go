@@ -45,6 +45,23 @@ func ReadYamlWithValidationErrors(
 		}
 	}
 
+	// A tab used as separation whitespace is ruamel's scanner failure, which
+	// goccy does not raise at all in most positions — see yamlreader.TabError.
+	// ruamel reports no context mark, so the location is the one line.
+	var tabErr *yamlreader.TabError
+	if errors.As(err, &tabErr) {
+		at := yamldoc.Position{Line: tabErr.Line, Column: 1}
+		return nil, &schemaerr.UserValidationError{
+			Errors: []schemaerr.ValidationError{{
+				SchemaLocation: nil,
+				YamlLocation:   &yamldoc.Span{Start: at, End: at},
+				YamlSource:     source,
+				Message:        fmt.Sprintf("This is not a valid YAML file. %s.", tabErr.Error()),
+				Input:          schemaerr.InputEllipsis,
+			}},
+		}
+	}
+
 	var parserErr goyaml.Error
 	if !errors.As(err, &parserErr) {
 		return nil, err
