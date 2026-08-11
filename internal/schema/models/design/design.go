@@ -162,7 +162,7 @@ func pythonElemRepr(node *yamldoc.Node) string {
 }
 
 func pythonBoolRepr(node *yamldoc.Node) string {
-	if strings.EqualFold(node.Raw, "true") {
+	if yamldoc.BoolIsTrue(node.Raw) {
 		return "True"
 	}
 	return "False"

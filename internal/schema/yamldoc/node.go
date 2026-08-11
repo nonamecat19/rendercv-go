@@ -1,5 +1,7 @@
 package yamldoc
 
+import "strings"
+
 // Kind is the shape of a document node: a scalar of a resolved type, a
 // mapping, or a sequence.
 type Kind uint8
@@ -33,6 +35,26 @@ const (
 	// (spec 015 plan §1).
 	KindTagged
 )
+
+// BoolIsTrue is the truth of a KindBool node, from its text.
+//
+// The set is wider than the one a *plain* scalar resolves with, because an
+// explicit `!!bool` tag accepts YAML 1.1's spellings — `yes`, `no`, `y`, `n`,
+// `on`, `off` — matched on `value.lower()`
+// (`ruamel/yaml/constructor.py:432-445`). A plain `yes` is a string and never
+// reaches here; a tagged one is a `bool` and does, so a caller testing only
+// for `"true"` read `!!bool yes` as false.
+//
+// Callers must not spell this test themselves: the answer decides what a
+// document renders, what the Input Value column shows, and what a settings
+// flag does, and those three drifting apart is the failure this replaces.
+func BoolIsTrue(raw string) bool {
+	switch strings.ToLower(raw) {
+	case "true", "yes", "y", "on":
+		return true
+	}
+	return false
+}
 
 // ScalarStyle is how a scalar was written, which decides whether its text is
 // resolved to a typed value or kept as a string.

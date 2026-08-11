@@ -285,15 +285,41 @@ func buildNode(n ast.Node) *yamldoc.Node {
 // A *known scalar* tag over a collection (`!!str [1, 2]`, which upstream reads
 // as a plain sequence) never reaches here: goccy's parser refuses the document
 // with `unexpected scalar value type`. Recorded as a divergence.
-// The scalar half of the rule — a tag that forces a kind, and a tag that makes
-// the scalar opaque — is spec 015 §3.2's own unit and is not here yet; until it
-// lands a tagged scalar resolves as it would untagged, which is what the reader
-// did for every node before it had this case at all.
+// The opaque half of the scalar rule — a tag naming no constructed type, which
+// upstream turns into a `TaggedScalar` — is its own unit and is not here yet;
+// until it lands such a scalar resolves as it would untagged.
 func buildTagged(node *ast.TagNode) *yamldoc.Node {
 	if node.Value == nil {
 		return &yamldoc.Node{Kind: yamldoc.KindNull}
 	}
-	return buildNode(node.Value)
+
+	inner := buildNode(node.Value)
+	switch inner.Kind {
+	case yamldoc.KindMapping, yamldoc.KindSequence:
+		return inner
+	}
+
+	kind, forced := ResolveTag(tagName(node))
+	if !forced {
+		return inner
+	}
+
+	inner.Kind = kind
+	if kind == yamldoc.KindNull {
+		// `!!null x` is `None`: the constructor never reads the scalar, so the
+		// text is not part of the value and must not reach an error message as
+		// if it were.
+		inner.Raw = ""
+	}
+	return inner
+}
+
+// tagName is the tag as written — `!!str`, `!unknown`, `!!python/object`.
+func tagName(node *ast.TagNode) string {
+	if node.Start == nil {
+		return ""
+	}
+	return node.Start.Value
 }
 
 func buildPlainScalar(tok *token.Token) *yamldoc.Node {

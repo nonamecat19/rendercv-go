@@ -595,3 +595,58 @@ func kindTree(node *yamldoc.Node) string {
 		return fmt.Sprintf("%d(%q)", node.Kind, node.Raw)
 	}
 }
+
+// A tag that names a type the loader constructs forces that type on the scalar
+// — spec 015 §3.2, measured through upstream's own configured loader
+// (`from rendercv.schema.yaml_reader import read_yaml`), never a default
+// `ruamel.yaml.YAML()`: the two disagree about `!!timestamp`, and the
+// difference is upstream's own override (`yaml_reader.py:83-86`).
+func TestATagCanForceAScalarsKind(t *testing.T) {
+	tests := []struct {
+		input string
+		kind  yamldoc.Kind
+		raw   string
+	}{
+		{input: "a: !!int 200\n", kind: yamldoc.KindInt, raw: "200"},
+		{input: "a: !!int 0x10\n", kind: yamldoc.KindInt, raw: "0x10"},
+		{input: "a: !!int 1_000\n", kind: yamldoc.KindInt, raw: "1_000"},
+		{input: "a: !!float 0.5\n", kind: yamldoc.KindFloat, raw: "0.5"},
+		// `!!float 1` is a Python float upstream, where the same token
+		// untagged is an int.
+		{input: "a: !!float 1\n", kind: yamldoc.KindFloat, raw: "1"},
+		{input: "a: !!bool true\n", kind: yamldoc.KindBool, raw: "true"},
+		// YAML 1.1's spellings, which ruamel still accepts for an explicit
+		// `!!bool` (`ruamel/yaml/constructor.py:432-445`) and which a plain
+		// scalar does not resolve to a bool at all.
+		{input: "a: !!bool yes\n", kind: yamldoc.KindBool, raw: "yes"},
+		{input: "a: !!bool off\n", kind: yamldoc.KindBool, raw: "off"},
+		{input: "a: !!bool N\n", kind: yamldoc.KindBool, raw: "N"},
+		// `!!null` discards the scalar's text: `!!null x` is None upstream.
+		{input: "a: !!null ~\n", kind: yamldoc.KindNull, raw: ""},
+		{input: "a: !!null x\n", kind: yamldoc.KindNull, raw: ""},
+		// Upstream replaces the timestamp constructor with `construct_scalar`,
+		// so a tagged ISO date is a plain string — the same answer the reader
+		// already gives an untagged one.
+		{input: "a: !!timestamp 2001-01-01\n", kind: yamldoc.KindString, raw: "2001-01-01"},
+		// A quoted scalar carrying a forcing tag is forced too: the tag wins
+		// over the style, which is what makes `!!int` a coercion rather than a
+		// resolution hint.
+		{input: "a: !!int \"200\"\n", kind: yamldoc.KindInt, raw: "200"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			doc, err := yamlreader.ReadString(tc.input)
+			if err != nil {
+				t.Fatalf("ReadString = %v", err)
+			}
+			got := value(t, doc, "a")
+			if got.Kind != tc.kind {
+				t.Errorf("kind = %d, want %d", got.Kind, tc.kind)
+			}
+			if got.Raw != tc.raw {
+				t.Errorf("raw = %q, want %q", got.Raw, tc.raw)
+			}
+		})
+	}
+}
