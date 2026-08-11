@@ -188,6 +188,73 @@ residue on row 6 and is now provably the only thing that row leaves unasserted.
   request. Plain-text output from a subagent does not reach the parent; only an explicit message
   does.
 
+## Iteration 14's row was counting other iterations' work — 2026-08-11
+
+Re-investigated read-only against current `main`. **Pass 22's "6 blockers + 9 majors/minors open"
+is not iteration 14's list.** Pass 22 was a three-way fan-out — Lua/design core, the CLI, and the
+YAML reader — and every slice's findings were merged into iteration 14's single row instead of being
+filed against the rows that own them. Most are now fixed under those subsystems' later work, with
+the fixes logged elsewhere in this file while iteration 14's row still carries them as open:
+
+| Item recorded under iteration 14 | Actually owned by | Status |
+|---|---|---|
+| A tagged YAML node dropped entirely | reader (2/15) | **stale** — this is precisely what iteration 15's `KindTagged` was built for |
+| `--quiet` does not silence error output | CLI (12/13) | **stale** — `cb56ddd` |
+| Two tab-handling divergences | reader (2) | **stale** — `c5a25c0`, `3f30ea0`, `04d2591`, `4bf4ede` |
+| Duplicate-key location is a span upstream | reader (2) | **stale** — `bab83cb` |
+| `new` accepts only the literal `"John Doe"` | CLI (12) | open, human-gated, not iteration 14's |
+| Unterminated flow sequence; `1e400`; the dead `ruamelPhrasing` row | reader (2) | unchecked |
+
+The same applies to pass 22's "six blockers fixed" list — multi-document streams, `new` overwriting a
+file, null-document routing, bool coercion, `bool_parsing` vs `bool_type` — all reader/CLI findings,
+all committed, none Lua.
+
+**The process lesson, which matters more than the bookkeeping**: a fan-out's findings must be filed
+against the row that owns the code, not the row of the agent that happened to find them. Doing
+otherwise inflates one iteration's backlog with work that is already done elsewhere and hides the
+findings from the subsystem that should act on them.
+
+### What is genuinely open in iteration 14's own subject — 4 items, source-verified
+
+1 & 2. **A scripted custom theme gets no value validation and no forbid-extra check at all.**
+`validate.go:150-168` returns `nil` unconditionally for any non-built-in theme once the two folder
+checks pass — "its options are its own". Upstream's `theme_data_model_class(**design)`
+(`design.py:135`) instantiates the script's model against the whole `design` block, which both
+rejects an invalid value on a known key and rejects an unknown key. Measured upstream:
+`page.size: bogus` on a custom theme is `Input should be 'a4', 'a5', 'us-letter' or 'us-executive'`,
+exit 1; the port renders `page-size: "bogus"` into the `.typ` at **exit 0**. Both need the same
+prerequisite — load `<theme>/init.lua` **during validation**, where today it is read only at render
+time in `bridge.Resolve` — so this is a control-flow change, not a one-line fix. Spec 014 §5 already
+scopes it as a future unit; correctly open.
+
+3. **A broken Lua script is silently discarded.** `bridge/model.go:93-111` returns the same
+`nil, hasScript` for a syntax error, a non-table return, a shape conflict and a bad declared value as
+it does for "there is no script" — the document renders with base defaults at exit 0 with **no signal
+at all**. Spec 014 §2 behavior 9 gates the exact *wording*, and that gate is right; but "should
+anything at all be printed" is not a wording question and not a `divergences.md` question. It is an
+unfinished feature.
+
+4. **A colour tuple whose 4th element is a collection silently loses its alpha.** `validColorNode`
+special-cases the 4th element only when its Kind is null, so a `KindSequence` falls through with
+`Raw: ""` and `parseAlpha` returns "no alpha". Upstream's `Color([1,2,3,[1]])` is an unhandled
+`TypeError`. Reachable on **any** theme, built-in or scripted. An ordinary bug — reject a non-scalar
+element — not a divergence.
+
+**One member of the "port succeeds where upstream crashes" class is mislabelled.** The 20M-entry
+sparse Lua table hitting the 512 MB `SetMx` bound is not that class and not its opposite: it is a
+**deliberate, self-chosen sandbox bound** that D-002 exists to impose, against an upstream with no
+equivalent and no fixed behavior to diff (it might succeed or might OOM the machine). If it needs a
+`divergences.md` line it should say what it is — a chosen bound — rather than be grouped with genuine
+crash-parity gaps like finding 4.
+
+**Is iteration 14 close to closeable? No** — smaller than its row claims on volume, but findings 1
+and 2 need real design work and finding 3's wording half needs the human gate. Pass 17's "may be
+close" read has been overtaken by ten passes of genuine new findings.
+
+Also **stale inside iteration 14's own findings**: pass 16's "script colour *string* is never
+`ParseColor`-checked" minor was fixed by pass 21's `123942b`; `scriptValueMessage`'s `KindColor` case
+now runs `ParseColor` on a string-declared colour like every other kind.
+
 ## One ordering bug in five packages, and the fix already exists — 2026-08-11
 
 Investigated read-only across iterations 3, 4 and 6. **The port batches validation by error
