@@ -119,12 +119,11 @@ another's output) closed all the small/leaf items from the list above.** Landed:
    `rich/text.py:817-857`), and Rich's own `cell_len` scoring an unstripped zero-width control char
    (`\x01`) as width 0, which makes upstream's own panel one column *over* its stated width for that
    input — matching it means reproducing `cell_len`'s scoring, not obviously worth it.
-5. **Iteration 14** — a new, unverified lead from the colour-string fix (below): Python's `\s` is
-   Unicode-aware on a `str` pattern (matches `\x0b`, `\xa0`, ...) where Go's `\s` is exactly
-   `[\t\n\f\r ]`; `rComma` and the surrounding anchors in `color.go` use `\s*` throughout. Measured
-   upstream-only: `rgb(1,\x0b2,3)`, `rgb(1,\xa02,3)`, and a leading `\x0b` before `rgb(...)` all
-   parse fine upstream and are rejected here. Unchecked whether a `\x0b`/`\xa0` survives the YAML
-   reader into a quoted scalar at all — needs a verify-first task before assuming it's reachable.
+5. **Iteration 8** — a code block's body isn't `rstrip`'d and doesn't expand tabs the way upstream's
+   `Markdown.convert` does before `code_escape` sees it (`"    a &  "` keeps its trailing spaces;
+   `"    a\tb"` keeps its raw tab instead of expanding to `tab_length`). Found and deliberately left
+   open while fixing the escaping gap next to it (`bbea40b`); every new fixture row was kept free of
+   trailing whitespace/tabs so none of them mask it.
 6. **Iteration 15** — `fitsNoScalarArm` (`binder.go:520-544`) is still the only Kind predicate
    enforced exhaustively by the linter; the rule that any later Kind predicate belongs in the same
    shape is a comment, not a lint constraint. No new failure found from it, but nothing prevents one.
@@ -137,8 +136,19 @@ landed: colour **strings** (not just tuple elements) with non-ASCII digits — `
 `282e672` added, confirmed byte-identical on 8 forms (`8a2d560`); and an inline code span's body is
 now HTML-escaped for `&`/`<`/`>` the way upstream's `code_escape` does, found while verifying the
 `ENTITY_RE` lead and fixed same day (`e54c2a3`, confirmed red-before-green and byte-identical
-end-to-end). One more lead surfaced and left open: indented code blocks go through a different
-render path and were not probed for the same `&`/`<`/`>` escaping gap.
+end-to-end).
+
+**A third wave (2 more verify-first porters) closed both leads the second wave left open.** Indented
+code blocks had the same `&`/`<`/`>` escaping gap as inline spans, confirmed reachable (a `highlight`
+line starting with 4 spaces) and fixed by reusing the same helper (`bbea40b`) — the admonition path
+was checked and correctly does *not* escape, pinned by a named test so a future change can't
+regress it silently; left the rstrip/tab-expansion gap next to it open (#5 above) rather than scope
+creep. And the Unicode-whitespace lead was confirmed reachable end-to-end (a double-quoted YAML
+scalar carries `\v`/`\xa0` through both ruamel and goccy) and real: Go's `\s` is 5 characters,
+Python's Unicode-aware `\s` on a `str` pattern is 29, and `\p{White_Space}` isn't usable in Go's RE2
+either (unsupported syntax, and the wrong 25-rune set besides) — fixed with an explicit character
+class transcribed from CPython's `str.isspace()`, swept against upstream at all 29 runes × 10
+positions with zero mismatches (`9aa5ce4`).
 
 **Checked and correctly NOT on this list**: iteration 3's "constructed-entry half of the
 discrimination criterion is untested" (spec F5) is not a coverage gap — the test's own comment
