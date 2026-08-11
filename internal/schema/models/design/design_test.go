@@ -273,6 +273,31 @@ func TestNullDesignFieldsAreRejectedExceptDegreeColumn(t *testing.T) {
 }
 
 // The one field that genuinely admits null must keep passing.
+// Shape errors (binder.Bind) and value/enum errors (the per-field loop) must
+// interleave by the model's field-declaration order, matching upstream's
+// pydantic — not shape errors first. `Page`'s fields are declared `size` then
+// `top_margin` (tree_generated.go), so an enum failure on `size` together with
+// a type failure on `top_margin` must report in that order even though `size`
+// is a value error and `top_margin` is a shape error.
+func TestErrorsInterleaveByFieldDeclarationOrder(t *testing.T) {
+	doc, err := yamlreader.ReadString(
+		"theme: sb2nov\npage:\n  size: not-a-size\n  top_margin: {}\n")
+	if err != nil {
+		t.Fatalf("ReadString: %v", err)
+	}
+	node := &yamldoc.Node{Kind: yamldoc.KindMapping, Items: doc.Items}
+	errs := design.Validate(node, []string{"design"}, schemaerr.SourceMain, nil)
+
+	var locations []string
+	for _, e := range errs {
+		locations = append(locations, strings.Join(e.SchemaLocation, "."))
+	}
+	want := []string{"design.page.size", "design.page.top_margin"}
+	if len(locations) < 2 || locations[0] != want[0] || locations[1] != want[1] {
+		t.Fatalf("locations = %v, want %v first two in order", locations, want)
+	}
+}
+
 func TestNullDegreeColumnIsAccepted(t *testing.T) {
 	doc, err := yamlreader.ReadString(
 		"theme: sb2nov\ntemplates:\n  education_entry:\n    degree_column: null\n")
