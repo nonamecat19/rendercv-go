@@ -99,12 +99,27 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 		return exitValidationError
 	}
 
+	// **`--quiet` silences the console the progress panel renders on**, not
+	// just the success box: upstream builds the whole `ProgressPanel` on
+	// `rich.console.Console(quiet=quiet)` (`progress_panel.py:62`), so
+	// `print_user_error` and `print_validation_errors` emit nothing under `-q`
+	// too. The port gated only the success panel, so a validation failure
+	// printed its full table where upstream prints zero bytes.
+	//
+	// The decorator path is deliberately **not** silenced: it is a plain
+	// `rich.print` outside the Live's console, and an empty input file under
+	// `-q` is 553 bytes on both sides — measured.
+	liveOut := stdout
+	if options.Quiet {
+		liveOut = io.Discard
+	}
+
 	raw, err := os.ReadFile(options.InputPath)
 	if err != nil {
 		// The trailing `!` is upstream's own message text, not this port's
 		// punctuation choice, so `ST1005` is suppressed rather than obeyed —
 		// obeying it would be a validation-error divergence (axis 4).
-		failPanel(stdout, errMissingFile(options.InputPath))
+		failPanel(liveOut, errMissingFile(options.InputPath))
 		return exitValidationError
 	}
 
@@ -134,20 +149,20 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 
 	arguments, err := buildArguments(options)
 	if err != nil {
-		failPanel(stdout, err)
+		failPanel(liveOut, err)
 		return exitValidationError
 	}
 
 	built, err := modelbuilder.BuildDictionary(string(raw), arguments)
 	if err != nil {
-		failPanel(stdout, err)
+		failPanel(liveOut, err)
 		return exitValidationError
 	}
 
 	context := &valctx.ValidationContext{InputFilePath: options.InputPath}
 	model, err := modelbuilder.BuildModel(built, context)
 	if err != nil {
-		failPanel(stdout, err)
+		failPanel(liveOut, err)
 		return exitValidationError
 	}
 
@@ -191,12 +206,12 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 		stepStart := time.Now()
 		out, err := document.Render(doc, templater.FormatTypst, document.Options{InputDir: inputDir})
 		if err != nil {
-			failPanel(stdout, err)
+			failPanel(liveOut, err)
 			return exitValidationError
 		}
 		path, err := writeArtifact(orDefault(options.TypstPath, DefaultTypstPath), pathInput, out)
 		if err != nil {
-			failPanel(stdout, err)
+			failPanel(liveOut, err)
 			return exitValidationError
 		}
 		typstPath = path
@@ -211,7 +226,7 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 		stepStart := time.Now()
 		path, err := renderPDF(doc, typstPath, orDefault(options.PDFPath, DefaultPDFPath), pathInput, inputDir)
 		if err != nil {
-			failPanel(stdout, err)
+			failPanel(liveOut, err)
 			return exitValidationError
 		}
 		rows = append(rows, PanelRow{Mark: "✓", Timing: timing(stepStart), Label: "Generated PDF:", Value: display(path)})
@@ -221,7 +236,7 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 		stepStart := time.Now()
 		paths, err := renderPNGs(doc, typstPath, orDefault(options.PNGPath, DefaultPNGPath), pathInput, inputDir)
 		if err != nil {
-			failPanel(stdout, err)
+			failPanel(liveOut, err)
 			return exitValidationError
 		}
 		if len(paths) > 0 {
@@ -248,13 +263,13 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 		stepStart := time.Now()
 		out, err := document.Render(doc, templater.FormatMarkdown, document.Options{InputDir: inputDir})
 		if err != nil {
-			failPanel(stdout, err)
+			failPanel(liveOut, err)
 			return exitValidationError
 		}
 		markdown = out
 		path, err := writeArtifact(orDefault(options.MarkdownPath, DefaultMarkdownPath), pathInput, out)
 		if err != nil {
-			failPanel(stdout, err)
+			failPanel(liveOut, err)
 			return exitValidationError
 		}
 		rows = append(rows, PanelRow{Mark: "✓", Timing: timing(stepStart), Label: "Generated Markdown:", Value: display(path)})
@@ -265,23 +280,23 @@ func Render(options RenderOptions, stdout, stderr io.Writer) int {
 		// outright when the Markdown was not generated (`html.py:28-30`) rather
 		// than rendering one just for this.
 		if markdown == "" {
-			return finish(options, rows, stdout)
+			return finish(options, rows, liveOut)
 		}
 		stepStart := time.Now()
 		out, err := document.RenderHTML(doc, markdown, document.Options{InputDir: inputDir})
 		if err != nil {
-			failPanel(stdout, err)
+			failPanel(liveOut, err)
 			return exitValidationError
 		}
 		path, err := writeArtifact(orDefault(options.HTMLPath, DefaultHTMLPath), pathInput, out)
 		if err != nil {
-			failPanel(stdout, err)
+			failPanel(liveOut, err)
 			return exitValidationError
 		}
 		rows = append(rows, PanelRow{Mark: "✓", Timing: timing(stepStart), Label: "Generated HTML:", Value: display(path)})
 	}
 
-	return finish(options, rows, stdout)
+	return finish(options, rows, liveOut)
 }
 
 // finish prints the result panel unless `--quiet` silenced it.
