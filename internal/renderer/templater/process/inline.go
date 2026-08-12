@@ -57,10 +57,6 @@ var (
 	// a numeric reference contains a `#`: without it, `&#35;` was escaped to
 	// `&\#35;`.
 	entityPattern = regexp.MustCompile(`^&(?:#[0-9]+|#x[0-9a-fA-F]+|[a-zA-Z0-9]+);`)
-
-	// NOT_STRONG_RE — a lone `*` or `_` surrounded by whitespace is literal
-	// text, which is why `a * b` survives unchanged.
-	notStrongPattern = regexp.MustCompile(`^((^|\s)(\*|_)(\s|$))`)
 )
 
 // ParseInline converts one line of Markdown to Typst.
@@ -116,11 +112,6 @@ func (p *inlineParser) parseFrom(data string, from int, fromDelim byte) string {
 			pos++
 			continue
 		}
-		if notStrongPattern.MatchString(data[pos:]) && p.isolatedDelimiter(data, pos) {
-			pos++
-			continue
-		}
-
 		patterns := asteriskPatterns
 		if data[pos] == '_' {
 			patterns = underscorePatterns
@@ -384,15 +375,6 @@ func matchImage(rest string) (int, bool) {
 // `pending` past it.
 func precededByBang(data string, pos, pending int) bool {
 	return pos > pending && data[pos-1] == '!'
-}
-
-// isolatedDelimiter is NOT_STRONG_RE's condition, checked against the character
-// before the position as well as after — the pattern's `(^|\s)` is a real match
-// group upstream and consumes the space.
-func (p *inlineParser) isolatedDelimiter(data string, pos int) bool {
-	before := pos == 0 || isSpaceByte(data[pos-1])
-	after := pos+1 >= len(data) || isSpaceByte(data[pos+1])
-	return before && after
 }
 
 func isSpaceByte(b byte) bool {
