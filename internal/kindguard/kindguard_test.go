@@ -95,8 +95,80 @@ func TestCheckSource(t *testing.T) {
 		return false`,
 		want: []kindguard.Rule{kindguard.RuleMultiConstantPredicate},
 	}, {
+		name: "an if/else-if chain over two kinds is caught",
+		body: `if n.Kind == yamldoc.KindMapping {
+			return true
+		} else if n.Kind == yamldoc.KindNull {
+			return false
+		}
+		return false`,
+		want: []kindguard.Rule{kindguard.RuleMultiConstantPredicate},
+	}, {
+		name: "an if/else-if chain carrying an or-chain is reported once",
+		body: `if n.Kind == yamldoc.KindMapping || n.Kind == yamldoc.KindNull {
+			return true
+		} else if n.Kind == yamldoc.KindString {
+			return false
+		}
+		return false`,
+		want: []kindguard.Rule{kindguard.RuleMultiConstantPredicate},
+	}, {
+		name: "a lone if/else over one kind is total and stays legal",
+		body: `if n.Kind == yamldoc.KindMapping {
+			return true
+		}
+		return false`,
+		want: nil,
+	}, {
+		name: "a chain naming one kind and one unrelated test stays legal",
+		body: `if n.Kind == yamldoc.KindMapping {
+			return true
+		} else if n.Raw == "" {
+			return false
+		}
+		return false`,
+		want: nil,
+	}, {
+		name: "a chain's else body keeps its own predicate visible",
+		body: `if n.Raw == "" {
+			return true
+		} else {
+			return n.Kind == yamldoc.KindMapping || n.Kind == yamldoc.KindNull
+		}`,
+		want: []kindguard.Rule{kindguard.RuleMultiConstantPredicate},
+	}, {
+		name: "a map keyed by two kinds is caught",
+		body: `set := map[yamldoc.Kind]bool{
+			yamldoc.KindMapping: true,
+			yamldoc.KindNull:    true,
+		}
+		return set[n.Kind]`,
+		want: []kindguard.Rule{kindguard.RuleKindSetLiteral},
+	}, {
+		name: "a slice of two kind constants is caught",
+		body: `return slices.Contains([]yamldoc.Kind{yamldoc.KindMapping, yamldoc.KindNull}, n.Kind)`,
+		want: []kindguard.Rule{kindguard.RuleKindSetLiteral},
+	}, {
+		name: "a literal naming one kind stays legal",
+		body: `return (&yamldoc.Node{Kind: yamldoc.KindMapping}).Kind == n.Kind`,
+		want: nil,
+	}, {
+		name: "a table whose entries each name one kind stays legal",
+		body: `nodes := []*yamldoc.Node{
+			{Kind: yamldoc.KindMapping},
+			{Kind: yamldoc.KindNull},
+			{Kind: yamldoc.KindString},
+		}
+		return len(nodes) == 3`,
+		want: nil,
+	}, {
 		name: "a constant from another package's Kind enum is not ours",
 		body: `return n.Kind == design.KindMapping || n.Kind == design.KindNull`,
+		want: nil,
+	}, {
+		name: "another package's map keyed by its own kinds is not ours",
+		body: `set := map[design.Kind]bool{design.KindMapping: true, design.KindNull: true}
+		return set[n.Kind]`,
 		want: nil,
 	}}
 
