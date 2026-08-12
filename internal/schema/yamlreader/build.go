@@ -290,6 +290,17 @@ func buildTagged(node *ast.TagNode) *yamldoc.Node {
 		return &yamldoc.Node{Kind: yamldoc.KindNull}
 	}
 
+	// **A bare `!` is the non-specific tag and names no type.** It asks the
+	// resolver for the answer it would have given anyway, so `! x` is the
+	// string `x` and `! 31` the integer 31 — `inner`, exactly as built. It has
+	// to be caught before `ResolveTag`, whose "everything else is opaque" arm
+	// would make it a `TaggedScalar`; that is the kind every typed field
+	// rejects, so `locale.language: ! english` failed here and raises nothing
+	// upstream. Spec 015 delta §3.3.
+	if tagName(node) == "!" {
+		return buildNode(node.Value)
+	}
+
 	inner := buildNode(node.Value)
 	switch inner.Kind {
 	case yamldoc.KindMapping, yamldoc.KindSequence:
@@ -301,6 +312,11 @@ func buildTagged(node *ast.TagNode) *yamldoc.Node {
 
 	kind, forced := ResolveTag(tagName(node))
 	if !forced {
+		// The resolved tag, kept for `repr(TaggedScalar)` — the one thing this
+		// function used to compute and discard (spec 015 delta §2). Only an
+		// opaque scalar carries it: a forced tag constructs an ordinary value,
+		// which has no tag in its repr.
+		inner.Tag = ResolveTagText(tagName(node))
 		// Opaque: ruamel's TaggedScalar, which keeps the scalar's text and
 		// nothing else. A tag with no value at all carries the empty string
 		// rather than a null — `a: !!str` is `TaggedScalar('')` upstream, and

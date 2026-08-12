@@ -169,6 +169,48 @@ a `divergences.md` entry recording that the port rejects a shape upstream accept
 against `goccy/go-yaml` with a pin here until it is fixed; or a workaround in the reader that folds
 multi-line plain scalars inside flow mappings before goccy sees them.
 
+### The fixture corpora have no generator — and were verified by hand this pass
+
+**Nothing in `tools/` writes `html.json` or `markdown_to_typst.json`.** Spec 011's T7 says only
+"generated through the vendored submodule's `markdown.markdown`", so every row — including roughly
+500 added during this pass by four different porters — exists by transcription discipline rather
+than by a tool. AGENTS.md §10.1 forbids hand-writing a golden for exactly this reason: a transcribed
+row is a claim, and the corpus is only as good as the care of whoever last touched it.
+
+**Both corpora were therefore re-derived independently by the merge owner, who wrote none of the
+rows**, driving the vendored Python directly:
+
+| Corpus | Rows | Not reproducing |
+|---|---|---|
+| `html.json` via `markdown.markdown` | 761 | **0** |
+| `markdown_to_typst.json` via `markdown_parser.markdown_to_typst` | 428 | **0** |
+
+So the corpus is honest as of this pass — but that is a fact about this pass, not a property of the
+process. `tools/mdprobe`, gated on reproducing every existing row byte for byte before it may add
+one, is specified as task E-1 of the emphasis delta and should land before the corpus grows again.
+The Typst path has **no differential fixture in the suite at all** today, which is why 100 divergent
+emphasis shapes on the PDF-visible path went unrecorded until they were probed by hand.
+
+### A stale *estimate* is as expensive as a stale finding
+
+The emphasis class was sized as "a hand-written replacement `parser.InlineParser`, a new file each,
+comparable to `emphasis.go`'s Typst-side reimplementation, with real regression risk to hundreds of
+passing rows" — and on that basis it was deferred repeatedly as needing its own spec before a porter
+could touch it. **That estimate described work which had already shipped**: `html.go:160-175` removes
+goldmark's emphasis parser by identity and `emphasis_html.go` replaces it at priority 450, so
+CommonMark's flanking rule is not consulted anywhere on that path. Measured against the tree as it
+actually is, the remaining work is **two character-class predicates and about 40 lines**, prototyped
+at 96→0 (HTML) and 100→0 (Typst) mismatches with **not one of the 641 existing rows moving**.
+
+Of the three findings bundled under "emphasis", only the flanking one reproduces. Nesting does not —
+53 shapes, both backends, 0 mismatches, including every shape §9.1 named; Wave C's own
+`emphasisParser` closed it and the spec sentence was true when written. The two `knownRemainder` keys
+contain no `*` or `_` at all and belong to the link-destination and raw-HTML classes.
+
+The lesson is narrower than "the ledger drifts": **an estimate anchored to a design the port has
+since replaced will keep a cheap fix looking like a project indefinitely, because nobody re-measures
+an estimate.**
+
 ### Vacuous gates — six found and repaired this pass
 
 A test that cannot fail is this project's most persistent defect class, and it has now been found in

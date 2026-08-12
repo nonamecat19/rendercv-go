@@ -45,6 +45,64 @@ func ResolveScalar(raw string, style yamldoc.ScalarStyle) yamldoc.Kind {
 	return yamldoc.KindString
 }
 
+// ResolveTagText is ruamel's `Tag.trval` (`ruamel/yaml/tag.py:55-88`): the tag
+// a `TaggedScalar`'s `repr()` names, from the handle the author wrote.
+//
+// The scanner splits the written text into a handle and a suffix, and `trval`
+// is `handles[handle] + uri_decode(suffix)` with
+// `DEFAULT_TAGS = {'!': '!', '!!': 'tag:yaml.org,2002:'}`
+// (`ruamel/yaml/parser.py:106`). Written out, and each row measured:
+//
+//	!!str        tag:yaml.org,2002:str    the `!!` handle expands
+//	!!foo/bar    tag:yaml.org,2002:foo/bar  suffix verbatim, `/` and case kept
+//	!unknown     !unknown                 the `!` handle maps to `!`
+//	!!           !!                       **not** the `!!` handle — see below
+//	!%21         !!                       the suffix is URI-decoded
+//	!<!local>    !local                   the verbatim form is its own URI
+//
+// **`!!` alone is not the `!!` handle.** A handle needs a non-empty suffix, so
+// the scanner reads a local tag whose suffix is `!`, and `!` + `!` is `!!`.
+// Reading it as the handle would give `tag:yaml.org,2002:` instead.
+//
+// A bare `!` never reaches here: it is the non-specific tag and `buildTagged`
+// returns the plainly resolved node before asking.
+func ResolveTagText(written string) string {
+	if verbatim, ok := strings.CutPrefix(written, "!<"); ok {
+		if uri, closed := strings.CutSuffix(verbatim, ">"); closed {
+			return uriDecode(uri)
+		}
+	}
+	if suffix, ok := strings.CutPrefix(written, "!!"); ok && suffix != "" {
+		return "tag:yaml.org,2002:" + uriDecode(suffix)
+	}
+	return "!" + uriDecode(strings.TrimPrefix(written, "!"))
+}
+
+// uriDecode resolves the `%XX` escapes a tag suffix may carry —
+// `Tag.uri_decoded_suffix` (`ruamel/yaml/tag.py:62`). An escape that is not two
+// hex digits is left as written, which is what a malformed tag should do here:
+// this is a rendering path, not a validator.
+func uriDecode(text string) string {
+	if !strings.Contains(text, "%") {
+		return text
+	}
+	var out strings.Builder
+	for i := 0; i < len(text); i++ {
+		if text[i] != '%' || i+2 >= len(text) {
+			out.WriteByte(text[i])
+			continue
+		}
+		decoded, err := strconv.ParseUint(text[i+1:i+3], 16, 8)
+		if err != nil {
+			out.WriteByte(text[i])
+			continue
+		}
+		out.WriteByte(byte(decoded))
+		i += 2
+	}
+	return out.String()
+}
+
 // ResolveTag answers the same question as ResolveScalar — what type is this
 // scalar — for a scalar carrying an explicit tag, which supplies the answer
 // instead of leaving it to the text.
