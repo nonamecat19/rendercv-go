@@ -636,6 +636,129 @@ func TestWatchExitsZeroOnInterrupt(t *testing.T) {
 	}
 }
 
+// unwatchableDir returns a directory holding a readable, writable input file
+// that `inotify_add_watch` refuses: mode 0311 grants write and search but not
+// read, and inotify requires read on the directory. Measured with
+// `inotify_add_watch` directly — EACCES — and with watchdog, which schedules it
+// without complaint.
+func unwatchableDir(t *testing.T) string {
+	t.Helper()
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores the read permission this case removes")
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "cv.yaml"),
+		[]byte("cv:\n  name: John Doe\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(dir, 0o311); err != nil {
+		t.Fatal(err)
+	}
+	// t.TempDir's cleanup needs to read the directory back.
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+	return dir
+}
+
+// TestWatchLoopSurvivesAnUnwatchableDirectory pins upstream's answer to a watch
+// registration that fails: there isn't one.
+//
+// `observer.schedule` (`watcher.py:57`) is watchdog's, and on a directory
+// inotify refuses it **returns normally**, leaves the observer alive and
+// silently delivers no events — measured directly against the vendored
+// watchdog. Upstream therefore renders, loops, and never learns. The port
+// treated `fsnotify.Add`'s EACCES as fatal: no first render at all, an `Error`
+// panel, exit 1, where upstream renders once and blocks.
+func TestWatchLoopSurvivesAnUnwatchableDirectory(t *testing.T) {
+	input := filepath.Join(unwatchableDir(t), "cv.yaml")
+
+	renders := make(chan struct{}, 8)
+	done := make(chan error, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() {
+		done <- watchLoop(ctx, []string{input}, func() int {
+			renders <- struct{}{}
+			return 0
+		})
+	}()
+
+	select {
+	case <-renders:
+	case err := <-done:
+		t.Fatalf("watchLoop returned instead of rendering: %v", err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("the first render never happened")
+	}
+
+	select {
+	case err := <-done:
+		t.Fatalf("watchLoop returned %v, want it still watching", err)
+	case <-time.After(300 * time.Millisecond):
+	}
+
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Errorf("watchLoop = %v, want nil on cancellation", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("watchLoop did not return on cancellation")
+	}
+}
+
+// TestWatchPrintsNothingUnderQuietWhenWatchingFails is the `-q` half of the
+// same divergence, and the shape STATE.md recorded at `watcher.go:218`: that
+// call took the raw `stdout`, not the `liveOut` every other failure print goes
+// through, so `--quiet` did not silence it. Under `-q` the port put an `Error`
+// panel on stdout — 552 bytes measured — where upstream puts zero on both
+// streams, because upstream has no failure here to report.
+func TestWatchPrintsNothingUnderQuietWhenWatchingFails(t *testing.T) {
+	guard := make(chan os.Signal, 1)
+	signal.Notify(guard, os.Interrupt)
+	t.Cleanup(func() { signal.Stop(guard) })
+
+	dir := unwatchableDir(t)
+	options := RenderOptions{
+		InputPath:    filepath.Join(dir, "cv.yaml"),
+		OutputFolder: filepath.Join(t.TempDir(), "out"),
+		NoPDF:        true,
+		NoPNG:        true,
+		Watch:        true,
+		Quiet:        true,
+	}
+
+	var live syncBuffer
+	done := make(chan int, 1)
+	go func() { done <- Render(options, &live, &live) }()
+
+	// The watcher must still be running: a failed registration is not a reason
+	// to stop, so nothing may arrive on done.
+	select {
+	case code := <-done:
+		t.Fatalf("Render --watch -q returned %d with output %q, want it still watching",
+			code, live.String())
+	case <-time.After(3 * time.Second):
+	}
+	if got := live.String(); got != "" {
+		t.Errorf("stdout under -q = %q, want zero bytes (upstream's)", got)
+	}
+
+	interruptSelf(t)
+	select {
+	case code := <-done:
+		if code != 0 {
+			t.Errorf("Render --watch -q interrupted = %d, want 0", code)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("Render --watch did not return on SIGINT")
+	}
+	if got := live.String(); got != "" {
+		t.Errorf("stdout under -q = %q, want zero bytes even after the interrupt", got)
+	}
+}
+
 // interruptSelf sends SIGINT to the test process. Only a test that has already
 // established a handler may call it.
 func interruptSelf(t *testing.T) {
