@@ -10,20 +10,16 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 
 ---
 
-## Measured state, 2026-08-12 (HEAD `583c00a`)
+## Measured state, 2026-08-12 (HEAD `ee408cc`)
 
-> **Caveat on this section, and it is the same hazard item 5 below describes.** The tree was clean
-> when these measurements started and was **not** clean when they finished: a second interactive
-> session was working in this same working tree throughout and wrote
-> `internal/renderer/templater/process/markdown.go` and `.../emphasis_html.go` partway through, then
-> added `tools/zzprobe/` and two built binaries. So the numbers below were not all taken at one tree
-> state. The suite was re-run afterwards on the mutated tree and is **still green** (`go test -tags
-> conformance ./...` exits 0, 0 `FAIL` lines), and `go build`, `go test ./...`, `just check` and
-> `just schema-diff` were all clean before the mutation — but the exact counts (3972, 42/42) come
-> from a tree state that no longer exists, and the two modified files were not reviewed here. Anyone
-> reading this should re-measure on a quiescent tree before treating a number as load-bearing.
-> The operational rule already recorded below applies to a second *session*, not only to a verifier
-> fan-out.
+Supersedes the previous measurement at `583c00a`, whose caveat — a second interactive session
+mutating the tree mid-measurement — no longer applies: this pass ran on a quiescent tree, and every
+number below was taken by a fresh-context `rendercv-parity-verifier` that wrote none of the code.
+
+**Nineteen commits landed since `7d67d7b`** (`ed3866b..ee408cc`), from four porters working in
+parallel, each in its own git worktree. **Note the hashes: the branches were rebased at merge, so
+the hashes the porters reported in their own accounts are pre-rebase objects and are not ancestors
+of HEAD.** The mainline hashes are the ones used throughout this section.
 
 Everything in this section was run, not reported. The iteration rows below are a narrative history
 and have repeatedly drifted from the code in **both** directions — items marked open that were
@@ -34,19 +30,95 @@ this section was measured more recently.
 |---|---|
 | `go build ./...` | pass |
 | `go test ./...` | pass, 0 fail |
-| `go test -tags conformance ./...` | pass — **3972 PASS, 0 FAIL, 0 SKIP** |
+| `go test -tags conformance ./...` | pass — 0 FAIL, 0 SKIP |
 | `TestParity` | **42 / 42**, of which 8 are inverted (D-008 ×2, D-010 ×4, D-011 ×2) |
 | `just schema-diff` | empty |
-| `just check` (`go vet` + `golangci-lint`) | 0 issues |
-| `new` + `render` end-to-end | works — `.typ`/`.pdf`/`.png`/`.md`/`.html`, ~3.7 s |
+| `just check` (`go vet` + `golangci-lint` + `gofumpt -l`) | 0 issues |
+| `new` + `render` end-to-end | works — `.typ`/`.pdf`/`.png`/`.md`/`.html` |
 | Live differential vs the vendored Python on a fresh `new` CV | `.typ`, `.md`, `.html` **byte-identical** |
+| Every fixture row re-derived from the vendored Python | `markdown_to_typst.json` **305/305**, `html.json` **307/307**, `scalars.json` **195/195** — 0 differed |
+| HTML differential | **305 asserted equal, 305 pass**; `knownRemainder` 2, both confirmed still differing |
 
-`testdata/golden` holds 42 cases (43 entries, one of them `manifest.json`). Scale: ~65 k lines of Go,
-~33 k of it tests, 723 commits. **The last SKIP is gone** — iteration 13's row records "1 SKIP" and
-iteration 12's records `TestUnmappedParserMessageFallsThrough` skipping and voiding itself; neither
-reproduces.
+**The verifier returned FAIL on three findings, none of them introduced by these nineteen commits.**
+All are pre-existing holes the green suite cannot see, and two break artifact parity from an ordinary
+CV while being declared nowhere. They are items 1–3 of the open list below. Every gate above is
+nonetheless green, and the distinction matters: a green suite is not the same statement as parity.
 
-**Closed since the rows below were written, each re-measured this session:**
+`testdata/golden` holds 42 cases (43 entries, one of them `manifest.json`). **The last SKIP is
+gone** — iteration 13's row records "1 SKIP" and iteration 12's records
+`TestUnmappedParserMessageFallsThrough` skipping and voiding itself; neither reproduces.
+
+### What the nineteen commits closed
+
+- **Open item 2, iteration 8 — a code block's body is not `rstrip`'d — closed on the Typst path
+  only** (`ed3866b` fixtures, `d4dea64` fix). Upstream escapes `block.rstrip()`, not `block`
+  (`blockprocessors.py:269,276`), and the predicate is Python's 29-character `str.isspace()`, not
+  Go's 25-rune `unicode.IsSpace` (missing U+001C–U+001F) — measured against upstream on all 29. The
+  blank-line guard moved onto the same helper, since it is the same predicate; without that,
+  `"    \x1c"` would have fallen through into an empty code block. **The tab-expansion half of that
+  ledger item did not reproduce** — `expandTabs` landed since it was written, and both sides already
+  give `` `a   b\n` ``. **The `.html` path was left carrying the trailing whitespace and is now open
+  item 1.**
+- **Open item 3, iteration 11 — an indented list item is a code block here and a list item
+  upstream — closed** (`785389e` fixtures, `ee408cc` fix, new `process/listitem.go`). The rule:
+  `CHILD_RE`'s `[ ]+` is greedy (`blockprocessors.py:350-351`) and `get_items` keeps only
+  `m.group(3)` (`:431`), so every space between marker and content is dropped before `:255`'s
+  `block.startswith('    ')` runs — making indented-code unreachable from marker padding. goldmark's
+  `calcListOffset` (`parser/list.go:83-94`) instead collapses a run of >4 to offset 1. The divergent
+  shape is precisely a marker followed by **≥5 spaces** then non-blank content, at any nesting depth.
+  Fixed by wrapping goldmark's list-item parser and advancing past the padding at parse time rather
+  than rewriting the input, because `a\n\n    -     x` genuinely is an indented code block in both
+  libraries and only the parser knows which it is looking at. The ledger's symptom text said `<p>`;
+  upstream actually gives `<li>` inside a `<ul>`. Two adjacent shapes measured and deliberately left:
+  `3. a` → upstream `<ol>` vs port `<ol start="3">`, and the `ListIndentProcessor` dedent rule.
+- **Open item 7, iteration 15 — `fitsNoScalarArm` is the only Kind predicate the linter enforces —
+  closed** (`838dce5`…`6ad3547`, nine commits, new `internal/kindguard`). The inventory the ledger
+  guessed at as "~115" resolves to: 7 exhaustive switches the linter sees, 6 switches **with a
+  `default`** it does not (`.golangci.yaml` sets `default-signifies-exhaustive: true`), 1 tagless
+  switch, and **147 `==`/`!=` comparisons `exhaustive` never looks at** — which is where `isNonScalar`
+  lived. Single comparisons are total by construction; the dangerous subset names two or more
+  constants, and there were 5. Config alone cannot close this, since `exhaustive` has no view of
+  `k == A || k == B` at all. `kindguard` reads the Kind constant set from `yamldoc`'s own const
+  blocks (`kindguard.go:86-134`), so declaring a ninth Kind tightens every site — verified
+  behaviourally: a temporary ninth Kind flagged **19 sites across 11 files**. Eleven rewrites were
+  mechanical; **one was a live bug** (`303b2c4`): `nonScalar := == KindSequence || == KindMapping`
+  routed a tagged colour-tuple element to the scalar arm, so `design.colors.name: [!!str 3, 2, 3]`
+  read the tag's *text* as a channel and **rendered at exit 0**. Upstream raises the identical
+  `TypeError` a sequence element does. Confirmed end-to-end: both sides exit 1, error panel
+  byte-identical.
+- **Four YAML-reader findings** (`2274274`, `3b57b38`, `1aaa718`, `9bb090e`, `2993473`, `7681f7c`).
+  **Three did not reproduce** — `1e400`→`KindString` was fixed by `0bfe577`, no `ruamelPhrasing` row
+  is dead (all eight are selected by at least one input), and the duplicate-key span was fixed by
+  `bab83cb` with its inverted comment already corrected. Each was converted from a hand-written Go
+  table into a pin measured from upstream, and each proved non-vacuous by mutation. **One
+  reproduced, though not as described**: the *named* input `cv: [a\nb: c,` is already covered; its
+  indented neighbour `cv: [a\n  b: c,` routes through a different goccy token and hit
+  `flowNodeExpectedAtEOF`, which reads the file's last significant character — a comma — and
+  answered `while parsing a flow node` at line 3 where ruamel says `while parsing a flow sequence`,
+  line 1 to line 2. The EOF character only answers the question when the scan actually reached EOF.
+  A second, unassigned defect was found beside it and fixed (`7681f7c`): goccy's token names the
+  flow collection *it* gave up on, not the outermost one, so `cv: [a\n  b: [c,` named a collection
+  the user never opened.
+
+### Two ledger entries were stale and are corrected here
+
+Both were investigated by a porter that then wrote no code, which is the correct outcome.
+
+- **`--quiet` does not silence error output** (recorded open by pass 22) — **does not reproduce.**
+  Fixed by `cb56ddd` on 2026-08-11, one day *after* the text recording it open. All eight `-q`
+  vectors are byte-identical to upstream including the 1599-byte unknown-theme table the entry names.
+  Upstream's rule is a split, and the port already implements it: `Console(quiet=quiet)` silences the
+  `Live` (`progress_panel.py:63`) but not `@handle_user_errors`' `rich.print`
+  (`error_handler.py:6,41`), and `quiet` never touches stderr.
+- **`new` accepts only the literal name `"John Doe"`** (recorded open by pass 22, with a
+  human-gated `divergences.md` entry proposed) — **does not reproduce, and that entry should not be
+  written.** Sixteen names produce byte-identical YAML and identical filenames: single-token,
+  hyphens, apostrophes, Cyrillic+CJK, empty string, `true`/`null`/`yes`/`123`/`0x1f`/`~`, `Dr: Who`,
+  embedded newline, tab. Upstream threads the name through exactly two places
+  (`sample_generator.py:73`, `new_command.py:81`'s `replace(' ','_')`), both ported, and a 109-row
+  probe-captured fixture already pins it.
+
+**Closed earlier, each re-measured:**
 
 - **Iteration 12's N1**, the row's stated reason for not being green: `render --watch <unreadable
   input>` **does not hang**. Port and upstream both exit **2** with the same `Invalid value for
@@ -59,49 +131,116 @@ reproduces.
   destination spanning a line break) and the block-tag-in-a-list-item class (§9.5).
 - **`markdown_to_typst.json`** is 166 → **275 rows**.
 
-**Still open, re-measured and still reproducing:**
+**Still open, ranked by reach from an ordinary CV.** Items 1–3 are the fresh-context verifier's
+FAIL findings on `ee408cc`; 1 and 2 are artifact-parity blockers declared nowhere.
 
-1. **Iteration 6 — the missing-`theme`-key crash mismatch.** Re-probed: a `design:` block with a
-   `page:` key and no `theme:` is upstream **exit 1**, 522 B stdout + a 9611 B `KeyError: 'theme'`
-   traceback; the port is **exit 0** with a 965 B success panel and a complete document. Unchanged,
-   and still blocked on P-1 (`specs/013-parity-closeout/spec.md:994-998`), which is human-gated.
-2. **Iteration 8 — a code block's body is not `rstrip`'d and does not expand tabs.** Re-probed
-   end-to-end and it reproduces in the artifact: a `bullet` of `"    a &  "` gives upstream
-   `` - `a &amp;` `` and the port `` - `a &amp;  ` `` in the `.typ`.
-3. **New, found by that same probe, not previously recorded — an indented list item is a code block
-   here and a paragraph upstream.** The same two bullets render `<p>a &amp;  </p>` and `<p>a b</p>`
-   upstream and `<pre><code>…</code></pre>` in the port's `.html`. Both sides produce a
-   byte-identical `.md`, so this is purely the HTML stage: the item's content starts 4 spaces past
-   the `-` marker, which is CommonMark's indented-code rule (goldmark implements it, python-markdown
-   does not). Reachable from any highlight beginning with four spaces. Iteration 11's territory,
-   same class as the two `knownRemainder` keys and recorded in neither `knownRemainder` nor
+1. **The code-block `rstrip` fix landed on the Typst path only — `.html` still carries the trailing
+   whitespace.** A text entry of `"    code &  "` gives a byte-identical `.typ` and `.md` and an
+   `.html` differing at **byte 1929, line 44**: upstream `<pre><code>code &amp;`, port
+   `<pre><code>code &amp;  `. **Not the same one-line fix as the Typst side**: upstream splits the
+   document on blank lines and rstrips *each chunk*, so `"    a  \n\n    b  "` is `a\n\nb\n`
+   upstream while goldmark hands over one code block containing the blank line. Needs a
+   `KindCodeBlock` node renderer plus chunk semantics. The fixture was blind to it — `html.json`
+   carries `'    indented code'` and `'    x'`, no trailing-space row. Undeclared in
    `divergences.md`.
-4. **Iteration 1 / the harness** — the goldens still bake this machine's absolute path and the
+2. **`stripSpace` is ASCII-only** (`internal/renderer/templater/process/codespan.go:56-66`) where
+   `BacktickInlineProcessor`'s `m.group(3).strip()` (`inlinepatterns.py:444-456`) is the same
+   29-character Python set. A code span padded with U+00A0 (or U+001C–U+001F) keeps the pad, and it
+   breaks **both** `.typ` and `.html`: input ``a `x&nbsp;` span`` differs at `.typ` byte 3235 line 97
+   and `.html` byte 1920 line 44. Pre-existing — `codespan.go` has no commit in this range.
+   Undeclared. Same class as the two items above, and the third instance of "Go's whitespace set is
+   not Python's" in this port.
+3. **`kindguard` has two blind spots**, exactly the hand-enumerated-subset shape it exists to
+   forbid: an `if k == A { } else if k == B { }` chain, and a `map[yamldoc.Kind]bool{A: true, B:
+   true}` set literal. Both were planted and the check stayed green. **Latent only** — neither shape
+   exists in the tree today (`grep` for both is empty across `internal/` and `cmd/`), so this is a
+   gap in the guard, not a live defect. Also: `TestKinds` hardcodes the 8 names as a second place to
+   update, though it fails loudly rather than silently.
+4. **Iteration 6 — the missing-`theme`-key crash mismatch.** A `design:` block with a `page:` key
+   and no `theme:` is upstream **exit 1**, 522 B stdout + a 9611 B `KeyError: 'theme'` traceback; the
+   port is **exit 0** with a 965 B success panel and a complete document. Blocked on P-1
+   (`specs/013-parity-closeout/spec.md:994-998`), which is human-gated.
+5. **Iteration 1 / the harness** — the goldens still bake this machine's absolute path and the
    generation month, and `conformance.Normalize` still appends `\n` to both sides, so the final byte
    of every golden remains unverifiable by construction. Both need a golden regeneration
-   (human-gated). This is the hole that hid the `RenderCVUserError` newline defect.
-5. **The parity suite must not run concurrently with anything else touching the tree** —
+   (human-gated). This is the hole that hid the `RenderCVUserError` newline defect. **This pass
+   raised its cost**: `TestParity/err_unknown_theme` bakes the main checkout's absolute path, so it
+   fails from *any* git worktree — measured independently by three of the four porters. Worktree
+   isolation is the mechanism that makes a parallel fan-out safe under item 6, so this golden now
+   blocks the only known workaround for the concurrency hazard.
+6. **The parity suite must not run concurrently with anything else touching the tree** —
    `caseWorkDir` is a fixed shared path. Pass 22's three-agent fan-out produced three false FAIL
-   reports this way. Re-measured alone: deterministic. **This measurement pass hit it again from a
-   different direction** — not a fan-out this time but a second interactive session editing the same
-   checkout (see the caveat at the top of this section). The rule is about the *working tree*, not
-   about agents: one writer at a time, or every number taken is a number from a tree that has
-   already moved.
-6. **Iteration 13's process debt** — 9 of a 13-commit range still fail `go vet` at intermediate
+   reports this way, and the previous measurement pass hit it again via a second interactive session
+   in the same checkout. **This pass avoided it entirely** by giving each of the four porters its own
+   git worktree; no false failure occurred. Two costs of that mechanism, both worth knowing before
+   repeating it: agent worktrees created *inside* the repo at `.claude/worktrees/` are walked by the
+   whole-tree scanners (`reachability_test`, `kindguard`), which read the pre-fix copies and reported
+   72 phantom violations until the worktrees were removed; and `golangci-lint` cached results keyed
+   to deleted worktree paths, reporting 7 issues in files that no longer existed until
+   `golangci-lint cache clean`. Both scanners should skip `.claude/worktrees/` if this becomes
+   routine. The rule remains about the *working tree*, not about agents: one writer at a time.
+7. **Iteration 13's process debt** — 9 of a 13-commit range still fail `go vet` at intermediate
    commits (unbisectable, history not rewritten), and `tools/sampleprobe` is still undeleted while
    spec 013 §8's 198-case criterion still depends on the fixture it generates. The latter needs a
    human decision.
-7. **Iteration 15** — `fitsNoScalarArm` is still the only Kind predicate the linter enforces
-   exhaustively; "any later Kind predicate belongs in this shape" is a comment, not a constraint.
 8. **D-002 documents its own inaccuracy.** A Lua theme is a *static* declaration: nothing looks for
    or calls a `validate` key, `create-theme` writes an empty `return {}`, an unknown key on a
    scripted custom theme is silently accepted where upstream exits 1, and every script failure is
    swallowed at exit 0. All four are written into `specs/divergences.md` as open; fixing the text or
    the behavior both go through the human gate.
 
+**New findings recorded this pass, not fixed, each its own unit.** None is declared in
+`divergences.md`; none is gated; each was measured rather than inferred except where noted.
+
+- **`internal/cli/panel.go` measures width in runes, not display cells** — `utf8.RuneCountInString`
+  at `:85, :143, :158, :174, :180, :215`, against Rich's `cell_len`. An East-Asian-wide rune scores
+  1 column where Rich scores 2 and a tab emits raw where Rich expands to the next 8-stop, so
+  `new "Ольга Ковальчук 李雷"` overflows the box by 2 cells. `panel.go:74-77` already predicts this
+  in a comment ("a CJK name in a path would break that, and no golden has one"). Reachable from an
+  ordinary `new`. Structurally confirmed; not built as a byte differential.
+- **A missing input file prints a panel where upstream tracebacks** — `render nosuch.yaml` is port
+  552 B stdout / 0 stderr against upstream 0 / 5329, and the same holds for a missing `-d` overlay
+  and a missing document-named design overlay. `render.go:690-707` calls `err_missing_file`
+  "unreachable by construction"; it is reachable trivially. D-011 class, human-gated.
+- **A trailing `\r` on a code-block line gives the Typst path an extra newline** — `"    a  \r"` is
+  `` `a\n` `` upstream and `` `a\n`\n `` here, because upstream splits the *raw* string into lines
+  and normalizes inside each `md.convert` while this port normalizes first and splits after.
+  Introduced by `8cb3ba7`. `a\rb` and `a\r\nb` agree, so the ledger's earlier phrasing was wider than
+  the defect. `TestCodeBlockStripsEveryPythonSpace` skips `\r` with the reason written in rather than
+  asserting something false.
+- **A fourth unmapped goccy phrasing** — `cv: [a\n  b: {c,` emits `unexpected map key`, which no
+  `ruamelPhrasing` row covers, so raw goccy text with its `[2:6]` prefix reaches the user. ruamel
+  says `while parsing a flow sequence`, line 1 to line 2. Mapping it would remove a leak rather than
+  accept one, so it does not reach plan 004 §6's stop point.
+- **`pythonElemRepr` cannot match `repr(TaggedScalar)`** — upstream prints
+  `TaggedScalar(value='x', style=None, tag=Tag(...))`, not `x`. Matching it needs the tag itself,
+  which `yamldoc.Node` does not store: a spec change, not a rename. Reachable only from
+  `design.theme` written as a container with a tagged element.
+- **`TestEveryPhrasingRowIsReachable`'s message-equality half is tautological** — it compares against
+  `row.ruamel`, so corrupting a `ruamel` value leaves that assertion green. The phrasings are
+  genuinely pinned, but by the sibling tests, not by this one; its index assertion also trips a
+  hardcoded fatal first. It fails loudly either way, so it is a working guard whose comment
+  describes the wrong mechanism.
+- **`watcher.go:218` under `-q`** was reported as passing raw stdout to `failPanel`; on
+  re-inspection that offset is watch-loop wiring, not a print. Either the offset drifted at rebase or
+  the claim is misfiled. Unresolved.
+
+**Not verified by this pass**, stated so no one reads the green gates as covering it: PDF/PNG for
+the three findings (all are text-stage, only `.typ`/`.md`/`.html` were diffed); `watcher.go`'s `-q`
+behavior, which needs an interactive watch session; `panel.go` CJK as a byte diff; and per-commit
+`go build && go test` for each of the nineteen commits individually — only HEAD was checked, which
+is the one AGENTS.md §7 check this pass skipped.
+
 **`pkg/rendercv` does not exist.** `AGENTS.md` §3 lists it as the public, documented, semver'd Go
 API and §9 requires a doc comment on each of its exported symbols naming the upstream construct it
 mirrors. There is no such directory. All three stretch goals below are likewise unstarted.
+
+It is also the one subsystem with **no parity axis** — the four axes are artifact, CLI, JSON Schema
+and validation-error, and none covers a Go library surface. The resolution taken (human decision,
+2026-08-12) is that `pkg/rendercv` **mirrors upstream's public Python surface** rather than being
+designed as a Go-native API, which keeps §9's "name the upstream construct it mirrors" satisfiable
+and keeps the spec derived from upstream rather than invented. Spec in progress as
+`specs/016-public-api/`.
 
 ---
 
@@ -117,14 +256,14 @@ mirrors. There is no such directory. All three stretch goals below are likewise 
 | 5 | JSON Schema generator | [005](005-json-schema/spec.md) | **verified green** — audited and passed, the only iteration besides 9 to do so | n/a (gated on the 18 owned `$defs`, spec §7.1) |
 | 6 | Design & themes (9) + the settings schema | [006](006-design-and-themes/spec.md) | **field-order interleave fixed 2026-08-11 (`e25215a`, pinned by `838d01d`) — the one real finding from the prior audit is closed.** `validateModel` used to run `binder.Bind` for shape then a separate per-field loop for value/enum, so all type errors preceded all value errors; now shape errors are grouped by field and interleaved into the declaration-order loop. Measured on `page.size: not-a-size` + `page.top_margin: {}`: `size` then `top_margin`, matching upstream. **New, open, found by a full-repo re-audit 2026-08-11**: a `design:` block with no `theme:` key crashes upstream (`KeyError: 'theme'`, unhandled exception, 10133 B traceback) but the port exits 0 and renders a complete document (880 B success panel) — `validate.go:140-144` deliberately returns no validation error here (see its comment) because producing one would itself be a divergence from an unhandled-exception shape; the fix belongs with iteration 4/12's unhandled-exception handling, not a bare validation message, and needs a scoped decision before it's built | n/a (gated on the 164 `$defs` differential and the override diff, spec §5) |
 | 7 | Locale (English + 21 catalogs) | [007](007-locale/spec.md) | **both `phrases` gaps fixed 2026-08-11 (`f82d097`) — closed, a full-repo re-audit confirmed both probes byte-identical.** `binder.ValueModel` used to only check `phrases` was a mapping and never recurse; `ValidatePhrases` now binds the nested `Phrases` model directly, so (a) a wrong-typed `degree_with_area` is `Input should be a valid string.` at exit 1 instead of silent corruption at exit 0, and (b) an unknown key inside `phrases` is `Extra inputs are not permitted` instead of being dropped. `month_names`/`month_abbreviations` were already correctly validated (re-confirmed). The short-month-list panic stays fixed, `monthAt` bounds-checked both directions | n/a (gated on the 45 `$defs` differential and the submodule catalog diff, spec §5) |
-| 8 | Templater (pongo2 env, filters, markdown→typst, processors) | [008](008-templater/spec.md) | **all five known `markdown_to_typst` divergences fixed 2026-08-11**, one commit each: backtick width-matching (`6bf7eca`), an image contributing nothing (`19bd16a`), autolinks including decimal-entity mail obfuscation (`024fbde`), raw inline HTML passthrough (`1adbd49`), and an admonition block parsed as one joined unit instead of per-line (`c643181`). Confirmed byte-identical `.typ` end-to-end on all four built-in themes for a synthetic CV covering all five constructs; fixture rows in `internal/renderer/templater/process/testdata/markdown_to_typst.json` grew 101→166, measured from the vendored Python, not hand-written. **New, sixth, unrecorded divergence found while fixing #4**: the raw-HTML stash also covers `ENTITY_RE` (priority 80 in upstream's registry) and a decimal character entity like `&#35;` was being escaped to `\#35;` — same root cause, not yet fixed. **Two gaps left deliberately** (declining rather than misrendering): reference-style links/images have no case (the line-at-a-time Typst path never builds the link-definition map the block pass needs), and `BACKTICK_RE`'s `(?<!\\)` guard is unimplemented | n/a (gated on the 52-fragment Jinja differential and 240 unit cases, spec §7) |
+| 8 | Templater (pongo2 env, filters, markdown→typst, processors) | [008](008-templater/spec.md) | **Not green. The `rstrip` gap is closed on the Typst path (`d4dea64`) and open on the HTML path — see open item 1 — and `stripSpace` being ASCII-only is open item 2.** Both are artifact-parity divergences reachable from an ordinary CV and declared nowhere. `markdown_to_typst.json` is 305 rows, all 305 re-derived from the vendored Python by a fresh context. The account below is history. **all five known `markdown_to_typst` divergences fixed 2026-08-11**, one commit each: backtick width-matching (`6bf7eca`), an image contributing nothing (`19bd16a`), autolinks including decimal-entity mail obfuscation (`024fbde`), raw inline HTML passthrough (`1adbd49`), and an admonition block parsed as one joined unit instead of per-line (`c643181`). Confirmed byte-identical `.typ` end-to-end on all four built-in themes for a synthetic CV covering all five constructs; fixture rows in `internal/renderer/templater/process/testdata/markdown_to_typst.json` grew 101→166, measured from the vendored Python, not hand-written. **New, sixth, unrecorded divergence found while fixing #4**: the raw-HTML stash also covers `ENTITY_RE` (priority 80 in upstream's registry) and a decimal character entity like `&#35;` was being escaped to `\#35;` — same root cause, not yet fixed. **Two gaps left deliberately** (declining rather than misrendering): reference-style links/images have no case (the line-at-a-time Typst path never builds the link-definition map the block pass needs), and `BACKTICK_RE`'s `(?<!\\)` guard is unimplemented | n/a (gated on the 52-fragment Jinja differential and 240 unit cases, spec §7) |
 | 9 | Typst renderer (`.typ` emission) + iteration 6's T10 + iteration 8's Wave C | [009](009-typst-renderer/spec.md) | **green** — verified by a fresh context, which returned FAIL on four items; all four fixed and pinned | 24 / 24 |
 | 10 | wazero + WASI typst → PDF, then PNG | [010](010-typst-compilation/spec.md) | **gate cleared 2026-08-08; landed and running in the suite.** The compiler, the fonts and `fontawesome` are vendored and embedded (D-007). Every render case now produces a PDF and its PNGs, and `AssertPDF` compares text, page count and geometry. **Not yet verified by a fresh context** | 14 / 14 in the suite |
-| 11 | Markdown + HTML renderers | [011](011-markdown-and-html/spec.md) | **Superseded in part by the 2026-08-12 measurement above: emphasis nesting and the spaced link destination are both closed, `knownRemainder` is 2 keys, and the differential is 277 / 279 on a 279-row `html.json`. One new class was found and is open (an indented list item).** The account below is kept as history. **both blockers closed; awaiting a fresh context to re-promote.** Raw HTML passes through, and the `"` defect that demoted this iteration is fixed: python-markdown escapes in **three contexts** where goldmark uses one. Measured in an isolated worktree at the commit before the fix, 33 of 75 differential shapes differed; 4 do now, each a different defect (whitespace, emphasis nesting, URL escaping) and each pinned by an inverted assertion. **verified 2026-08-11 — FAIL, stays demoted.** The 71/75 figure is a property of the 75-row fixture, not of the renderer: at least **8 further divergence classes** are reachable end-to-end from an ordinary CV highlight, none in `knownRemainder`, none in `divergences.md` (emphasis-nesting split, image `alt` losing emphasis, the decimal-entity mailto obfuscation, a ``` fence python-markdown has no extension for, list-continuation `<p>` placement, a spaced link URL, a raw block `<div>` in a list item, and a bare `\r`). What *did* check out: all 75 `html.json` rows reproduce byte-for-byte under the submodule's own `markdown.markdown` (0 mismatches, §10.1 satisfied), and all four `knownRemainder` keys still genuinely differ, so the inverted assertions are load-bearing **Re-verified 2026-08-11 after the fixes: all 8 classes closed, and 5 more the fix work found — including the one that matters operationally, a CV field ending in a stray space producing a differing `.html`. `html.json` is 118 rows, all reproducing under the submodule's own `markdown.markdown`. NOT promoted**: three real divergences remain (emphasis nesting, a link destination with an unbracketed space, a block tag in a list item), each reachable from an ordinary CV, and `divergences.md` is human-gated. **Re-audited 2026-08-11, and the framing above is wrong.** All five `knownRemainder` keys were re-run through the submodule's own `markdown.markdown` and **all five still differ** — no vacuity this time. But **none of the three is parity-*impossible*, which is what the human gate is for.** Checked against goldmark v1.8.5's source: emphasis can be taken over wholesale through `parser.WithInlineParsers` at the same trigger characters — a real reimplementation of python-markdown's two regex tree processors, comparable in kind to the hand-written `markdown_to_typst` transform this port already has; the spaced link destination cannot *reuse* goldmark's unexported `linkLabelState`, which the port's comment says accurately, but can be reimplemented from the same bracket-balance rule at `inlinepatterns.py:716-830`; and the block tag in a list item is arguably the cheapest of the three — python-markdown itself solves it with a stash-and-restore **preprocessing pass over the raw string**, which nothing prevents doing before `Convert`. So these are **expensive engineering, not impossibility**, and the gate is meant for the latter (the binary-name case). **They should not be routed to `divergences.md`; iteration 11's spec should carry them as open work.** Also narrower than the phrase suggests: `***bold italic***` and `**_bold italic_**` — how a CV bullet actually writes bold-italic — match goldmark exactly. The divergent shapes are literal `___x___`, an `*em*` reopening around a nested `**strong**`, and intraword `_`. Ranked by reach, the spaced link destination is first, not emphasis | 24 / 24 corpus, **113 / 118 HTML differential**; the 5 pinned by inverted assertions, each confirmed still-differing end-to-end. Three of the previous four `knownRemainder` entries had gone **vacuous** — asserting a difference that no longer existed — and were removed |
+| 11 | Markdown + HTML renderers | [011](011-markdown-and-html/spec.md) | **Not green, but the indented-list-item class is closed (`ee408cc`).** `html.json` is **307 rows, 0 duplicates**, all 307 re-derived from the vendored `markdown.markdown` by a fresh context; the differential is **305 asserted equal, 305 pass**, with `knownRemainder` at 2 (`"- <div>block</div>"`, `"[t](a\nb)"`), both confirmed still differing. What blocks promotion is open item 1 — the HTML path's `rstrip` gap, which needs a `KindCodeBlock` renderer and chunk semantics — plus the two `knownRemainder` classes, which iteration 11's spec should carry as open work rather than routing to `divergences.md` (they are expensive, not impossible). **Superseded in part by the 2026-08-12 measurement above: emphasis nesting and the spaced link destination are both closed, `knownRemainder` is 2 keys, and the differential is 277 / 279 on a 279-row `html.json`. One new class was found and is open (an indented list item).** The account below is kept as history. **both blockers closed; awaiting a fresh context to re-promote.** Raw HTML passes through, and the `"` defect that demoted this iteration is fixed: python-markdown escapes in **three contexts** where goldmark uses one. Measured in an isolated worktree at the commit before the fix, 33 of 75 differential shapes differed; 4 do now, each a different defect (whitespace, emphasis nesting, URL escaping) and each pinned by an inverted assertion. **verified 2026-08-11 — FAIL, stays demoted.** The 71/75 figure is a property of the 75-row fixture, not of the renderer: at least **8 further divergence classes** are reachable end-to-end from an ordinary CV highlight, none in `knownRemainder`, none in `divergences.md` (emphasis-nesting split, image `alt` losing emphasis, the decimal-entity mailto obfuscation, a ``` fence python-markdown has no extension for, list-continuation `<p>` placement, a spaced link URL, a raw block `<div>` in a list item, and a bare `\r`). What *did* check out: all 75 `html.json` rows reproduce byte-for-byte under the submodule's own `markdown.markdown` (0 mismatches, §10.1 satisfied), and all four `knownRemainder` keys still genuinely differ, so the inverted assertions are load-bearing **Re-verified 2026-08-11 after the fixes: all 8 classes closed, and 5 more the fix work found — including the one that matters operationally, a CV field ending in a stray space producing a differing `.html`. `html.json` is 118 rows, all reproducing under the submodule's own `markdown.markdown`. NOT promoted**: three real divergences remain (emphasis nesting, a link destination with an unbracketed space, a block tag in a list item), each reachable from an ordinary CV, and `divergences.md` is human-gated. **Re-audited 2026-08-11, and the framing above is wrong.** All five `knownRemainder` keys were re-run through the submodule's own `markdown.markdown` and **all five still differ** — no vacuity this time. But **none of the three is parity-*impossible*, which is what the human gate is for.** Checked against goldmark v1.8.5's source: emphasis can be taken over wholesale through `parser.WithInlineParsers` at the same trigger characters — a real reimplementation of python-markdown's two regex tree processors, comparable in kind to the hand-written `markdown_to_typst` transform this port already has; the spaced link destination cannot *reuse* goldmark's unexported `linkLabelState`, which the port's comment says accurately, but can be reimplemented from the same bracket-balance rule at `inlinepatterns.py:716-830`; and the block tag in a list item is arguably the cheapest of the three — python-markdown itself solves it with a stash-and-restore **preprocessing pass over the raw string**, which nothing prevents doing before `Convert`. So these are **expensive engineering, not impossibility**, and the gate is meant for the latter (the binary-name case). **They should not be routed to `divergences.md`; iteration 11's spec should carry them as open work.** Also narrower than the phrase suggests: `***bold italic***` and `**_bold italic_**` — how a CV bullet actually writes bold-italic — match goldmark exactly. The divergent shapes are literal `___x___`, an `*em*` reopening around a nested `**strong**`, and intraword `_`. Ranked by reach, the spaced link destination is first, not emphasis | 24 / 24 corpus, **113 / 118 HTML differential**; the 5 pinned by inverted assertions, each confirmed still-differing end-to-end. Three of the previous four `knownRemainder` entries had gone **vacuous** — asserting a difference that no longer existed — and were removed |
 | 12 | CLI (`new`, `render`, `create-theme`, overrides, watcher) | [012](012-cli/spec.md) | **N1 — the sole stated reason this row was not green — does not reproduce as of the 2026-08-12 measurement above.** `render --watch <unreadable input>` returns; port and upstream both exit 2 with the same panel. The row needs a fresh context to say whether anything else blocks promotion. **re-verified 2026-08-11 — PASS on all five fixes; NOT promoted, one major open.** The blocker, the three gating gaps and the inverted guard are all fixed and mutation-checked by the fresh context that failed them. **N1 was recorded as open and as why this row is not green**: `render --watch <unreadable input>` never returns, where upstream exits 1 — iteration 13's defect, widened by the blocker fix. See the re-verification section below. Original FAIL follows for the record. **FAIL. 1 blocker, 4 majors, 5 minors.** Nine of eleven `gaps.md` findings reproduce as described and are mutation-confirmed to be gated; the full 17-option flag inventory was re-derived from upstream source and matches, and the help geometry holds at 136 lines with 6 differing, all carrying the binary name, at three console widths. **What fails is the gating, not mostly the behavior.** Blocker: click's `ignore_unknown_options` makes an unknown option an ordinary *argument*, so upstream fills `INPUT_FILE_NAME` from it — `render --nope`, `--version`, `-x`, `--helpx` are all **exit 1** upstream (a `FileNotFoundError` on a file of that name) and **exit 2** here, and the same rule mis-assigns the input: `render --typ out.typ CV.yaml` opens `--typ` upstream, `out.typ` here, dropping the real filename into the extras. Not covered by D-011. Majors, each mutation-proven: **G-6 is gated by nothing** (reverting it leaves the whole suite green); **the invented-long-name class is gated by nothing** — re-adding `--nopdf` as a real flag leaves everything green, and that is the class that hid longest; **two of the three override rules are ungated** (the discriminating vectors `--nope -nopdf` and an unknown `--key=value` have no case, while the existing cases pin shapes the mutations do not touch); and **`new_typst_templates`' inverted assertion passes for the wrong reason** — `AssertUnreachable` gets un-rebound stdout and compares file *names* only, so the case is held up by D-009's binary name, not D-008, and a port emitting upstream's Jinja source would not be noticed. Minors: D-011's class is wider than its two named vectors (missing overlay files, a directory as input, every unknown-token vector above); `spec.md` §2 behavior 10 says an unknown override key is a validation error where upstream raises `KeyError` and tracebacks; `gaps.md` is stale in three places, all from iteration 13; `1cfaf15` bundles G-1 and G-2; and `TestUnmappedParserMessageFallsThrough` still skips, voiding itself, in the same area as the still-open bad-indentation location defect | 42 / 42 `TestParity` (8 inverted, one of them for the wrong reason), `just check` 0 issues, `schema-diff` empty, ~120 differential invocations, 13 source mutations | `render` and `new` are wired and their goldens pass, error panels included. `create-theme` is now registered and `--create-typst-templates`/`--create-markdown-templates` write their folders; two of their corpus cases stay red by construction under D-008. `err_not_yaml` is fixed. The five help panels are written and verified, four unreachable by construction under D-010; two more are D-011's unhandled-exception tracebacks | 34 / 42 `TestParity` cases (the suite has 42, not 43 — `manifest.json` was miscounted as a case), **not yet verified by a fresh context** |
 | 13 | Parity closeout (sample generator, version, error handler, watcher, packaging) | [013](013-parity-closeout/spec.md) | **verified 2026-08-11 — PASS, 0 blockers.** Verified three times by one fresh context: the initial pass (3 majors, 4 minors), a scoped re-pass over the four fixes (PASS, 3 new minors), and a final scoped pass (PASS, 1 new minor). Findings 5–11 are closed. **The first iteration in this port to pass a fresh context on its first attempt.** Its "2 majors and 4 minors stay open" list was later deleted by `308b6f4`'s trim and lost from this file; **recovered from git history 2026-08-11 and re-verified — all 6 still reproduce, unfixed**, listed here so they aren't lost again: (major) 9 of a 13-commit range fail `go vet` on an intermediate commit — a red *compile*, not a red *assertion*, six commits unbisectable, history not rewritten; (major) `tools/sampleprobe` is still not deleted, and spec §8's own 198-case criterion still depends on the fixture it generates — self-contradictory, **needs a human decision**; (minor) that 198-case criterion is an md5 digest against a captured fixture, not a live differential; (minor) `internal/cli/oserror.go`'s documented OS-Error slack (P-3, human-gated proposal, unwritten); (minor) `panic` was unbanned in package `cli` — **fixed same day, see below**; (minor) `testdata/golden/err_unknown_theme` still bakes this machine's absolute path — same as iteration 1's finding | 42 / 42 `TestParity`, 3468 verbose PASS / 0 FAIL / 1 SKIP under the conformance tag, 7 / 7 behavior-31 differential rows |
 | 14 | Lua-scripted custom themes (D-002) + the two folder messages | [014](014-lua-custom-themes/spec.md) | **re-verified 21×, 2026-08-10 — FAIL every pass through the 21st.** Pass 21 fixed a blocker (script default value-checking); 1 major + 1 minor still open, see below. **re-verified 16×, 2026-08-10 — FAIL every pass through the 16th.** Pass 16 found and fixed (`7947929`) the one blocker it turned up: `parseNumericText` applied its bool-word/hex/octal/binary coercion to every colour-tuple element's raw text regardless of the YAML node's actual kind, so a *quoted* string that merely spelled the same token (`colors.name: ["0x10", 0, 0]`) was coerced the same as an unquoted one — upstream's `float(value)` runs on whatever Python object YAML resolved, and a quoted `"0x10"` is a `str`, which `float()` rejects. `parseChannel`/`parseAlpha`/`parseNumericText` now take a `coerce bool`; `validColorNode` sets it from each element's real `yamldoc.Kind`, and the percent branch is always non-coercing (only a string can carry a literal `%`). `ParseColorTuple` (the merge-time caller with no Kind info left by then) keeps the old permissive behavior. Landed with 5 new cases. Two more findings recorded, not fixed: a colour tuple with a nested collection (`[1,2,3,[1]]`) as its 4th element silently drops it as "no alpha" and renders at exit 0, where upstream's `float()` on a `CommentedSeq` is an unhandled `TypeError` — a *port succeeds where upstream crashes* case, the same class as the two behaviors already awaiting the human gate in this file's "Two measured behaviors" section, left alone for the same reason (matching an uncaught Python traceback is D-011's territory, not a validation record this port can produce); and a script's `KindColor` **string** (not tuple) is never `ParseColor`-checked by `ValidateScript`, an asymmetry inside the already-cut "value validation skipped when a script exists" gap rather than a new one. Pass 15's three fixes (chained NaN comparisons, percent-alpha routing, prefix case-sensitivity) confirmed correct and complete on 60+ probes including `.inf`/`.nan` spellings, negative infinity, and whitespace-plus-hex/bool combinations. Pass 15's two out-of-scope findings and the `df4a82a` commit-bundling minor are unchanged. | 0 blockers reproduced by the 16th pass's fix (unverified by a 17th), 2 deferred findings (1 minor), 2 out-of-scope findings, 2 new minors recorded (upstream-crash case, script-string-color asymmetry), 2 known gaps cut forward, 1 coverage gap open, 3 process findings open |
-| 15 | Explicit YAML tags | [015](015-yaml-tags/spec.md) | **implemented, not yet verified by a fresh context.** The reader had no case for a tag node at all, so every tagged node became `KindNull`. **62 of a 71-case differential matrix are byte-identical, up from 1**; the 9 remaining are all recorded (D-012's three groups, or upstream `RenderCVInternalError`s tags did not cause). **Six defects the work *exposed* and that predate it are fixed here too** — the acceptance criteria could not pass around them, and three of the six rendered a wrong CV at exit 0. **verified 2026-08-11 — FAIL, demoted. 3 blockers, 6 majors, 2 minors.** The central design bet — a new `KindTagged` that typed fields reject *by not naming it*, enforced by `golangci-lint`'s `exhaustive` check — has a hole: the mechanism only works inside a `switch` the linter sees. `binder.go:479-482`'s `isNonScalar` is a **bool predicate**, so a `TaggedScalar` at a date field routes to `checkScalar` and **renders at exit 0** where upstream emits a 2020-byte table (B1). `social_networks[].network` is the **fifth** shapeless `binder.Field` with a typed upstream annotation, the answer to the open question the previous sweep left (B2). And `boolAsInteger` is a **sixth** `BoolIsTrue` call site that was missed, still deciding truth by `HasPrefix(raw,"t")` under a doc comment iteration 15 itself made false (B3). Majors: `locale.language`'s union-tag Input Value is wrong **on plain YAML**, and `cv.photo` reports a file-existence error where upstream reports a path-type error. Coverage: spec 015 §3.4 claims *every* typed field rejects a tag and tests exactly three — B1 and B2 are two nobody probed **All five findings fixed and independently red-checked 2026-08-11 (B1 `283b448`, B2 `ece367c`, B3 `224cd81`, M1 `a671a11`, M2 `185252d`), each failing on its assertion after a clean build. Still NOT green**, because the *systemic* half of B1 is open: `fitsNoScalarArm` is now an exhaustive switch the linter enforces, but it is **one predicate out of 115** — the rule "any later predicate over Kind belongs in this shape" is a comment, not a constraint, and F2 below is a live consequence | 62 / 71 differential; `TestParity` 42/42 (8 of them inverted, see below); typed-field matrix **34/34**, tag matrix 28/37 |
+| 15 | Explicit YAML tags | [015](015-yaml-tags/spec.md) | **The systemic half of B1 is now closed (`838dce5`…`6ad3547`): `internal/kindguard` makes "every decision over `yamldoc.Kind` is an exhaustive switch" an enforced constraint instead of a comment, and enforcing it found a live exit-0 rendering bug (`303b2c4`, a tagged colour-tuple element read as a channel).** A ninth Kind now flags 19 sites across 11 files. **Still not green**: the guard has two blind spots (open item 3 — an `else if` chain and a `map[Kind]bool` literal), latent since neither shape is in the tree, and `pythonElemRepr` cannot match `repr(TaggedScalar)` without storing the tag. **implemented, not yet verified by a fresh context.** The reader had no case for a tag node at all, so every tagged node became `KindNull`. **62 of a 71-case differential matrix are byte-identical, up from 1**; the 9 remaining are all recorded (D-012's three groups, or upstream `RenderCVInternalError`s tags did not cause). **Six defects the work *exposed* and that predate it are fixed here too** — the acceptance criteria could not pass around them, and three of the six rendered a wrong CV at exit 0. **verified 2026-08-11 — FAIL, demoted. 3 blockers, 6 majors, 2 minors.** The central design bet — a new `KindTagged` that typed fields reject *by not naming it*, enforced by `golangci-lint`'s `exhaustive` check — has a hole: the mechanism only works inside a `switch` the linter sees. `binder.go:479-482`'s `isNonScalar` is a **bool predicate**, so a `TaggedScalar` at a date field routes to `checkScalar` and **renders at exit 0** where upstream emits a 2020-byte table (B1). `social_networks[].network` is the **fifth** shapeless `binder.Field` with a typed upstream annotation, the answer to the open question the previous sweep left (B2). And `boolAsInteger` is a **sixth** `BoolIsTrue` call site that was missed, still deciding truth by `HasPrefix(raw,"t")` under a doc comment iteration 15 itself made false (B3). Majors: `locale.language`'s union-tag Input Value is wrong **on plain YAML**, and `cv.photo` reports a file-existence error where upstream reports a path-type error. Coverage: spec 015 §3.4 claims *every* typed field rejects a tag and tests exactly three — B1 and B2 are two nobody probed **All five findings fixed and independently red-checked 2026-08-11 (B1 `283b448`, B2 `ece367c`, B3 `224cd81`, M1 `a671a11`, M2 `185252d`), each failing on its assertion after a clean build. Still NOT green**, because the *systemic* half of B1 is open: `fitsNoScalarArm` is now an exhaustive switch the linter enforces, but it is **one predicate out of 115** — the rule "any later predicate over Kind belongs in this shape" is a comment, not a constraint, and F2 below is a live consequence | 62 / 71 differential; `TestParity` 42/42 (8 of them inverted, see below); typed-field matrix **34/34**, tag matrix 28/37 |
 
 **Pass 17 (`2e8980c`)** found one finding, fixed: `ValidateCustomThemeFolder` gated on `os.Stat(...).IsDir()`, a stronger predicate than upstream's `pathlib.Path.exists()` (`design.py:74`). A theme name resolving to a **regular file** beside the input exists() upstream and falls through to the `rglob("*.j2.typ")` check, reporting "does not contain any *.j2.typ files" — the port reported "does not exist" instead, the wrong one of the two folder messages this iteration exists to reproduce. Fixed by dropping the `IsDir()` check; only `os.Stat`'s error means the path is missing now. Landed with a case. Pass 17 confirmed pass 16's fix correct on ~50 further probes (quoted-numeric strings that legitimately parse, quoted octal/binary, the alpha position specifically, script/document combinations not previously tried, a cyclic Lua table) and found nothing else standing that wasn't already recorded. **This is the first pass since the chain began where the hunt turned up only one small, already-fixed finding** — see the 17th re-verification log entry for the verifier's own assessment that iteration 14 may be close to closeable.
 
