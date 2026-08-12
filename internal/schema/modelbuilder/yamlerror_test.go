@@ -1628,6 +1628,92 @@ func TestGoccyRejectsAFoldedFlowScalar(t *testing.T) {
 	}
 }
 
+// TestSpanEndsWhereTheScanStopped pins ruamel's *problem* mark — the end of the
+// span — for the two classes where the port computed it from the wrong thing.
+//
+// **A quoted scalar is not stopped by a block line.** The scan hunts for the
+// closing quote to the end of the stream, and a `b: c` on the way is just more
+// scalar, so `cv: [\n  b: 'c\n  e: f` ends at line 4 and not at line 3. The
+// port reused the flow rule, which does stop at a block line.
+//
+// **goccy's token is not a floor.** The port never ended a span before the
+// token goccy blamed, but ruamel can stop earlier: in `cv: [a\n  b: [c,\n
+// e: {f` the block key on line 2 ends ruamel's scan while goccy reads on to
+// line 3, and the answer is line 2.
+//
+// Measured over the same 1050 shapes: end lines wrong 231 -> 135, no shape
+// whose end was already right changes, and the start and the message are
+// untouched by both rules.
+func TestSpanEndsWhereTheScanStopped(t *testing.T) {
+	tests := []struct {
+		name               string
+		src                string
+		startLine, endLine int
+	}{
+		// A quoted scalar runs to the end of the stream.
+		{
+			name: "a block line after a single quote", src: "cv: [\n  b: 'c\n  e: f\n",
+			startLine: 2, endLine: 4,
+		},
+		{
+			name: "a block line after a double quote", src: "cv: [\n  b: \"c\n  e: f\n",
+			startLine: 2, endLine: 4,
+		},
+		{
+			name: "a flow opener after a quote", src: "cv: [\n  b: 'c\n  e: {f\n",
+			startLine: 2, endLine: 4,
+		},
+		{
+			// The control: with nothing after it, the stream ends where it
+			// always did.
+			name: "an unterminated quote at the end", src: "cv: [\n  b: 'c\n",
+			startLine: 2, endLine: 3,
+		},
+		// The scan stops at the block line even though goccy read past it.
+		{
+			name: "goccy reads past the breaking line", src: "cv: [a\n  b: [c,\n  e: {f\n",
+			startLine: 1, endLine: 2,
+		},
+		{
+			name: "a sequence opener on the third line", src: "cv: [a\n  b: c,\n  e: [g\n",
+			startLine: 1, endLine: 2,
+		},
+		{
+			name: "a bare flow map on the third line", src: "cv: [a\n  b: c,\n  {h\n",
+			startLine: 1, endLine: 2,
+		},
+		// Controls for the shapes the earlier units fixed, so this one cannot
+		// move them.
+		{
+			name: "a block line breaks the flow", src: "cv: [a\n  b: [c,\n",
+			startLine: 1, endLine: 2,
+		},
+		{
+			name: "a swallowed inner mapping", src: "cv: [\n  b: {c\n",
+			startLine: 2, endLine: 3,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := ReadYamlWithValidationErrors(test.src, schemaerr.SourceMain)
+
+			var userErr *schemaerr.UserValidationError
+			if !errors.As(err, &userErr) {
+				t.Fatalf("expected *schemaerr.UserValidationError, got %T: %v", err, err)
+			}
+			span := userErr.Errors[0].YamlLocation
+			if span == nil {
+				t.Fatal("yaml location = nil, want a location")
+			}
+			if span.Start.Line != test.startLine || span.End.Line != test.endLine {
+				t.Errorf("location = line %d to line %d, want line %d to line %d",
+					span.Start.Line, span.End.Line, test.startLine, test.endLine)
+			}
+		})
+	}
+}
+
 // TestScanStopsAtADocumentMarker pins that a `---` or `...` ends the stream
 // ruamel's scanner was reading, so an unterminated construct spans to the
 // marker rather than to the physical end of the file.
