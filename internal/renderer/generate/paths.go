@@ -37,7 +37,18 @@ type PathInput struct {
 	// `cv.name: ""`, which keeps the plain `NAME` key. A plain string cannot
 	// hold that difference, and the zero value has to mean the absent case.
 	// See namePlaceholders.
-	Name         *string
+	Name *string
+
+	// InputDir is the input file's directory. **Every path template resolves
+	// against it**, not against the working directory: all six of
+	// `render_command`'s path fields are typed `PlannedPathRelativeToInput`
+	// (`settings/render_command.py:30,46,54,62,71,79`), which
+	// `path.py:37-41` resolves as `input_file_path.parent / path` at
+	// validation time — so by the time upstream substitutes placeholders, the
+	// template is already absolute.
+	InputDir string
+
+	// OutputFolder is already resolved against InputDir.
 	OutputFolder string
 	Catalog      locale.Catalog
 	CurrentDate  process.Catalog
@@ -56,7 +67,7 @@ type PathInput struct {
 // `render_custom_paths` can write `out/nested/custom.md` without the directory
 // existing.
 func ResolvePath(template string, input PathInput) (string, error) {
-	path := resolveOutputFolder(template, input.OutputFolder)
+	path := resolveOutputFolder(absoluteToInput(template, input.InputDir), input.OutputFolder)
 
 	dir, name := filepath.Split(path)
 	name = process.SubstitutePlaceholders(name, namePlaceholders(input))
@@ -77,15 +88,41 @@ func ResolvePath(template string, input PathInput) (string, error) {
 	return resolved, nil
 }
 
-// resolveOutputFolder replaces the `OUTPUT_FOLDER` component
-// (`path_resolver.py:15-37`). It is a component rather than a substring: a file
+// absoluteToInput is `PlannedPathRelativeToInput` (`path.py:37-41`):
+// `input_file_path.parent / path`, applied to a path that is not already
+// absolute.
+//
+// **It is `design.Join`, not `filepath.Join`** — `PurePath`'s `/` does not
+// clean, and a `..` in a user's template has to survive to the message and to
+// the filesystem exactly as written.
+func absoluteToInput(path, inputDir string) string {
+	if path == "" || filepath.IsAbs(path) || inputDir == "" {
+		return path
+	}
+	return design.Join(inputDir, path)
+}
+
+// resolveOutputFolder resolves the `OUTPUT_FOLDER` component
+// (`path_resolver.py:9-37`). It is a component rather than a substring: a file
 // named `MY_OUTPUT_FOLDER.typ` is not a placeholder.
+//
+// **Everything before the placeholder is discarded**, not just the placeholder
+// itself: upstream returns `output_folder / suffix_parts` (`:34-37`), because
+// both paths are absolute and resolved from the same base, so the prefix would
+// otherwise be duplicated. Replacing the component in place is equivalent only
+// when nothing precedes it, which is true of all five default templates — and
+// false as soon as a template is made input-relative.
 func resolveOutputFolder(path, folder string) string {
 	parts := strings.Split(filepath.ToSlash(path), "/")
 	for i, part := range parts {
-		if part == "OUTPUT_FOLDER" {
-			parts[i] = folder
+		if part != "OUTPUT_FOLDER" {
+			continue
 		}
+		suffix := parts[i+1:]
+		if len(suffix) == 0 {
+			return folder
+		}
+		return design.Join(folder, filepath.FromSlash(strings.Join(suffix, "/")))
 	}
 	return filepath.FromSlash(strings.Join(parts, "/"))
 }

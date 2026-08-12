@@ -71,9 +71,10 @@ func InputDirFor(inputPath string) string {
 // the model into a `bridge.Document` before rendering, so the pieces are read
 // off that instead — and they are read in one place, here, so the CLI and the
 // public API cannot assemble them differently.
-func PathInputFor(doc bridge.Document, outputFolder string) PathInput {
+func PathInputFor(doc bridge.Document, inputDir, outputFolder string) PathInput {
 	return PathInput{
 		Name:         plainName(doc),
+		InputDir:     inputDir,
 		OutputFolder: outputFolder,
 		Placeholders: process.BuildDatePlaceholders(doc.Settings.CurrentDate, process.Catalog{
 			MonthNames:         doc.Locale.MonthNames,
