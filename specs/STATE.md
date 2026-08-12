@@ -129,6 +129,42 @@ use. They are the strongest evidence that the recorded open-item list was not th
    as a rule.** Standing hazard for any future wrap of a configurable parser — the emphasis work is
    the likely next victim, since it wraps inline parsers.
 
+### THE GOCCY STRICTNESS CATEGORY — the largest open question in the port
+
+**`goccy/go-yaml` rejects documents `ruamel` accepts.** Four classes are now measured, and they are
+axis 1 (artifact parity): a user cannot render a CV that upstream renders. This should be decided as
+a **category**, not shape by shape, because a new member has been found every time anyone looked.
+
+| Class | Minimal shape | ruamel | port |
+|---|---|---|---|
+| Folded plain scalar, **flow** context | `cv: {name: John⏎  Doe}` | renders | rejects |
+| Folded plain scalar, **block** context | `k: 1⏎  - item⏎ q` → `{"k": "1 - item q"}` | renders | rejects |
+| Empty block scalar, blank line, comment | `k: >⏎⏎# c` → `{"k": ""}` | renders | rejects |
+| Collection tags on a scalar | `!!merge`, `!!seq`, `!!map`, `!!set`, `!!omap` | node exists | refused at parse |
+| Sequence keys | a sequence used as a mapping key | renders | skipped rows |
+
+**Two of these are probably one decision.** The flow and block folded-scalar classes share a single
+mechanism — a multi-line plain scalar that ruamel folds and goccy will not — so resolving "goccy
+does not fold plain scalars the way ruamel does" settles both. That makes the decision *cheaper*
+than the class count suggests: three mechanisms, not five.
+
+**Reach, measured end-to-end**: `cv:\n  name: John\n    - a\n   b\n` — upstream renders a PDF with
+the name `John - a b`; the port refuses the file. The block class alone covers **120 of 160**
+documents found by a targeted 380-document grid; the empty-block-scalar class covers 40, and needs
+all three of a block header, a blank line, and a comment (`k: >⏎# c` is accepted).
+
+**A cost that was volunteered against the porter's own work, and it is the subtlest finding of the
+pass.** Before the block-context phrasing was mapped, all 120 Class B documents failed with goccy's
+raw text and a leaked `[n:m]` coordinate — *obviously a port defect to anyone reading it*. After the
+mapping they fail with `This is not a valid YAML file. while parsing a block mapping.`, which is
+**indistinguishable from a legitimate upstream error**. The unit did not cause the rejection and did
+not widen it, but it made the class **harder to spot**, for a user and for a future audit alike.
+
+The lesson generalises beyond this port: **mapping an error phrasing before the underlying
+strictness is settled converts a visible defect into an invisible one.** Where a parser is known to
+be stricter than the one it mirrors, the leaked-coordinate version is the more honest failure until
+the strictness itself is decided.
+
 ### A fifth divergence, and the only one on axis 1 — the port rejects a valid document
 
 **`goccy/go-yaml` refuses a document ruamel accepts, so the port cannot render a CV upstream
