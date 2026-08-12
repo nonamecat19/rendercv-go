@@ -73,7 +73,7 @@ func (emphasisParser) Parse(_ ast.Node, block text.Reader, pc parser.Context) as
 	// standing limitation.
 	//
 	// The window extends across following lines whose gap from the previous one
-	// is only whitespace goldmark stripped; see blockWindow.
+	// is only whitespace goldmark stripped; see buildWindow.
 	// The window is the **reader's** text, not a slice of the source: each line
 	// arrives with its block marker already stripped, and `offs` maps every
 	// byte back to where it came from. A blockquote's `> ` is the case that
@@ -186,19 +186,40 @@ func (w window) source(i int) int {
 
 // buildWindow joins the block's lines over the source range [from, to), where
 // a `to` of -1 means the rest of the block. It walks the reader and restores
-// it, the same contract `blockWindow` has.
+// it, restoring the reader's position exactly.
 func buildWindow(block text.Reader, from, to int) window {
 	line, seg := block.Position()
 	defer block.SetPosition(line, seg)
 
 	block.SetPosition(line, text.NewSegment(-1, -1))
 
+	source := block.Source()
 	var w window
+	prevStop := -1
 	for {
 		next, nextSeg := block.PeekLine()
 		if len(next) == 0 {
 			return w
 		}
+		// **The gap is not all marker.** goldmark strips a blockquote's `>` and
+		// one space, then the paragraph trims whatever indent follows, so those
+		// trimmed bytes sit between two segments and reach neither. Upstream
+		// keeps them — `> *a\n>   b*` is `<em>a\n  b</em>`, two spaces and all —
+		// so the window takes back the part of the gap that is only whitespace
+		// once the marker is accounted for. Dropping them deleted bytes from a
+		// user's text, which is worse than any missed match.
+		if prevStop >= 0 && nextSeg.Start > prevStop {
+			for at := markerEnd(source, prevStop, nextSeg.Start); at < nextSeg.Start; at++ {
+				if to >= 0 && at >= to {
+					return w
+				}
+				if at >= from {
+					w.text = append(w.text, source[at])
+					w.offs = append(w.offs, at)
+				}
+			}
+		}
+		prevStop = nextSeg.Stop
 		for i := 0; i < len(next); i++ {
 			at := nextSeg.Start + i
 			if at < from {
@@ -227,6 +248,36 @@ func appendSpans(node ast.Node, w window, from, to int) {
 		node.AppendChild(node, ast.NewTextSegment(text.NewSegment(start, w.offs[j-1]+1)))
 		i = j
 	}
+}
+
+// markerEnd is the offset just past the block markers at the head of a gap —
+// each `>` and the single space CommonMark lets follow it. What remains is the
+// author's own indentation, which upstream keeps. A gap holding anything else
+// is not a marker at all and the whole gap is skipped, which is what `from`
+// and the whitespace test at the call site enforce.
+func markerEnd(source []byte, start, stop int) int {
+	at := start
+	for at < stop {
+		switch source[at] {
+		case '>':
+			at++
+			if at < stop && source[at] == ' ' {
+				at++
+			}
+		case '\n':
+			at++
+		default:
+			// Not a marker byte: the rest is the author's, unless it is not
+			// whitespace at all, in which case nothing here belongs to them.
+			for i := at; i < stop; i++ {
+				if !isSpaceByte(source[i]) {
+					return stop
+				}
+			}
+			return at
+		}
+	}
+	return at
 }
 
 // lineHead is the source offset the reader's current line begins at, once its
@@ -266,51 +317,6 @@ func advanceTo(block text.Reader, abs int) {
 	}
 }
 
-// isAllSpace reports whether every byte is one python-markdown's `\s` matches.
-func isAllSpace(b []byte) bool {
-	for _, c := range b {
-		if !isSpaceByte(c) {
-			return false
-		}
-	}
-	return true
-}
-
-// blockWindow is the source offset one past the last line of this block that
-// is contiguous with `segment` — the span the emphasis matchers may look at.
-//
-// It walks the reader forward and puts it back, which is the only way to ask a
-// `text.Reader` how far its block reaches; `Position`/`SetPosition` are exact,
-// so the walk has no effect on the caller.
-func blockWindow(block text.Reader, segment text.Segment) int {
-	line, seg := block.Position()
-	defer block.SetPosition(line, seg)
-
-	source := block.Source()
-	stop := segment.Stop
-	for {
-		block.AdvanceLine()
-		next, nextSeg := block.PeekLine()
-		if len(next) == 0 || nextSeg.Start < stop {
-			return stop
-		}
-		// A continuation line goldmark stripped an indent from starts *after*
-		// the previous line's stop. Upstream keeps that whitespace — `*a\n b*`
-		// really is `<em>a\n b</em>` — and the source across the gap is still
-		// contiguous, so the window may span it when the skipped bytes are only
-		// whitespace. Anything else is a stripped block marker and ends it.
-		//
-		// This is sound only because every advance in this file **seeks to an
-		// absolute source offset** (`advanceTo`) rather than stepping by a
-		// delta; stepping ran past the target by exactly the stripped bytes and
-		// dropped trailing text.
-		if !isAllSpace(source[stop:nextSeg.Start]) {
-			return stop
-		}
-		stop = nextSeg.Stop
-	}
-}
-
 // noCutoffDelim is what a fresh inline context — a link's label, which is not
 // nested inside any emphasis pattern's body — passes as `delim` to
 // `parseEmphasisBody`. It never equals a real trigger byte, so the cutoff
@@ -342,21 +348,16 @@ func parseEmphasisBody(container ast.Node, block text.Reader, pc parser.Context,
 		if len(peek) == 0 || segment.Start >= endAbs {
 			return
 		}
-		// **The body runs to endAbs, not to the end of the line.** `blockWindow`
+		// **The body runs to endAbs, not to the end of the line.** `buildWindow`
 		// let the *match* cross a soft line break; a code span or a link inside
 		// the matched body has to be allowed to cross it too, or `*a `b\nc` d*`
 		// finds no code span and falls back to literal text. The window is
 		// contiguous in the source by construction, so this slice is exactly the
 		// body text upstream matches against.
-		// Bounded by the **contiguous run**, not by endAbs: a body may span a
-		// soft line break, but only where the source across it is unbroken.
-		// Emitting past a stripped block marker would put a blockquote's `> `
-		// into the text. The loop simply comes round again on the next line.
-		stop := endAbs
-		if runStop := blockWindow(block, segment); runStop < stop {
-			stop = runStop
-		}
-		line := source[segment.Start:stop]
+		// The body is read through the window too, so a blockquote's `> ` never
+		// reaches the output while the indentation after it does.
+		bw := buildWindow(block, segment.Start, endAbs)
+		line := bw.text
 		limit := len(line)
 		if startAbs < 0 {
 			startAbs = segment.Start
@@ -382,13 +383,13 @@ func parseEmphasisBody(container ast.Node, block text.Reader, pc parser.Context,
 			}
 		}
 		if trigger < 0 {
-			ast.MergeOrAppendTextSegment(container, segment.WithStop(segment.Start+limit))
-			advanceTo(block, segment.Start+limit)
+			appendSpans(container, bw, 0, limit)
+			advanceTo(block, bw.source(limit))
 			continue
 		}
 		if trigger > 0 {
-			ast.MergeOrAppendTextSegment(container, segment.WithStop(segment.Start+trigger))
-			advanceTo(block, segment.Start+trigger)
+			appendSpans(container, bw, 0, trigger)
+			advanceTo(block, bw.source(trigger))
 			continue
 		}
 
@@ -409,7 +410,7 @@ func parseEmphasisBody(container ast.Node, block text.Reader, pc parser.Context,
 				continue
 			}
 		case '`':
-			if node, ok := buildBodyCodeSpan(block, buildWindow(block, segment.Start, endAbs)); ok {
+			if node, ok := buildBodyCodeSpan(block, bw); ok {
 				container.AppendChild(container, node)
 				continue
 			}
@@ -417,7 +418,7 @@ func parseEmphasisBody(container ast.Node, block text.Reader, pc parser.Context,
 			if !allowLink {
 				break
 			}
-			if node, ok := buildBodyLink(block, pc, buildWindow(block, segment.Start, endAbs), endAbs); ok {
+			if node, ok := buildBodyLink(block, pc, bw, endAbs); ok {
 				container.AppendChild(container, node)
 				continue
 			}
@@ -456,8 +457,8 @@ func parseEmphasisBody(container ast.Node, block text.Reader, pc parser.Context,
 				// follows it, and `\\` + `!` became the text `\!`, which the
 				// writer then read as an escape and collapsed to `!`. Handing
 				// the writer the untouched pair leaves exactly one round trip.
-				ast.MergeOrAppendTextSegment(container, segment.WithStop(segment.Start+2))
-				advanceTo(block, segment.Start+2)
+				appendSpans(container, bw, 0, 2)
+				advanceTo(block, bw.source(2))
 				continue
 			}
 		case '*', '_':
@@ -478,7 +479,7 @@ func parseEmphasisBody(container ast.Node, block text.Reader, pc parser.Context,
 			// the byte before it to look at. Matching from the trigger made
 			// `(?<!\w)` vacuous again, and `*__(_*` came out
 			// `<em>_<em>(</em></em>` where upstream leaves `__(_` literal.
-			nw := buildWindow(block, startAbs, endAbs)
+			nw := bw
 			nestedPos := nw.index(segment.Start)
 			if nestedPos < 0 {
 				break
@@ -492,8 +493,8 @@ func parseEmphasisBody(container ast.Node, block text.Reader, pc parser.Context,
 		}
 
 		// The trigger byte matched nothing: literal.
-		ast.MergeOrAppendTextSegment(container, segment.WithStop(segment.Start+1))
-		advanceTo(block, segment.Start+1)
+		appendSpans(container, bw, 0, 1)
+		advanceTo(block, bw.source(1))
 	}
 }
 
