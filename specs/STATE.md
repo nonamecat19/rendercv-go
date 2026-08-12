@@ -129,6 +129,43 @@ use. They are the strongest evidence that the recorded open-item list was not th
    as a rule.** Standing hazard for any future wrap of a configurable parser — the emphasis work is
    the likely next victim, since it wraps inline parsers.
 
+### The fold workaround is costed — and the framing everyone had was wrong
+
+Option (c) of the goccy decision — a reader-side workaround — had never been costed, so the decision
+was being made blind on its most important option. It now is
+(`specs/002-yaml-and-core-model/spec-delta-folding.md`), and **two premises this ledger carried were
+false**:
+
+1. **`yamlreader` does not absorb the 172 near-miss documents.** goccy's own parse *mode* does, and
+   the entire gap is `ParseComments` versus not — measured across all four call shapes. So there is
+   **no existing precedent** for absorbing this class. The one real precedent,
+   `parseTolerantOfQuotedTabs`, sets a bar a text-level fold fails by construction: it is
+   value-preserving, replaces tabs one-for-one, and leaves later columns unchanged. A fold deletes
+   newlines and breaks both value and coordinates.
+2. **goccy's lexer already folds.** The framing "a workaround means reimplementing a YAML scanner"
+   is wrong: a token dump shows the lexer already makes the fold-versus-sequence distinction that
+   needs the indent stack. The expensive part is solved *inside goccy*. What remains is two narrow
+   defects — the fold stops one line early (and strips quotes from a continuation ruamel keeps
+   literally, so a token merge must re-derive from `Origin`, not concatenate `Value`), and the
+   folded token carries the position of the fold's **end**, drifting with trailing blank lines.
+
+**Recommendation from the investigation: (b) — an upstream issue against `goccy/go-yaml` with a pin
+here.** The decisive argument is asymmetry: a wrong phrasing rule mis-messages an already-failing
+document, while **a wrong fold silently corrupts a rendering one**. `blockscan.go` tolerates 26
+wrong out of 82,418 because those are messages; the same rate on values is unshippable. The naive
+merge predicate was measured and fires on 2 of the 179 documents it is meant to fix, because the
+continuation token is usually `DoubleQuote`/`SingleQuote`/`Null`.
+
+**Gating (c) is itself a prerequisite nobody has built**: a fold can be verified against ruamel by
+diffing loaded *values*, but the 170,003-document corpus is the wrong sample — 150,791 of them fail
+to parse, and a value-corrupting fold does its damage on documents that *succeed*. Option (c) needs
+a differently generated corpus of valid documents, plausibly larger than the fold itself.
+
+**A narrow third option exists so the human is not offered a false all-or-nothing**: fix only the
+folded token's **position** at the `Dealias` seam. It moves a mark without changing text, so it is
+value-preserving by construction, and it fixes the one document of the seven that fails purely on a
+column comparison. Recorded, not proposed as scheduled work.
+
 ### THE GOCCY STRICTNESS CATEGORY — the largest open question in the port
 
 **`goccy/go-yaml` rejects documents `ruamel` accepts.** Four classes are now measured, and they are
