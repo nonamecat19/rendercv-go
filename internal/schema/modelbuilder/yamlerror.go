@@ -878,9 +878,12 @@ func yamlErrorLocation(parserErr goyaml.Error, content string) *yamldoc.Span {
 			if stop == 0 {
 				stop = streamEndLine(content, anchor)
 			}
-			if stop > end.Line {
-				end = yamldoc.Position{Line: stop, Column: 1}
-			}
+			// **The stop is the answer, not a lower bound on it.** goccy's
+			// token used to floor the end, so a span could not close before
+			// the token goccy blamed — but ruamel can stop earlier than goccy
+			// reads: `cv: [a\n  b: [c,\n  e: {f` is `line 1 to line 2`,
+			// where the block key ended the scan, while goccy ran on to line 3.
+			end = yamldoc.Position{Line: stop, Column: 1}
 			break
 		}
 	}
