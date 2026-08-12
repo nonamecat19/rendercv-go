@@ -91,6 +91,36 @@ surface countable — a reviewer can read `rendercv.go` and see the whole API.
 
 ### 3.1 Q1 — the tri-state `dont_generate_*`
 
+> **MEASURED, and the answer is no — this section's reasoning was wrong.** T-1 ran the probe and an
+> independent analyst read the source; both agree. Upstream's merge loop is `if value:`
+> (`rendercv_model_builder.py:149-151`), a **truthy** test, so an explicit `False` is skipped exactly
+> as `None` is and never reaches the merged dictionary. All five flags, against a `settings.yaml`
+> setting the flag `true`:
+>
+> | flag | absent | `False` | `True` |
+> |---|---|---|---|
+> | `dont_generate_typst` | True | True | True |
+> | `dont_generate_pdf` | True | True | True |
+> | `dont_generate_png` | True | True | True |
+> | `dont_generate_markdown` | True | True | True |
+> | `dont_generate_html` | True | True | True |
+>
+> Absent and `False` are byte-identical in every case, at both the merged-dictionary and
+> resolved-model level. Upstream's CLI cannot express `False` either — the flags are single-form
+> typer options with no `--no-dont-generate-*` counterpart (`render_command.py:123-168`) — and
+> pydantic's own default for all five is already `False` (`settings/render_command.py:87-117`).
+>
+> **So there is no third state, the port's plain `bool` was already correct, and `*bool` would let
+> this port express something upstream cannot.** It was built, then reverted. Whether upstream's
+> truthy test is itself a latent bug — a library caller passing `False` to force a format back on
+> fails silently there too — is upstream's business, not the port's.
+>
+> The defect that this section's suspicion was really pointing at turned out to be elsewhere and is
+> real: render-command overrides were written into a mapping the settings overlay had already
+> detached, so **every** override was lost whenever `--settings` was passed. Fixed in `18c46da`.
+>
+> The original reasoning is kept below, because it is why the measurement was run.
+
 **This is the one question with a latent defect behind it.**
 
 Upstream's `BuildRendercvModelArguments` types these as `bool | None` with `total=False`
