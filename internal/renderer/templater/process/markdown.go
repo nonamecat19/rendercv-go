@@ -3,6 +3,7 @@ package process
 import (
 	"regexp"
 	"strings"
+	"unicode"
 )
 
 // horizontalRulePattern is python-markdown's `hr` block processor, which is
@@ -119,14 +120,28 @@ func convertLine(line string) string {
 	// indent branch below reads an empty body and emits an empty code block,
 	// which `NormalizeWhitespace` then made reachable from `" \t"` by expanding
 	// the tab to the fourth column.
-	if strings.TrimSpace(line) == "" {
+	//
+	// The mechanism is `Markdown.convert`'s own first statement — `if not
+	// source.strip(): return ''` (`markdown/core.py:279-282`) — which is why the
+	// predicate has to be Python's whitespace and not Go's.
+	if trimPythonSpace(line) == "" {
 		return ""
 	}
 
 	// A tab counts as the same indent.
 	for _, indent := range []string{"    ", "\t"} {
 		if body, indented := strings.CutPrefix(line, indent); indented {
-			return "`" + codeEscape(body) + "\n`"
+			// **`rstrip` before `code_escape`, not after.** The block processor
+			// escapes `block.rstrip()` (`blockprocessors.py:269` and `:276`), so
+			// the trailing whitespace of the last line of a code block is gone
+			// before any `&` becomes `&amp;` — an indented highlight ending in a
+			// space carried it into the `.typ` here.
+			//
+			// It is the **block** that is stripped, not each line: upstream keeps
+			// `x  ` in `    x  \n    y  `. Nothing is needed for that here,
+			// because this path converts a line at a time and every code block is
+			// therefore one line long.
+			return "`" + codeEscape(trimPythonSpaceRight(body)) + "\n`"
 		}
 	}
 	return strings.TrimSpace(ParseInline(line))
@@ -180,6 +195,33 @@ func convertAdmonition(block []string) string {
 
 // indentWidth is python-markdown's `tab_length`, four spaces.
 const indentWidth = "    "
+
+// isPythonSpace is `str.isspace()`: the 29 characters CPython's
+// `Py_UNICODE_ISSPACE` accepts, which is what every bare `str.strip()` and
+// `str.rstrip()` in python-markdown trims.
+//
+// **Go's set is not Python's.** `unicode.IsSpace` is the 25-rune `White_Space`
+// property; Python adds the four C0 separators U+001C–U+001F, so
+// `strings.TrimSpace` leaves a trailing file separator where `rstrip` takes it.
+// Measured on `markdown_to_typst`: a trailing file separator is gone from the
+// code block `"    a\x1c"` produces, and `"  \x1c"` converts to the empty
+// string — a whitespace-only line either way.
+//
+// The same rule the colour parser transcribes for `\s`
+// (`internal/schema/models/design/color.go:49`), reached from the other side.
+func isPythonSpace(r rune) bool {
+	return unicode.IsSpace(r) || (r >= 0x1c && r <= 0x1f)
+}
+
+// trimPythonSpace is Python's `str.strip()` with no argument.
+func trimPythonSpace(s string) string {
+	return strings.TrimFunc(s, isPythonSpace)
+}
+
+// trimPythonSpaceRight is Python's `str.rstrip()` with no argument.
+func trimPythonSpaceRight(s string) string {
+	return strings.TrimRightFunc(s, isPythonSpace)
+}
 
 // lineBreakPattern is `LINE_BREAK_RE` (`markdown/inlinepatterns.py:173`), two
 // spaces at the end of a line.

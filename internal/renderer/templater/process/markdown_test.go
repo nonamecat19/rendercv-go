@@ -269,3 +269,42 @@ func TestMarkdownToTypstFindings(t *testing.T) {
 		})
 	}
 }
+
+// A code block's body is `rstrip`'d before it is escaped
+// (`markdown/blockprocessors.py:269,276`), and `rstrip` is Python's, whose
+// whitespace set is the 29 characters `str.isspace()` accepts — four of them,
+// U+001C–U+001F, are outside Go's `unicode.IsSpace`.
+//
+// The fixture carries four of the 29; this runs the other 25, each measured
+// against the vendored `markdown_to_typst` and identical.
+func TestCodeBlockStripsEveryPythonSpace(t *testing.T) {
+	pythonSpaces := []rune{
+		0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x1c, 0x1d, 0x1e, 0x1f, 0x20,
+		0x85, 0xa0, 0x1680, 0x2000, 0x2001, 0x2002, 0x2003, 0x2004,
+		0x2005, 0x2006, 0x2007, 0x2008, 0x2009, 0x200a, 0x2028, 0x2029,
+		0x202f, 0x205f, 0x3000,
+	}
+
+	for _, r := range pythonSpaces {
+		want := "`a\n`"
+		switch r {
+		case '\r':
+			// Upstream splits the **raw** string into lines and normalizes each
+			// one inside `md.convert`, where this port normalizes first and
+			// splits after, so a trailing `\r` becomes a second, empty line here
+			// and does not there: `"    a\r"` is `` `a\n` `` upstream and
+			// `` `a\n`\n `` here. A separate divergence in the same function,
+			// recorded rather than asserted so this case says only what it is
+			// about.
+			continue
+		case '\n':
+			// Not the same shape for the same reason, and here the two agree.
+			want = "`a\n`\n"
+		}
+
+		in := "    a" + string(r)
+		if got := process.MarkdownToTypst(in); got != want {
+			t.Errorf("MarkdownToTypst(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
