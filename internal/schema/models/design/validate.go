@@ -147,6 +147,16 @@ func Validate(
 	if errs := ValidateTheme(theme, location, source); len(errs) > 0 {
 		return errs
 	}
+
+	// **The name is `str(design["theme"])`, computed once and used for
+	// everything after it** (`design.py:57`). Upstream looks the folder up
+	// under that name, loads the script from it and reports it, so a numeric
+	// theme opens the folder its *value* spells: `theme: 007` is the folder
+	// `7` and `theme: 0x1f` is `31`. The port passed the token here, which
+	// sent it looking for `007` — the same YAML-token-for-Python-value
+	// confusion the name-shape message had, one branch further on.
+	name := schemaerr.PythonText(theme)
+
 	if !isBuiltIn(theme) {
 		// A custom theme passed the name-shape check, so the two folder checks
 		// run next (`design.py:72-86`).
@@ -158,7 +168,7 @@ func Validate(
 		// way the name check does. The port used to run them from the CLI and
 		// print a one-line `Error` panel instead, which `err_unknown_theme`
 		// measures.
-		if err := ValidateCustomThemeFolder(theme.Raw, relativeTo(ctx)); err != nil {
+		if err := ValidateCustomThemeFolder(name, relativeTo(ctx)); err != nil {
 			return []schemaerr.ValidationError{
 				blockError(node, CodeTheme, err.Error(), location, source),
 			}
@@ -170,10 +180,10 @@ func Validate(
 		// `<theme>/init.lua` only at render time until now, so a custom theme's
 		// declared shape did not exist at validation time at all and this
 		// function could do nothing but return.
-		script := LoadThemeScript(relativeTo(ctx), theme.Raw)
-		return validateScriptedTheme(node, script, theme.Raw, location, source)
+		script := LoadThemeScript(relativeTo(ctx), name)
+		return validateScriptedTheme(node, script, name, location, source)
 	}
-	return validateModel(node, baseTree(), baseTree().Root, theme.Raw, location, source,
+	return validateModel(node, baseTree(), baseTree().Root, name, location, source,
 		binder.ForbidExtra)
 }
 
