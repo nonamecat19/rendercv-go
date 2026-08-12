@@ -177,9 +177,14 @@ ports the surrounding behavior:
 
 ## 5. Acceptance criteria
 
-1. **`pkg/rendercv` compiles with no import of `internal/`** — enforced by a test, not by review.
-   (Go permits `pkg/` → `internal/` within the same module; the constraint is architectural, so it
-   needs a real check.)
+1. **No `internal/` type appears in an exported signature** — enforced by a test, not by review. Go
+   permits `pkg/` → `internal/` within the same module, so the constraint is architectural and needs
+   a real check. *Amended after `plan.md` §3.3*: the original wording was "compiles with no import of
+   `internal/`", which the chosen design cannot satisfy — the model and error types are **aliases**
+   of the `internal/` ones, and an alias declaration is an import. The intent was that a caller never
+   has to name an `internal/` path, and an alias satisfies that. The test therefore asserts that no
+   exported function's parameters or results name a type whose package path contains `/internal/`,
+   except through an alias declared in `pkg/rendercv/types.go`.
 2. **The artifact differential runs through the library, not the binary.** At least one corpus case
    is rendered by calling `pkg/rendercv` directly and its `.typ`/`.md`/`.html` compared to the same
    case's golden. This is what makes §2's claim mechanical: if the facade drifts from the CLI, a
