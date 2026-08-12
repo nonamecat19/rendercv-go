@@ -990,5 +990,37 @@
   {
     "In": "*a <b>\nc</b> d*",
     "Out": "<p><em>a <b>\nc</b> d</em></p>"
+  },
+  {
+    "In": "_a *b\nc_ d*",
+    "Out": "<p>_a <em>b\nc_ d</em></p>"
+  },
+  {
+    "In": "_a **b\nc_ d**",
+    "Out": "<p>_a <strong>b\nc_ d</strong></p>"
+  },
+  {
+    "In": "__a *b\nc__ d*",
+    "Out": "<p>__a <em>b\nc__ d</em></p>"
+  },
+  {
+    "In": "__a **b\nc__ d**",
+    "Out": "<p>__a <strong>b\nc__ d</strong></p>"
+  },
+  {
+    "In": "_a ***b\nc_ d***",
+    "Out": "<p>_a <strong><em>b\nc_ d</em></strong></p>"
+  },
+  {
+    "In": "_a *b_ c*",
+    "Out": "<p>_a <em>b_ c</em></p>"
+  },
+  {
+    "In": "__a **b__ c**",
+    "Out": "<p>__a <strong>b__ c</strong></p>"
+  },
+  {
+    "In": "x _a *b\nc_ d*",
+    "Out": "<p>x _a <em>b\nc_ d</em></p>"
   }
 ]

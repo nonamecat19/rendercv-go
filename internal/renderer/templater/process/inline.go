@@ -103,9 +103,9 @@ func (p *inlineParser) parseFrom(data string, from int, fromDelim byte) string {
 			pos++
 			continue
 		}
-		patterns := asteriskPatterns
+		patterns, floor := asteriskPatterns, prioEmStrong
 		if data[pos] == '_' {
-			patterns = underscorePatterns
+			patterns, floor = underscorePatterns, prioEmStrong2
 		}
 
 		// Only the processor that produced the parent is cut off.
@@ -114,7 +114,7 @@ func (p *inlineParser) parseFrom(data string, from int, fromDelim byte) string {
 			cutoff = from
 		}
 
-		index, end, firstStart, firstEnd, secondStart, secondEnd, ok := matchEmphasis(patterns, data, pos, cutoff)
+		index, end, firstStart, firstEnd, secondStart, secondEnd, ok := matchEmphasis(patterns, data, pos, cutoff, floor)
 		if !ok {
 			pos++
 			continue

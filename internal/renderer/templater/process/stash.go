@@ -17,6 +17,7 @@ const (
 	prioEntity    = 80
 	prioNotStrong = 70
 	prioEmStrong  = 60
+	prioEmStrong2 = 50
 )
 
 // escapedChars is `Markdown.ESCAPED_CHARS` (`markdown/core.py:111`).
@@ -178,6 +179,31 @@ func maskAbove(data string, floor int) string {
 	}
 	if floor < prioNotStrong {
 		maskPass(b, maskNotStrong(b))
+	}
+	if floor < prioEmStrong {
+		// **The two emphasis processors are two patterns, not one.**
+		// `AsteriskProcessor` is registered at 60 and `UnderscoreProcessor` at
+		// 50 (`inlinepatterns.py:94-95`), so the asterisk pass claims its spans
+		// over the whole block before any underscore pattern is tried — even
+		// where the asterisk run starts *later* in the text. This port lets a
+		// left-to-right scan decide instead, so a `_` standing earlier won a
+		// span upstream had already given to a `*`:
+		//
+		//	_a *b\nc_ d*   upstream  <p>_a <em>b\nc_ d</em></p>
+		//	                  here    <p><em>a *b\nc</em> d*</p>
+		//
+		// Masking the asterisk spans for the underscore processor is the same
+		// pre-emption every other pattern above gets. It cannot recurse: the
+		// inner match runs at `prioEmStrong`, which excludes this pass.
+		maskPass(b, func(rest []byte, at int) int {
+			if rest[0] != '*' {
+				return 0
+			}
+			if _, end, _, _, _, _, ok := matchEmphasis(asteriskPatterns, string(b), at, -1, prioEmStrong); ok {
+				return end - at
+			}
+			return 0
+		})
 	}
 
 	return string(b)
