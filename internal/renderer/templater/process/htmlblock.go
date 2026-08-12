@@ -1,6 +1,7 @@
 package process
 
 import (
+	"bytes"
 	"regexp"
 
 	"github.com/yuin/goldmark/ast"
@@ -49,6 +50,9 @@ var openingTag = regexp.MustCompile(`^</?([A-Za-z][A-Za-z0-9-]*)`)
 //
 // Everything else is delegated, including the comment, processing-instruction,
 // declaration and CDATA forms, which carry no tag name to look up.
+//
+// **It also declines a tag that is not at the start of its source line**, which
+// is what a list item or a blockquote makes of one — see `atLineStart`.
 type blockLevelHTMLParser struct {
 	parser.BlockParser
 }
@@ -57,11 +61,61 @@ type blockLevelHTMLParser struct {
 func (p blockLevelHTMLParser) Open(
 	parent ast.Node, reader text.Reader, pc parser.Context,
 ) (ast.Node, parser.State) {
-	line, _ := reader.PeekLine()
-	if match := openingTag.FindSubmatch(line); match != nil && !blockLevelElements[lower(match[1])] {
+	line, segment := reader.PeekLine()
+	if match := openingTag.FindSubmatch(line); match != nil {
+		if !blockLevelElements[lower(match[1])] {
+			return nil, parser.NoChildren
+		}
+	}
+	if !atLineStart(reader.Source(), segment.Start) {
 		return nil, parser.NoChildren
 	}
 	return p.BlockParser.Open(parent, reader, pc)
+}
+
+// atLineStart is `HTMLExtractor.at_line_start` (`htmlparser.py:181-191`), the
+// guard `handle_starttag` puts in front of "started a new raw block" (`:214`).
+//
+// # Why a container changes the answer
+//
+// python-markdown extracts raw HTML in a **preprocessor**, from the source
+// string, before any block parsing has happened (`preprocessors.py:86-91`).
+// There is no list item yet and no blockquote yet — there is only text — so the
+// question it asks is about the *physical line*: is everything before this tag
+// whitespace, and at most three characters of it? A `- ` marker is neither, so
+// `- <div>x</div>` never becomes a raw block. The `<div>` stays in the item's
+// text and is stashed later by the **inline** `html` pattern
+// (`inlinepatterns.py:90`), which is why it comes out as content of the `<li>`
+// rather than as a block inside it:
+//
+//   - <div>block</div>    <ul>\n<li><div>block</div></li>\n</ul>
+//     > <div>x</div>        <blockquote>\n<p><div>x</div></p>\n</blockquote>
+//
+// goldmark asks the opposite question. Its block parsers run *inside* the
+// container, after the `- ` or `> ` prefix has been consumed, so the tag looks
+// line-initial and a real `ast.HTMLBlock` opens inside the item. That is the
+// whole of spec 011 §9.5's class, and it is 22 of 33 measured shapes rather
+// than the one key that was pinned — every list marker, both list kinds, a
+// blockquote, a comment, a `<script>`, a `<table>`, and a multi-line block that
+// escaped its own `<li>` and closed the `<ul>` early.
+//
+// Declining here is enough because the port already has the second half:
+// `inline.go`'s `matchRawHTML` is `HtmlInlineProcessor`, so a tag left in the
+// text is stashed inline exactly as upstream stashes it.
+//
+// **The three-character window is upstream's, not CommonMark's.** `:187`
+// returns False for an offset above 3 before it looks at what the characters
+// are, and four spaces is an indented code block on both sides.
+func atLineStart(source []byte, start int) bool {
+	lineStart := bytes.LastIndexByte(source[:start], '\n') + 1
+	offset := start - lineStart
+	if offset == 0 {
+		return true
+	}
+	if offset > 3 {
+		return false
+	}
+	return len(bytes.Trim(source[lineStart:start], " \t")) == 0
 }
 
 func lower(name []byte) string {

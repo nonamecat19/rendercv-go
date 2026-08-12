@@ -4130,5 +4130,133 @@
   {
     "In": "<div>x</div>\n\n    indented",
     "Out": "<div>x</div>\n\n<pre><code>indented\n</code></pre>"
+  },
+  {
+    "In": "- <div>block</div>\n- second",
+    "Out": "<ul>\n<li><div>block</div></li>\n<li>second</li>\n</ul>"
+  },
+  {
+    "In": "- a\n- <div>x</div>",
+    "Out": "<ul>\n<li>a</li>\n<li><div>x</div></li>\n</ul>"
+  },
+  {
+    "In": "- <div>x</div>\n\n- y",
+    "Out": "<ul>\n<li>\n<p><div>x</div></p>\n</li>\n<li>\n<p>y</p>\n</li>\n</ul>"
+  },
+  {
+    "In": "- text <div>x</div> more",
+    "Out": "<ul>\n<li>text <div>x</div> more</li>\n</ul>"
+  },
+  {
+    "In": "- <div>x</div> tail",
+    "Out": "<ul>\n<li><div>x</div> tail</li>\n</ul>"
+  },
+  {
+    "In": "* <p>para</p>",
+    "Out": "<ul>\n<li><p>para</p></li>\n</ul>"
+  },
+  {
+    "In": "+ <div>x</div>",
+    "Out": "<ul>\n<li><div>x</div></li>\n</ul>"
+  },
+  {
+    "In": "1. <div>x</div>",
+    "Out": "<ol>\n<li><div>x</div></li>\n</ol>"
+  },
+  {
+    "In": "2. <div>x</div>\n3. second",
+    "Out": "<ol>\n<li><div>x</div></li>\n<li>second</li>\n</ol>"
+  },
+  {
+    "In": "- <span>x</span>",
+    "Out": "<ul>\n<li><span>x</span></li>\n</ul>"
+  },
+  {
+    "In": "- <hr />",
+    "Out": "<ul>\n<li><hr /></li>\n</ul>"
+  },
+  {
+    "In": "- <!-- comment -->",
+    "Out": "<ul>\n<li><!-- comment --></li>\n</ul>"
+  },
+  {
+    "In": "- <script>var a=1;</script>",
+    "Out": "<ul>\n<li><script>var a=1;</script></li>\n</ul>"
+  },
+  {
+    "In": "- <table><tr><td>a</td></tr></table>",
+    "Out": "<ul>\n<li><table><tr><td>a</td></tr></table></li>\n</ul>"
+  },
+  {
+    "In": "- <div>\nmulti\n</div>",
+    "Out": "<ul>\n<li><div>\nmulti\n</div></li>\n</ul>"
+  },
+  {
+    "In": "- <div>a</div>\n  <div>b</div>",
+    "Out": "<ul>\n<li><div>a</div>\n<br />\n<div>b</div>\n</li>\n</ul>"
+  },
+  {
+    "In": "- <div>x</div>\n\nafter",
+    "Out": "<ul>\n<li><div>x</div></li>\n</ul>\n<p>after</p>"
+  },
+  {
+    "In": "before\n\n- <div>x</div>",
+    "Out": "<p>before</p>\n<ul>\n<li><div>x</div></li>\n</ul>"
+  },
+  {
+    "In": "- outer\n    - <div>x</div>",
+    "Out": "<ul>\n<li>outer<ul>\n<li><div>x</div></li>\n</ul>\n</li>\n</ul>"
+  },
+  {
+    "In": "- <div>x</div>\n    - nested",
+    "Out": "<ul>\n<li><div>x</div><ul>\n<li>nested</li>\n</ul>\n</li>\n</ul>"
+  },
+  {
+    "In": "> <div>x</div>",
+    "Out": "<blockquote>\n<p><div>x</div></p>\n</blockquote>"
+  },
+  {
+    "In": "> a\n> <div>x</div>",
+    "Out": "<blockquote>\n<p>a\n<div>x</div></p>\n</blockquote>"
+  },
+  {
+    "In": "> <div>x</div>\n\nafter",
+    "Out": "<blockquote>\n<p><div>x</div></p>\n</blockquote>\n<p>after</p>"
+  },
+  {
+    "In": "<div>x</div>",
+    "Out": "<div>x</div>"
+  },
+  {
+    "In": " <div>x</div>",
+    "Out": "<div>x</div>"
+  },
+  {
+    "In": "  <div>x</div>",
+    "Out": "<div>x</div>"
+  },
+  {
+    "In": "   <div>x</div>",
+    "Out": "<div>x</div>"
+  },
+  {
+    "In": "    <div>x</div>",
+    "Out": "<pre><code>&lt;div&gt;x&lt;/div&gt;\n</code></pre>"
+  },
+  {
+    "In": "text <div>x</div>",
+    "Out": "<p>text <div>x</div></p>"
+  },
+  {
+    "In": "text\n<div>x</div>",
+    "Out": "<p>text</p>\n<div>x</div>"
+  },
+  {
+    "In": " <span>x</span>",
+    "Out": "<p><span>x</span></p>"
+  },
+  {
+    "In": "- <b>bold</b>",
+    "Out": "<ul>\n<li><b>bold</b></li>\n</ul>"
   }
 ]
