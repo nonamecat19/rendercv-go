@@ -84,10 +84,21 @@ func yamlSyntaxValidationError(
 		SchemaLocation: nil,
 		YamlLocation:   yamlErrorLocation(parserErr, content),
 		YamlSource:     source,
-		Message:        fmt.Sprintf("This is not a valid YAML file. %s", parserMessage(parserErr.Error(), content)),
-		Input:          schemaerr.InputEllipsis,
+		Message: fmt.Sprintf("This is not a valid YAML file. %s",
+			parserMessage(parserErr.Error(), content, tokenPosition(parserErr))),
+		Input: schemaerr.InputEllipsis,
 	}
 }
+
+// flowMapRow is the substring of the one row whose ruamel phrasing depends on
+// the source as well as on goccy's text. It covers both of goccy's spellings
+// for a flow mapping it could not finish — `could not find flow map content`
+// and `could not find flow mapping end token '}'`.
+const flowMapRow = "flow map"
+
+// badIndentRow is the substring of the row for a key indented deeper than its
+// siblings.
+const badIndentRow = "mapping value is not allowed in this context"
 
 // ruamelPhrasing maps goccy's error taxonomy onto ruamel's, for the syntax
 // failures the corpus contains (spec 004 §7.5, plan §6 option B).
@@ -106,16 +117,6 @@ func yamlSyntaxValidationError(
 //
 // Each key is a substring of goccy's message; each value is ruamel's verbatim
 // first line, measured against the vendored Python.
-// flowMapRow is the substring of the one row whose ruamel phrasing depends on
-// the source as well as on goccy's text. It covers both of goccy's spellings
-// for a flow mapping it could not finish — `could not find flow map content`
-// and `could not find flow mapping end token '}'`.
-const flowMapRow = "flow map"
-
-// badIndentRow is the substring of the row for a key indented deeper than its
-// siblings.
-const badIndentRow = "mapping value is not allowed in this context"
-
 var ruamelPhrasing = []struct{ goccy, ruamel string }{
 	{"sequence end token", "while parsing a flow sequence"},
 	// **A block line that breaks an open flow collection is a third shape.**
@@ -137,7 +138,7 @@ var ruamelPhrasing = []struct{ goccy, ruamel string }{
 	// the collection *it* was building, and here that is always the flow
 	// mapping; ruamel names the one it was *parsing*, which is the innermost
 	// collection open where its scan stopped — a sequence whenever the inner
-	// `{` sits on the line the block key broke. `flowContextDelimiter` supplies
+	// `{` sits on the line the block key broke. `flowContext` supplies
 	// the missing half from the source; the value here is the answer when it
 	// says `{`.
 	{flowMapRow, "while parsing a flow mapping"},
@@ -170,7 +171,7 @@ var ruamelPhrasing = []struct{ goccy, ruamel string }{
 //
 // The first line is mapped onto ruamel's phrasing first, so what upstream
 // interpolates and what the port interpolates agree for the mapped set.
-func parserMessage(text, content string) string {
+func parserMessage(text, content string, tok yamldoc.Position) string {
 	if i := strings.IndexByte(text, '\n'); i >= 0 {
 		text = text[:i]
 	}
@@ -195,8 +196,10 @@ func parserMessage(text, content string) string {
 		// which construct ruamel names is decided by the source. Measured over
 		// 309 inputs reaching this row: 16 are sequences and the rest mappings,
 		// and no other row needs the source at all.
-		if row.goccy == flowMapRow && flowContextDelimiter(content) == '[' {
-			text = "while parsing a flow sequence"
+		if row.goccy == flowMapRow {
+			if ctx, ok := flowContext(content, text, tok.Line, tok.Column); ok && ctx.delim == '[' {
+				text = "while parsing a flow sequence"
+			}
 		}
 		break
 	}
@@ -450,15 +453,24 @@ func streamEndLine(content string, after int) int {
 // line reports line 1 for the outer `[`, and both open on the same line
 // anyway. Quotes are honoured so a bracket inside a scalar does not count.
 func outermostFlowOpenLine(content string, before int) int {
-	if stack := openFlowStack(content, before); len(stack) > 0 {
+	if stack := openFlowStack(content, before, 1); len(stack) > 0 {
 		return stack[0].line
 	}
 	return 0
 }
 
-// flowContextDelimiter is the opening delimiter of the collection ruamel names
-// in its context — the innermost flow collection still open where its scan
-// stopped — or 0 when none was open.
+// tokenPosition is the position of the token goccy blamed, or the zero value
+// when it supplied none.
+func tokenPosition(parserErr goyaml.Error) yamldoc.Position {
+	tok := parserErr.GetToken()
+	if tok == nil || tok.Position == nil {
+		return yamldoc.Position{}
+	}
+	return yamldoc.Position{Line: tok.Position.Line, Column: tok.Position.Column}
+}
+
+// flowContext is the collection ruamel names in its context: the innermost flow
+// collection still open where the parser stopped. ok is false when none was.
 //
 // **Innermost, not outermost, and measured that way.** `cv: [a, {b` broken on
 // the next line is ruamel's `while parsing a flow mapping`, with its context
@@ -466,26 +478,50 @@ func outermostFlowOpenLine(content string, before int) int {
 // whenever the nesting is all of one kind, which is why every shape measured
 // before this one agreed either way.
 //
-// Where the scan stopped is the block line that broke the flow, if one did, and
-// the end of the stream otherwise. The distinction matters: a delimiter on the
-// breaking line is never reached — `cv: [a\n  b: {c,` stops at the `:`, so its
-// `{` is not open and the answer is the `[` — while a flow still expecting an
-// element swallows the block line instead, and then the `{` on it is exactly
-// what ran to EOF.
-func flowContextDelimiter(content string) byte {
-	stop := 0
+// Where the parser stopped is the earlier of two places:
+//
+//   - the block line that broke the flow, when one did. A delimiter on that
+//     line is never reached — `cv: [a\n  b: {c,` stops at the `:`, so its `{`
+//     is not open and the answer is the `[`.
+//   - the token goccy names. It is **inclusive** when goccy ran to the end of
+//     the stream, because then it names the delimiter it could not close and
+//     that one is open; it is **exclusive** when goccy names an offending
+//     token, which was never consumed — `cv: [a\n  {d` fails *at* the `{`, so
+//     the answer is the `[` and not the `{`.
+//
+// When neither applies the stop is the end of the stream, which is where a flow
+// that swallowed a block line really did run to: `cv: [\n  b: {c` was still
+// expecting an element, so the block line became one and its `{` is the
+// collection that never closed.
+//
+// Measured over 1050 shapes: 458 start lines disagreed with ruamel under the
+// outermost rule and 12 do under this one, with no shape moving from right to
+// wrong. The 12 are the folded-scalar divergence — see
+// TestGoccyRejectsAFoldedFlowScalar — where goccy stops in a parse ruamel never
+// makes, so no rule over its token can recover ruamel's mark.
+func flowContext(content, message string, tokLine, tokColumn int) (openFlow, bool) {
+	stopLine, stopColumn := streamEndLine(content, 0), 1
 	if open := openFlowLine(content); open > 0 {
-		stop = breakingLine(content, open)
-	}
-	if stop == 0 {
-		stop = streamEndLine(content, 0)
+		if broke := breakingLine(content, open); broke > 0 {
+			stopLine, stopColumn = broke, 1
+		}
 	}
 
-	stack := openFlowStack(content, stop)
-	if len(stack) == 0 {
-		return 0
+	if tokLine > 0 {
+		line, column := tokLine, tokColumn
+		if !flowInterruptedByBlockLine(message) {
+			column++ // the delimiter goccy named is open
+		}
+		if line < stopLine || (line == stopLine && column < stopColumn) {
+			stopLine, stopColumn = line, column
+		}
 	}
-	return stack[len(stack)-1].delim
+
+	stack := openFlowStack(content, stopLine, stopColumn)
+	if len(stack) == 0 {
+		return openFlow{}, false
+	}
+	return stack[len(stack)-1], true
 }
 
 // openFlow is one flow collection the scan found still open: the delimiter that
@@ -495,8 +531,10 @@ type openFlow struct {
 	line  int
 }
 
-// openFlowStack is every flow collection still open when line `before` is
-// reached, outermost first.
+// openFlowStack is every flow collection still open when the position
+// (beforeLine, beforeColumn) is reached, outermost first. The position is
+// exclusive, and a column of 1 means "at the start of that line", which is the
+// whole-line bound the callers used before columns were needed.
 //
 // The whole stack is kept, not just a depth counter, because the two ends
 // answer different questions about the same failure: the outermost entry is
@@ -504,16 +542,20 @@ type openFlow struct {
 // collection it names. Quotes and comments are honoured so a bracket inside a
 // scalar does not count, and a closer with nothing open is ignored rather than
 // underflowing.
-func openFlowStack(content string, before int) []openFlow {
+func openFlowStack(content string, beforeLine, beforeColumn int) []openFlow {
 	var stack []openFlow
-	line := 1
+	line, column := 1, 1
 	inSingle, inDouble, inComment := false, false, false
 	var prev byte
 
-	for i := 0; i < len(content) && line < before; i++ {
+	for i := 0; i < len(content); i++ {
+		if line > beforeLine || (line == beforeLine && column >= beforeColumn) {
+			break
+		}
 		c := content[i]
 		if c == '\n' {
 			line++
+			column = 1
 			inComment = false
 			prev = c
 			continue
@@ -528,6 +570,7 @@ func openFlowStack(content string, before int) []openFlow {
 		case inDouble:
 			if c == '\\' && i+1 < len(content) {
 				i++
+				column++
 				break
 			}
 			if c == '"' {
@@ -547,6 +590,7 @@ func openFlowStack(content string, before int) []openFlow {
 			}
 		}
 		prev = c
+		column++
 	}
 
 	return stack
@@ -749,14 +793,23 @@ func yamlErrorLocation(parserErr goyaml.Error, content string) *yamldoc.Span {
 	// space, so not a key) are all swallowed by the flow, and the scan runs on
 	// to a document marker or the end of the file instead. Measured on all of
 	// them.
+	//
+	// **The collection it names is the innermost one open at that stop**, not
+	// the outermost, while the end stays anchored on the outermost: where the
+	// scan stopped is a property of the document, and the construct named is
+	// the one the parser was inside. See flowContext.
 	if flowInterruptedByBlockLine(message) {
 		if open := outermostFlowOpenLine(content, start.Line+1); open > 0 {
 			end := breakingLine(content, open)
 			if end == 0 {
 				end = streamEndLine(content, open)
 			}
+			line := open
+			if ctx, ok := flowContext(content, message, start.Line, start.Column); ok {
+				line = ctx.line
+			}
 			return &yamldoc.Span{
-				Start: yamldoc.Position{Line: open, Column: 1},
+				Start: yamldoc.Position{Line: line, Column: 1},
 				End:   yamldoc.Position{Line: end, Column: 1},
 			}
 		}
@@ -782,20 +835,29 @@ func yamlErrorLocation(parserErr goyaml.Error, content string) *yamldoc.Span {
 		if strings.Contains(message, unterminated) {
 			// **goccy's token is the delimiter it gave up on, which is not
 			// always the one ruamel names.** ruamel's context mark is the
-			// *outermost* flow collection still open, so `cv: [a\n  b: [c,`
-			// is `line 1 to line 2` — goccy points at the inner `[` on line 2
-			// and the port reported `line 2 to line 3`, a construct the user
-			// did not open at a line the failure is not about. Where both
-			// delimiters sit on one line the two agree, which is why every
-			// earlier measured shape was unaffected.
+			// innermost flow collection open where its parser stopped, so
+			// `cv: [a\n  b: [c,` is `line 1 to line 2` — goccy points at the
+			// inner `[` on line 2, a construct the user did not open at a line
+			// the failure is not about — while `cv: [\n  b: {c` really is the
+			// inner one, on line 2, because the outer sequence was expecting an
+			// element and swallowed the block line. See flowContext.
 			//
 			// **Only for the flow collections.** An unterminated quoted scalar
 			// shares this branch but not this rule: ruamel names the *quote*,
 			// even when a flow opened on an earlier line, so `cv: [a\n  b: "c`
 			// is `line 2 to line 3` and not line 1.
+			//
+			// **The end keeps the outermost collection as its anchor**, which
+			// is what it was measured against: moving the start down must not
+			// drag the end with it.
+			anchor := start.Line
 			if open := openFlowLine(content); isUnterminatedFlow(message) &&
 				open > 0 && open < start.Line {
-				start = yamldoc.Position{Line: open, Column: 1}
+				anchor = open
+			}
+			if ctx, ok := flowContext(content, message, start.Line, start.Column); ok &&
+				isUnterminatedFlow(message) && ctx.line != start.Line {
+				start = yamldoc.Position{Line: ctx.line, Column: 1}
 				if end.Line < start.Line {
 					end = start
 				}
@@ -804,9 +866,9 @@ func yamlErrorLocation(parserErr goyaml.Error, content string) *yamldoc.Span {
 			// **A block line can stop this scan short of the end**, and goccy
 			// routes an *indented* one here rather than to the branch above:
 			// `cv: [a\n  b: c` is `line 1 to line 2`, not to EOF.
-			stop := breakingLine(content, start.Line)
+			stop := breakingLine(content, anchor)
 			if stop == 0 {
-				stop = streamEndLine(content, start.Line)
+				stop = streamEndLine(content, anchor)
 			}
 			if stop > end.Line {
 				end = yamldoc.Position{Line: stop, Column: 1}
