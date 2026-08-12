@@ -181,12 +181,22 @@ func ValidatePublicationEntry(
 
 	// Rule 3 (publication.py:64-78): the generated DOI URL is validated as an HTTP
 	// URL. Only its length is reachable - spaces, `#`, tabs, newlines and NUL in a
-	// `doi` all pass (spec §5.2) - and the error carries an empty schema location,
-	// naming no field. That is verified upstream and deliberate.
+	// `doi` all pass (spec §5.2).
+	//
+	// **It names the entry, not a field inside it**, which is what a `mode="after"`
+	// model validator produces: measured through the wrapper shape `section.py:229`
+	// validates, `{"entries": [...]}`, the record's loc is `("entries", i)`.
+	//
+	// This used to pass an empty location, from a measurement taken by validating a
+	// bare `PublicationEntry` - a level no upstream code path uses. The splice
+	// rebuilds an empty-located child as its own wrapper's location, and dedup then
+	// deletes it as a duplicate, so the error never reached a user at all. The
+	// start-after-end rule in `bases/complexfieldsentry.go` is the same shape and
+	// always passed `location`.
 	if doiURL := entry.DOIURL(); len(doiURL) > httpurl.MaxLength {
 		errs = append(errs, schemaerr.ValidationError{
 			Code:           httpurl.CodeURLTooLong,
-			SchemaLocation: []string{},
+			SchemaLocation: append([]string(nil), location...),
 			YamlLocation:   publicationSpan(entry.DOI),
 			YamlSource:     source,
 			Message:        httpurl.MessageURLTooLong,

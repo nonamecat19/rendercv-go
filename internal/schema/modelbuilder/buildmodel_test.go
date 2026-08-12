@@ -133,3 +133,91 @@ func TestParseHasOneCaller(t *testing.T) {
 			" it is not idempotent", len(callers), callers)
 	}
 }
+
+// publicationsWithDOIs is a CV whose publication section carries one entry per
+// `doi`, each otherwise minimal and valid.
+func publicationsWithDOIs(dois ...string) string {
+	var b strings.Builder
+	b.WriteString("cv:\n  name: John Doe\n  sections:\n    publications:\n")
+	for _, doi := range dois {
+		b.WriteString("      - title: T\n        authors:\n          - A\n")
+		b.WriteString("        doi: " + doi + "\n")
+	}
+	return b.String()
+}
+
+// longDOI is a `doi` whose generated URL exceeds the 2083-character limit —
+// `https://doi.org/` is 16 characters, so 2068 of `doi` makes 2084.
+func longDOI(n int) string { return "10." + strings.Repeat("a", n-3) }
+
+// The DOI-URL-length failure has to reach the user, at the entry it belongs to.
+//
+// **It did not.** The producer gave the record an empty schema location, so the
+// splice rebuilt it as its own wrapper's location and dedup deleted it as a
+// duplicate — upstream printed two rows and the port printed one, for every
+// input that trips this rule. The splice and dedup are both correct and pinned
+// (`errorpipeline/splice_test.go`); the producer was wrong.
+//
+// The index rows are what make this more than a one-shape fix: the entry's
+// position is the only thing separating the record from its wrapper, so a fix
+// that hard-coded `0` would pass the first row and fail the second.
+//
+// Every expectation was measured against the vendored Python through
+// `build_rendercv_dictionary_and_model`, and the boundary either side of it:
+// 2083 characters validates, 2084 does not.
+func TestDOIURLLengthReachesTheUser(t *testing.T) {
+	tests := []struct {
+		name string
+		src  string
+		want []string
+	}{{
+		name: "at the limit, no error at all",
+		src:  publicationsWithDOIs(longDOI(2067)),
+	}, {
+		name: "one over the limit",
+		src:  publicationsWithDOIs(longDOI(2068)),
+		want: []string{"cv.sections.publications", "cv.sections.publications.0"},
+	}, {
+		name: "the second entry, not the first",
+		src:  publicationsWithDOIs("10.ok", longDOI(2200)),
+		want: []string{"cv.sections.publications", "cv.sections.publications.1"},
+	}, {
+		name: "both entries report",
+		src:  publicationsWithDOIs(longDOI(2200), longDOI(2300)),
+		want: []string{
+			"cv.sections.publications",
+			"cv.sections.publications.0",
+			"cv.sections.publications.1",
+		},
+	}}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := BuildModel(buildResult(t, test.src), &valctx.ValidationContext{})
+			if len(test.want) == 0 {
+				if err != nil {
+					t.Fatalf("BuildModel = %v, want no error", err)
+				}
+				return
+			}
+
+			var userErr *schemaerr.UserValidationError
+			if !errors.As(err, &userErr) {
+				t.Fatalf("err = %v (%T), want *schemaerr.UserValidationError", err, err)
+			}
+			got := make([]string, 0, len(userErr.Errors))
+			for _, record := range userErr.Errors {
+				got = append(got, strings.Join(record.SchemaLocation, "."))
+			}
+			if strings.Join(got, " | ") != strings.Join(test.want, " | ") {
+				t.Errorf("locations = %v\nwant        %v", got, test.want)
+			}
+			for _, record := range userErr.Errors[1:] {
+				const want = "URL should have at most 2083 characters."
+				if record.Message != want {
+					t.Errorf("message = %q, want %q", record.Message, want)
+				}
+			}
+		})
+	}
+}
