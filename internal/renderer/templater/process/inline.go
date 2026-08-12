@@ -21,9 +21,6 @@ type inlineParser struct{}
 // missing: they need the link-definition map the block pass builds, which the
 // line-at-a-time Typst path never has.
 var (
-	// ESCAPE_RE `\\(.)`.
-	escapePattern = regexp.MustCompile(`(?s)^\\(.)`)
-
 	// LINK_RE, reduced to `[text](url)` plus python-markdown's optional title.
 	//
 	// **The title is stripped, and an earlier comment here said it never
@@ -152,8 +149,8 @@ func (p *inlineParser) matchPrefix(data string, pos, pending int) (int, string, 
 	if end, typst, ok := matchCodeSpan(rest); ok {
 		return pos + end, typst, true
 	}
-	if match := escapePattern.FindStringSubmatch(rest); match != nil {
-		return pos + len(match[0]), EscapeTypstCharacters(match[1]), true
+	if len(rest) > 1 && rest[0] == '\\' && isEscapedChar(rest[1]) {
+		return pos + 2, EscapeTypstCharacters(rest[1:2]), true
 	}
 	if end, ok := matchImage(rest); ok {
 		// `IMAGE_LINK_RE` builds an `img`, and `to_typst_string` has no branch
