@@ -1237,6 +1237,108 @@ func TestFlowMapUnderAnOpenFlowSequence(t *testing.T) {
 	}
 }
 
+// TestFlowMapPhrasingFollowsTheOpenDelimiter pins which construct ruamel names
+// when goccy says it could not finish a flow *mapping*.
+//
+// goccy names the collection **it** was building; ruamel names the one it was
+// *parsing* when it stopped, which is the innermost flow collection open at
+// that point — and those disagree whenever the inner `{` sits on a line the
+// block key broke. The `flow map` row answered `while parsing a flow mapping`
+// unconditionally, so `cv: [a\n   b: {c,` claimed a mapping the user never
+// opened.
+//
+// The condition cannot come from goccy's text: goccy chooses between
+// `could not find flow map content` and its two `must be specified` spellings
+// by indentation and key length, so `cv: [a\n  b: {c,` and `cv: [a\n   b: {c,`
+// — one space apart — take different branches to the same ruamel answer. It
+// comes from the source instead.
+//
+// Enumerated: 309 inputs reach this row's substring (265 `flow map content`,
+// 44 `flow mapping end token '}'`). ruamel answers `flow node` for 168 (a
+// branch ahead of the table), `flow mapping` for 125 and `flow sequence` for
+// 16. The 16 are the rows below; the mapping rows are the control, because the
+// point is not to trade one misphrasing for the other.
+func TestFlowMapPhrasingFollowsTheOpenDelimiter(t *testing.T) {
+	tests := []struct {
+		name               string
+		src                string
+		startLine, endLine int
+		want               string
+	}{
+		// The innermost collection open at the break is a sequence.
+		{
+			name: "a three-space indent", src: "cv: [a\n   b: {c,\n",
+			startLine: 1, endLine: 2, want: "while parsing a flow sequence",
+		},
+		{
+			name: "a four-space indent", src: "cv: [a\n    b: {c,\n",
+			startLine: 1, endLine: 2, want: "while parsing a flow sequence",
+		},
+		{
+			name: "a two-character key", src: "cv: [a\n  bb: {c,\n",
+			startLine: 1, endLine: 2, want: "while parsing a flow sequence",
+		},
+		{
+			name: "a key containing a space", src: "cv: [a\n   b c: {c,\n",
+			startLine: 1, endLine: 2, want: "while parsing a flow sequence",
+		},
+		{
+			name: "a doubled sequence", src: "cv: [[a\n    b: {c,\n",
+			startLine: 1, endLine: 2, want: "while parsing a flow sequence",
+		},
+		{
+			name: "a sequence opening below the root", src: "cv:\n  x: [a\n    y: {b,\n",
+			startLine: 2, endLine: 3, want: "while parsing a flow sequence",
+		},
+		// The control: the innermost open collection really is a mapping, and
+		// must keep saying so.
+		{
+			name: "a mapping opened on the first line", src: "cv: [a, {b\n  b: {c,\n",
+			startLine: 1, endLine: 2, want: "while parsing a flow mapping",
+		},
+		{
+			name: "a mapping under a sequence, wider indent", src: "cv: [a, {b\n    b: {c,\n",
+			startLine: 1, endLine: 2, want: "while parsing a flow mapping",
+		},
+		{
+			name: "a bare unterminated mapping", src: "a: {b\n",
+			startLine: 1, endLine: 2, want: "while parsing a flow mapping",
+		},
+	}
+	// The shape `cv: [a,\n  b: {c` — where the outer sequence was still
+	// expecting an element, so it swallowed the block line and the inner `{`
+	// ran to EOF — is deliberately absent. Its *phrasing* is already right
+	// (`flow mapping`, measured), but its location is not: the port reports
+	// line 1 to line 3 where ruamel reports line 2 to line 3, because the
+	// context mark follows the same innermost rule this test pins for the
+	// phrasing. Twelve inputs in the enumeration are in that class; they are a
+	// location defect of their own and are not fixed here.
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := ReadYamlWithValidationErrors(test.src, schemaerr.SourceMain)
+
+			var userErr *schemaerr.UserValidationError
+			if !errors.As(err, &userErr) {
+				t.Fatalf("expected *schemaerr.UserValidationError, got %T: %v", err, err)
+			}
+
+			want := "This is not a valid YAML file. " + test.want + "."
+			if got := userErr.Errors[0].Message; got != want {
+				t.Errorf("message =\n  %q\nwant\n  %q", got, want)
+			}
+			span := userErr.Errors[0].YamlLocation
+			if span == nil {
+				t.Fatal("yaml location = nil, want a location")
+			}
+			if span.Start.Line != test.startLine || span.End.Line != test.endLine {
+				t.Errorf("location = line %d to line %d, want line %d to line %d",
+					span.Start.Line, span.End.Line, test.startLine, test.endLine)
+			}
+		})
+	}
+}
+
 // TestScanStopsAtADocumentMarker pins that a `---` or `...` ends the stream
 // ruamel's scanner was reading, so an unterminated construct spans to the
 // marker rather than to the physical end of the file.
