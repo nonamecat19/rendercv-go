@@ -318,6 +318,7 @@ func TestEveryPhrasingRowIsReachable(t *testing.T) {
 		{"sequence end token", "this: [is, not, a, cv\n"},
 		{"']' must be specified", "cv: [a\nb: c\n"},
 		{"'}' must be specified", "cv: {a: 1\nb: c\n"},
+		{"unexpected map key", "cv: [a\n  b: {c,\n"},
 		{"flow map", "a: {b\n"},
 		{"quoted text", "a: 'unterminated\n"},
 		{"tab character", "a: |\n\tx\n"},
@@ -1045,12 +1046,10 @@ func TestOutermostDelimiterIsTheContextMark(t *testing.T) {
 			name: "an inner sequence opening on the break", src: "cv: [a\n  b: [c,\n",
 			startLine: 1, endLine: 2, want: "while parsing a flow sequence",
 		},
-		// `cv: [a\n  b: {c,` belongs here too — ruamel says `while parsing a
-		// flow sequence`, line 1 to line 2 — but goccy answers it with a
-		// *fourth* phrasing, `unexpected map key`, which no `ruamelPhrasing`
-		// row covers, so its raw text and `[2:6]` prefix still reach the user.
-		// Found while measuring this table and left for its own unit rather
-		// than folded in here.
+		// `cv: [a\n  b: {c,` is this same break under goccy's fourth phrasing,
+		// `unexpected map key`. It and its nine siblings are pinned by
+		// TestFlowMapUnderAnOpenFlowSequence, which is where that phrasing's
+		// own evidence lives.
 		{
 			name: "an inner sequence with no trailing comma", src: "cv: [a\n  b: [c\n",
 			startLine: 1, endLine: 2, want: "while parsing a flow sequence",
