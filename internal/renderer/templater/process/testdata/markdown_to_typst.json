@@ -910,5 +910,45 @@
  {
   "in": "[](\"",
   "want": "\\[\\](\\\""
+ },
+ {
+  "in": "*a `b\nc` d*",
+  "want": "#sym.ast.basic#h(0pt, weak: true) a `b\nc` d#sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "*[a\nb](u)*",
+  "want": "#sym.ast.basic#h(0pt, weak: true) \\[a\nb\\](u)#sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "*a\n b*",
+  "want": "#sym.ast.basic#h(0pt, weak: true) a\nb#sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "*a\n   b*",
+  "want": "#sym.ast.basic#h(0pt, weak: true) a\nb#sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "_a\n b_",
+  "want": "\\_a\nb\\_"
+ },
+ {
+  "in": "- *a\n  b*",
+  "want": "- #sym.ast.basic#h(0pt, weak: true) a\nb#sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "> *a\n b*",
+  "want": "\\> #sym.ast.basic#h(0pt, weak: true) a\nb#sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "**a\n b**",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) a\nb#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "*![a\nb](u)*",
+  "want": "#sym.ast.basic#h(0pt, weak: true) !\\[a\nb\\](u)#sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "*a <b>\nc</b> d*",
+  "want": "#sym.ast.basic#h(0pt, weak: true) a <b>\nc</b> d#sym.ast.basic#h(0pt, weak: true)"
  }
 ]

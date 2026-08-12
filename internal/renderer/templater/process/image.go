@@ -32,9 +32,21 @@ func (imageParser) Trigger() []byte { return []byte{'!'} }
 
 // Parse claims one `![label](destination)` on the current line, or returns nil.
 func (imageParser) Parse(_ ast.Node, block text.Reader, _ parser.Context) ast.Node {
-	line, _ := block.PeekLine()
-	if len(line) < 2 || line[1] != '[' {
+	line, segment := block.PeekLine()
+	node, ok := buildImage(block, line, segment.Start)
+	if !ok {
 		return nil
+	}
+	return node
+}
+
+// buildImage is the body of `imageParser.Parse`, taking the bytes to match
+// against explicitly so that an emphasis body can hand it a slice that spans a
+// soft line break (`parseEmphasisBody`). `imageParser` itself passes the
+// current line, which is what it always matched.
+func buildImage(block text.Reader, line []byte, start int) (ast.Node, bool) {
+	if len(line) < 2 || line[1] != '[' {
+		return nil, false
 	}
 
 	// Scanned over the escape-masked line for the reason `getLink` documents:
@@ -42,12 +54,12 @@ func (imageParser) Parse(_ ast.Node, block text.Reader, _ parser.Context) ast.No
 	scan := []byte(maskAbove(string(line), prioImage))
 	_, after := matchBracketed(scan, 2, '[', ']')
 	if after < 0 || after >= len(scan) || scan[after] != '(' {
-		return nil
+		return nil, false
 	}
 	label := line[2 : after-1]
 	href, title, hasTitle, end, ok := getLink(scan, line, after)
 	if !ok {
-		return nil
+		return nil, false
 	}
 
 	image := ast.NewImage(&ast.Link{})
@@ -63,7 +75,7 @@ func (imageParser) Parse(_ ast.Node, block text.Reader, _ parser.Context) ast.No
 
 	block.Advance(end)
 
-	return image
+	return image, true
 }
 
 // resolveCodeSpans replaces every code span in an image label with its content.
