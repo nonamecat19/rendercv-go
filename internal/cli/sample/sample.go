@@ -18,6 +18,14 @@
 // nothing else reads either (`:75-77`). The probe asserts it for every pair
 // rather than trusting it.
 //
+// **What holds the capture to upstream.** Nothing here derives the dump, so a
+// field pydantic adds, drops or reorders would go unnoticed if the blocks were
+// only ever compared against a fixture. They are not:
+// upstream_conformance_test.go generates all 198 documents from the vendored
+// Python on every run and diffs them against this package, so a submodule bump
+// that moves the dump turns red on the next `just test-parity` — rather than
+// waiting for someone to rerun the probe.
+//
 // **What is still generated rather than captured.** The name — the one value a
 // user supplies — is emitted here (see scalar.go), and so are all four
 // transforms, so a name that changes the document's *shape* (a multi-line name
@@ -36,7 +44,9 @@ import (
 
 // blocks are the raw dumps tools/sampleprobe captured: what
 // `dictionary_to_yaml` returns for each of the model's four top-level keys,
-// before any of the transforms below. GENERATED — see tools/sampleprobe.
+// before any of the transforms below. GENERATED — see tools/sampleprobe. Data,
+// not an expectation: never hand-tuned to make a test pass, and what they must
+// be is upstream_conformance_test.go's differential, not this file.
 //
 //go:embed blocks
 var blocks embed.FS

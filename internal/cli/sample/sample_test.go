@@ -1,68 +1,63 @@
 package sample
 
 import (
-	"crypto/md5"
-	"encoding/hex"
-	"encoding/json"
-	"os"
+	"io/fs"
 	"strings"
 	"testing"
 
 	"github.com/nonamecat19/rendercv-go/internal/version"
 )
 
-// matrix is testdata/matrix.json: the md5 of the starter CV upstream writes for
-// each of the 198 theme/locale pairs, captured by tools/sampleprobe.
-type matrix struct {
-	Version   string            `json:"version"`
-	Themes    []string          `json:"themes"`
-	Locales   []string          `json:"locales"`
-	Documents map[string]string `json:"documents"`
-}
-
-func loadMatrix(t *testing.T) matrix {
+// axes lists the themes and the locales the embedded blocks cover — behavior
+// 54's 9 and 22.
+func axes(t *testing.T) (themes, locales []string) {
 	t.Helper()
-	content, err := os.ReadFile("testdata/matrix.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var m matrix
-	if err := json.Unmarshal(content, &m); err != nil {
-		t.Fatal(err)
-	}
-	return m
-}
-
-// TestGenerateMatrix is spec 013 §8's first acceptance criterion, run against
-// digests rather than a live Python process: every one of the 9 x 22 documents
-// upstream can produce, byte for byte.
-func TestGenerateMatrix(t *testing.T) {
-	m := loadMatrix(t)
-	if got, want := len(m.Documents), len(m.Themes)*len(m.Locales); got != want {
-		t.Fatalf("fixture has %d documents, want %d", got, want)
-	}
-	for _, theme := range m.Themes {
-		for _, locale := range m.Locales {
-			t.Run(theme+"/"+locale, func(t *testing.T) {
-				document, err := Generate("John Doe", theme, locale)
-				if err != nil {
-					t.Fatal(err)
-				}
-				digest := md5.Sum([]byte(document))
-				if got, want := hex.EncodeToString(digest[:]), m.Documents[theme+"/"+locale]; got != want {
-					t.Errorf("md5 = %s, upstream = %s", got, want)
-				}
-			})
+	for _, axis := range []struct {
+		dir  string
+		into *[]string
+		want int
+	}{
+		{"blocks/design", &themes, 9},
+		{"blocks/locale", &locales, 22},
+	} {
+		entries, err := fs.ReadDir(blocks, axis.dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, entry := range entries {
+			*axis.into = append(*axis.into, strings.TrimSuffix(entry.Name(), ".yaml"))
+		}
+		if got := len(*axis.into); got != axis.want {
+			t.Fatalf("%s holds %d blocks, want %d", axis.dir, got, axis.want)
 		}
 	}
+	return themes, locales
 }
 
-// TestGenerateVersion pins the fixture to the constant: a submodule bump that
-// moves upstream's `__version__` without moving ours would otherwise show up as
-// 198 identical digest failures with no explanation.
-func TestGenerateVersion(t *testing.T) {
-	if got := loadMatrix(t).Version; got != version.RenderCV {
-		t.Errorf("upstream is v%s, internal/version says v%s", got, version.RenderCV)
+// TestGenerateEveryPair is the part of spec 013 §8's 198-case criterion that
+// needs no Python: every pair generates, and no two pairs generate the same
+// document. What each one must *say* is upstream_conformance_test.go's
+// differential — this only catches a block that went missing or got duplicated
+// on its way into the embedded set.
+func TestGenerateEveryPair(t *testing.T) {
+	themes, locales := axes(t)
+	seen := make(map[string]string, len(themes)*len(locales))
+	for _, theme := range themes {
+		for _, locale := range locales {
+			pair := theme + "/" + locale
+			document, err := Generate("John Doe", theme, locale)
+			if err != nil {
+				t.Errorf("%s: %v", pair, err)
+				continue
+			}
+			if other, ok := seen[document]; ok {
+				t.Errorf("%s and %s generate the same document", other, pair)
+			}
+			seen[document] = pair
+		}
+	}
+	if got, want := len(seen), len(themes)*len(locales); got != want {
+		t.Errorf("generated %d distinct documents, want %d", got, want)
 	}
 }
 
