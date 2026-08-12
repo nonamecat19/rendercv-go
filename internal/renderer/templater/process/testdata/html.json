@@ -842,5 +842,49 @@
   {
     "In": "![alt\\]x](p.png)",
     "Out": "<p><img alt=\"alt]x\" src=\"p.png\" /></p>"
+  },
+  {
+    "In": "*a \\`b* c\\`",
+    "Out": "<p><em>a `b</em> c`</p>"
+  },
+  {
+    "In": "**a \\`b** c\\`",
+    "Out": "<p><strong>a `b</strong> c`</p>"
+  },
+  {
+    "In": "`a\\`b`",
+    "Out": "<p><code>a\\</code>b`</p>"
+  },
+  {
+    "In": "x \\` y",
+    "Out": "<p>x ` y</p>"
+  },
+  {
+    "In": "*\\`* a",
+    "Out": "<p><em>`</em> a</p>"
+  },
+  {
+    "In": "\\``code`\\`",
+    "Out": "<p>`<code>code</code>`</p>"
+  },
+  {
+    "In": "[a](b\\\\c)",
+    "Out": "<p><a href=\"b\\c\">a</a></p>"
+  },
+  {
+    "In": "[a](b\\\\\\c)",
+    "Out": "<p><a href=\"b\\\\c\">a</a></p>"
+  },
+  {
+    "In": "[a](b\\\\\\\\c)",
+    "Out": "<p><a href=\"b\\\\c\">a</a></p>"
+  },
+  {
+    "In": "[t](a\\\\)b)",
+    "Out": "<p><a href=\"a\\\">t</a>b)</p>"
+  },
+  {
+    "In": "[a\\\\](b)",
+    "Out": "<p><a href=\"b\">a\\</a></p>"
   }
 ]
