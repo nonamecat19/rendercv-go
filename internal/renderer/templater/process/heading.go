@@ -1,12 +1,12 @@
 package process
 
 import (
+	"bytes"
 	"unicode/utf8"
 
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
-	"github.com/yuin/goldmark/util"
 )
 
 // pythonATXHeadingParser is goldmark's ATX heading parser with
@@ -56,20 +56,17 @@ type pythonATXHeadingParser struct {
 // **No space is required after the hashes** either (§3.1): nothing in the
 // expression separates `#{1,6}` from `header`, where CommonMark 0.31 §4.2 asks
 // for a space, a tab or the end of the line and goldmark declines without one
-// (`parser/atx_heading.go:97-100`). `openTightHeading` is that case, and it is
-// the one an ordinary CV reaches — `#1 in sales` is `<h1>1 in sales</h1>`
-// upstream and was a paragraph here.
+// (`parser/atx_heading.go:97-100`). `openHeading` is that case and the rest of
+// the expression with it — the one an ordinary CV reaches is `#1 in sales`,
+// which is `<h1>1 in sales</h1>` upstream and was a paragraph here.
 func (p pythonATXHeadingParser) Open(
-	parent ast.Node, reader text.Reader, pc parser.Context,
+	_ ast.Node, reader text.Reader, pc parser.Context,
 ) (ast.Node, parser.State) {
 	if pc.BlockIndent() > 0 || containerSwallowedIndent(reader) {
 		return nil, parser.NoChildren
 	}
 
-	node, state := openTightHeading(reader, pc)
-	if node == nil {
-		node, state = p.BlockParser.Open(parent, reader, pc)
-	}
+	node, state := openHeading(reader, pc)
 	if node == nil || node.Kind() != ast.KindHeading || node.Lines().Len() == 0 {
 		return node, state
 	}
@@ -97,18 +94,19 @@ func (p pythonATXHeadingParser) Open(
 // instead (`parser/atx_heading.go:91-92`).
 const maxHeadingLevel = 6
 
-// openTightHeading opens the headings goldmark turns down — for want of a space
-// after the hashes, or for a run longer than six — and returns nil for every
-// other shape so goldmark's own parser keeps the ones the two libraries already
-// agree on.
+// openHeading is `HashHeaderProcessor.RE` matched against one line — the level
+// run, the header group, the closing run — replacing goldmark's `Open`
+// (`parser/atx_heading.go:82-137`) rather than wrapping it, because after the
+// space rule, the level cap and the closing run there is nothing of goldmark's
+// version left to keep.
 //
-// It is goldmark's `Open` with the space requirement removed
-// (`parser/atx_heading.go:82-137`) rather than upstream's `RE.search` over the
-// whole block: with a space present every `search`-reachable shape already
-// agrees, including a heading that interrupts a paragraph or ends a list, so
-// nothing here needs the `before`/`after` splitting of
-// `blockprocessors.py:470-487` (spec-delta-atx §3.5).
-func openTightHeading(reader text.Reader, pc parser.Context) (ast.Node, parser.State) {
+// It is one line rather than `RE.search` over the whole block because `header`
+// is non-greedy and `#*` can match nothing: the match always ends at the first
+// line end it can reach, and goldmark asks every line. With a space present
+// every `search`-reachable shape already agreed, so nothing here needs the
+// `before`/`after` splitting of `blockprocessors.py:470-487`
+// (spec-delta-atx §3.5).
+func openHeading(reader text.Reader, pc parser.Context) (ast.Node, parser.State) {
 	line, segment := reader.PeekLine()
 	pos := pc.BlockOffset()
 	if pos < 0 {
@@ -117,47 +115,68 @@ func openTightHeading(reader text.Reader, pc parser.Context) (ast.Node, parser.S
 	end := pos
 	for ; end < len(line) && line[end] == '#'; end++ {
 	}
-	run := end - pos
-	if run == 0 {
-		return nil, parser.NoChildren
-	}
-	level := min(run, maxHeadingLevel)
-	if run <= maxHeadingLevel && (end == len(line) || util.IsSpace(line[end])) {
-		// A space, a tab or the end of the line: goldmark and upstream open the
-		// same heading, so let goldmark open it.
+	if end == pos {
 		return nil, parser.NoChildren
 	}
 
-	body := text.NewSegment(
-		segment.Start+pos+level-segment.Padding,
-		segment.Start+len(line)-segment.Padding)
+	// The hashes past the sixth are the header group's first characters.
+	level := min(end-pos, maxHeadingLevel)
+	start := pos + level
+	stop, ok := cutHeaderGroup(bytes.TrimSuffix(line[start:], []byte("\n")))
+	if !ok {
+		return nil, parser.NoChildren
+	}
+
 	node := ast.NewHeading(level)
-	if body.Len() > 0 {
-		body.Stop = body.Start + cutClosingRun(body.Value(reader.Source()))
-		node.Lines().Append(body)
+	if stop > 0 {
+		node.Lines().Append(text.NewSegment(
+			segment.Start+start-segment.Padding,
+			segment.Start+start+stop-segment.Padding))
 	}
 	reader.AdvanceToEOL()
 	return node, parser.NoChildren
 }
 
-// cutClosingRun is where a heading's text ends: goldmark's closing-sequence
-// rule (`parser/atx_heading.go:120-136`), which drops a trailing run of hashes
-// only when a space precedes it.
-func cutClosingRun(line []byte) int {
-	stop := len(line)
-	if stop == 0 {
-		return 0
+// cutHeaderGroup is the length of `(?P<header>(?:\\.|[^\\])*?)` in
+// `(?P<level>#{1,6})(?P<header>…)#*(?:\n|$)` — where the heading's text ends and
+// the closing run of hashes begins (`markdown/blockprocessors.py:461`).
+//
+// **`#*` needs nothing in front of it.** goldmark drops a closing run only when
+// a space precedes it (`parser/atx_heading.go:133`), so `#h#` was `<h1>h#</h1>`
+// here against upstream's `<h1>h</h1>`. Because `header` is non-greedy, the
+// group ends at the **first** position from which the rest of the line is
+// nothing but hashes, which is why `#h#h#` keeps its middle one: `<h1>h#h</h1>`.
+//
+// **An escape defeats it**, because `\\.` consumes the backslash and whatever
+// follows as one token and the scan never sees that `#` as a candidate: `#h\#`
+// is `<h1>h#</h1>`. The same token is why a line ending in a lone backslash is
+// **not a heading at all** — `.` does not match a newline, so the expression has
+// no way to reach the line end and `# h\` is a paragraph, along with the line
+// after it. That is the `false` return.
+func cutHeaderGroup(rest []byte) (int, bool) {
+	for i := 0; ; {
+		if isHashRun(rest[i:]) {
+			return i, true
+		}
+		if rest[i] != '\\' {
+			i++
+			continue
+		}
+		if i+1 >= len(rest) {
+			return 0, false
+		}
+		i += 2
 	}
-	i := stop - 1
-	for ; line[i] == '#' && i > 0; i-- {
+}
+
+// isHashRun reports whether what is left is `#*` and then the line end.
+func isHashRun(rest []byte) bool {
+	for _, c := range rest {
+		if c != '#' {
+			return false
+		}
 	}
-	if i == 0 && line[0] == '#' {
-		return 0
-	}
-	if i != stop-1 && util.IsSpace(line[i]) {
-		return i - util.TrimRightSpaceLength(line[0:i])
-	}
-	return stop
+	return true
 }
 
 // containerSwallowedIndent reports whether the line's own indentation was taken
