@@ -450,7 +450,7 @@ func streamEndLine(content string, after int) int {
 // line reports line 1 for the outer `[`, and both open on the same line
 // anyway. Quotes are honoured so a bracket inside a scalar does not count.
 func outermostFlowOpenLine(content string, before int) int {
-	if stack := openFlowStack(content, before); len(stack) > 0 {
+	if stack := openFlowStack(content, before, 1); len(stack) > 0 {
 		return stack[0].line
 	}
 	return 0
@@ -481,7 +481,7 @@ func flowContextDelimiter(content string) byte {
 		stop = streamEndLine(content, 0)
 	}
 
-	stack := openFlowStack(content, stop)
+	stack := openFlowStack(content, stop, 1)
 	if len(stack) == 0 {
 		return 0
 	}
@@ -495,8 +495,10 @@ type openFlow struct {
 	line  int
 }
 
-// openFlowStack is every flow collection still open when line `before` is
-// reached, outermost first.
+// openFlowStack is every flow collection still open when the position
+// (beforeLine, beforeColumn) is reached, outermost first. The position is
+// exclusive, and a column of 1 means "at the start of that line", which is the
+// whole-line bound the callers used before columns were needed.
 //
 // The whole stack is kept, not just a depth counter, because the two ends
 // answer different questions about the same failure: the outermost entry is
@@ -504,16 +506,20 @@ type openFlow struct {
 // collection it names. Quotes and comments are honoured so a bracket inside a
 // scalar does not count, and a closer with nothing open is ignored rather than
 // underflowing.
-func openFlowStack(content string, before int) []openFlow {
+func openFlowStack(content string, beforeLine, beforeColumn int) []openFlow {
 	var stack []openFlow
-	line := 1
+	line, column := 1, 1
 	inSingle, inDouble, inComment := false, false, false
 	var prev byte
 
-	for i := 0; i < len(content) && line < before; i++ {
+	for i := 0; i < len(content); i++ {
+		if line > beforeLine || (line == beforeLine && column >= beforeColumn) {
+			break
+		}
 		c := content[i]
 		if c == '\n' {
 			line++
+			column = 1
 			inComment = false
 			prev = c
 			continue
@@ -528,6 +534,7 @@ func openFlowStack(content string, before int) []openFlow {
 		case inDouble:
 			if c == '\\' && i+1 < len(content) {
 				i++
+				column++
 				break
 			}
 			if c == '"' {
@@ -547,6 +554,7 @@ func openFlowStack(content string, before int) []openFlow {
 			}
 		}
 		prev = c
+		column++
 	}
 
 	return stack
