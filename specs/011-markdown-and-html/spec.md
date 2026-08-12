@@ -487,7 +487,22 @@ parse time *and* at serialization time yields one.
 
 **Behavior 41.** Every emphasis pattern is compiled `re.DOTALL` (`:546-552`) and matched against
 the whole block, so a body may cross a soft line break: `*a\nb*` is one `<em>` spanning the
-newline, in a paragraph, a list item and a blockquote alike.
+newline, in a paragraph, a list item and a blockquote alike. The text the patterns see is the
+block's, **after** each line's marker has been stripped — a blockquote's `> ` is not part of it.
+
+**Behavior 44.** `LINE_BREAK_RE` is `'  \n'` at priority 100 (`:97`), above `em_strong` at 60, so
+a hard break resolves *inside* an emphasis body: `*a  \nb*` is `<p><em>a<br />\nb</em></p>`. One
+space is not enough — `*a \nb*` keeps its space and its newline.
+
+**Behavior 45.** `NormalizeWhitespace` (`preprocessors.py:66-73`) runs before any parsing on
+**both** output paths, folding `\r\n` and a lone `\r` to `\n` and expanding tabs to the next
+multiple of four. `markdown_to_typst("a\rb")` is `"a\nb"` and `markdown_to_typst("a\tb")` is
+`"a   b"`.
+
+**Behavior 46.** `escape_typst_characters` replaces `"* "` before a bare `"*"` (`:131-137`), and
+it runs over the whole text once escapes are stashed — so an escaped asterisk is escaped **in
+context**. `a & \* b` is `a & #sym.ast.basic b`; only an asterisk with no following space takes
+the bare branch and carries `#h(0pt, weak: true)`.
 
 **Behavior 42.** The two emphasis processors are two registry entries, not one:
 `AsteriskProcessor` at 60 and `UnderscoreProcessor` at 50 (`inlinepatterns.py:94-95`). The
@@ -502,6 +517,14 @@ found no `)`. Python slices that from the end, so upstream takes `data[:-2]` and
 block's final byte. `[]("(` — five bytes — is `<p><a href=""></a>(</p>`.
 
 ### 12.5 Still open
+
+- **Emphasis across a soft line break inside a blockquote.** `*a\nb*` matches in a paragraph and
+  in a list item, whose continuation contributes only stripped whitespace, but not in a
+  blockquote, whose continuation contributes `\n> `. The window may not span a gap holding
+  anything but whitespace, because the matchers are handed a slice of the **source** while the
+  reader's own text has the markers removed; closing it needs a map between the two.
+  `advanceTo` solved the position half of that problem, not the text half. Pinned by inverted
+  assertions in `knownRemainder`, four shapes. Pre-existing — it is not a Wave C regression.
 
 - **A link inside an image label.** `![[b](c)](u)` is `alt="b"` upstream — `link` (160) resolves
   before `image_link` (150) and `unescape` flattens the stashed element with

@@ -1078,5 +1078,21 @@
   {
     "In": "*a\r\nb*",
     "Out": "<p><em>a\nb</em></p>"
+  },
+  {
+    "In": "> *a\n> b*",
+    "Out": "<blockquote>\n<p><em>a\nb</em></p>\n</blockquote>"
+  },
+  {
+    "In": "> **a\n> b**",
+    "Out": "<blockquote>\n<p><strong>a\nb</strong></p>\n</blockquote>"
+  },
+  {
+    "In": "> *a\n> b* c",
+    "Out": "<blockquote>\n<p><em>a\nb</em> c</p>\n</blockquote>"
+  },
+  {
+    "In": "> _a\n> b_",
+    "Out": "<blockquote>\n<p><em>a\nb</em></p>\n</blockquote>"
   }
 ]
