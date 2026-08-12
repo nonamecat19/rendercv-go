@@ -112,6 +112,10 @@ func yamlSyntaxValidationError(
 // and `could not find flow mapping end token '}'`.
 const flowMapRow = "flow map"
 
+// badIndentRow is the substring of the row for a key indented deeper than its
+// siblings.
+const badIndentRow = "mapping value is not allowed in this context"
+
 var ruamelPhrasing = []struct{ goccy, ruamel string }{
 	{"sequence end token", "while parsing a flow sequence"},
 	// **A block line that breaks an open flow collection is a third shape.**
@@ -151,6 +155,14 @@ var ruamelPhrasing = []struct{ goccy, ruamel string }{
 	{"tab character", "while scanning for the next token"},
 	{"cannot start any token", "while scanning for the next token"},
 	{"already defined", "while constructing a mapping"},
+	// A key indented deeper than its siblings — `cv:\n  name: John\n   bad: 1`,
+	// an ordinary typo. **goccy has a second, shorter spelling for a
+	// neighbouring failure**, `value is not allowed in this context` without
+	// the leading `mapping`, which ruamel calls `while parsing a block mapping`
+	// or `while parsing a block collection` depending on the shape. That one is
+	// still unmapped; when it is added it must sit *after* this row, because
+	// its substring also matches this row's text.
+	{badIndentRow, "mapping values are not allowed here"},
 }
 
 // parserMessage mirrors rendercv_model_builder.py:87-89: the first line of the
@@ -204,9 +216,11 @@ func parserMessage(text, content string) string {
 // scanner reads all the way to EOF hunting for the missing `]`/`}`. Measured
 // against the vendored CLI on both shapes, nested and top-level.
 //
-// A bad-indentation failure is a different shape — the token *is* the problem
-// and ruamel reports no context mark at all, so it keeps a single-line span
-// and is not in this set. **A duplicate key is a third shape**, handled
+// A bad-indentation failure is a different shape — ruamel reports no context
+// mark at all, so it keeps a single-line span and is not in this set. The
+// token is *not* the problem mark either, though this comment used to say so:
+// goccy points at the line above the mistyped one, and offendingKeyLine
+// recovers ruamel's. **A duplicate key is a third shape**, handled
 // separately by mappingStartLine: ruamel reports a context mark there too, but
 // it is the enclosing mapping's first key rather than anything at EOF. This
 // comment used to claim a duplicate key was single-line like bad indentation,
@@ -348,6 +362,34 @@ func breakingLine(content string, open int) int {
 		return i
 	}
 	return 0
+}
+
+// offendingKeyLine is ruamel's problem mark for a key indented deeper than its
+// siblings: the first line after `after` that carries a key indicator, and the
+// column of that line's first colon. It returns 0 when no line does.
+//
+// **goccy's token is a line too early**, and not reliably by one: it points at
+// the end of the previous line's value, so a blank line between the two makes
+// the gap two. Scanning forward for the next key-bearing line answers both
+// shapes with one rule, and it is the same indicator that decides where a flow
+// collection's scan stops — a colon followed by whitespace or end of line,
+// outside quotes.
+//
+// **The column is the first colon on the line, quotes included**, which is not
+// the colon that makes it a key: ruamel reports column 6 for `   "a: b": 1`,
+// pointing inside the quoted key rather than at the indicator after it.
+// Measured, along with the line, on all 115 inputs the enumeration found for
+// this failure.
+func offendingKeyLine(content string, after int) (line, column int) {
+	lines := strings.Split(content, "\n")
+	for i := after + 1; i <= len(lines); i++ {
+		text := lines[i-1]
+		if !hasKeyIndicator(text) {
+			continue
+		}
+		return i, strings.IndexByte(text, ':') + 1
+	}
+	return 0, 0
 }
 
 // hasKeyIndicator reports whether a line carries an unquoted `: ` (or a
@@ -661,9 +703,9 @@ func lastSignificantByte(content string) byte {
 //
 // **Scoped to the mapped shapes.** Widening every syntax error's span to EOF
 // would be guessing at shapes never measured — a bad-indentation failure keeps
-// its single-line span, which matches upstream there (measured: `mapping value
-// is not allowed`'s span does not widen). A duplicate key also spans, but to
-// the enclosing mapping's first key rather than to EOF; see mappingStartLine.
+// its single-line span, which matches upstream there, though the line itself
+// is not goccy's: see offendingKeyLine. A duplicate key also spans, but to the
+// enclosing mapping's first key rather than to EOF; see mappingStartLine.
 func yamlErrorLocation(parserErr goyaml.Error, content string) *yamldoc.Span {
 	tok := parserErr.GetToken()
 	if tok == nil || tok.Position == nil {
@@ -673,6 +715,17 @@ func yamlErrorLocation(parserErr goyaml.Error, content string) *yamldoc.Span {
 	end := start
 
 	message := parserErr.Error()
+
+	// **A key indented deeper than its siblings is reported a line early.**
+	// goccy's token is the end of the previous line's value; ruamel's problem
+	// mark is the mistyped line itself, and it has no context mark, so the
+	// location stays one line but moves down to the key the user got wrong.
+	if strings.Contains(message, badIndentRow) {
+		if line, column := offendingKeyLine(content, start.Line); line > 0 {
+			at := yamldoc.Position{Line: line, Column: column}
+			return &yamldoc.Span{Start: at, End: at}
+		}
+	}
 
 	// **The node form collapses to EOF instead of spanning to it.** ruamel puts
 	// both marks at the end of the stream when it was waiting for a node, so
