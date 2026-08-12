@@ -141,11 +141,11 @@ gentemplates:
 designprobe:
     go run ./tools/designprobe
 
-# The `Out` column is generated and never hand-written (AGENTS.md §10.1), and a
-# row that does not reproduce stops the tool and writes nothing — it is a
-# finding, not a rewrite. `-write` rewrites the fixture, `-add shapes.json`
-# appends inputs.
-# Verify the python-markdown differential row by row against the vendored library.
+# Covers both fixtures: html.json and markdown_to_typst.json. The output column
+# is generated and never hand-written (AGENTS.md §10.1), and a row that does not
+# reproduce stops the tool and writes nothing — it is a finding, not a rewrite.
+# `-write` rewrites them, `-fixture html|typst -add shapes.json` appends inputs.
+# Verify the markdown differentials row by row against the vendored library.
 mdprobe *ARGS:
     go run ./tools/mdprobe {{ARGS}}
 

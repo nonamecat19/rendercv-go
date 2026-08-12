@@ -1,11 +1,12 @@
-// Command mdprobe generates the python-markdown differential,
-// internal/renderer/templater/process/testdata/html.json, by running the
-// vendored library over every shape the fixture already holds.
+// Command mdprobe generates the two python-markdown differentials —
+// internal/renderer/templater/process/testdata/html.json and
+// .../markdown_to_typst.json — by running the vendored library over every shape
+// each fixture already holds.
 //
 // **The fixture had no generator until this tool, and that is what it is for.**
-// Its 761 rows are upstream's exact output and `AGENTS.md` §10.1 forbids
-// hand-writing them, but every row added since spec 011's T7 was produced by
-// running `markdown.markdown` at a prompt and pasting the answer. That is a
+// Their 761 and 428 rows are upstream's exact output and `AGENTS.md` §10.1
+// forbids hand-writing them, but every row added since spec 011's T7 was
+// produced by running the library at a prompt and pasting the answer. That is a
 // claim, not a check: a mistyped `Out` is indistinguishable from a real
 // upstream behavior, and a fixture that encodes one is worse than no fixture,
 // because the suite then defends the mistake.
@@ -23,19 +24,20 @@
 // the submodule moved — and it goes to a human, not through a rewrite. Passing
 // `-write` after a clean verify is what actually replaces the file.
 //
-// The serialization is Python's own `json.dumps(rows, indent=2,
-// ensure_ascii=False)` with a trailing newline, because that is what the
-// committed file is; the bytes come out of the vendored runtime rather than
-// being re-encoded on the Go side.
+// The serialization is Python's own `json.dumps`, because that is what the
+// committed files are — and the two differ: `html.json` is `indent=2` with the
+// keys `In`/`Out`, `markdown_to_typst.json` is `indent=1` with `in`/`want`.
+// Both are `ensure_ascii=False` with a trailing newline. The bytes come out of
+// the vendored runtime rather than being re-encoded on the Go side.
 //
 // Usage:
 //
-//	go run ./tools/mdprobe                      # verify all rows reproduce
-//	go run ./tools/mdprobe -write               # verify, then rewrite the file
-//	go run ./tools/mdprobe -add shapes.json -write
+//	go run ./tools/mdprobe                          # verify both fixtures
+//	go run ./tools/mdprobe -write                   # verify, then rewrite them
+//	go run ./tools/mdprobe -fixture typst -add shapes.json -write
 //
-// `-add` takes a JSON array of input strings; shapes already in the fixture are
-// ignored, and new ones are appended in the order given.
+// `-add` takes a JSON array of input strings for the selected fixture; shapes
+// already in it are ignored, and new ones are appended in the order given.
 package main
 
 import (
@@ -48,10 +50,44 @@ import (
 	"path/filepath"
 )
 
-const (
-	upstreamDir = "third_party/rendercv"
-	outPath     = "internal/renderer/templater/process/testdata/html.json"
-)
+const upstreamDir = "third_party/rendercv"
+
+// fixture is one differential: where it lives, what its columns are called, and
+// which conversion fills it.
+type fixture struct {
+	// name is what `-fixture` selects it by.
+	name string
+	path string
+	// inKey and outKey are the fixture's own column names, which the two files
+	// spell differently.
+	inKey, outKey string
+	// indent is the `json.dumps` indent the committed file was written with.
+	indent int
+	// convert is the vendored callable, as a Python expression taking one
+	// string.
+	convert string
+}
+
+var fixtures = []fixture{{
+	name:    "html",
+	path:    "internal/renderer/templater/process/testdata/html.json",
+	inKey:   "In",
+	outKey:  "Out",
+	indent:  2,
+	convert: "markdown.markdown",
+}, {
+	name:   "typst",
+	path:   "internal/renderer/templater/process/testdata/markdown_to_typst.json",
+	inKey:  "in",
+	outKey: "want",
+	indent: 1,
+	// **Not `markdown.markdown`.** The Typst path is upstream's own module-level
+	// `Markdown` instance with four block processors deregistered and a Typst
+	// output format, and it converts line by line
+	// (`markdown_parser.py:147-190`). Calling the wrong one would produce a
+	// fixture that looks plausible and pins nothing.
+	convert: "markdown_to_typst",
+}}
 
 // convertScript reads the shapes from stdin and prints the fixture.
 //
@@ -63,31 +99,58 @@ import json
 import sys
 
 import markdown
+from rendercv.renderer.templater.markdown_parser import markdown_to_typst
 
-shapes = json.load(sys.stdin)
-rows = [{"In": shape, "Out": markdown.markdown(shape)} for shape in shapes]
-print(json.dumps(rows, indent=2, ensure_ascii=False))
+request = json.load(sys.stdin)
+convert = {"markdown.markdown": markdown.markdown, "markdown_to_typst": markdown_to_typst}[
+    request["convert"]
+]
+rows = [
+    {request["in_key"]: shape, request["out_key"]: convert(shape)}
+    for shape in request["shapes"]
+]
+print(json.dumps(rows, indent=request["indent"], ensure_ascii=False))
 `
 
-// row is one fixture entry. The field names are the fixture's.
-type row struct {
-	In  string `json:"In"`
-	Out string `json:"Out"`
-}
-
 func main() {
-	write := flag.Bool("write", false, "rewrite the fixture once every existing row reproduces")
-	add := flag.String("add", "", "a JSON array of new input shapes to append")
+	write := flag.Bool("write", false, "rewrite the fixtures once every existing row reproduces")
+	add := flag.String("add", "", "a JSON array of new input shapes to append to -fixture")
+	only := flag.String("fixture", "", "act on one fixture only: html or typst")
 	flag.Parse()
 
-	if err := run(*write, *add); err != nil {
+	if err := run(*write, *add, *only); err != nil {
 		fmt.Fprintf(os.Stderr, "mdprobe: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(write bool, addPath string) error {
-	existing, err := readFixture()
+func run(write bool, addPath, only string) error {
+	if addPath != "" && only == "" {
+		return fmt.Errorf("-add needs -fixture: the two differentials take different shapes")
+	}
+
+	matched := false
+	for _, f := range fixtures {
+		if only != "" && only != f.name {
+			continue
+		}
+		matched = true
+		shapes := addPath
+		if only != f.name {
+			shapes = ""
+		}
+		if err := f.regenerate(write, shapes); err != nil {
+			return err
+		}
+	}
+	if !matched {
+		return fmt.Errorf("no fixture named %q; have html and typst", only)
+	}
+	return nil
+}
+
+func (f fixture) regenerate(write bool, addPath string) error {
+	existing, err := f.read()
 	if err != nil {
 		return err
 	}
@@ -95,8 +158,8 @@ func run(write bool, addPath string) error {
 	shapes := make([]string, 0, len(existing))
 	seen := make(map[string]struct{}, len(existing))
 	for _, r := range existing {
-		shapes = append(shapes, r.In)
-		seen[r.In] = struct{}{}
+		shapes = append(shapes, r.in)
+		seen[r.in] = struct{}{}
 	}
 
 	added := 0
@@ -115,13 +178,13 @@ func run(write bool, addPath string) error {
 		}
 	}
 
-	generated, err := convert(shapes)
+	generated, err := f.convertAll(shapes)
 	if err != nil {
 		return err
 	}
 
-	var rows []row
-	if err := json.Unmarshal(generated, &rows); err != nil {
+	rows, err := f.decode(generated)
+	if err != nil {
 		return fmt.Errorf("upstream did not print the fixture: %w", err)
 	}
 	if len(rows) != len(shapes) {
@@ -132,22 +195,23 @@ func run(write bool, addPath string) error {
 	// unchanged.
 	produced := make(map[string]string, len(rows))
 	for _, r := range rows {
-		produced[r.In] = r.Out
+		produced[r.in] = r.out
 	}
 	mismatches := 0
 	for _, r := range existing {
-		if out := produced[r.In]; out != r.Out {
+		if out := produced[r.in]; out != r.out {
 			mismatches++
-			fmt.Fprintf(os.Stderr, "does not reproduce: In %q\n  fixture   %q\n  upstream  %q\n",
-				r.In, r.Out, out)
+			fmt.Fprintf(os.Stderr, "%s does not reproduce: in %q\n  fixture   %q\n  upstream  %q\n",
+				f.name, r.in, r.out, out)
 		}
 	}
 	if mismatches > 0 {
-		return fmt.Errorf("%d of %d rows do not reproduce; nothing written —"+
-			" a row that does not reproduce is a finding, not a rewrite", mismatches, len(existing))
+		return fmt.Errorf("%s: %d of %d rows do not reproduce; nothing written —"+
+			" a row that does not reproduce is a finding, not a rewrite",
+			f.name, mismatches, len(existing))
 	}
 
-	fmt.Printf("%d rows reproduce", len(existing))
+	fmt.Printf("%s: %d rows reproduce", f.name, len(existing))
 	if added > 0 {
 		fmt.Printf(", %d new shapes", added)
 	}
@@ -157,24 +221,48 @@ func run(write bool, addPath string) error {
 		fmt.Println("not written (pass -write)")
 		return nil
 	}
-	if err := os.WriteFile(outPath, generated, 0o644); err != nil { //nolint:gosec // committed fixture
+	if err := os.WriteFile(f.path, generated, 0o644); err != nil { //nolint:gosec // committed fixture
 		return err
 	}
-	fmt.Printf("wrote %s (%d rows, %d bytes)\n", outPath, len(rows), len(generated))
+	fmt.Printf("wrote %s (%d rows, %d bytes)\n", f.path, len(rows), len(generated))
 	return nil
 }
 
-func readFixture() ([]row, error) {
-	raw, err := os.ReadFile(outPath)
+// row is one fixture entry, decoded through whichever pair of column names the
+// file uses.
+type row struct{ in, out string }
+
+func (f fixture) read() ([]row, error) {
+	raw, err := os.ReadFile(f.path) //nolint:gosec // a path this file names
 	if err != nil {
-		return nil, fmt.Errorf("reading the fixture: %w", err)
+		return nil, fmt.Errorf("reading %s: %w", f.path, err)
 	}
-	var rows []row
-	if err := json.Unmarshal(raw, &rows); err != nil {
-		return nil, fmt.Errorf("parsing the fixture: %w", err)
+	rows, err := f.decode(raw)
+	if err != nil {
+		return nil, fmt.Errorf("parsing %s: %w", f.path, err)
 	}
 	if len(rows) == 0 {
-		return nil, fmt.Errorf("%s holds no rows", outPath)
+		return nil, fmt.Errorf("%s holds no rows", f.path)
+	}
+	return rows, nil
+}
+
+func (f fixture) decode(raw []byte) ([]row, error) {
+	var records []map[string]string
+	if err := json.Unmarshal(raw, &records); err != nil {
+		return nil, err
+	}
+	rows := make([]row, 0, len(records))
+	for i, record := range records {
+		in, ok := record[f.inKey]
+		if !ok {
+			return nil, fmt.Errorf("row %d has no %q column", i, f.inKey)
+		}
+		out, ok := record[f.outKey]
+		if !ok {
+			return nil, fmt.Errorf("row %d has no %q column", i, f.outKey)
+		}
+		rows = append(rows, row{in: in, out: out})
 	}
 	return rows, nil
 }
@@ -191,10 +279,16 @@ func readShapes(path string) ([]string, error) {
 	return shapes, nil
 }
 
-// convert runs the vendored python-markdown over the shapes and returns the
-// fixture bytes it printed.
-func convert(shapes []string) ([]byte, error) {
-	input, err := json.Marshal(shapes)
+// convertAll runs the vendored library over the shapes and returns the fixture
+// bytes it printed.
+func (f fixture) convertAll(shapes []string) ([]byte, error) {
+	input, err := json.Marshal(map[string]any{
+		"shapes":  shapes,
+		"convert": f.convert,
+		"in_key":  f.inKey,
+		"out_key": f.outKey,
+		"indent":  f.indent,
+	})
 	if err != nil {
 		return nil, err
 	}
