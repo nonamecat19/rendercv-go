@@ -36,7 +36,7 @@ import (
 // A third verifier then found a panic and 300 more regressions, and a fourth
 // round closed the registry-priority rule for the two emphasis processors.
 //
-// Measured after that work: 2 of these rows differ, both in `knownRemainder`,
+// Measured after that work: 3 of these rows differ, all in `knownRemainder`,
 // checked by running `MarkdownToHTML` over every `In` and diffing against the
 // fixture's `Out` — not read off a commit message.
 //
@@ -94,7 +94,15 @@ func TestMarkdownToHTMLMatchesPython(t *testing.T) {
 //     in a preprocessor before any block parsing, so the `<div>` is part of the
 //     item's text; goldmark opens a real HTML block inside the item and the two
 //     differ by a newline. Spec 011 §9.5, nobody's taken it yet.
+//  3. **A tag name with a dot in it.** `<stdio.h>` is raw inline HTML to
+//     python-markdown's `HTMLExtractor` and is passed through; CommonMark 0.31
+//     §6.6 spells a tag name `[A-Za-z][A-Za-z0-9-]*`, so goldmark reads the
+//     `.` as ordinary text and escapes the angle brackets. **Nothing to do with
+//     headings** — `a <stdio.h> b`, `<stdio.h>` and `a <b.c> d` differ the same
+//     way in a plain paragraph, measured. The row below is the ATX shape of it
+//     that spec-delta-atx §3.2 pinned, and the class has no owner yet.
 var knownRemainder = map[string]string{
 	"- <div>block</div>": "python stashes the raw block before the list item is parsed",
 	"[t](a\nb)":          "spec 011 §9.3: a destination spanning a line break is out of scope, declined permanently",
+	"#include <stdio.h>": "a dotted tag name is raw HTML upstream and text in CommonMark; not the ATX rule",
 }
