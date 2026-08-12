@@ -112,6 +112,10 @@ func yamlSyntaxValidationError(
 // and `could not find flow mapping end token '}'`.
 const flowMapRow = "flow map"
 
+// badIndentRow is the substring of the row for a key indented deeper than its
+// siblings.
+const badIndentRow = "mapping value is not allowed in this context"
+
 var ruamelPhrasing = []struct{ goccy, ruamel string }{
 	{"sequence end token", "while parsing a flow sequence"},
 	// **A block line that breaks an open flow collection is a third shape.**
@@ -151,6 +155,14 @@ var ruamelPhrasing = []struct{ goccy, ruamel string }{
 	{"tab character", "while scanning for the next token"},
 	{"cannot start any token", "while scanning for the next token"},
 	{"already defined", "while constructing a mapping"},
+	// A key indented deeper than its siblings — `cv:\n  name: John\n   bad: 1`,
+	// an ordinary typo. **goccy has a second, shorter spelling for a
+	// neighbouring failure**, `value is not allowed in this context` without
+	// the leading `mapping`, which ruamel calls `while parsing a block mapping`
+	// or `while parsing a block collection` depending on the shape. That one is
+	// still unmapped; when it is added it must sit *after* this row, because
+	// its substring also matches this row's text.
+	{badIndentRow, "mapping values are not allowed here"},
 }
 
 // parserMessage mirrors rendercv_model_builder.py:87-89: the first line of the
