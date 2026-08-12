@@ -3,8 +3,11 @@
 package rendercv_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/nonamecat19/rendercv-go/pkg/rendercv"
@@ -87,9 +90,34 @@ func TestTheLibraryProducesTheGoldenArtifacts(t *testing.T) {
 				t.Fatalf("read the golden: %v", err)
 			}
 			if string(got) != string(want) {
-				t.Errorf("%s differs from the golden (%d bytes against %d)",
-					filepath.Base(artifact.golden), len(got), len(want))
+				t.Errorf("%s differs from the golden:\n%s",
+					filepath.Base(artifact.golden), firstDifference(string(got), string(want)))
 			}
 		})
 	}
+}
+
+// firstDifference locates a byte diff and shows its neighbourhood.
+//
+// A bare byte count gives the rendercv-parity-debug playbook nothing to start
+// from, which is what this reported before.
+func firstDifference(got, want string) string {
+	limit := min(len(got), len(want))
+	at := limit
+	for i := range limit {
+		if got[i] != want[i] {
+			at = i
+			break
+		}
+	}
+
+	line := 1 + strings.Count(got[:at], "\n")
+	column := at - strings.LastIndex(got[:at], "\n")
+	window := func(s string) string {
+		from := max(at-40, 0)
+		to := min(at+40, len(s))
+		return strconv.Quote(s[from:to])
+	}
+	return fmt.Sprintf("  first difference at byte %d (line %d, column %d); %d bytes against %d\n  golden: %s\n  got:    %s",
+		at, line, column, len(got), len(want), window(want), window(got))
 }
