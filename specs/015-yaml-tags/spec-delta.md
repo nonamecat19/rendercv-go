@@ -120,6 +120,17 @@ suffix alone when one was not (`ruamel/yaml/tag.py:55-88`), with
 | `!%21` | `'!!'` | the suffix is URI-decoded |
 | `!` | *not tagged at all* | resolves normally; `[! x]` is `['x']` |
 
+**Two of these rows are unreachable in the port — see §6.5.** `!<tag:x.com,1:t>` and `!!merge` are
+refused by goccy at parse time, so no node exists to render. They stay in the table because they are
+what upstream does; they are recorded as skipped rows in the test rather than as expectations.
+
+The `!` row is not a rendering rule but a **resolution** one, and it was the first thing the
+implementation had to fix: `KindTagged` is the kind every typed field rejects, so reading `!` as a
+tag turned a document upstream accepts into a validation error — `locale.language: ! english`
+raises nothing upstream and failed here. Fixed in `buildTagged` before this delta's own work, since
+without it `! x` would have started rendering as `TaggedScalar(…, tag=Tag('!'))`, a worse answer
+than the one it replaced.
+
 **A tagged collection is not a `TaggedScalar`** and needs nothing here: `construct_unknown` branches
 on the node's shape (`ruamel/yaml/constructor.py:1598-1640`), so `[!!map {a: 1}]` is `[{'a': 1}]` and
 `[!unknown [1]]` is `[[1]]` — both measured, both already right in the port.
@@ -275,24 +286,54 @@ it renders **Go values** (`any`) for the JSON-schema description resplice and ne
    The block spelling `- !!str` behaves normally and is in the §3.2 table.
 4. ~~Unifying the two repr implementations.~~ **Already done and merged** — §5.2.
 
+### 6.5 Tags goccy refuses on a scalar — found while implementing §3
+
+`buildTagged` never sees these, because the document does not parse. Measured with
+`yamlreader.ReadString` over `language: [<tag> x]`, one spelling at a time:
+
+| Spelling | goccy | upstream |
+|---|---|---|
+| `!!merge` | `could not find merge key` | `TaggedScalar(value='x', …, tag=Tag('tag:yaml.org,2002:merge'))` |
+| `!!omap`, `!!set`, `!!seq`, `!!map` | refused | a `TaggedScalar` for each |
+| `!<tag:x.com,1:t>` | refused | `TaggedScalar(…, tag=Tag('tag:x.com,1:t'))` |
+| `!!str`, `!!binary`, `!!pairs`, `!!python/object`, `!!foo/bar`, `!!STR`, `!!`, `!%21`, `!<!local>`, `!unknown`, `!foo`, `!!value`, `!!yaml` | accepted | — |
+
+The pattern: goccy checks a handful of **standard collection tags** against the node's shape while
+parsing, where ruamel defers to the constructor and gets a `TaggedScalar`. Note the asymmetry — the
+same `!!seq` and `!!map` on an actual collection parse fine and are already correct
+(`[!!seq [1]]` → `[[1]]`), so this is specifically a collection tag on a *scalar*.
+
+**Recorded, not worked around.** Two of them are `t.Skip`ped rows in
+`models/locale/taggedrepr_test.go` carrying their measured upstream value, and the reason names
+goccy. They belong with §4.2's container keys: a parser-level divergence for the human gate, not an
+implementation unit.
+
 ---
 
 ## 7. Acceptance criteria
 
+**Status: 1–3 and 6–7 are met by units A and the non-specific-tag fix that preceded it; 4 and 5 are
+finding 3's and remain open.**
+
 1. `[!!str x]`, `{a: !!str x}`, `[!unknown x]`, `[!!str 31]`, `[!!str x, !unknown y]` and
-   `{a: [!!str x]}` produce the §3.4 strings, byte for byte.
+   `{a: [!!str x]}` produce the §3.4 strings, byte for byte. ✅
 2. All five styles of §3.2 and all nine tag spellings of §3.3 are covered by a table-driven test
-   whose expectations were measured, not written.
+   whose expectations were measured, not written — **less the two §6.5 makes unreachable**, which
+   are present as skipped rows carrying their measured value. ✅ 39 rows, 37 asserted, 2 skipped.
 3. `language: !!str english` still yields `Input tag 'english'` — the top-level `__str__` case must
-   not regress.
+   not regress. ✅ asserted separately, over three tag spellings, so the fix cannot reach it.
 4. Every row of §4 passes, and the four rows now `t.Skip`ped in
-   `models/locale/languagerepr_test.go:75-90` are unskipped rather than deleted.
-5. A tagged key renders as §4.1, including the two forced-tag rows.
+   `models/locale/languagerepr_test.go:75-90` are unskipped rather than deleted. ⬜ finding 3.
+5. A tagged key renders as §4.1, including the two forced-tag rows. ⬜ finding 3.
 6. The **theme path** renders the same as the locale path for the same shapes, since both now go
    through `schemaerr.PythonText` (§5.2). This replaces the earlier criterion "both repr
    implementations agree", which no longer has two implementations to compare: the check is now that
    unifying them did not leave the theme path reading a value the locale path renders differently.
-7. `just check` and `go test -tags conformance ./internal/schema/...` clean.
+   ✅ measured end to end rather than by unit test: a CV whose `design.theme` is `!!str classic`
+   produces a **byte-identical** panel from the port and the vendored CLI (1599 bytes each, exit 1
+   both), and so does one whose `locale.language` is `[!!str english, !unknown y]` — the
+   `TaggedScalar(…)` text now appears inside the panel on both sides.
+7. `just check` and `go test -tags conformance ./internal/schema/...` clean. ✅
 
 ---
 
@@ -302,7 +343,7 @@ it renders **Go values** (`any`) for the JSON-schema description resplice and ne
 
 | Unit | Content | Depends on |
 |---|---|---|
-| A | `Node.Tag`, populated in `buildTagged`, consumed by `pythonRepr` — findings 1 and 2 | — |
+| A | `Node.Tag`, populated in `buildTagged`, consumed by `pythonRepr` — findings 1 and 2 | **done** |
 | B | `Item.KeyNode`, populated in `buildMapping`, consumed by `pythonRepr` for untagged keys — finding 3, scalar half | — |
 | C | tagged keys — §4.1 | A **and** B, and **may cost nothing** — see below |
 | D | container keys — §4.2 | goccy; **human gate**, not an implementation unit |
