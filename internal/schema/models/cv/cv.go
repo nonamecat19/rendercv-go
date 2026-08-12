@@ -243,8 +243,7 @@ func (c *Cv) validateField(
 
 	case "sections":
 		// Spec §3.53-§3.61: every section, in input order.
-		if c.Sections != nil && c.Sections.Kind != yamldoc.KindNull &&
-			c.Sections.Kind != yamldoc.KindMapping {
+		if c.Sections != nil && fitsNoDictArm(c.Sections.Kind) {
 			// `sections` is `dict[str, list[...]]`, so a non-mapping is
 			// pydantic's `dict_type` and nothing under it is looked at.
 			// Skipping it silently rendered a CV from `sections: abc`.
@@ -278,6 +277,25 @@ func (c *Cv) validateField(
 	return nil
 }
 
+// fitsNoDictArm reports whether a kind fits neither arm of `sections`'
+// declared `dict[str, list[...]] | None`.
+//
+// **Written as an exhaustive switch on purpose**, the shape `fitsNoScalarArm`
+// documents (`binder.go:520-544`): a kind that rejects by not being named only
+// rejects where the omission is visible. A `TaggedScalar` is an ordinary object
+// with no relationship to `dict`, so `sections: !!str x` is `dict_type` exactly
+// as `sections: abc` is.
+func fitsNoDictArm(kind yamldoc.Kind) bool {
+	switch kind {
+	case yamldoc.KindNull, yamldoc.KindMapping:
+		return false
+	case yamldoc.KindBool, yamldoc.KindInt, yamldoc.KindFloat,
+		yamldoc.KindString, yamldoc.KindSequence, yamldoc.KindTagged:
+		return true
+	}
+	return true
+}
+
 func (c *Cv) fieldNode(name string) (*yamldoc.Node, bool) {
 	switch name {
 	case "email":
@@ -304,7 +322,7 @@ func listShape(
 	field string,
 	source schemaerr.YamlSource,
 ) []schemaerr.ValidationError {
-	if node == nil || node.Kind == yamldoc.KindNull || node.Kind == yamldoc.KindSequence {
+	if node == nil || !fitsNoListArm(node.Kind) {
 		return nil
 	}
 	return []schemaerr.ValidationError{{
@@ -315,4 +333,19 @@ func listShape(
 		Message:        binder.MessageListType,
 		Input:          schemaerr.RenderInput(node),
 	}}
+}
+
+// fitsNoListArm reports whether a kind fits neither arm of the two list-valued
+// `cv` fields' declared `list[...] | None`.
+//
+// Same exhaustive-switch shape, and for the same reason, as fitsNoDictArm.
+func fitsNoListArm(kind yamldoc.Kind) bool {
+	switch kind {
+	case yamldoc.KindNull, yamldoc.KindSequence:
+		return false
+	case yamldoc.KindBool, yamldoc.KindInt, yamldoc.KindFloat,
+		yamldoc.KindString, yamldoc.KindMapping, yamldoc.KindTagged:
+		return true
+	}
+	return true
 }
