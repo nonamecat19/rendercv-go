@@ -334,6 +334,11 @@ func TestEveryPhrasingRowIsReachable(t *testing.T) {
 		{"tab character", "while scanning for the next token", "a: |\n\tx\n"},
 		{"cannot start any token", "while scanning for the next token", "a: b[\n\tc\n"},
 		{"already defined", "while constructing a mapping", "a: 1\na: 2\n"},
+		{
+			"mapping value is not allowed in this context",
+			"mapping values are not allowed here",
+			"cv:\n  name: John\n   bad: 1\n",
+		},
 	}
 
 	covered := make(map[int]bool, len(reaching))
@@ -1334,6 +1339,118 @@ func TestFlowMapPhrasingFollowsTheOpenDelimiter(t *testing.T) {
 			if span.Start.Line != test.startLine || span.End.Line != test.endLine {
 				t.Errorf("location = line %d to line %d, want line %d to line %d",
 					span.Start.Line, span.End.Line, test.startLine, test.endLine)
+			}
+		})
+	}
+}
+
+// TestBadIndentationReportsTheOffendingLine pins the failure an ordinary typo
+// produces: a key indented deeper than its siblings.
+//
+// Two defects in one shape, both live at specs/012-cli/gaps.md:80-83.
+// `cv:\n  name: John\n   bad: 1` is upstream's `mapping values are not allowed
+// here.` at line 3; the port said `[2:9] mapping value is not allowed in this
+// context.` at line 2 — goccy's own text with its coordinate prefix intact, at
+// the line *above* the one the user mistyped.
+//
+// ruamel reports no context mark for this failure, so the location is a single
+// line and not a span: its problem mark is the offending line, at the column of
+// that line's colon. goccy's token is instead the end of the *previous* line's
+// value, which is why the line came out one too small — and not always by one:
+// a blank line between them makes it two.
+//
+// Enumerated over indent width (1-7), key length, nesting depth, whether the
+// bad line has successors, and the edge shapes below: 115 inputs produce
+// goccy's `mapping value is not allowed in this context`, and every one of them
+// is ruamel's `mapping values are not allowed here` at the first following line
+// carrying a key indicator. The correspondence is exact in both line and
+// column on all 115.
+func TestBadIndentationReportsTheOffendingLine(t *testing.T) {
+	tests := []struct {
+		name         string
+		src          string
+		line, column int
+	}{
+		{
+			name: "the shape from the gap report", src: "cv:\n  name: John\n   bad: 1\n",
+			line: 3, column: 7,
+		},
+		{
+			name: "a deeper indent", src: "cv:\n  name: John\n       bad: 1\n",
+			line: 3, column: 11,
+		},
+		{
+			name: "a longer key", src: "cv:\n  name: John\n   longerkey: 1\n",
+			line: 3, column: 13,
+		},
+		{
+			name: "at the top level", src: "a: 1\n b: 2\n",
+			line: 2, column: 3,
+		},
+		{
+			name: "two levels deep", src: "cv:\n  a:\n    b: 1\n     c: 2\n",
+			line: 4, column: 7,
+		},
+		{
+			// The good lines after it do not move the answer.
+			name: "the bad line has successors", src: "cv:\n  name: John\n   bad: 1\n  ok: 2\n",
+			line: 3, column: 7,
+		},
+		{
+			// **Not always the next line.** A blank line between goccy's token
+			// and the mistyped key puts them two apart.
+			name: "a blank line before it", src: "cv:\n  name: John\n\n   bad: 1\n",
+			line: 4, column: 7,
+		},
+		{
+			name: "under a document marker", src: "---\ncv:\n  name: John\n   bad: 1\n",
+			line: 4, column: 7,
+		},
+		{
+			name: "no trailing newline", src: "cv:\n  name: John\n   bad: 1",
+			line: 3, column: 7,
+		},
+		{
+			// ruamel points *inside* the quotes here — its column is the first
+			// colon on the line, not the one that makes the line a key.
+			name: "a quoted key containing a colon", src: "cv:\n  name: John\n   \"a: b\": 1\n",
+			line: 3, column: 6,
+		},
+		{
+			name: "a value containing a colon", src: "cv:\n  name: John\n   bad: \"v: w\"\n",
+			line: 3, column: 7,
+		},
+		{
+			name: "carriage returns", src: "cv:\n  name: John\r\n   bad: 1\r\n",
+			line: 3, column: 7,
+		},
+	}
+
+	const want = "This is not a valid YAML file. mapping values are not allowed here."
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := ReadYamlWithValidationErrors(test.src, schemaerr.SourceMain)
+
+			var userErr *schemaerr.UserValidationError
+			if !errors.As(err, &userErr) {
+				t.Fatalf("expected *schemaerr.UserValidationError, got %T: %v", err, err)
+			}
+
+			if got := userErr.Errors[0].Message; got != want {
+				t.Errorf("message =\n  %q\nwant\n  %q", got, want)
+			}
+			span := userErr.Errors[0].YamlLocation
+			if span == nil {
+				t.Fatal("yaml location = nil, want a location")
+			}
+			// No context mark upstream, so both marks are the same place.
+			if span.Start.Line != test.line || span.End.Line != test.line {
+				t.Errorf("location = line %d to line %d, want line %d alone",
+					span.Start.Line, span.End.Line, test.line)
+			}
+			if span.Start.Column != test.column {
+				t.Errorf("column = %d, want %d", span.Start.Column, test.column)
 			}
 		})
 	}
