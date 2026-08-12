@@ -68,7 +68,7 @@ func TestMarkdownToHTMLMatchesPython(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%q: %v", row.In, err)
 		}
-		if _, known := knownRemainder[row.In]; known || rawBlockSeparator[row.In] || rawBlockTail[row.In] {
+		if _, known := knownRemainder[row.In]; known || rawBlockTail[row.In] {
 			// Inverted, for the same reason conformance.AssertUnreachable is:
 			// a list of tolerated mismatches that does not notice being fixed
 			// becomes a mute button.

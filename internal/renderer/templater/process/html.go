@@ -68,6 +68,9 @@ var converter = goldmark.New(
 			}, 105),
 			util.Prioritized(autoLinkRenderer{inner: defaultNodeRendererFunc(ast.KindAutoLink, defaultRenderer)}, 102),
 			util.Prioritized(codeBlockRenderer{writer: pythonMarkdownWriter}, 106),
+			util.Prioritized(htmlBlockRenderer{
+				inner: defaultNodeRendererFunc(ast.KindHTMLBlock, defaultRenderer),
+			}, 107),
 		),
 	),
 )
