@@ -300,3 +300,43 @@ func TestOverlaysAreIndependent(t *testing.T) {
 		t.Errorf("locale.language = %q, want the main document's %q", got, "tr")
 	}
 }
+
+// A settings overlay must not swallow the render-command overrides.
+//
+// **The overlay replaces the whole `settings` value** (spec §3.17, mirroring
+// `rendercv_model_builder.py:132`), so a `render_command` mapping captured
+// before it is no longer attached to the document. Upstream re-subscripts on
+// every write (`:149-151`) and cannot have the problem; the port did capture it
+// early, and every override was silently written into the detached node.
+//
+// Measured before the fix: `render cv.yaml --settings s.yaml
+// --dont-generate-typst --dont-generate-pdf --dont-generate-png` generated all
+// five formats where upstream generated two.
+func TestASettingsOverlayDoesNotSwallowTheOverrides(t *testing.T) {
+	overlay := "settings:\n  render_command:\n    output_folder: from_overlay\n"
+	result := mustBuild(t, minimalCV, BuildArguments{
+		SettingsYaml:      overlay,
+		OutputFolder:      "from_flag",
+		DontGenerateTypst: true,
+	})
+
+	renderCommand := get(t, result.Document, "settings", "render_command")
+	for _, tc := range []struct {
+		key  string
+		want string
+		kind yamldoc.Kind
+	}{
+		// The flag wins over the overlay's own value.
+		{key: "output_folder", want: "from_flag", kind: yamldoc.KindString},
+		// And a key the overlay never mentioned still arrives.
+		{key: "dont_generate_typst", want: "true", kind: yamldoc.KindBool},
+	} {
+		value, ok := mappingGet(renderCommand, tc.key)
+		if !ok {
+			t.Fatalf("%s was not written; the overlay detached the mapping", tc.key)
+		}
+		if value.Raw != tc.want || value.Kind != tc.kind {
+			t.Errorf("%s = %+v, want raw %q kind %v", tc.key, value, tc.want, tc.kind)
+		}
+	}
+}
