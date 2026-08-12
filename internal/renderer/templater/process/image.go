@@ -51,9 +51,9 @@ func (imageParser) Parse(_ ast.Node, block text.Reader, _ parser.Context) ast.No
 	}
 
 	image := ast.NewImage(&ast.Link{})
-	image.Destination = unescapeBackslashes(href)
+	image.Destination = href
 	if hasTitle {
-		image.Title = unescapeBackslashes(title)
+		image.Title = title
 	}
 	// A String child rather than a Text one: the label is carried as bytes, not
 	// as a range of the source, because `matchBracketed` returns a slice of the

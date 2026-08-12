@@ -110,9 +110,9 @@ func (linkParser) Parse(_ ast.Node, block text.Reader, pc parser.Context) ast.No
 	}
 
 	link := ast.NewLink()
-	link.Destination = unescapeBackslashes(href)
+	link.Destination = href
 	if hasTitle {
-		link.Title = unescapeBackslashes(title)
+		link.Title = title
 	}
 
 	block.Advance(1) // the opening `[`

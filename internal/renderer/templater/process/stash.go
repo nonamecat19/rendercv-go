@@ -31,7 +31,13 @@ const escapedChars = "\\`*_{}[]()>#+-.!"
 
 func isEscapedChar(b byte) bool { return strings.IndexByte(escapedChars, b) >= 0 }
 
-// unescapeBackslashes drops the backslash of every `\X` whose X is escapable,
+// unescapeBackslashes is the **Typst** path's copy of the round trip, and only
+// its. The HTML path must not call it: `pythonWriter.write` already unescapes
+// every attribute it emits (`htmlescape.go:138`), so applying it at parse time
+// as well stripped one backslash more than upstream —
+// `[a](b\\\\c)` is `href="b\\c"` upstream and came out `href="b\c"` here.
+//
+// It drops the backslash of every `\X` whose X is escapable,
 // which is what upstream's stash-and-restore round trip amounts to for an
 // attribute: `EscapeInlineProcessor` replaces the pair with a placeholder and
 // `treeprocessors.UnescapeTreeprocessor` puts back the bare character
