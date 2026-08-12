@@ -106,6 +106,12 @@ func yamlSyntaxValidationError(
 //
 // Each key is a substring of goccy's message; each value is ruamel's verbatim
 // first line, measured against the vendored Python.
+// flowMapRow is the substring of the one row whose ruamel phrasing depends on
+// the source as well as on goccy's text. It covers both of goccy's spellings
+// for a flow mapping it could not finish — `could not find flow map content`
+// and `could not find flow mapping end token '}'`.
+const flowMapRow = "flow map"
+
 var ruamelPhrasing = []struct{ goccy, ruamel string }{
 	{"sequence end token", "while parsing a flow sequence"},
 	// **A block line that breaks an open flow collection is a third shape.**
@@ -123,7 +129,14 @@ var ruamelPhrasing = []struct{ goccy, ruamel string }{
 	// this row needs no condition. Measured on all of them: ruamel says
 	// `while parsing a flow sequence` and locates it like the rows above.
 	{"unexpected map key", "while parsing a flow sequence"},
-	{"flow map", "while parsing a flow mapping"},
+	// **The one row that goccy's text cannot decide on its own.** goccy names
+	// the collection *it* was building, and here that is always the flow
+	// mapping; ruamel names the one it was *parsing*, which is the innermost
+	// collection open where its scan stopped — a sequence whenever the inner
+	// `{` sits on the line the block key broke. `flowContextDelimiter` supplies
+	// the missing half from the source; the value here is the answer when it
+	// says `{`.
+	{flowMapRow, "while parsing a flow mapping"},
 	{"quoted text", "while scanning a quoted scalar"},
 	// goccy has two spellings for a tab and only one says "tab character".
 	// **Neither is reached by a tab in an ordinary position** — `\ta: 1` and
@@ -161,10 +174,19 @@ func parserMessage(text, content string) string {
 	}
 
 	for _, row := range ruamelPhrasing {
-		if strings.Contains(text, row.goccy) {
-			text = row.ruamel
-			break
+		if !strings.Contains(text, row.goccy) {
+			continue
 		}
+		text = row.ruamel
+		// **One row's answer is not in goccy's text.** Both of goccy's
+		// flow-mapping spellings are reported for an open flow *sequence* too;
+		// which construct ruamel names is decided by the source. Measured over
+		// 309 inputs reaching this row: 16 are sequences and the rest mappings,
+		// and no other row needs the source at all.
+		if row.goccy == flowMapRow && flowContextDelimiter(content) == '[' {
+			text = "while parsing a flow sequence"
+		}
+		break
 	}
 
 	if text == "" {
@@ -390,6 +412,38 @@ func outermostFlowOpenLine(content string, before int) int {
 		return stack[0].line
 	}
 	return 0
+}
+
+// flowContextDelimiter is the opening delimiter of the collection ruamel names
+// in its context — the innermost flow collection still open where its scan
+// stopped — or 0 when none was open.
+//
+// **Innermost, not outermost, and measured that way.** `cv: [a, {b` broken on
+// the next line is ruamel's `while parsing a flow mapping`, with its context
+// mark on the `{` at column 9 rather than the `[` at column 5. The two coincide
+// whenever the nesting is all of one kind, which is why every shape measured
+// before this one agreed either way.
+//
+// Where the scan stopped is the block line that broke the flow, if one did, and
+// the end of the stream otherwise. The distinction matters: a delimiter on the
+// breaking line is never reached — `cv: [a\n  b: {c,` stops at the `:`, so its
+// `{` is not open and the answer is the `[` — while a flow still expecting an
+// element swallows the block line instead, and then the `{` on it is exactly
+// what ran to EOF.
+func flowContextDelimiter(content string) byte {
+	stop := 0
+	if open := openFlowLine(content); open > 0 {
+		stop = breakingLine(content, open)
+	}
+	if stop == 0 {
+		stop = streamEndLine(content, 0)
+	}
+
+	stack := openFlowStack(content, stop)
+	if len(stack) == 0 {
+		return 0
+	}
+	return stack[len(stack)-1].delim
 }
 
 // openFlow is one flow collection the scan found still open: the delimiter that
