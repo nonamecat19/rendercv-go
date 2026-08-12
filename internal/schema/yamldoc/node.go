@@ -78,6 +78,19 @@ type Node struct {
 	Style ScalarStyle
 	Items []Item
 	Elems []*Node
+
+	// Tag is the **resolved** tag of a `KindTagged` node — ruamel's
+	// `Tag.trval` (`ruamel/yaml/tag.py:55-88`), not the handle the author
+	// wrote: `!!str` is `tag:yaml.org,2002:str` and `!unknown` is `!unknown`.
+	// Empty for every other kind.
+	//
+	// It exists because a `TaggedScalar`'s `repr()` names it —
+	// `TaggedScalar(value='x', style=None, tag=Tag('tag:yaml.org,2002:str'))`
+	// (`ruamel/yaml/comments.py:1186-1187`) — and a container reprs its
+	// members. `Raw` alone cannot produce that string, so the reader used to
+	// resolve the tag to a Kind and throw the tag itself away (spec 015 delta
+	// §2).
+	Tag string
 }
 
 // Item is one key/value pair of a mapping, in input order.
