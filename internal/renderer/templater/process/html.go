@@ -152,6 +152,11 @@ func pythonBlockParsers() []util.PrioritizedValue {
 			kept = append(kept, util.Prioritized(
 				pythonParagraphParser{BlockParser: paragraph}, p.Priority))
 		default:
+			if isSetextHeadingParser(p.Value) {
+				kept = append(kept, util.Prioritized(
+					pythonSetextHeadingParser{BlockParser: p.Value.(parser.BlockParser)}, p.Priority))
+				continue
+			}
 			if isATXHeadingParser(p.Value) {
 				// **Not an identity test, because there is no identity to
 				// test.** `NewATXHeadingParser` takes options and returns a
@@ -174,6 +179,15 @@ func pythonBlockParsers() []util.PrioritizedValue {
 // parses `# h`. `pythonATXHeadingParser` re-checks the node's kind before it
 // touches anything, so a future parser that also triggered on `#` would be
 // wrapped but not altered.
+// isSetextHeadingParser reports whether a default block parser is the one that
+// parses `h\n===`. It is constructed per call for the same reason the ATX one
+// is — `NewSetextHeadingParser` takes heading options — so identity is not
+// available here either.
+func isSetextHeadingParser(value any) bool {
+	block, ok := value.(parser.BlockParser)
+	return ok && bytes.Equal(block.Trigger(), []byte{'-', '='})
+}
+
 func isATXHeadingParser(value any) bool {
 	block, ok := value.(parser.BlockParser)
 	return ok && bytes.Equal(block.Trigger(), []byte{'#'})
