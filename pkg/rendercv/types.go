@@ -77,3 +77,15 @@ func (m *Model) Name() string {
 	}
 	return name.Raw
 }
+
+// built reports whether this Model came from [Build].
+//
+// **The zero value is reachable** — `var m rendercv.Model` compiles outside this
+// package even though every field is unexported — and it carries no resolved
+// document, so rendering it dereferences nothing and panics. Plan 016 §1.3
+// claimed unexported fields made a hand-built model impossible; they make it
+// unusable, which is not the same thing, so the generators check rather than
+// assume.
+func (m *Model) built() bool {
+	return m != nil && m.doc.Model != nil
+}
