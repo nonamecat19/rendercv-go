@@ -10,7 +10,7 @@ import (
 	"github.com/nonamecat19/rendercv-go/internal/renderer/templater/process"
 )
 
-// Differential against python-markdown, now 211 shapes and growing. The
+// Differential against python-markdown, now 256 shapes and growing. The
 // fixture is CPython's own output, generated through the vendored submodule's
 // `markdown.markdown` — never hand-written (`AGENTS.md` §10.1).
 //
@@ -32,6 +32,9 @@ import (
 // resolving every pattern registered above `em_strong` before the emphasis
 // matchers ever run — is `stash.go`'s `maskAbove`. Both verdicts came from a
 // green suite, which is the whole argument for the differential being wide.
+//
+// A third verifier then found a panic and 300 more regressions, and a fourth
+// round closed the registry-priority rule for the two emphasis processors.
 //
 // Measured after that work: 2 of these rows differ, both in `knownRemainder`,
 // checked by running `MarkdownToHTML` over every `In` and diffing against the

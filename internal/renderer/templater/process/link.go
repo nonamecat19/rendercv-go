@@ -115,9 +115,9 @@ func (linkParser) Parse(_ ast.Node, block text.Reader, pc parser.Context) ast.No
 		link.Title = title
 	}
 
-	block.Advance(1) // the opening `[`
+	advanceTo(block, segment.Start+1) // the opening `[`
 	parseEmphasisBody(link, block, pc, segment.Start+after-1, -1, noCutoffDelim, false)
-	block.Advance(parenEnd - (after - 1)) // the closing `]` through the `)`
+	advanceTo(block, segment.Start+parenEnd) // the closing `]` through the `)`
 
 	return link
 }
