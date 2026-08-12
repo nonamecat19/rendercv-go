@@ -100,6 +100,24 @@ const flowMapRow = "flow map"
 // siblings.
 const badIndentRow = "mapping value is not allowed in this context"
 
+// blockContextRow is the substring of goccy's *shorter* spelling for a badly
+// indented line, which covers both `value is not allowed in this context` and
+// `value is not allowed in this context. map key-value is pre-defined`.
+//
+// It is also a substring of badIndentRow, so its row must sort after that one
+// and every test of it must reach the row rather than assume it.
+const blockContextRow = "value is not allowed in this context"
+
+// isBlockContextFailure reports whether a goccy message is the shorter spelling
+// and not the longer one that contains it.
+func isBlockContextFailure(message string) bool {
+	if i := strings.IndexByte(message, '\n'); i >= 0 {
+		message = message[:i]
+	}
+	return strings.Contains(message, blockContextRow) &&
+		!strings.Contains(message, badIndentRow)
+}
+
 // ruamelPhrasing maps goccy's error taxonomy onto ruamel's, for the syntax
 // failures the corpus contains (spec 004 §7.5, plan §6 option B).
 //
@@ -157,13 +175,15 @@ var ruamelPhrasing = []struct{ goccy, ruamel string }{
 	{"cannot start any token", "while scanning for the next token"},
 	{"already defined", "while constructing a mapping"},
 	// A key indented deeper than its siblings — `cv:\n  name: John\n   bad: 1`,
-	// an ordinary typo. **goccy has a second, shorter spelling for a
-	// neighbouring failure**, `value is not allowed in this context` without
-	// the leading `mapping`, which ruamel calls `while parsing a block mapping`
-	// or `while parsing a block collection` depending on the shape. That one is
-	// still unmapped; when it is added it must sit *after* this row, because
-	// its substring also matches this row's text.
+	// an ordinary typo.
 	{badIndentRow, "mapping values are not allowed here"},
+	// **goccy's shorter spelling for the neighbouring failure**, without the
+	// leading `mapping`. It must sit after the row above, whose text contains
+	// it. ruamel answers it four different ways depending on the source — two
+	// from its parser and two from its scanner — so the value here is only the
+	// commonest of them and `blockScan` supplies the rest, or declines. See
+	// blockScan for the discriminator and what it was measured on.
+	{blockContextRow, "while parsing a block mapping"},
 }
 
 // parserMessage mirrors rendercv_model_builder.py:87-89: the first line of the
@@ -190,6 +210,21 @@ func parserMessage(text, content string, tok yamldoc.Position) string {
 		if !strings.Contains(text, row.goccy) {
 			continue
 		}
+		// **The other row whose answer is not in goccy's text**, and the only
+		// one that can decline. When the offending line is left of everything
+		// the document opened, ruamel is not inside a block construct at all
+		// and says `expected '<document start>', but found ...` — a phrasing
+		// whose found-token spelling is not reconstructible here — so goccy's
+		// own line is left to reach the user.
+		if row.goccy == blockContextRow {
+			failure, ok := blockScan(content, tok)
+			if !ok {
+				break
+			}
+			text = failure.phrasing
+			break
+		}
+
 		text = row.ruamel
 		// **One row's answer is not in goccy's text.** Both of goccy's
 		// flow-mapping spellings are reported for an open flow *sequence* too;
@@ -768,6 +803,22 @@ func yamlErrorLocation(parserErr goyaml.Error, content string) *yamldoc.Span {
 		if line, column := offendingKeyLine(content, start.Line); line > 0 {
 			at := yamldoc.Position{Line: line, Column: column}
 			return &yamldoc.Span{Start: at, End: at}
+		}
+	}
+
+	// **The shorter spelling carries neither of ruamel's marks.** goccy blames
+	// the token its parser choked on; ruamel's context mark is where the level
+	// that token broke out of began, and its problem mark is only sometimes
+	// goccy's token — for the two scanner shapes it is a line the scanner
+	// reached that goccy never mentions. Both come from blockScan, and the span
+	// collapses to one point for the shape that has no context mark, exactly as
+	// upstream's get_yaml_error_location does with a missing mark.
+	if isBlockContextFailure(message) {
+		if failure, ok := blockScan(content, start); ok {
+			if failure.context == (yamldoc.Position{}) {
+				return &yamldoc.Span{Start: failure.problem, End: failure.problem}
+			}
+			return &yamldoc.Span{Start: failure.context, End: failure.problem}
 		}
 	}
 
