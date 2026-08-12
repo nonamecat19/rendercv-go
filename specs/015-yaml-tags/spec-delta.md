@@ -57,9 +57,10 @@ Two things the parser has and these types discard:
 | the **tag** of a tagged scalar | `tagName(node)` already computes it (`yamlreader/build.go:365-370`) and `buildTagged` throws it away after `ResolveTag` (`:302`) | findings 1, 2 |
 | the key's **kind and style** | `buildMapping` calls `scalarRaw(keyTok)` for the text (`:404`) and never calls `buildNode` on the key | finding 3 |
 
-The consequence is stated in the code already, in both repr implementations, which are two copies of
-the same function: `schemaerr/pythonrepr.go:40-48` and `:66-70`, and
-`models/design/design.go:146-153` and `:174-181`.
+**Both are now kept** — `Node.Tag` by unit A, `Item.KeyNode` by unit B — and the table records what
+the types looked like when this document was written, which is what the findings were measured
+against. The comments in `pythonrepr.go` that stated the consequence are gone with the defects they
+described.
 
 ---
 
@@ -175,6 +176,12 @@ A key is `repr`'d exactly like any other value, so the *type* decides the spelli
 | `{'': a}` | `{'': 'a'}` | ✓ |
 | `{a: 1, 2: b}` | `{'a': 1, 2: 'b'}` | `{'a': 1, '2': 'b'}` — mixed keys, input order |
 
+Four more, measured while implementing, all of them the same rule: `{-1: a}` is `{-1: 'a'}`,
+`{+1: a}` is `{1: 'a'}` — the sign is not part of the value — `{0o17: a}` is `{15: 'a'}` and
+`{0b101: a}` is `{5: 'a'}`. **Their quoted spellings are all strings**, and the port's value-position
+rendering was already exact for every one of them, which is what made the fix a wiring change rather
+than a rendering one.
+
 **This is the same value-rendering `RenderInput` already performs**, applied to the key instead of
 the value: every right-hand column above is what the port already prints for the same token in value
 position. The gap is not the rendering rule; it is that the key never becomes a node.
@@ -191,6 +198,10 @@ position. The gap is not the rendering rule; it is that the key never becomes a 
 So finding 3's tagged half **needs finding 1's capability too**: `Item.KeyTagged bool`
 (`node.go:89-94`) records that a key was tagged but not with what.
 
+A fifth row, measured while implementing, pins the quote-selection rule reaching a key:
+`{!!str "k": a}` is `{TaggedScalar(value='k', style='"', tag=Tag('tag:yaml.org,2002:str')): 'a'}`.
+**All five fell out of A + B with no code**, as §8.2 predicted; they are a fixture-only unit.
+
 ### 4.2 A container key — blocked in the parser, not in `yamldoc`
 
 | Written | Upstream | Port today |
@@ -203,7 +214,9 @@ So finding 3's tagged half **needs finding 1's capability too**: `Item.KeyTagged
 
 **This half is not reachable from a `yamldoc` change at all** — goccy rejects the document before a
 node exists. It is a parser-level divergence in the same family as the ones spec 015 §6 already
-records, and it needs the human gate (`AGENTS.md` §5), not an implementation unit.
+records, and it needs the human gate (`AGENTS.md` §5), not an implementation unit. Re-confirmed
+after B landed: the three sequence-key rows are `t.Skip`ped in `models/locale/keyrepr_test.go`
+carrying their measured tuple, and the reason names goccy rather than `yamldoc`.
 
 ---
 
@@ -312,8 +325,8 @@ implementation unit.
 
 ## 7. Acceptance criteria
 
-**Status: 1–3 and 6–7 are met by units A and the non-specific-tag fix that preceded it; 4 and 5 are
-finding 3's and remain open.**
+**Status: all seven are met. 1–3 and 6–7 by unit A and the non-specific-tag fix that preceded it,
+4 and 5 by units B and C.**
 
 1. `[!!str x]`, `{a: !!str x}`, `[!unknown x]`, `[!!str 31]`, `[!!str x, !unknown y]` and
    `{a: [!!str x]}` produce the §3.4 strings, byte for byte. ✅
@@ -322,9 +335,14 @@ finding 3's and remain open.**
    are present as skipped rows carrying their measured value. ✅ 39 rows, 37 asserted, 2 skipped.
 3. `language: !!str english` still yields `Input tag 'english'` — the top-level `__str__` case must
    not regress. ✅ asserted separately, over three tag spellings, so the fix cannot reach it.
-4. Every row of §4 passes, and the four rows now `t.Skip`ped in
-   `models/locale/languagerepr_test.go:75-90` are unskipped rather than deleted. ⬜ finding 3.
-5. A tagged key renders as §4.1, including the two forced-tag rows. ⬜ finding 3.
+4. Every row of §4 passes, and the four rows formerly `t.Skip`ped in
+   `models/locale/languagerepr_test.go` are unskipped rather than deleted. ✅ unskipped in place;
+   `keyrepr_test.go` adds **both spellings of every shape**, 53 rows, 50 asserted and 3 skipped
+   for §4.2's container keys. Both spellings matter and neither could be assumed: the bare one was
+   wrong and the quoted one was already right, so a fix that read the text would have traded them.
+5. A tagged key renders as §4.1, including the two forced-tag rows. ✅ 7 rows, and **no code** —
+   §8.2's first option was taken, so `{!!int 1: a}` → `{1: 'a'}` and `{!!str k: a}` →
+   `{TaggedScalar(…): 'a'}` both fall out of A + B.
 6. The **theme path** renders the same as the locale path for the same shapes, since both now go
    through `schemaerr.PythonText` (§5.2). This replaces the earlier criterion "both repr
    implementations agree", which no longer has two implementations to compare: the check is now that
@@ -344,8 +362,8 @@ finding 3's and remain open.**
 | Unit | Content | Depends on |
 |---|---|---|
 | A | `Node.Tag`, populated in `buildTagged`, consumed by `pythonRepr` — findings 1 and 2 | **done** |
-| B | `Item.KeyNode`, populated in `buildMapping`, consumed by `pythonRepr` for untagged keys — finding 3, scalar half | — |
-| C | tagged keys — §4.1 | A **and** B, and **may cost nothing** — see below |
+| B | `Item.KeyNode`, populated in `buildMapping`, consumed by `pythonRepr` for untagged keys — finding 3, scalar half | **done** |
+| C | tagged keys — §4.1 | **done, fixture only** — cost nothing, as §8.2 predicted |
 | D | container keys — §4.2 | goccy; **human gate**, not an implementation unit |
 
 A and B are independent and can run in parallel; neither reads the other's output. D is not work
@@ -373,7 +391,9 @@ whether C is a unit at all depends on a single decision B's implementer makes:
 
 **The first is both simpler and upstream's own shape** — ruamel constructs a key with the same
 constructor it uses for a value — so I recommend it, and C should then be scheduled as a
-**fixture-only unit** that pins §4.1 and confirms it already passes. `Item.KeyTagged` stays as the
+**fixture-only unit** that pins §4.1 and confirms it already passes. **This is what happened.**
+`KeyNode = buildNode(mv.Key)` was taken, `untagKey` was left where it is for the binding key, and
+all seven §4.1 rows passed the moment B landed; C is a test file and nothing else. `Item.KeyTagged` stays as the
 binder's signal and is not the renderer's input; the two answer different questions and merging them
 would repeat the mistake §5 avoids with `Item.Key`.
 
