@@ -10,7 +10,7 @@ Legend: `—` not started · `spec` spec written · `red` tests written, failing
 
 ---
 
-## Measured state, 2026-08-12 (HEAD `b65be86`)
+## Measured state, 2026-08-12 (HEAD `e0612b4`)
 
 Supersedes the previous measurement at `583c00a`, whose caveat — a second interactive session
 mutating the tree mid-measurement — no longer applies: this pass ran on a quiescent tree, and every
@@ -37,6 +37,7 @@ this section was measured more recently.
 | `new` + `render` end-to-end | works — `.typ`/`.pdf`/`.png`/`.md`/`.html` |
 | Live differential vs the vendored Python on a fresh `new` CV | `.typ`, `.md`, `.html` **byte-identical** |
 | `pkg/rendercv` gates | 4 of 4, each proved red on a planted violation — widened after the verifier found two covering less than they claimed |
+| Iteration 16, per commit | 21 / 21 clean on `go build`, `go build -tags conformance` and `golangci-lint` |
 | Every fixture row re-derived from the vendored Python | at `ee408cc`: `markdown_to_typst.json` 305/305, `html.json` 307/307, `scalars.json` 195/195 — 0 differed. Now 386 and 446 rows after the two blocker fixes |
 | HTML differential | **444 asserted equal, 444 pass**; `knownRemainder` 2, both confirmed still differing |
 
@@ -192,25 +193,38 @@ exactly as it skips `None`. Upstream's own CLI cannot express `False` either (no
 cannot, which is a divergence rather than a feature; the plain `bool` was already correct. The
 suspicion was real, but it was pointing at the overlay bug above.
 
-**Iteration 16's two process findings are open, and both are mine.** Recorded rather than quietly
-fixed, because the history is still local and unpushed, so they remain the human's to decide on:
+**Iteration 16's two process findings are CLOSED — the range was rewritten** (2026-08-12, human-
+approved while nothing was pushed). The 21 commits were replayed onto `5caa077`, and **every one of
+them now passes `go build`, `go build -tags conformance` and `golangci-lint`** — checked
+individually, not just at the tip.
 
-- **Four of its seventeen commits do not build** — `e93d719`, `7ed7af4`, `bdc353c`, `5b52a10`, each
-  failing on a symbol that only lands later. `git bisect` through that range is broken. This is
-  AGENTS.md §7's non-negotiable, and it is the same defect iteration 13 already carries (open item
-  8) — so the port now has two unbisectable ranges rather than one. Fixing it means rewriting the
-  range, which is cheap while nothing is pushed and impossible afterwards.
-- **`7b80fc4`, subject `test: replace the deprecated ParseDir`, adds two exported production
-  functions** (`OutputFolderFor`, `InputDirFor`) that three earlier commits already call — a
-  refactor bundled under a `test:` subject, and the commit that silently unbreaks the four above.
+Three defects were repaired, and the third was found only because the check was run per-commit:
 
-**Also recorded, because it bears on how much the numbers above are worth**: the verifier observed
-untracked probe files (`cv.yaml`, `s.yaml`, `from_doc/`, …) at the repository root during its run,
-left there by my own differential probes when a shell `cd` drifted back to the repo root. I had
-stated the tree was untouched. `git status` stayed clean throughout because the files were
-untracked, which is exactly why neither of us noticed at the time. The verifier's own measurements
-fell outside that window and it says so, but the claim was wrong when I made it, and hazard 7's rule
-is about the *working tree*, not about intent.
+- `OutputFolderFor` and `InputDirFor` were **defined six commits after they were first used**,
+  landing in a `test:`-subjected commit. They moved to `refactor: share the path-input assembly`,
+  the commit whose subject is exactly that. This alone unbroke three of the four failing commits.
+- `fix: read the render-command paths from the document` changed `generate.Options` while its
+  `pkg/rendercv` call site landed a commit later. The call site is folded in. That was the fourth.
+- **New, found by linting every commit rather than the tip**: the gate commit added
+  `(*Model).built()` with no caller until the next commit, so `golangci-lint` reported `unused`
+  there; and it used `parser.ParseDir`, which Go 1.25 deprecates, with the replacement arriving a
+  commit later. Both folded into the commits that make them clean. The second folded a commit away
+  entirely, so the range is 21 rather than 22.
+
+**The tree is unchanged by the rewrite** — `git diff` against the pre-rewrite tip is empty except
+for one 40-line regression test added afterwards (below). The old tip is kept as the tag
+`pre-rewrite-backup`. Verified by three parallel agents in isolated worktrees, seven commits each.
+
+**A fourth finding from that verification is also closed**: `fix: write render-command overrides
+into the merged settings` had shipped **with no test at all** — the whole suite passed at its
+predecessor, so nothing in the tree caught the bug it fixed, and it had been verified by
+differential probe only. `e0612b4` adds that test, confirmed red against the pre-fix shape.
+
+**The tree-cleanliness lapse stands as recorded**: untracked probe files of mine were in the
+repository root during part of iteration 16's verification, after I had stated the tree was
+untouched. `git status` stayed clean because they were untracked, which is why neither of us
+noticed. The verifier's measurements fell outside that window. Hazard 7's rule is about the working
+tree, not about intent.
 
 **Still open, ranked by reach from an ordinary CV.**
 
