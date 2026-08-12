@@ -1226,5 +1226,437 @@
   {
     "In": "- a\n\n    -     b",
     "Out": "<ul>\n<li>\n<p>a</p>\n<ul>\n<li>b</li>\n</ul>\n</li>\n</ul>"
+  },
+  {
+    "In": "a `\tx` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a `x\t` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a `\tx\t` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "![alt `x\t` t](p.png)",
+    "Out": "<p><img alt=\"alt x t\" src=\"p.png\" /></p>"
+  },
+  {
+    "In": "a `\u000bx` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a `x\u000b` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a `\u000bx\u000b` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "![alt `x\u000b` t](p.png)",
+    "Out": "<p><img alt=\"alt x t\" src=\"p.png\" /></p>"
+  },
+  {
+    "In": "a `\fx` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a `x\f` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a `\fx\f` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "![alt `x\f` t](p.png)",
+    "Out": "<p><img alt=\"alt x t\" src=\"p.png\" /></p>"
+  },
+  {
+    "In": "a `\u001cx` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a `x\u001c` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a `\u001cx\u001c` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "![alt `x\u001c` t](p.png)",
+    "Out": "<p><img alt=\"alt x t\" src=\"p.png\" /></p>"
+  },
+  {
+    "In": "a `\u001dx` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a `x\u001d` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a `\u001dx\u001d` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "![alt `x\u001d` t](p.png)",
+    "Out": "<p><img alt=\"alt x t\" src=\"p.png\" /></p>"
+  },
+  {
+    "In": "a `\u001ex` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a `x\u001e` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a `\u001ex\u001e` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "![alt `x\u001e` t](p.png)",
+    "Out": "<p><img alt=\"alt x t\" src=\"p.png\" /></p>"
+  },
+  {
+    "In": "a `\u001fx` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a `x\u001f` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a `\u001fx\u001f` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "![alt `x\u001f` t](p.png)",
+    "Out": "<p><img alt=\"alt x t\" src=\"p.png\" /></p>"
+  },
+  {
+    "In": "a ` x` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a `x ` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a ` x ` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "![alt `x ` t](p.png)",
+    "Out": "<p><img alt=\"alt x t\" src=\"p.png\" /></p>"
+  },
+  {
+    "In": "a `x` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a `x` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a `x` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "![alt `x` t](p.png)",
+    "Out": "<p><img alt=\"alt x t\" src=\"p.png\" /></p>"
+  },
+  {
+    "In": "a ` x` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a `x ` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a ` x ` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "![alt `x ` t](p.png)",
+    "Out": "<p><img alt=\"alt x t\" src=\"p.png\" /></p>"
+  },
+  {
+    "In": "a ` x` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a `x ` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a ` x ` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "![alt `x ` t](p.png)",
+    "Out": "<p><img alt=\"alt x t\" src=\"p.png\" /></p>"
+  },
+  {
+    "In": "a ` x` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a `x ` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a ` x ` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "![alt `x ` t](p.png)",
+    "Out": "<p><img alt=\"alt x t\" src=\"p.png\" /></p>"
+  },
+  {
+    "In": "a ` x` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a `x ` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a ` x ` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "![alt `x ` t](p.png)",
+    "Out": "<p><img alt=\"alt x t\" src=\"p.png\" /></p>"
+  },
+  {
+    "In": "a ` x` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a `x ` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a ` x ` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "![alt `x ` t](p.png)",
+    "Out": "<p><img alt=\"alt x t\" src=\"p.png\" /></p>"
+  },
+  {
+    "In": "a ` x` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a `x ` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a ` x ` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "![alt `x ` t](p.png)",
+    "Out": "<p><img alt=\"alt x t\" src=\"p.png\" /></p>"
+  },
+  {
+    "In": "a ` x` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a `x ` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a ` x ` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "![alt `x ` t](p.png)",
+    "Out": "<p><img alt=\"alt x t\" src=\"p.png\" /></p>"
+  },
+  {
+    "In": "a ` x` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a `x ` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a ` x ` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "![alt `x ` t](p.png)",
+    "Out": "<p><img alt=\"alt x t\" src=\"p.png\" /></p>"
+  },
+  {
+    "In": "a ` x` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a `x ` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a ` x ` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "![alt `x ` t](p.png)",
+    "Out": "<p><img alt=\"alt x t\" src=\"p.png\" /></p>"
+  },
+  {
+    "In": "a ` x` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a `x ` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a ` x ` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "![alt `x ` t](p.png)",
+    "Out": "<p><img alt=\"alt x t\" src=\"p.png\" /></p>"
+  },
+  {
+    "In": "a ` x` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a `x ` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a ` x ` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "![alt `x ` t](p.png)",
+    "Out": "<p><img alt=\"alt x t\" src=\"p.png\" /></p>"
+  },
+  {
+    "In": "a ` x` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a `x ` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a ` x ` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "![alt `x ` t](p.png)",
+    "Out": "<p><img alt=\"alt x t\" src=\"p.png\" /></p>"
+  },
+  {
+    "In": "a ` x` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a `x ` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a ` x ` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "![alt `x ` t](p.png)",
+    "Out": "<p><img alt=\"alt x t\" src=\"p.png\" /></p>"
+  },
+  {
+    "In": "a ` x` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a `x ` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a ` x ` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "![alt `x ` t](p.png)",
+    "Out": "<p><img alt=\"alt x t\" src=\"p.png\" /></p>"
+  },
+  {
+    "In": "a ` x` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a `x ` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a ` x ` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "![alt `x ` t](p.png)",
+    "Out": "<p><img alt=\"alt x t\" src=\"p.png\" /></p>"
+  },
+  {
+    "In": "a ` x` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a `x ` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a ` x ` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "![alt `x ` t](p.png)",
+    "Out": "<p><img alt=\"alt x t\" src=\"p.png\" /></p>"
+  },
+  {
+    "In": "a ` x` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a `x ` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a ` x ` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "![alt `x ` t](p.png)",
+    "Out": "<p><img alt=\"alt x t\" src=\"p.png\" /></p>"
+  },
+  {
+    "In": "a `　x` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a `x　` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "a `　x　` span",
+    "Out": "<p>a <code>x</code> span</p>"
+  },
+  {
+    "In": "![alt `x　` t](p.png)",
+    "Out": "<p><img alt=\"alt x t\" src=\"p.png\" /></p>"
   }
 ]
