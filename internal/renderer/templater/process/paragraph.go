@@ -1,6 +1,7 @@
 package process
 
 import (
+	"regexp"
 	"unicode/utf8"
 
 	"github.com/yuin/goldmark/ast"
@@ -62,6 +63,15 @@ func (p pythonParagraphParser) Close(node ast.Node, reader text.Reader, pc parse
 		first++
 	}
 	if first == lines.Len() {
+		if line, _ := reader.PeekLine(); setextBar.Match(line) {
+			// **Upstream never reaches `:614` here.** `SetextHeaderProcessor`
+			// is registered above `ParagraphProcessor` and claims the whole
+			// chunk (`blockprocessors.py:493-510`), so `"\v\n==="` is
+			// `<h1></h1>` and not a discarded block. goldmark decides the same
+			// thing one line later, at the bar, and the paragraph it needs is
+			// this one — removing it here left `<p>===</p>`.
+			return
+		}
 		node.Parent().RemoveChild(node.Parent(), node)
 		return
 	}
@@ -104,3 +114,8 @@ func pythonSpacePrefix(line []byte) int {
 	}
 	return width
 }
+
+// setextBar is the second line of a setext heading as goldmark reads it: up to
+// three spaces, then a run of `=` or a run of `-`, then optional spaces
+// (`parser/setext_headings.go:15-35`, `matchesSetextHeadingBar`).
+var setextBar = regexp.MustCompile(`^ {0,3}(?:=+|-+)[ ]*\n?$`)
