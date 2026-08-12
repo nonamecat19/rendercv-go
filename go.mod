@@ -9,8 +9,10 @@ require (
 	github.com/nlnwa/whatwg-url v0.6.2
 	github.com/nyaruka/phonenumbers v1.8.1
 	github.com/spf13/cobra v1.10.2
+	github.com/tetratelabs/wazero v1.12.0
 	github.com/yuin/goldmark v1.8.5
 	github.com/yuin/gopher-lua v1.1.2
+	golang.org/x/sys v0.44.0
 	golang.org/x/text v0.40.0
 )
 
@@ -18,8 +20,6 @@ require (
 	github.com/bits-and-blooms/bitset v1.20.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
-	github.com/tetratelabs/wazero v1.12.0 // indirect
 	golang.org/x/net v0.34.0 // indirect
-	golang.org/x/sys v0.44.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
