@@ -1892,6 +1892,258 @@
     "Out": "<ul>\n<li>\n<p>x</p>\n<ul>\n<li>y</li>\n</ul>\n</li>\n</ul>"
   },
   {
+    "In": "    a\n\u000b\n    b",
+    "Out": "<pre><code>a\n\nb\n</code></pre>"
+  },
+  {
+    "In": "    a\n\u000b\n    b\n",
+    "Out": "<pre><code>a\n\nb\n</code></pre>"
+  },
+  {
+    "In": "    a  \n\u000b\n    b  ",
+    "Out": "<pre><code>a  \n\nb\n</code></pre>"
+  },
+  {
+    "In": "    a\n \u000b \n    b",
+    "Out": "<pre><code>a\n\nb\n</code></pre>"
+  },
+  {
+    "In": "    a\n  \u000b\n    b",
+    "Out": "<pre><code>a\n\nb\n</code></pre>"
+  },
+  {
+    "In": "    a\n\u000b\u000b\n    b",
+    "Out": "<pre><code>a\n\nb\n</code></pre>"
+  },
+  {
+    "In": "    a\n\u000b\n\u000b\n    b",
+    "Out": "<pre><code>a\n\n\nb\n</code></pre>"
+  },
+  {
+    "In": "    a\n\u000b\n\n    b",
+    "Out": "<pre><code>a\n\nb\n</code></pre>"
+  },
+  {
+    "In": "    a\n\u000b",
+    "Out": "<pre><code>a\n</code></pre>"
+  },
+  {
+    "In": "    a\n\u000b\n",
+    "Out": "<pre><code>a\n</code></pre>"
+  },
+  {
+    "In": "p\n\n    a\n\u000b\n    b",
+    "Out": "<p>p</p>\n<pre><code>a\n\nb\n</code></pre>"
+  },
+  {
+    "In": "    a\n\u000b\n    b\n    c",
+    "Out": "<pre><code>a\n\nb\nc\n</code></pre>"
+  },
+  {
+    "In": "    a\n\f\n    b",
+    "Out": "<pre><code>a\n\nb\n</code></pre>"
+  },
+  {
+    "In": "    a\n\f\n    b\n",
+    "Out": "<pre><code>a\n\nb\n</code></pre>"
+  },
+  {
+    "In": "    a  \n\f\n    b  ",
+    "Out": "<pre><code>a  \n\nb\n</code></pre>"
+  },
+  {
+    "In": "    a\n \f \n    b",
+    "Out": "<pre><code>a\n\nb\n</code></pre>"
+  },
+  {
+    "In": "    a\n  \f\n    b",
+    "Out": "<pre><code>a\n\nb\n</code></pre>"
+  },
+  {
+    "In": "    a\n\f\f\n    b",
+    "Out": "<pre><code>a\n\nb\n</code></pre>"
+  },
+  {
+    "In": "    a\n\f\n\f\n    b",
+    "Out": "<pre><code>a\n\n\nb\n</code></pre>"
+  },
+  {
+    "In": "    a\n\f\n\n    b",
+    "Out": "<pre><code>a\n\nb\n</code></pre>"
+  },
+  {
+    "In": "    a\n\f",
+    "Out": "<pre><code>a\n</code></pre>"
+  },
+  {
+    "In": "    a\n\f\n",
+    "Out": "<pre><code>a\n</code></pre>"
+  },
+  {
+    "In": "p\n\n    a\n\f\n    b",
+    "Out": "<p>p</p>\n<pre><code>a\n\nb\n</code></pre>"
+  },
+  {
+    "In": "    a\n\f\n    b\n    c",
+    "Out": "<pre><code>a\n\nb\nc\n</code></pre>"
+  },
+  {
+    "In": "    a\n\u001c\n    b",
+    "Out": "<pre><code>a\n\nb\n</code></pre>"
+  },
+  {
+    "In": "    a\n\u001d\n    b",
+    "Out": "<pre><code>a\n\nb\n</code></pre>"
+  },
+  {
+    "In": "    a\n\u001e\n    b",
+    "Out": "<pre><code>a\n\nb\n</code></pre>"
+  },
+  {
+    "In": "    a\n\u001f\n    b",
+    "Out": "<pre><code>a\n\nb\n</code></pre>"
+  },
+  {
+    "In": "    a\n\n    b",
+    "Out": "<pre><code>a\n\nb\n</code></pre>"
+  },
+  {
+    "In": "    a\n \n    b",
+    "Out": "<pre><code>a\n\nb\n</code></pre>"
+  },
+  {
+    "In": "    a\n \n    b",
+    "Out": "<pre><code>a\n\nb\n</code></pre>"
+  },
+  {
+    "In": "    a\n \n    b",
+    "Out": "<pre><code>a\n\nb\n</code></pre>"
+  },
+  {
+    "In": "    a  \n \u000b \n    b  ",
+    "Out": "<pre><code>a  \n\nb\n</code></pre>"
+  },
+  {
+    "In": "    a  \n\u000b\n    b  \n\n    c  ",
+    "Out": "<pre><code>a  \n\nb\n\nc\n</code></pre>"
+  },
+  {
+    "In": "    a  \n\n    b  \n\u000b\n    c  ",
+    "Out": "<pre><code>a\n\nb  \n\nc\n</code></pre>"
+  },
+  {
+    "In": "    a  \n\u000b\n\u000b\n    b  ",
+    "Out": "<pre><code>a  \n\n\nb\n</code></pre>"
+  },
+  {
+    "In": "    a\n\u000b\n  b",
+    "Out": "<pre><code>a\n</code></pre>\n<p>b</p>"
+  },
+  {
+    "In": "    a\n\u000b\n   b",
+    "Out": "<pre><code>a\n</code></pre>\n<p>b</p>"
+  },
+  {
+    "In": "    a\n    \u000b\n    b",
+    "Out": "<pre><code>a\n\u000b\nb\n</code></pre>"
+  },
+  {
+    "In": "    a\n     \u000b\n    b",
+    "Out": "<pre><code>a\n \u000b\nb\n</code></pre>"
+  },
+  {
+    "In": "    \u000b\n    a",
+    "Out": "<pre><code>\u000b\na\n</code></pre>"
+  },
+  {
+    "In": "a\n\u000b\nb",
+    "Out": "<p>a\n\u000b\nb</p>"
+  },
+  {
+    "In": "    a\u000b\n    b",
+    "Out": "<pre><code>a\u000b\nb\n</code></pre>"
+  },
+  {
+    "In": "    a\n    b\u000b",
+    "Out": "<pre><code>a\nb\n</code></pre>"
+  },
+  {
+    "In": "> q\n\u000b\n> r",
+    "Out": "<blockquote>\n<p>q\n\u000b\nr</p>\n</blockquote>"
+  },
+  {
+    "In": "    a\n    \f\n    b",
+    "Out": "<pre><code>a\n\f\nb\n</code></pre>"
+  },
+  {
+    "In": "    a\n     \f\n    b",
+    "Out": "<pre><code>a\n \f\nb\n</code></pre>"
+  },
+  {
+    "In": "    \f\n    a",
+    "Out": "<pre><code>\f\na\n</code></pre>"
+  },
+  {
+    "In": "a\n\f\nb",
+    "Out": "<p>a\n\f\nb</p>"
+  },
+  {
+    "In": "    a\f\n    b",
+    "Out": "<pre><code>a\f\nb\n</code></pre>"
+  },
+  {
+    "In": "    a\n    b\f",
+    "Out": "<pre><code>a\nb\n</code></pre>"
+  },
+  {
+    "In": "> q\n\f\n> r",
+    "Out": "<blockquote>\n<p>q\n\f\nr</p>\n</blockquote>"
+  },
+  {
+    "In": "a\n\u001c\nb",
+    "Out": "<p>a\n\u001c\nb</p>"
+  },
+  {
+    "In": "a\n\u001d\nb",
+    "Out": "<p>a\n\u001d\nb</p>"
+  },
+  {
+    "In": "a\n\u001e\nb",
+    "Out": "<p>a\n\u001e\nb</p>"
+  },
+  {
+    "In": "a\n\u001f\nb",
+    "Out": "<p>a\n\u001f\nb</p>"
+  },
+  {
+    "In": "a\n\nb",
+    "Out": "<p>a\n\nb</p>"
+  },
+  {
+    "In": "a\n \nb",
+    "Out": "<p>a\n \nb</p>"
+  },
+  {
+    "In": "a\n \nb",
+    "Out": "<p>a\n \nb</p>"
+  },
+  {
+    "In": "a\n \nb",
+    "Out": "<p>a\n \nb</p>"
+  },
+  {
+    "In": "    a  \n    \u000b\n    b  ",
+    "Out": "<pre><code>a  \n\u000b\nb\n</code></pre>"
+  },
+  {
+    "In": "    a  \n     \u000b \n    b  ",
+    "Out": "<pre><code>a  \n \u000b \nb\n</code></pre>"
+  },
+  {
+    "In": "    a\n\t\u000b\n    b",
+    "Out": "<pre><code>a\n\u000b\nb\n</code></pre>"
+  },
+  {
     "In": "a `x\n y` b",
     "Out": "<p>a <code>x\n y</code> b</p>"
   },

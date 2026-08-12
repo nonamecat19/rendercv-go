@@ -4,7 +4,9 @@ import (
 	"strings"
 
 	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/renderer"
+	"github.com/yuin/goldmark/text"
 	"github.com/yuin/goldmark/util"
 )
 
@@ -59,29 +61,180 @@ func (r codeBlockRenderer) renderCodeBlock(
 	return ast.WalkContinue, nil
 }
 
+// pythonCodeBlockParser is goldmark's indented code block parser with
+// python-markdown's rule for a line that is whitespace to Python and is not
+// whitespace to goldmark.
+//
+// The two libraries disagree about the character set. `detab` keeps a code block
+// open across any line `str.strip()` empties (`blockprocessors.py:96-99`, the
+// `elif not line.strip()` arm) and Python's whitespace includes `\v`, `\f`,
+// `\x1c`-`\x1f`, `\x85` and `\xa0`; goldmark's `util.IsSpace` is the six ASCII
+// characters minus those two (`util/util.go:806`, `spaceTable`), so its
+// `Continue` sees an unindented non-blank line and closes the block
+// (`parser/code_block.go:47-53`). `"    a\n\v\n    b"` is one `<pre>` upstream
+// and was a `<pre>` plus a `<p>` here.
+//
+// **The line is emptied, not treated as blank.** A blank line ends a chunk and
+// the next chunk has to start with four spaces of its own to be code at all
+// (`blockparser.py:136`), which is why `"    a\n\n\v\n    b"` really is a code
+// block followed by a paragraph upstream, where a `\v` line inside a chunk is
+// only emptied. The two differ in the output — one `rstrip` against two — so
+// the parser records which lines it emptied and `codeBlockText` reads it back.
+//
+// The fix is a parser wrapper rather than a rewrite of the input, for
+// `listitem.go`'s reason: the same line means different things by context. A `\v`
+// line after a blank one must still close the block, and only the parser knows
+// whether the previous line was blank. Rewriting it to an empty line in the
+// source would close nothing, and rewriting it to four spaces would erase the
+// difference between a chunk boundary and an emptied line that this type exists
+// to keep.
+type pythonCodeBlockParser struct {
+	parser.BlockParser
+}
+
+// Continue empties a Python-whitespace line instead of closing the block, and
+// otherwise delegates.
+func (p pythonCodeBlockParser) Continue(
+	node ast.Node, reader text.Reader, pc parser.Context,
+) parser.State {
+	line, segment := reader.PeekLine()
+	if !detabEmpties(node, line, reader) {
+		return p.BlockParser.Continue(node, reader, pc)
+	}
+	markDetabEmptied(node, node.Lines().Len())
+	// The same append goldmark makes for a blank line, including leaving the
+	// line for the caller's `AdvanceLine` (`parser/code_block.go:47-50`).
+	node.Lines().Append(segment.TrimLeftSpaceWidth(4, reader.Source()))
+	return parser.Continue | parser.NoChildren
+}
+
+// detabEmpties reports whether `detab` would empty this line and carry on where
+// goldmark would close the block.
+//
+// Three conditions, all of them upstream's. The line is whitespace to Python but
+// not to goldmark, or goldmark's own blank arm already handles it. It is
+// indented by less than a tab length, or `detab`'s first arm dedents it and
+// keeps its text — `"    \v"` is a `\v` in the block, not an empty line. And the
+// previous line is not blank, because a blank line ends the chunk and
+// `CodeBlockProcessor.test` (`:255`) then requires the next one to start with
+// four spaces.
+func detabEmpties(node ast.Node, line []byte, reader text.Reader) bool {
+	if util.IsBlank(line) || !isPythonBlank(line) {
+		return false
+	}
+	if pos, _ := util.IndentPosition(line, reader.LineOffset(), pythonMarkdownTabLength); pos >= 0 {
+		return false
+	}
+	return !lastLineIsBlank(node, reader.Source())
+}
+
+// isPythonBlank is `not line.strip()` for a line that still has its newline.
+func isPythonBlank(line []byte) bool {
+	return trimPythonSpace(string(line)) == ""
+}
+
+// lastLineIsBlank reports whether the line the block last took was one
+// `NormalizeWhitespace` empties, which is where a chunk ends.
+func lastLineIsBlank(node ast.Node, source []byte) bool {
+	lines := node.Lines()
+	if lines.Len() == 0 {
+		return false
+	}
+	last := lines.At(lines.Len() - 1)
+	return strings.Trim(string(last.Value(source)), " \n") == ""
+}
+
+// detabEmptiedAttribute is where `pythonCodeBlockParser` leaves the line indices
+// for `codeBlockText`. goldmark's own renderers read node attributes, and the
+// alternative — recovering the original line from its offset in the source — is
+// not available inside a list item, where the segment has already lost the
+// item's indentation.
+const detabEmptiedAttribute = "rendercvDetabEmptied"
+
+// markDetabEmptied records that the line about to be appended at index is one
+// `detab` emptied.
+func markDetabEmptied(node ast.Node, index int) {
+	emptied := detabEmptiedLines(node)
+	if emptied == nil {
+		emptied = map[int]bool{}
+		node.SetAttributeString(detabEmptiedAttribute, emptied)
+	}
+	emptied[index] = true
+}
+
+// detabEmptiedLines is the set markDetabEmptied built, or nil when the block has
+// no such line — which is every code block in an ordinary CV.
+func detabEmptiedLines(node ast.Node) map[int]bool {
+	value, ok := node.AttributeString(detabEmptiedAttribute)
+	if !ok {
+		return nil
+	}
+	emptied, _ := value.(map[int]bool)
+	return emptied
+}
+
 // codeBlockText is the text of the `<code>` element: the block's own lines, cut
 // into python-markdown's blank-line-delimited chunks, each `rstrip`'d, and the
 // whole `rstrip`'d once more.
+//
+// **Emptied and boundary are two different things**, which is why the lines are
+// not simply blanked and split on `"\n\n"`. `detab` empties a line
+// (`blockprocessors.py:98-99`) *after* `parseChunk` has already cut the document
+// (`blockparser.py:136`), so a line `detab` empties is inside a chunk, not
+// between two — `"    a  \n\v\n    b  "` is one chunk and therefore one
+// `rstrip`, and upstream keeps the trailing spaces of `a  `.
 func codeBlockText(node ast.Node, source []byte) string {
 	lines := node.Lines()
-	kept := make([]string, 0, lines.Len())
-	for i := 0; i < lines.Len(); i++ {
+	emptied := detabEmptiedLines(node)
+	kept := make([]string, lines.Len())
+	boundary := make([]bool, lines.Len())
+	for i := range kept {
 		segment := lines.At(i)
 		line := strings.TrimSuffix(string(segment.Value(source)), "\n")
-		// A line of nothing but spaces **is** a blank line to python-markdown:
-		// `NormalizeWhitespace` empties it before the parser ever runs, with
-		// `re.sub(r'(?<=\n) +\n', '\n', source)` (`preprocessors.py:74`). So it
-		// both ends a chunk and contributes no spaces of its own — measured on
-		// `"    a  \n       \n    b  "`, which is `a\n\nb\n` upstream.
-		if strings.Trim(line, " ") == "" {
-			line = ""
+		switch {
+		case emptied[i]:
+			// `detab` emptied it (`pythonCodeBlockParser`); the chunk
+			// runs straight through it.
+			kept[i] = ""
+		case strings.Trim(line, " ") == "":
+			// A line of nothing but spaces **is** a blank line to
+			// python-markdown: `NormalizeWhitespace` empties it before the
+			// parser ever runs, with `re.sub(r'(?<=\n) +\n', '\n', source)`
+			// (`preprocessors.py:74`). So it both ends a chunk and contributes
+			// no spaces of its own — measured on `"    a  \n       \n    b  "`,
+			// which is `a\n\nb\n` upstream.
+			kept[i] = ""
+			boundary[i] = true
+		default:
+			kept[i] = line
 		}
-		kept = append(kept, line)
 	}
 
-	chunks := strings.Split(strings.Join(kept, "\n"), "\n\n")
+	chunks := chunkOnBlankLines(kept, boundary)
 	for i, chunk := range chunks {
 		chunks[i] = trimPythonSpaceRight(chunk)
 	}
 	return trimPythonSpaceRight(strings.Join(chunks, "\n\n")) + "\n"
+}
+
+// chunkOnBlankLines is `'\n'.join(lines).split('\n\n')` over lines whose
+// blankness is given separately, so that a line `detab` emptied does not cut a
+// chunk the way an originally blank one does.
+//
+// The separator is the newline **after** a blank line as well as the one before
+// it, so a trailing blank line cuts nothing and a run of three blank lines
+// leaves one of them at the head of the next chunk — `"a\n\n\nb"` is `["a",
+// "\nb"]` in Python, not `["a", "b"]`.
+func chunkOnBlankLines(lines []string, boundary []bool) []string {
+	chunks := []string{}
+	var current []string
+	for i := 0; i < len(lines); i++ {
+		current = append(current, lines[i])
+		if i+1 <= len(lines)-2 && boundary[i+1] {
+			chunks = append(chunks, strings.Join(current, "\n"))
+			current = nil
+			i++
+		}
+	}
+	return append(chunks, strings.Join(current, "\n"))
 }
