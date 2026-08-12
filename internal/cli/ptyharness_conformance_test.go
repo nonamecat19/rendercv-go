@@ -14,6 +14,7 @@ import (
 	"sync"
 	"syscall"
 	"testing"
+	"unicode/utf8"
 
 	"golang.org/x/sys/unix"
 
@@ -342,6 +343,21 @@ var osc8ID = regexp.MustCompile(`id=\d+;`)
 
 func normalize(capture string) string {
 	return osc8ID.ReplaceAllString(capture, "id=<n>;")
+}
+
+// firstLineWidth is the display width of a frame's first line — the panel's top
+// border, which is laid out to the full console width.
+func firstLineWidth(text string) int {
+	line, _, _ := strings.Cut(text, "\n")
+	return cellWidth(line)
+}
+
+// cellWidth is a rune count, which is the display width **for this line only**:
+// a panel's top border is box-drawing characters and spaces, every one of them
+// a single cell. It is not a general cell counter — package `cli`'s `cellLen`
+// is, and is unexported.
+func cellWidth(text string) int {
+	return utf8.RuneCountInString(text)
 }
 
 // diffLines reports the first difference between two captures, with the escape

@@ -7,16 +7,16 @@ import (
 	"testing"
 )
 
-// The two documents every case below is driven with. Both are **deterministic
+// The documents the cases below are driven with. Both are **deterministic
 // surfaces** — spec 012 delta §6.2.2. `render`'s progress panel is deliberately
 // not here: upstream and the port take different times, and a four-digit
 // `3240 ms` wraps where `0 ms` does not, so the panel differs in *line count*
 // and normalizing `\d+ ms` cannot repair it once the token has wrapped.
 const (
 	invalidCV = "cv:\n  name: John Doe\nlocale:\n  language: klingon\n"
-	// An empty document reaches the `Error` panel — a RenderCVUserError
-	// rather than a validation table, and the second shape the styling has
-	// to get right (`err_empty_yaml`).
+	// An empty document reaches the `Error` panel — a RenderCVUserError rather
+	// than a validation table, and the second shape the styling has to get
+	// right (`err_empty_yaml`).
 	emptyCV = "\n"
 )
 
@@ -79,24 +79,46 @@ func TestPTYHarnessSeesUpstreamColour(t *testing.T) {
 	}
 }
 
-// TestTerminalColourDifferential is the finding, delta §1: on a terminal the
-// port emits **no escape sequence of any kind** where upstream emits many.
+// assertStylingIsStillPending is the **inverted assertion** this file is built
+// on, and it is the reason the file can land while units C–G are outstanding.
 //
-// **This test is red until units C–F attach the styles**, and that is its
-// purpose — it is the gate those units turn green. It asserts the two things
-// that must both hold and that are independent of the repaint
-// non-determinism of delta §5:
+// It is `conformance.AssertUnreachable`'s shape (`internal/conformance/unreachable.go`)
+// applied to unfinished work rather than to an approved divergence: it does not
+// skip, it *requires* the port to emit nothing and fails the moment it starts
+// emitting something. So the entry cannot rot — the unit that attaches the
+// styles fails this test on the way in and has to replace the inversion with a
+// real inventory comparison.
 //
-//  1. the *plain* text agrees, escapes removed — the geometry the 42 goldens
-//     already pin must not move when styling lands;
-//  2. the escape inventory agrees — the multiset of sequences and how often
-//     each occurs.
-func TestTerminalColourDifferential(t *testing.T) {
+// What is asserted positively, and stays asserted afterwards: upstream really
+// does emit colour here, so a harness that stopped seeing it is caught; and the
+// plain text agrees, so a styling unit that moves the geometry is caught by the
+// same case that gates its colour.
+func assertStylingIsStillPending(t *testing.T, unit, got, want string) {
+	t.Helper()
+
+	if len(sequences(want)) == 0 {
+		t.Fatalf("upstream emitted no escape sequence at all; the case is not measuring"+
+			" what it claims, or the harness has stopped seeing a terminal (unit %s)", unit)
+	}
+	if count := len(sequences(got)); count != 0 {
+		t.Errorf("the port emitted %d escape sequences, where this case records that it emits"+
+			" none. If unit %s has landed, delete this inversion and assert the inventory"+
+			" against upstream instead:\n  port     %v\n  upstream %v",
+			count, unit, inventory(got), inventory(want))
+	}
+}
+
+// TestTerminalStylingIsPending records the finding of spec 012 delta §1 — on a
+// terminal the port emits **no escape sequence of any kind** where upstream
+// emits many — as an inverted assertion per surface.
+//
+// Each row names the unit of delta §8 that closes it and must then delete it.
+func TestTerminalStylingIsPending(t *testing.T) {
 	tests := []struct {
 		name  string
+		unit  string
 		args  []string
 		input string
-		env   map[string]string
 		// wrapsOnTheBinaryName marks a surface whose *plain* text cannot be
 		// compared after rebinding, because the port laid it out with the
 		// longer name before the rebinding shortened it.
@@ -109,17 +131,17 @@ func TestTerminalColourDifferential(t *testing.T) {
 		// point of the case.
 		wrapsOnTheBinaryName bool
 	}{
-		{name: "validation errors", args: []string{"render", "CV.yaml"}, input: invalidCV},
-		{name: "user error panel", args: []string{"render", "CV.yaml"}, input: emptyCV},
-		{name: "new", args: []string{"new", "JohnDoe"}},
-		{name: "help", args: []string{"render", "--help"}, wrapsOnTheBinaryName: true},
+		{name: "validation table", unit: "D", args: []string{"render", "CV.yaml"}, input: invalidCV},
+		{name: "user error panel", unit: "D", args: []string{"render", "CV.yaml"}, input: emptyCV},
+		{name: "new", unit: "E", args: []string{"new", "JohnDoe"}},
+		{name: "help", unit: "F", args: []string{"render", "--help"}, wrapsOnTheBinaryName: true},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			dir := filepath.Join(t.TempDir(), "w")
-			want := normalize(runSide(t, dir, upstreamArgv(t, test.args), test.env, test.input))
-			got := normalize(runSide(t, dir, portArgv(t, test.args), test.env, test.input))
+			want := normalize(runSide(t, dir, upstreamArgv(t, test.args), nil, test.input))
+			got := normalize(runSide(t, dir, portArgv(t, test.args), nil, test.input))
 
 			// The final frame, not the whole capture: upstream repaints a Live
 			// panel once per step and the port paints once, which is the §5
@@ -130,46 +152,45 @@ func TestTerminalColourDifferential(t *testing.T) {
 					" and not a colour one")
 				diffLines(t, portText(got), frameText(want))
 			}
-			assertInventory(t, got, want)
+			assertStylingIsStillPending(t, test.unit, got, want)
 		})
 	}
 }
 
-// TestTerminalDetectionDifferential drives the environment matrix of delta §3.
-// Each row is a rule the port has to match — **the rule, not merely "emit
-// colour"** — and every expectation was measured through the vendored Python.
+// TestTerminalDetection drives the environment matrix of delta §3. Each row is a
+// rule the port has to match — **the rule, not merely "emit colour"** — and
+// every expectation was measured through the vendored Python.
 //
-// It is red for the same reason as the test above, and the two are separate
-// because they fail for different reasons: this one fails when the *detection*
-// is wrong even after the styles are attached.
-func TestTerminalDetectionDifferential(t *testing.T) {
+// The rows where upstream emits nothing are **asserted for real and pass
+// today**: they are the configurations the port is already right about, and
+// they are what stops unit B's detection from being wired up backwards later.
+// The rest are inverted until the styles land.
+func TestTerminalDetection(t *testing.T) {
 	tests := []struct {
 		name string
 		env  map[string]string
-		// colourless says upstream emits no SGR colour at all in this
-		// configuration, so the port matches it by emitting none either — the
-		// rows that are already green.
+		// colourless says upstream emits no SGR at all in this configuration,
+		// so the port matches it by emitting none either, and the inventories
+		// are compared directly.
 		colourless bool
 	}{
-		{name: "default tty"},
-		{name: "NO_COLOR set", env: map[string]string{"NO_COLOR": "1"}},
-		{name: "NO_COLOR empty", env: map[string]string{"NO_COLOR": ""}},
+		// Upstream emits nothing: asserted, green.
 		{name: "TERM=dumb", env: map[string]string{"TERM": "dumb"}, colourless: true},
-		{name: "TERM=dumb with FORCE_COLOR", env: map[string]string{"TERM": "dumb", "FORCE_COLOR": "1"}, colourless: true},
+		{
+			name: "TERM=dumb beats FORCE_COLOR",
+			env:  map[string]string{"TERM": "dumb", "FORCE_COLOR": "1"}, colourless: true,
+		},
 		{name: "TTY_COMPATIBLE=0", env: map[string]string{"TTY_COMPATIBLE": "0"}, colourless: true},
+		{name: "FORCE_COLOR set but empty", env: map[string]string{"FORCE_COLOR": ""}, colourless: true},
+
+		// Upstream emits colour: inverted until unit C–F attach the styles, and
+		// unit B's detection is what has to get each of these right.
+		{name: "default tty"},
+		{name: "NO_COLOR keeps bold", env: map[string]string{"NO_COLOR": "1"}},
+		{name: "NO_COLOR set but empty is ignored", env: map[string]string{"NO_COLOR": ""}},
 		{name: "TTY_COMPATIBLE=1", env: map[string]string{"TTY_COMPATIBLE": "1"}},
-		{name: "FORCE_COLOR empty", env: map[string]string{"FORCE_COLOR": ""}, colourless: true},
 		{name: "CI is not consulted", env: map[string]string{"CI": "true"}},
 		{name: "eight colour TERM", env: map[string]string{"TERM": "xterm", "COLORTERM": ""}},
-		// Delta §3.4, and the one row here that is a **wrong** answer today
-		// rather than a missing one: a dumb terminal lays out to 80 and ignores
-		// COLUMNS (`rich/console.py:1011-1045`), where the port honours COLUMNS
-		// unconditionally. Colourless on both sides, so it fails on geometry
-		// alone — which is unit G's gate.
-		{
-			name: "dumb terminal ignores COLUMNS",
-			env:  map[string]string{"TERM": "dumb", "COLUMNS": "100"}, colourless: true,
-		},
 		{name: "256 colour TERM", env: map[string]string{"TERM": "xterm-256color", "COLORTERM": ""}},
 	}
 
@@ -179,15 +200,18 @@ func TestTerminalDetectionDifferential(t *testing.T) {
 			want := runSide(t, dir, upstreamArgv(t, []string{"render", "CV.yaml"}), test.env, invalidCV)
 			got := runSide(t, dir, portArgv(t, []string{"render", "CV.yaml"}), test.env, invalidCV)
 
-			if test.colourless && len(sequences(want)) != 0 {
-				t.Errorf("row claims upstream emits nothing, but it emitted %d sequences",
-					len(sequences(want)))
-			}
 			if portText(got) != frameText(want) {
 				t.Error("the final frame's plain text differs before any style is considered")
 				diffLines(t, portText(got), frameText(want))
 			}
-			assertInventory(t, got, want)
+			if test.colourless {
+				if count := len(sequences(want)); count != 0 {
+					t.Fatalf("row claims upstream emits nothing, but it emitted %d sequences", count)
+				}
+				assertInventory(t, got, want)
+				return
+			}
+			assertStylingIsStillPending(t, "C-F", got, want)
 		})
 	}
 }
@@ -207,5 +231,35 @@ func assertInventory(t *testing.T, got, want string) {
 		if _, ok := wantCounts[sequence]; !ok {
 			t.Errorf("%s: port emitted %d, upstream none", sequence, gotCount)
 		}
+	}
+}
+
+// TestDumbTerminalWidthIsPending is delta §3.4, and the one part of this
+// surface that is a **wrong** answer today rather than a missing one: a dumb
+// terminal lays out to 80 and ignores `COLUMNS` (`rich/console.py:1011-1045`),
+// where the port honours `COLUMNS` unconditionally
+// (`internal/cli/panel.go:24-31`).
+//
+// Inverted like the rest, and it is unit G's gate. Both sides are colourless
+// here, so it fails on geometry alone — which is why it is its own test rather
+// than a row in the matrix above.
+func TestDumbTerminalWidthIsPending(t *testing.T) {
+	env := map[string]string{"TERM": "dumb", "COLUMNS": "100"}
+	dir := filepath.Join(t.TempDir(), "w")
+
+	want := runSide(t, dir, upstreamArgv(t, []string{"render", "CV.yaml"}), env, invalidCV)
+	got := runSide(t, dir, portArgv(t, []string{"render", "CV.yaml"}), env, invalidCV)
+
+	upstreamWidth, portWidth := firstLineWidth(frameText(want)), firstLineWidth(portText(got))
+	if upstreamWidth != 80 {
+		t.Fatalf("upstream laid out to %d columns under TERM=dumb COLUMNS=100, want 80;"+
+			" the rule this test records has changed", upstreamWidth)
+	}
+	if portWidth == upstreamWidth {
+		t.Errorf("the port laid out to %d columns, matching upstream. If unit G has landed,"+
+			" replace this inversion with a plain-text comparison", portWidth)
+	} else if portWidth != 100 {
+		t.Errorf("the port laid out to %d columns, want the 100 it takes from COLUMNS;"+
+			" the divergence recorded here is not the one being measured", portWidth)
 	}
 }
