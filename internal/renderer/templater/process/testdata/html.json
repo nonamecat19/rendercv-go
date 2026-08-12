@@ -1022,5 +1022,37 @@
   {
     "In": "x _a *b\nc_ d*",
     "Out": "<p>x _a <em>b\nc_ d</em></p>"
+  },
+  {
+    "In": "_\\\\!_",
+    "Out": "<p><em>\\!</em></p>"
+  },
+  {
+    "In": "*\\\\!*",
+    "Out": "<p><em>\\!</em></p>"
+  },
+  {
+    "In": "_a\\\\!_",
+    "Out": "<p><em>a\\!</em></p>"
+  },
+  {
+    "In": "_\\\\a_",
+    "Out": "<p><em>\\a</em></p>"
+  },
+  {
+    "In": "_` :>\\\\!_ [",
+    "Out": "<p><em>` :&gt;\\!</em> [</p>"
+  },
+  {
+    "In": "\n>_\n: x_",
+    "Out": "<blockquote>\n<p>_\n: x_</p>\n</blockquote>"
+  },
+  {
+    "In": "> _\n: x_",
+    "Out": "<blockquote>\n<p>_\n: x_</p>\n</blockquote>"
+  },
+  {
+    "In": "\n>_\n: '*_#_b#>'\t]]]e>",
+    "Out": "<blockquote>\n<p>_\n: '*_#_b#&gt;' ]]]e&gt;</p>\n</blockquote>"
   }
 ]

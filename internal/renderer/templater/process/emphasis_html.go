@@ -56,14 +56,16 @@ func (emphasisParser) Parse(_ ast.Node, block text.Reader, pc parser.Context) as
 	// `snake<em>case</em>`: the trailing `_` opened an emphasis whose `(?<!\w)`
 	// had no `e` to look at.
 	//
-	// A block prefix a block parser already stripped (a list marker, a
-	// blockquote `>`) ends in whitespace, so it is indistinguishable from the
-	// start of a block to every guard here.
+	// **The line starts where the reader says it does, not at the previous
+	// newline in the source.** A block parser has already stripped the item's
+	// marker or the blockquote's `>`, and those bytes are not part of the text
+	// upstream matches against. Scanning back to the raw `\n` handed the
+	// matchers a `>` where upstream has the start of the block, which is enough
+	// to change `NOT_STRONG_RE`'s `(^|(?<=\s))`: a `>_` line left its `_`
+	// unclaimed here and emphasised the rest, where upstream takes the `_` as a
+	// stand-alone delimiter.
 	source := block.Source()
-	lineStart := segment.Start
-	for lineStart > 0 && source[lineStart-1] != '\n' {
-		lineStart--
-	}
+	lineStart := lineHead(block)
 	// **A pattern's body may cross a soft line break.** Every emphasis regex is
 	// compiled with `re.DOTALL` (`inlinepatterns.py:546-552`) and matched
 	// against the whole block, so `*a\nb*` in a wrapped paragraph is one
@@ -135,6 +137,18 @@ func buildEmphasis(block text.Reader, pc parser.Context, dataStart, _, index int
 		advanceTo(block, dataStart+end)
 		return em
 	}
+}
+
+// lineHead is the source offset the reader's current line begins at, once its
+// block marker has been stripped. `text.Reader` exposes it only by seeking:
+// `SetPosition` with an invalid segment resets to the line's own segment
+// (`text/reader.go:497-506`), so this asks and puts the position straight back.
+func lineHead(block text.Reader) int {
+	line, pos := block.Position()
+	block.SetPosition(line, text.NewSegment(-1, -1))
+	_, lineSeg := block.PeekLine()
+	block.SetPosition(line, pos)
+	return lineSeg.Start
 }
 
 // advanceTo moves the reader to an absolute **source** offset.
@@ -309,8 +323,15 @@ func parseEmphasisBody(container ast.Node, block text.Reader, pc parser.Context,
 			// (`inlinepatterns.py:350-360`) — so `**\alpha**` keeps its
 			// backslash and only a real escape loses one.
 			if len(line) > 1 && isEscapedChar(line[1]) {
-				escaped := segment.WithStart(segment.Start + 1)
-				ast.MergeOrAppendTextSegment(container, escaped.WithStop(segment.Start+2))
+				// **Both bytes, backslash included.** `pythonWriter.write`
+				// already resolves `\X` in the text it emits
+				// (`htmlescape.go:138`), so dropping the backslash here
+				// unescapes twice — the same mistake the link destination made.
+				// Worse, the bare escaped byte merges with whatever literal
+				// follows it, and `\\` + `!` became the text `\!`, which the
+				// writer then read as an escape and collapsed to `!`. Handing
+				// the writer the untouched pair leaves exactly one round trip.
+				ast.MergeOrAppendTextSegment(container, segment.WithStop(segment.Start+2))
 				advanceTo(block, segment.Start+2)
 				continue
 			}
