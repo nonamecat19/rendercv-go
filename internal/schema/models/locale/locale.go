@@ -168,7 +168,13 @@ func ValidateLanguage(
 	// `english` quoted in the message — measured at 1970 bytes, where the port
 	// let the tag through and reported `string_type` from the catalog binder
 	// instead.
-	tag := schemaerr.RenderInput(language)
+	// **The tag is `str()` of the value, not the Input Value column's
+	// rendering.** `RenderInput` was the wrong renderer for exactly one class:
+	// its container arms return `...`, because that is what the *column* shows,
+	// while the message quotes Python's repr — `{language: {a: 1}}` reads
+	// `Input tag '{'a': 1}'` upstream and read `Input tag '...'` here.
+	// `PythonText` is the same scalar behavior with the containers spelled out.
+	tag := schemaerr.PythonText(language)
 	if language.Kind == yamldoc.KindString {
 		for _, known := range Languages {
 			if tag == known {
