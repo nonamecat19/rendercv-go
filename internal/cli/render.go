@@ -607,11 +607,20 @@ func validationPanel(stdout io.Writer, records []schemaerr.ValidationError) {
 
 	// The table is laid out at the panel's inner width, then each of its lines
 	// becomes a row of that panel.
-	table := Table(columns, rows, ConsoleWidth()-4)
+	inner := ConsoleWidth() - 4
+	table := Table(columns, rows, inner)
 
 	var panelRows []PanelRow
 	for line := range strings.SplitSeq(strings.TrimRight(table, "\n"), "\n") {
-		panelRows = append(panelRows, PanelRow{Text: line})
+		// **A table is cropped to the panel, never folded into it.** Upstream
+		// nests the `rich.table.Table` in the `Panel` as a renderable, and
+		// `render_lines` pads or crops each of its lines to the child width —
+		// a Table has no wrapping of its own, unlike the `Text` these rows
+		// otherwise are. Below eight columns the box's four dividers no longer
+		// fit and the port folded one table across four bordered rows, where
+		// upstream shows a single cropped `╭`.
+		cropped, _ := cutCells(line, inner)
+		panelRows = append(panelRows, PanelRow{Text: cropped, IsText: true})
 	}
 	writeLivePanel(stdout, Panel("There are validation errors!", panelRows))
 }
