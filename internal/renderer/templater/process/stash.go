@@ -31,6 +31,25 @@ const escapedChars = "\\`*_{}[]()>#+-.!"
 
 func isEscapedChar(b byte) bool { return strings.IndexByte(escapedChars, b) >= 0 }
 
+// unescapeBackslashes drops the backslash of every `\X` whose X is escapable,
+// which is what upstream's stash-and-restore round trip amounts to for an
+// attribute: `EscapeInlineProcessor` replaces the pair with a placeholder and
+// `treeprocessors.UnescapeTreeprocessor` puts back the bare character
+// (`treeprocessors.py`), so `[t](a\)b)` ends up with `href="a)b"`.
+func unescapeBackslashes(b []byte) []byte {
+	if b == nil {
+		return nil
+	}
+	out := make([]byte, 0, len(b))
+	for i := 0; i < len(b); i++ {
+		if b[i] == '\\' && i+1 < len(b) && isEscapedChar(b[i+1]) {
+			i++
+		}
+		out = append(out, b[i])
+	}
+	return out
+}
+
 // maskedByte is what a resolved construct's bytes become. It stands in for
 // python-markdown's stash placeholder — `util.STX + "wzxhzdk:%d" + util.ETX`
 // (`markdown/util.py`) — and like that placeholder it is not a word character,

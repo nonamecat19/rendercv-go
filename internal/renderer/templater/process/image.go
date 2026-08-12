@@ -37,19 +37,23 @@ func (imageParser) Parse(_ ast.Node, block text.Reader, _ parser.Context) ast.No
 		return nil
 	}
 
-	label, after := matchBracketed(line, 2, '[', ']')
-	if after < 0 || after >= len(line) || line[after] != '(' {
+	// Scanned over the escape-masked line for the reason `getLink` documents:
+	// `escape` (180) outranks `image_link` (150) too.
+	scan := []byte(maskAbove(string(line), prioImage))
+	_, after := matchBracketed(scan, 2, '[', ']')
+	if after < 0 || after >= len(scan) || scan[after] != '(' {
 		return nil
 	}
-	href, title, hasTitle, end, ok := getLink(line, line, after)
+	label := line[2 : after-1]
+	href, title, hasTitle, end, ok := getLink(scan, line, after)
 	if !ok {
 		return nil
 	}
 
 	image := ast.NewImage(&ast.Link{})
-	image.Destination = href
+	image.Destination = unescapeBackslashes(href)
 	if hasTitle {
-		image.Title = title
+		image.Title = unescapeBackslashes(title)
 	}
 	// A String child rather than a Text one: the label is carried as bytes, not
 	// as a range of the source, because `matchBracketed` returns a slice of the
