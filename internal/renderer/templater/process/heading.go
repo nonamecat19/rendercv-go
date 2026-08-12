@@ -91,9 +91,16 @@ func (p pythonATXHeadingParser) Open(
 	return node, state
 }
 
-// openTightHeading opens the heading goldmark turns down for want of a space
-// after the hashes, and returns nil for every other shape so goldmark's own
-// parser keeps the ones the two libraries already agree on.
+// maxHeadingLevel is upstream's `#{1,6}`, which **saturates**: the run is
+// greedy and capped, so the seventh hash and everything after it is the
+// heading's text and `#######h` is `<h6>#h</h6>`. goldmark declines the line
+// instead (`parser/atx_heading.go:91-92`).
+const maxHeadingLevel = 6
+
+// openTightHeading opens the headings goldmark turns down — for want of a space
+// after the hashes, or for a run longer than six — and returns nil for every
+// other shape so goldmark's own parser keeps the ones the two libraries already
+// agree on.
 //
 // It is goldmark's `Open` with the space requirement removed
 // (`parser/atx_heading.go:82-137`) rather than upstream's `RE.search` over the
@@ -110,20 +117,20 @@ func openTightHeading(reader text.Reader, pc parser.Context) (ast.Node, parser.S
 	end := pos
 	for ; end < len(line) && line[end] == '#'; end++ {
 	}
-	level := end - pos
-	if level == 0 || level > 6 {
+	run := end - pos
+	if run == 0 {
 		return nil, parser.NoChildren
 	}
-	if end == len(line) || util.IsSpace(line[end]) {
+	level := min(run, maxHeadingLevel)
+	if run <= maxHeadingLevel && (end == len(line) || util.IsSpace(line[end])) {
 		// A space, a tab or the end of the line: goldmark and upstream open the
 		// same heading, so let goldmark open it.
 		return nil, parser.NoChildren
 	}
 
 	body := text.NewSegment(
-		segment.Start+end-segment.Padding,
+		segment.Start+pos+level-segment.Padding,
 		segment.Start+len(line)-segment.Padding)
-	body = body.TrimRightSpace(reader.Source())
 	node := ast.NewHeading(level)
 	if body.Len() > 0 {
 		body.Stop = body.Start + cutClosingRun(body.Value(reader.Source()))
