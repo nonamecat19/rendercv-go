@@ -17,6 +17,12 @@ RAW = [
     "-.inf", "-.Inf", "-.INF", ".nan", ".NaN", ".NAN",
     "0", "42", "-7", "+7", "0x1F", "0o17", "1_000", "00123",
     "3.14", "-3.14", "1e10", "1E10", "1.0e-3", ".5", "5.",
+    # Out of double's range in both directions. `float("1e400")` is `inf` in
+    # Python and ruamel resolves the scalar to a float all the same, where Go's
+    # ParseFloat returns the infinity *together with* ErrRange — so the two
+    # disagree unless the port reads ErrRange as success. Measured here rather
+    # than asserted on the Go side.
+    "1e400", "-1e400", "+1e400", "1e+400", "1.0e400", "1e309", "1e-400",
     "2020", "2020-09", "2020-09-24", "2020-09-24T10:00:00Z",
     "hello", "yes", "no", "on", "off", "y", "n",
     "None", "NONE", "nan", "inf", "Infinity",
