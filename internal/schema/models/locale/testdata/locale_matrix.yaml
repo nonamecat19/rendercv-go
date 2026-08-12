@@ -1,0 +1,255 @@
+# The document the locale differential renders, once per locale.
+#
+# It exists to make a locale catalog *reachable*: every one of the thirty-one
+# strings a catalog carries — six phrases, twelve month names, twelve
+# abbreviations and `degree_with_area` — lands in the rendered `.typ` from here,
+# checked by TestEveryCatalogStringReachesTheDocument. A CV that never prints a
+# month cannot fail a locale test, which is why the twelve experience entries
+# below step through the months one at a time.
+#
+# `single_date` asks for MONTH_NAME and MONTH_ABBREVIATION together so one
+# render exercises both arrays rather than the twelve the stock template reaches,
+# and the education template asks for DEGREE_WITH_AREA, which the stock one does
+# not use at all.
+#
+# The `locale:` block is prepended by the harness, not stored here.
+cv:
+  name: Jane Doe
+  location: Somewhere
+  email: jane.doe@example.com
+  website: https://rendercv.com/
+  social_networks:
+    - network: LinkedIn
+      username: rendercv
+  sections:
+    education:
+      - institution: Both Fields University
+        area: Computer Science
+        degree: PhD
+        date:
+        start_date: 2014-09
+        end_date: 2018-06
+        location: Anywhere
+        highlights:
+          - One highlight.
+      - institution: No Degree University
+        area: Mathematics
+        date:
+        start_date: 2010-11
+        end_date: 2014-07
+        location: Anywhere
+      - institution: Area Only University
+        area: Physics
+        degree: MS
+        date:
+        start_date: 2008-04
+        end_date: 2010-10
+        location: Anywhere
+    experience:
+      - company: Month 01 Co
+        position: Engineer
+        date:
+        start_date: 2001-01
+        end_date: 2002-02
+        location: Somewhere
+        highlights:
+          - One highlight.
+      - company: Month 02 Co
+        position: Engineer
+        date:
+        start_date: 2002-02
+        end_date: 2003-03
+        location: Somewhere
+        highlights:
+          - One highlight.
+      - company: Month 03 Co
+        position: Engineer
+        date:
+        start_date: 2003-03
+        end_date: 2004-04
+        location: Somewhere
+        highlights:
+          - One highlight.
+      - company: Month 04 Co
+        position: Engineer
+        date:
+        start_date: 2004-04
+        end_date: 2005-05
+        location: Somewhere
+        highlights:
+          - One highlight.
+      - company: Month 05 Co
+        position: Engineer
+        date:
+        start_date: 2005-05
+        end_date: 2006-06
+        location: Somewhere
+        highlights:
+          - One highlight.
+      - company: Month 06 Co
+        position: Engineer
+        date:
+        start_date: 2006-06
+        end_date: 2007-07
+        location: Somewhere
+        highlights:
+          - One highlight.
+      - company: Month 07 Co
+        position: Engineer
+        date:
+        start_date: 2007-07
+        end_date: 2008-08
+        location: Somewhere
+        highlights:
+          - One highlight.
+      - company: Month 08 Co
+        position: Engineer
+        date:
+        start_date: 2008-08
+        end_date: 2009-09
+        location: Somewhere
+        highlights:
+          - One highlight.
+      - company: Month 09 Co
+        position: Engineer
+        date:
+        start_date: 2009-09
+        end_date: 2010-10
+        location: Somewhere
+        highlights:
+          - One highlight.
+      - company: Month 10 Co
+        position: Engineer
+        date:
+        start_date: 2010-10
+        end_date: 2011-11
+        location: Somewhere
+        highlights:
+          - One highlight.
+      - company: Month 11 Co
+        position: Engineer
+        date:
+        start_date: 2011-11
+        end_date: 2012-12
+        location: Somewhere
+        highlights:
+          - One highlight.
+      - company: Month 12 Co
+        position: Engineer
+        date:
+        start_date: 2012-12
+        end_date: 2013-01
+        location: Somewhere
+        highlights:
+          - One highlight.
+      - company: Span one month
+        position: Engineer
+        date:
+        start_date: 2020-01
+        end_date: 2020-02
+        location: Somewhere
+        highlights:
+          - One highlight.
+      - company: Span some months
+        position: Engineer
+        date:
+        start_date: 2020-01
+        end_date: 2020-06
+        location: Somewhere
+        highlights:
+          - One highlight.
+      - company: Span one year
+        position: Engineer
+        date:
+        start_date: 2020-01
+        end_date: 2021-02
+        location: Somewhere
+        highlights:
+          - One highlight.
+      - company: Span some years
+        position: Engineer
+        date:
+        start_date: 2018-01
+        end_date: 2021-06
+        location: Somewhere
+        highlights:
+          - One highlight.
+      - company: Span to present
+        position: Engineer
+        date:
+        start_date: 2019-03
+        end_date: present
+        location: Somewhere
+        highlights:
+          - One highlight.
+      - company: Year only singular
+        position: Engineer
+        date:
+        start_date: 2015
+        end_date: 2016
+        location: Somewhere
+        highlights:
+          - One highlight.
+      - company: Year only plural
+        position: Engineer
+        date:
+        start_date: 2010
+        end_date: 2016
+        location: Somewhere
+        highlights:
+          - One highlight.
+    publications:
+      - title: Publication 1
+        authors:
+          - '*John Doe*'
+        journal: Journal 1
+        date: 2021-01
+      - title: Publication 2
+        authors:
+          - '*John Doe*'
+        journal: Journal 2
+        date: 2021-06
+      - title: Publication 3
+        authors:
+          - '*John Doe*'
+        journal: Journal 3
+        date: 2021-11
+      - title: Publication 4
+        authors:
+          - '*John Doe*'
+        journal: Journal 4
+        date: 2022
+    projects:
+      - name: Single date project
+        date: 2019-08
+        summary: A project with only a date.
+      - name: Custom date project
+        date: My Custom Date
+        summary: A project whose date is not a date at all.
+    notes:
+      - bullet: A bullet entry.
+    numbered_notes:
+      - number: A numbered entry.
+    reversed_notes:
+      - reversed_number: A reversed numbered entry.
+    skills:
+      - label: Languages
+        details: Python, Go
+    text_notes:
+      - A plain text entry.
+design:
+  theme: classic
+  sections:
+    show_time_spans_in:
+      - experience
+      - education
+  templates:
+    education_entry:
+      # The stock template prints AREA; DEGREE_WITH_AREA is the placeholder that
+      # reaches locale.phrases.degree_with_area, so it has to be asked for.
+      main_column: '**INSTITUTION**, DEGREE_WITH_AREA\nSUMMARY\nHIGHLIGHTS'
+    # Both month arrays print on every date, so one render exercises all 24
+    # strings rather than the twelve the default template would reach.
+    single_date: 'MONTH_NAME|MONTH_ABBREVIATION|MONTH|MONTH_IN_TWO_DIGITS|DAY|DAY_IN_TWO_DIGITS|YEAR|YEAR_IN_TWO_DIGITS'
+    date_range: 'START_DATE ==> END_DATE'
+    time_span: 'HOW_MANY_YEARS YEARS HOW_MANY_MONTHS MONTHS'
