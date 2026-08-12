@@ -1782,5 +1782,33 @@
   {
     "In": "    a\f",
     "Out": "<pre><code>a\n</code></pre>"
+  },
+  {
+    "In": "a `x\n y` b",
+    "Out": "<p>a <code>x\n y</code> b</p>"
+  },
+  {
+    "In": "a `x\n  y` b",
+    "Out": "<p>a <code>x\n  y</code> b</p>"
+  },
+  {
+    "In": "a `x\r y` b",
+    "Out": "<p>a <code>x\n y</code> b</p>"
+  },
+  {
+    "In": "a `x\ny` b",
+    "Out": "<p>a <code>x\ny</code> b</p>"
+  },
+  {
+    "In": "> a `x\n>   y` b",
+    "Out": "<blockquote>\n<p>a <code>x\n  y</code> b</p>\n</blockquote>"
+  },
+  {
+    "In": "- a `x\n  y` b",
+    "Out": "<ul>\n<li>a <code>x\n  y</code> b</li>\n</ul>"
+  },
+  {
+    "In": "`a\rb`",
+    "Out": "<p><code>a\nb</code></p>"
   }
 ]
