@@ -19,32 +19,31 @@ package process_test
 // `- ` marker is neither, so the tag never opens a raw block; it stays in the
 // item and the *inline* `html` pattern (`inlinepatterns.py:90`) stashes it.
 // goldmark asks after the marker has been consumed, so it sees a line-initial
-// tag and opens a block inside the `<li>`.
+// tag and opens a block inside the `<li>`. `htmlblock.go`'s `atLineStart` puts
+// the question back where upstream asks it, and 18 of the 22 close.
 
-// containerBlockTag is those 22, landed red before the fix (`AGENTS.md` §7).
-// The pins are inverted — a row that starts matching fails the suite — and 18
-// of them go away with the fix.
+// containerBlockTag is the four `at_line_start` does **not** close. None of the
+// four is this class, which is why they are still here and not a regression:
+//
+//  1. `- <div>\nmulti\n</div>` — a block tag spanning lines inside an item.
+//     Upstream keeps the whole run as the item's text; the port's inline stash
+//     (`inline.go`'s `matchRawHTML`) is single-line, so the `</div>` on its own
+//     line escapes the `<li>`. **This is the one shape in the enumeration that
+//     needs what spec 011 §9.3 declines for link destinations** — a scanner
+//     over the block's whole text — so it is recorded, not attempted.
+//  2. `- <div>a</div>\n  <div>b</div>` — upstream puts a `<br />` between the
+//     two. That is the **block** stash, not the inline one: the continuation
+//     line *is* at line start, so `handle_starttag` takes it and
+//     `htmlparser.py:216-218` appends a newline to `cleandoc`.
+//  3. and 4. `- outer\n    - <div>x</div>` and `- <div>x</div>\n    - nested`
+//     differ only by `outer<ul>` against `outer\n<ul>` — the **nested-list
+//     newline**, which reproduces with no HTML in it at all: `- outer\n    -
+//     inner` differs the same way and predates this work.
+//
+// The pins stay inverted, so any of the four that starts matching fails.
 var containerBlockTag = map[string]bool{
-	"- <div>block</div>":                   true,
-	"- <div>block</div>\n- second":         true,
-	"- a\n- <div>x</div>":                  true,
-	"- <div>x</div>\n\n- y":                true,
-	"- <div>x</div> tail":                  true,
-	"* <p>para</p>":                        true,
-	"+ <div>x</div>":                       true,
-	"1. <div>x</div>":                      true,
-	"2. <div>x</div>\n3. second":           true,
-	"- <hr />":                             true,
-	"- <!-- comment -->":                   true,
-	"- <script>var a=1;</script>":          true,
-	"- <table><tr><td>a</td></tr></table>": true,
-	"- <div>x</div>\n\nafter":              true,
-	"before\n\n- <div>x</div>":             true,
-	"> <div>x</div>":                       true,
-	"> a\n> <div>x</div>":                  true,
-	"> <div>x</div>\n\nafter":              true,
-	"- <div>\nmulti\n</div>":               true,
-	"- <div>a</div>\n  <div>b</div>":       true,
-	"- outer\n    - <div>x</div>":          true,
-	"- <div>x</div>\n    - nested":         true,
+	"- <div>\nmulti\n</div>":         true,
+	"- <div>a</div>\n  <div>b</div>": true,
+	"- outer\n    - <div>x</div>":    true,
+	"- <div>x</div>\n    - nested":   true,
 }

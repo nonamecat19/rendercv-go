@@ -48,9 +48,15 @@ import (
 // none of the golden corpus's 298 hash-initial lines was in any divergent
 // class, so neither gate could see it either.
 //
-// Measured after that work: 3 of these rows differ, all in `knownRemainder`,
-// checked by running `MarkdownToHTML` over every `In` and diffing against the
-// fixture's `Out` — not read off a commit message.
+// A seventh enumerated spec 011 §9.5's block-tag-in-a-container class, which
+// one pinned row had stood for since iteration 11 and which turned out to be 22
+// of 33 shapes. `htmlblock.go`'s `atLineStart` closed 18 and the key left
+// `knownRemainder`.
+//
+// Measured after that work: 2 rows differ in `knownRemainder`, 9 in
+// `rawBlockTail` and 4 in `containerBlockTag`, checked by running
+// `MarkdownToHTML` over every `In` and diffing against the fixture's `Out` —
+// not read off a commit message.
 //
 // It lives behind the conformance tag because it needs no upstream process but
 // does encode upstream's exact output.
@@ -79,7 +85,8 @@ func TestMarkdownToHTMLMatchesPython(t *testing.T) {
 			// becomes a mute button.
 			if got == row.Out {
 				t.Errorf("MarkdownToHTML(%q) now matches python-markdown"+
-					" — remove it from knownRemainder", row.In)
+					" — remove it from whichever of knownRemainder, rawBlockTail"+
+					" or containerBlockTag holds it", row.In)
 			}
 			continue
 		}
@@ -90,8 +97,8 @@ func TestMarkdownToHTMLMatchesPython(t *testing.T) {
 }
 
 // knownRemainder is what still differs after Wave C (spec 011 §7-8, T8-T12):
-// one shape spec §9.3 declines on purpose, and the block-tag-in-a-list-item
-// class §9.5 leaves open. Each is pinned by an **inverted** assertion above —
+// one shape spec §9.3 declines on purpose, and one class nobody has taken.
+// Each is pinned by an **inverted** assertion above —
 // the case still runs, still has to produce output, and still has to differ —
 // for the same reason `conformance.AssertUnreachable` is: a list of tolerated
 // mismatches that cannot notice being fixed is a mute button.
@@ -102,11 +109,7 @@ func TestMarkdownToHTMLMatchesPython(t *testing.T) {
 //  1. **A destination spanning a line break.** `getLink` scans the block's
 //     whole text, so `[t](a\nb)` upstream is one link with a literal newline
 //     in its `href`; matching that needs a block-level scanner. Spec 011 §9.3.
-//  2. **A block-level tag inside a list item.** python-markdown stashes raw HTML
-//     in a preprocessor before any block parsing, so the `<div>` is part of the
-//     item's text; goldmark opens a real HTML block inside the item and the two
-//     differ by a newline. Spec 011 §9.5, nobody's taken it yet.
-//  3. **A tag name with a dot in it.** `<stdio.h>` is raw inline HTML to
+//  2. **A tag name with a dot in it.** `<stdio.h>` is raw inline HTML to
 //     python-markdown's `HTMLExtractor` and is passed through; CommonMark 0.31
 //     §6.6 spells a tag name `[A-Za-z][A-Za-z0-9-]*`, so goldmark reads the
 //     `.` as ordinary text and escapes the angle brackets. **Nothing to do with
@@ -114,7 +117,6 @@ func TestMarkdownToHTMLMatchesPython(t *testing.T) {
 //     way in a plain paragraph, measured. The row below is the ATX shape of it
 //     that spec-delta-atx §3.2 pinned, and the class has no owner yet.
 var knownRemainder = map[string]string{
-	"- <div>block</div>": "python stashes the raw block before the list item is parsed",
 	"[t](a\nb)":          "spec 011 §9.3: a destination spanning a line break is out of scope, declined permanently",
 	"#include <stdio.h>": "a dotted tag name is raw HTML upstream and text in CommonMark; not the ATX rule",
 }
