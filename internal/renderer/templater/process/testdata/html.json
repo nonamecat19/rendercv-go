@@ -2144,6 +2144,66 @@
     "Out": "<pre><code>a\n\u000b\nb\n</code></pre>"
   },
   {
+    "In": "a `x\n y` b",
+    "Out": "<p>a <code>x\n y</code> b</p>"
+  },
+  {
+    "In": "a `x\n  y` b",
+    "Out": "<p>a <code>x\n  y</code> b</p>"
+  },
+  {
+    "In": "a `x\r y` b",
+    "Out": "<p>a <code>x\n y</code> b</p>"
+  },
+  {
+    "In": "a `x\ny` b",
+    "Out": "<p>a <code>x\ny</code> b</p>"
+  },
+  {
+    "In": "> a `x\n>   y` b",
+    "Out": "<blockquote>\n<p>a <code>x\n  y</code> b</p>\n</blockquote>"
+  },
+  {
+    "In": "- a `x\n  y` b",
+    "Out": "<ul>\n<li>a <code>x\n  y</code> b</li>\n</ul>"
+  },
+  {
+    "In": "`a\rb`",
+    "Out": "<p><code>a\nb</code></p>"
+  },
+  {
+    "In": "![alt `x\n` t](p.png)",
+    "Out": "<p><img alt=\"alt x t\" src=\"p.png\" /></p>"
+  },
+  {
+    "In": "![alt x\n y](p.png)",
+    "Out": "<p><img alt=\"alt x\n y\" src=\"p.png\" /></p>"
+  },
+  {
+    "In": "![a\nb](p.png)",
+    "Out": "<p><img alt=\"a\nb\" src=\"p.png\" /></p>"
+  },
+  {
+    "In": "![a](p\n.png)",
+    "Out": "<p><img alt=\"a\" src=\"p\n.png\" /></p>"
+  },
+  {
+    "In": "![a](p.png\n)",
+    "Out": "<p><img alt=\"a\" src=\"p.png\" /></p>"
+  },
+  {
+    "In": "x ![a\n b](p.png) y",
+    "Out": "<p>x <img alt=\"a\n b\" src=\"p.png\" /> y</p>"
+  },
+  {
+    "In": "![a\nb](p.png \"t\")",
+    "Out": "<p><img alt=\"a\nb\" src=\"p.png\" title=\"t\" /></p>"
+  },
+  {
+    "In": "*![a\n b](p.png)*",
+    "Out": "<p><em><img alt=\"a\n b\" src=\"p.png\" /></em></p>"
+  },
+  {
     "In": "\u000b",
     "Out": ""
   },
