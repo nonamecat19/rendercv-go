@@ -220,6 +220,17 @@ var spanToEOFMessages = append(
 // opening flow delimiter or a comma. Comments and blank lines are not
 // significant; a trailing comma counts, so `cv: [a,` is the node form even
 // though it has content, and `cv: {a: 1,` likewise.
+//
+// **The question is only meaningful if the scan reached the end at all.** When
+// a block line broke the flow first, ruamel stopped there and never saw the
+// rest of the file, so the last character of the *file* answers a question it
+// was not asked: `cv: [a\n  b: c,` ends in a comma and is nonetheless
+// `while parsing a flow sequence`, line 1 to line 2, because the scan stopped
+// on line 2. Reading the comma made the port answer `while parsing a flow node`
+// at line 3 — the wrong construct at a line the user cannot see. `cv: [a,\nb:
+// c,` is the counterpart that really is the node form: after the first comma
+// the flow wanted an element, `b: c` is a legal one, and only the *trailing*
+// comma ends the stream.
 func flowNodeExpectedAtEOF(message, content string) bool {
 	unterminated := false
 	for _, candidate := range unterminatedConstructMessages {
@@ -232,12 +243,22 @@ func flowNodeExpectedAtEOF(message, content string) bool {
 		return false
 	}
 
+	if open := openFlowLine(content); open > 0 && breakingLine(content, open) > 0 {
+		return false
+	}
+
 	switch lastSignificantByte(content) {
 	case '[', '{', ',':
 		return true
 	default:
 		return false
 	}
+}
+
+// openFlowLine is the line of the outermost flow delimiter still open at the
+// end of `content`, or 0 when every one of them was closed.
+func openFlowLine(content string) int {
+	return outermostFlowOpenLine(content, strings.Count(content, "\n")+2)
 }
 
 // breakingLine is the first line after `open` that carries a YAML key
