@@ -2142,5 +2142,365 @@
   {
     "In": "    a\n\t\u000b\n    b",
     "Out": "<pre><code>a\n\u000b\nb\n</code></pre>"
+  },
+  {
+    "In": "\u000b",
+    "Out": ""
+  },
+  {
+    "In": "\u000b\n",
+    "Out": ""
+  },
+  {
+    "In": "\u000ba",
+    "Out": "<p>a</p>"
+  },
+  {
+    "In": "\u000b\u000ba",
+    "Out": "<p>a</p>"
+  },
+  {
+    "In": "\u000b a",
+    "Out": "<p>a</p>"
+  },
+  {
+    "In": " \u000ba",
+    "Out": "<p>a</p>"
+  },
+  {
+    "In": "a\u000b",
+    "Out": "<p>a\u000b</p>"
+  },
+  {
+    "In": "a\n\u000bb",
+    "Out": "<p>a\n\u000bb</p>"
+  },
+  {
+    "In": "\u000b\n    a",
+    "Out": "<p>a</p>"
+  },
+  {
+    "In": "    a\n\u000b    b",
+    "Out": "<pre><code>a\n</code></pre>\n<p>b</p>"
+  },
+  {
+    "In": "    a\n\u000bb",
+    "Out": "<pre><code>a\n</code></pre>\n<p>b</p>"
+  },
+  {
+    "In": "a\n\n\u000b\n\nb",
+    "Out": "<p>a</p>\n<p>b</p>"
+  },
+  {
+    "In": "\u000b\n\na",
+    "Out": "<p>a</p>"
+  },
+  {
+    "In": "a\n\n\u000b",
+    "Out": "<p>a</p>"
+  },
+  {
+    "In": "- \u000bx",
+    "Out": "<ul>\n<li>x</li>\n</ul>"
+  },
+  {
+    "In": "- x\n\u000by",
+    "Out": "<ul>\n<li>x\n\u000by</li>\n</ul>"
+  },
+  {
+    "In": "> \u000bq",
+    "Out": "<blockquote>\n<p>q</p>\n</blockquote>"
+  },
+  {
+    "In": "\u000b# h",
+    "Out": "<p># h</p>"
+  },
+  {
+    "In": "\u000b- x",
+    "Out": "<p>- x</p>"
+  },
+  {
+    "In": "\u000b> q",
+    "Out": "<p>&gt; q</p>"
+  },
+  {
+    "In": "\u000b[t](u)",
+    "Out": "<p><a href=\"u\">t</a></p>"
+  },
+  {
+    "In": "\u000b`x`",
+    "Out": "<p><code>x</code></p>"
+  },
+  {
+    "In": "**\u000bb**",
+    "Out": "<p>**\u000bb**</p>"
+  },
+  {
+    "In": "\f",
+    "Out": ""
+  },
+  {
+    "In": "\f\n",
+    "Out": ""
+  },
+  {
+    "In": "\fa",
+    "Out": "<p>a</p>"
+  },
+  {
+    "In": "\f\fa",
+    "Out": "<p>a</p>"
+  },
+  {
+    "In": "\f a",
+    "Out": "<p>a</p>"
+  },
+  {
+    "In": " \fa",
+    "Out": "<p>a</p>"
+  },
+  {
+    "In": "a\f",
+    "Out": "<p>a\f</p>"
+  },
+  {
+    "In": "a\n\fb",
+    "Out": "<p>a\n\fb</p>"
+  },
+  {
+    "In": "\f\n    a",
+    "Out": "<p>a</p>"
+  },
+  {
+    "In": "    a\n\f    b",
+    "Out": "<pre><code>a\n</code></pre>\n<p>b</p>"
+  },
+  {
+    "In": "    a\n\fb",
+    "Out": "<pre><code>a\n</code></pre>\n<p>b</p>"
+  },
+  {
+    "In": "a\n\n\f\n\nb",
+    "Out": "<p>a</p>\n<p>b</p>"
+  },
+  {
+    "In": "\f\n\na",
+    "Out": "<p>a</p>"
+  },
+  {
+    "In": "a\n\n\f",
+    "Out": "<p>a</p>"
+  },
+  {
+    "In": "- \fx",
+    "Out": "<ul>\n<li>x</li>\n</ul>"
+  },
+  {
+    "In": "- x\n\fy",
+    "Out": "<ul>\n<li>x\n\fy</li>\n</ul>"
+  },
+  {
+    "In": "> \fq",
+    "Out": "<blockquote>\n<p>q</p>\n</blockquote>"
+  },
+  {
+    "In": "\f# h",
+    "Out": "<p># h</p>"
+  },
+  {
+    "In": "\f- x",
+    "Out": "<p>- x</p>"
+  },
+  {
+    "In": "\f> q",
+    "Out": "<p>&gt; q</p>"
+  },
+  {
+    "In": "\f[t](u)",
+    "Out": "<p><a href=\"u\">t</a></p>"
+  },
+  {
+    "In": "\f`x`",
+    "Out": "<p><code>x</code></p>"
+  },
+  {
+    "In": "**\fb**",
+    "Out": "<p>**\fb**</p>"
+  },
+  {
+    "In": "\u001c",
+    "Out": ""
+  },
+  {
+    "In": "\u001c\n",
+    "Out": ""
+  },
+  {
+    "In": "\u001ca",
+    "Out": "<p>a</p>"
+  },
+  {
+    "In": "\u001c\u001ca",
+    "Out": "<p>a</p>"
+  },
+  {
+    "In": "\u001c a",
+    "Out": "<p>a</p>"
+  },
+  {
+    "In": " \u001ca",
+    "Out": "<p>a</p>"
+  },
+  {
+    "In": "a\u001c",
+    "Out": "<p>a\u001c</p>"
+  },
+  {
+    "In": "a\n\u001cb",
+    "Out": "<p>a\n\u001cb</p>"
+  },
+  {
+    "In": "\u001c\n    a",
+    "Out": "<p>a</p>"
+  },
+  {
+    "In": "    a\n\u001c    b",
+    "Out": "<pre><code>a\n</code></pre>\n<p>b</p>"
+  },
+  {
+    "In": "    a\n\u001cb",
+    "Out": "<pre><code>a\n</code></pre>\n<p>b</p>"
+  },
+  {
+    "In": "a\n\n\u001c\n\nb",
+    "Out": "<p>a</p>\n<p>b</p>"
+  },
+  {
+    "In": "\u001c\n\na",
+    "Out": "<p>a</p>"
+  },
+  {
+    "In": "a\n\n\u001c",
+    "Out": "<p>a</p>"
+  },
+  {
+    "In": "- \u001cx",
+    "Out": "<ul>\n<li>x</li>\n</ul>"
+  },
+  {
+    "In": "- x\n\u001cy",
+    "Out": "<ul>\n<li>x\n\u001cy</li>\n</ul>"
+  },
+  {
+    "In": "> \u001cq",
+    "Out": "<blockquote>\n<p>q</p>\n</blockquote>"
+  },
+  {
+    "In": "\u001c# h",
+    "Out": "<p># h</p>"
+  },
+  {
+    "In": "\u001c- x",
+    "Out": "<p>- x</p>"
+  },
+  {
+    "In": "\u001c> q",
+    "Out": "<p>&gt; q</p>"
+  },
+  {
+    "In": "\u001c[t](u)",
+    "Out": "<p><a href=\"u\">t</a></p>"
+  },
+  {
+    "In": "\u001c`x`",
+    "Out": "<p><code>x</code></p>"
+  },
+  {
+    "In": " ",
+    "Out": ""
+  },
+  {
+    "In": " \n",
+    "Out": ""
+  },
+  {
+    "In": " a",
+    "Out": "<p>a</p>"
+  },
+  {
+    "In": "  a",
+    "Out": "<p>a</p>"
+  },
+  {
+    "In": "  a",
+    "Out": "<p>a</p>"
+  },
+  {
+    "In": "  a",
+    "Out": "<p>a</p>"
+  },
+  {
+    "In": "a ",
+    "Out": "<p>a </p>"
+  },
+  {
+    "In": "a\n b",
+    "Out": "<p>a\n b</p>"
+  },
+  {
+    "In": " \n    a",
+    "Out": "<p>a</p>"
+  },
+  {
+    "In": "    a\n     b",
+    "Out": "<pre><code>a\n</code></pre>\n<p>b</p>"
+  },
+  {
+    "In": "    a\n b",
+    "Out": "<pre><code>a\n</code></pre>\n<p>b</p>"
+  },
+  {
+    "In": "a\n\n \n\nb",
+    "Out": "<p>a</p>\n<p>b</p>"
+  },
+  {
+    "In": " \n\na",
+    "Out": "<p>a</p>"
+  },
+  {
+    "In": "a\n\n ",
+    "Out": "<p>a</p>"
+  },
+  {
+    "In": "-  x",
+    "Out": "<ul>\n<li>x</li>\n</ul>"
+  },
+  {
+    "In": "- x\n y",
+    "Out": "<ul>\n<li>x\n y</li>\n</ul>"
+  },
+  {
+    "In": ">  q",
+    "Out": "<blockquote>\n<p>q</p>\n</blockquote>"
+  },
+  {
+    "In": " # h",
+    "Out": "<p># h</p>"
+  },
+  {
+    "In": " - x",
+    "Out": "<p>- x</p>"
+  },
+  {
+    "In": " > q",
+    "Out": "<p>&gt; q</p>"
+  },
+  {
+    "In": " [t](u)",
+    "Out": "<p><a href=\"u\">t</a></p>"
+  },
+  {
+    "In": " `x`",
+    "Out": "<p><code>x</code></p>"
   }
 ]
