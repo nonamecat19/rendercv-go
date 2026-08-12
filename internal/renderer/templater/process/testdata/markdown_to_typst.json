@@ -1710,5 +1710,417 @@
  {
   "in": "a\rb\rc",
   "want": "a\nb\nc"
+ },
+ {
+  "in": "**\u001cb**",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) \u001cb#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "**b\u001c** x",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) b\u001c#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic x"
+ },
+ {
+  "in": "a **\u001c** b",
+  "want": "a #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) \u001c#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic b"
+ },
+ {
+  "in": "**\u001db**",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) \u001db#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "**b\u001d** x",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) b\u001d#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic x"
+ },
+ {
+  "in": "a **\u001d** b",
+  "want": "a #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) \u001d#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic b"
+ },
+ {
+  "in": "**\u001eb**",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) \u001eb#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "**b\u001e** x",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) b\u001e#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic x"
+ },
+ {
+  "in": "a **\u001e** b",
+  "want": "a #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) \u001e#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic b"
+ },
+ {
+  "in": "**\u001fb**",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) \u001fb#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "**b\u001f** x",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) b\u001f#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic x"
+ },
+ {
+  "in": "a **\u001f** b",
+  "want": "a #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) \u001f#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic b"
+ },
+ {
+  "in": "**b**",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) b#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "**b** x",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) b#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic x"
+ },
+ {
+  "in": "a **** b",
+  "want": "a #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic b"
+ },
+ {
+  "in": "** b**",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)  b#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "**b ** x",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) b #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic x"
+ },
+ {
+  "in": "a ** ** b",
+  "want": "a #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)  #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic b"
+ },
+ {
+  "in": "** b**",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)  b#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "**b ** x",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) b #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic x"
+ },
+ {
+  "in": "a ** ** b",
+  "want": "a #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)  #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic b"
+ },
+ {
+  "in": "** b**",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)  b#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "**b ** x",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) b #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic x"
+ },
+ {
+  "in": "a ** ** b",
+  "want": "a #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)  #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic b"
+ },
+ {
+  "in": "** b**",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)  b#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "**b ** x",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) b #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic x"
+ },
+ {
+  "in": "a ** ** b",
+  "want": "a #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)  #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic b"
+ },
+ {
+  "in": "** b**",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)  b#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "**b ** x",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) b #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic x"
+ },
+ {
+  "in": "a ** ** b",
+  "want": "a #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)  #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic b"
+ },
+ {
+  "in": "** b**",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)  b#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "**b ** x",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) b #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic x"
+ },
+ {
+  "in": "a ** ** b",
+  "want": "a #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)  #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic b"
+ },
+ {
+  "in": "** b**",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)  b#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "**b ** x",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) b #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic x"
+ },
+ {
+  "in": "a ** ** b",
+  "want": "a #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)  #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic b"
+ },
+ {
+  "in": "** b**",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)  b#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "**b ** x",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) b #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic x"
+ },
+ {
+  "in": "a ** ** b",
+  "want": "a #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)  #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic b"
+ },
+ {
+  "in": "** b**",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)  b#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "**b ** x",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) b #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic x"
+ },
+ {
+  "in": "a ** ** b",
+  "want": "a #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)  #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic b"
+ },
+ {
+  "in": "** b**",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)  b#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "**b ** x",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) b #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic x"
+ },
+ {
+  "in": "a ** ** b",
+  "want": "a #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)  #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic b"
+ },
+ {
+  "in": "** b**",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)  b#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "**b ** x",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) b #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic x"
+ },
+ {
+  "in": "a ** ** b",
+  "want": "a #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)  #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic b"
+ },
+ {
+  "in": "** b**",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)  b#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "**b ** x",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) b #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic x"
+ },
+ {
+  "in": "a ** ** b",
+  "want": "a #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)  #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic b"
+ },
+ {
+  "in": "** b**",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)  b#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "**b ** x",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) b #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic x"
+ },
+ {
+  "in": "a ** ** b",
+  "want": "a #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)  #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic b"
+ },
+ {
+  "in": "** b**",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)  b#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "**b ** x",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) b #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic x"
+ },
+ {
+  "in": "a ** ** b",
+  "want": "a #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)  #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic b"
+ },
+ {
+  "in": "** b**",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)  b#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "**b ** x",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) b #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic x"
+ },
+ {
+  "in": "a ** ** b",
+  "want": "a #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)  #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic b"
+ },
+ {
+  "in": "** b**",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)  b#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "**b ** x",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) b #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic x"
+ },
+ {
+  "in": "a ** ** b",
+  "want": "a #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)  #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic b"
+ },
+ {
+  "in": "** b**",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)  b#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "**b ** x",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) b #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic x"
+ },
+ {
+  "in": "a ** ** b",
+  "want": "a #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)  #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic b"
+ },
+ {
+  "in": "**　b**",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) 　b#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "**b　** x",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) b　#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic x"
+ },
+ {
+  "in": "a **　** b",
+  "want": "a #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) 　#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic b"
+ },
+ {
+  "in": "a_b_ c",
+  "want": "a#emph[b] c"
+ },
+ {
+  "in": "a _b_ c",
+  "want": "a #emph[b] c"
+ },
+ {
+  "in": "a _b_ c",
+  "want": "a #emph[b] c"
+ },
+ {
+  "in": "a _b_ c",
+  "want": "a #emph[b] c"
+ },
+ {
+  "in": "a _b_ c",
+  "want": "a #emph[b] c"
+ },
+ {
+  "in": "a _b_ c",
+  "want": "a #emph[b] c"
+ },
+ {
+  "in": "a _b_ c",
+  "want": "a #emph[b] c"
+ },
+ {
+  "in": "a _b_ c",
+  "want": "a #emph[b] c"
+ },
+ {
+  "in": "a _b_ c",
+  "want": "a #emph[b] c"
+ },
+ {
+  "in": "a _b_ c",
+  "want": "a #emph[b] c"
+ },
+ {
+  "in": "a _b_ c",
+  "want": "a #emph[b] c"
+ },
+ {
+  "in": "a _b_ c",
+  "want": "a #emph[b] c"
+ },
+ {
+  "in": "a _b_ c",
+  "want": "a #emph[b] c"
+ },
+ {
+  "in": "a _b_ c",
+  "want": "a #emph[b] c"
+ },
+ {
+  "in": "a _b_ c",
+  "want": "a #emph[b] c"
+ },
+ {
+  "in": "a _b_ c",
+  "want": "a #emph[b] c"
+ },
+ {
+  "in": "a _b_ c",
+  "want": "a #emph[b] c"
+ },
+ {
+  "in": "a _b_ c",
+  "want": "a #emph[b] c"
+ },
+ {
+  "in": "a　_b_ c",
+  "want": "a　#emph[b] c"
+ },
+ {
+  "in": "·_x_",
+  "want": "·#emph[x]"
+ },
+ {
+  "in": "_x_·",
+  "want": "#emph[x]·"
+ },
+ {
+  "in": "—_x_",
+  "want": "—#emph[x]"
+ },
+ {
+  "in": "_x_—",
+  "want": "#emph[x]—"
+ },
+ {
+  "in": "·__x__",
+  "want": "·#strong[x]"
+ },
+ {
+  "in": "__x__—",
+  "want": "#strong[x]—"
+ },
+ {
+  "in": "€_x_",
+  "want": "€#emph[x]"
+ },
+ {
+  "in": "_x_©",
+  "want": "#emph[x]©"
+ },
+ {
+  "in": "** Senior Engineer**",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)  Senior Engineer#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "**Team lead ** at ACME",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) Team lead #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic at ACME"
+ },
+ {
+  "in": "Led **a team** of 5",
+  "want": "Led #strong[a team] of 5"
+ },
+ {
+  "in": "Built _the pipeline_",
+  "want": "Built #emph[the pipeline]"
+ },
+ {
+  "in": "Grew revenue by **20 %**",
+  "want": "Grew revenue by #strong[20 \\%]"
+ },
+ {
+  "in": "Wrote *docs* and tests",
+  "want": "Wrote #emph[docs] and tests"
+ },
+ {
+  "in": "**Python** / **Go**",
+  "want": "#strong[Python] \\/ #strong[Go]"
  }
 ]
