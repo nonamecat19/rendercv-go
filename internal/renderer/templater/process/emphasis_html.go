@@ -71,11 +71,8 @@ func (emphasisParser) Parse(_ ast.Node, block text.Reader, pc parser.Context) as
 	// replaced it, which made line-bounded matching a regression rather than a
 	// standing limitation.
 	//
-	// The window extends across following lines whose only gap from the
-	// previous one is whitespace goldmark stripped, which is exactly where
-	// absolute source offsets stay linear. A gap containing anything else is a
-	// stripped block marker; joining across one would need an offset map this
-	// parser does not carry, so the window stops there.
+	// The window extends across following lines whose gap from the previous one
+	// is only whitespace goldmark stripped; see blockWindow.
 	dataStop := blockWindow(block, segment)
 	data := string(source[lineStart:dataStop])
 	pos := segment.Start - lineStart
@@ -96,8 +93,8 @@ func (emphasisParser) Parse(_ ast.Node, block text.Reader, pc parser.Context) as
 // It assumes block is positioned at `dataStart + pos`; every offset parameter
 // is an index into the same data `matchEmphasis` was handed, whose first byte
 // sits at absolute source offset `dataStart`.
-func buildEmphasis(block text.Reader, pc parser.Context, dataStart, pos, index int, delim byte, end, firstStart, firstEnd, secondStart, secondEnd int) ast.Node {
-	block.Advance(firstStart - pos)
+func buildEmphasis(block text.Reader, pc parser.Context, dataStart, _, index int, delim byte, end, firstStart, firstEnd, secondStart, secondEnd int) ast.Node {
+	advanceTo(block, dataStart+firstStart)
 
 	switch index {
 	case 0: // EM_STRONG_RE / EM_STRONG2_RE: strong[ em[first] second ]
@@ -105,39 +102,74 @@ func buildEmphasis(block text.Reader, pc parser.Context, dataStart, pos, index i
 		em := ast.NewEmphasis(1)
 		strong.AppendChild(strong, em)
 		parseEmphasisBody(em, block, pc, dataStart+firstEnd, index, delim, true)
-		block.Advance(secondStart - firstEnd)
+		advanceTo(block, dataStart+secondStart)
 		parseEmphasisBody(strong, block, pc, dataStart+secondEnd, index, delim, true)
-		block.Advance(end - secondEnd)
+		advanceTo(block, dataStart+end)
 		return strong
 	case 1: // STRONG_EM_RE / STRONG_EM2_RE: em[ strong[first] second ]
 		em := ast.NewEmphasis(1)
 		strong := ast.NewEmphasis(2)
 		em.AppendChild(em, strong)
 		parseEmphasisBody(strong, block, pc, dataStart+firstEnd, index, delim, true)
-		block.Advance(secondStart - firstEnd)
+		advanceTo(block, dataStart+secondStart)
 		parseEmphasisBody(em, block, pc, dataStart+secondEnd, index, delim, true)
-		block.Advance(end - secondEnd)
+		advanceTo(block, dataStart+end)
 		return em
 	case 2: // STRONG_EM3_RE / SMART_STRONG_EM_RE: strong[ first em[second] ]
 		strong := ast.NewEmphasis(2)
 		parseEmphasisBody(strong, block, pc, dataStart+firstEnd, index, delim, true)
-		block.Advance(secondStart - firstEnd)
+		advanceTo(block, dataStart+secondStart)
 		em := ast.NewEmphasis(1)
 		parseEmphasisBody(em, block, pc, dataStart+secondEnd, index, delim, true)
 		strong.AppendChild(strong, em)
-		block.Advance(end - secondEnd)
+		advanceTo(block, dataStart+end)
 		return strong
 	case 3: // STRONG_RE / SMART_STRONG_RE: strong[first]
 		strong := ast.NewEmphasis(2)
 		parseEmphasisBody(strong, block, pc, dataStart+firstEnd, index, delim, true)
-		block.Advance(end - firstEnd)
+		advanceTo(block, dataStart+end)
 		return strong
 	default: // 4, EMPHASIS_RE / SMART_EMPHASIS_RE: em[first]
 		em := ast.NewEmphasis(1)
 		parseEmphasisBody(em, block, pc, dataStart+firstEnd, index, delim, true)
-		block.Advance(end - firstEnd)
+		advanceTo(block, dataStart+end)
 		return em
 	}
+}
+
+// advanceTo moves the reader to an absolute **source** offset.
+//
+// `text.Reader.Advance` counts in the reader's own coordinates, which skip the
+// indent goldmark strips from a continuation line, so advancing by a delta
+// measured in the source runs past the target by exactly the stripped bytes —
+// that is how `x**a\n b**y` lost its `y`. Seeking instead of stepping removes
+// the mismatch: each hop re-reads the current segment, so a gap costs nothing
+// and an offset that lands *inside* one settles at the next real byte, which
+// is the closest position the reader can represent.
+func advanceTo(block text.Reader, abs int) {
+	for {
+		line, segment := block.PeekLine()
+		if len(line) == 0 {
+			return
+		}
+		if abs <= segment.Stop {
+			if abs > segment.Start {
+				block.Advance(abs - segment.Start)
+			}
+			return
+		}
+		block.AdvanceLine()
+	}
+}
+
+// isAllSpace reports whether every byte is one python-markdown's `\s` matches.
+func isAllSpace(b []byte) bool {
+	for _, c := range b {
+		if !isSpaceByte(c) {
+			return false
+		}
+	}
+	return true
 }
 
 // blockWindow is the source offset one past the last line of this block that
@@ -158,27 +190,21 @@ func blockWindow(block text.Reader, segment text.Segment) int {
 		if len(next) == 0 || nextSeg.Start < stop {
 			return stop
 		}
-		// A continuation line goldmark has stripped leading whitespace from
-		// starts *after* the previous line's stop. Upstream keeps that
-		// whitespace — `*a\n b*` is `<em>a\n b</em>`, space and all — and the
-		// gap is still contiguous source, so the window may span it as long as
-		// the skipped bytes really are only whitespace. Anything else is a
-		// stripped block marker, where offsets stop being linear.
+		// A continuation line goldmark stripped an indent from starts *after*
+		// the previous line's stop. Upstream keeps that whitespace — `*a\n b*`
+		// really is `<em>a\n b</em>` — and the source across the gap is still
+		// contiguous, so the window may span it when the skipped bytes are only
+		// whitespace. Anything else is a stripped block marker and ends it.
+		//
+		// This is sound only because every advance in this file **seeks to an
+		// absolute source offset** (`advanceTo`) rather than stepping by a
+		// delta; stepping ran past the target by exactly the stripped bytes and
+		// dropped trailing text.
 		if !isAllSpace(source[stop:nextSeg.Start]) {
 			return stop
 		}
 		stop = nextSeg.Stop
 	}
-}
-
-// isAllSpace reports whether every byte is one python-markdown's `\s` matches.
-func isAllSpace(b []byte) bool {
-	for _, c := range b {
-		if !isSpaceByte(c) {
-			return false
-		}
-	}
-	return true
 }
 
 // noCutoffDelim is what a fresh inline context — a link's label, which is not
@@ -206,6 +232,7 @@ const noCutoffDelim = 0
 // (`treeprocessors.py:315`, and `linkParser.Parse`'s comment).
 func parseEmphasisBody(container ast.Node, block text.Reader, pc parser.Context, endAbs, cutoff int, delim byte, allowLink bool) {
 	source := block.Source()
+	startAbs := -1
 	for {
 		peek, segment := block.PeekLine()
 		if len(peek) == 0 || segment.Start >= endAbs {
@@ -219,6 +246,9 @@ func parseEmphasisBody(container ast.Node, block text.Reader, pc parser.Context,
 		// body text upstream matches against.
 		line := source[segment.Start:endAbs]
 		limit := len(line)
+		if startAbs < 0 {
+			startAbs = segment.Start
+		}
 
 		trigger := -1
 		for i, c := range line {
@@ -229,12 +259,12 @@ func parseEmphasisBody(container ast.Node, block text.Reader, pc parser.Context,
 		}
 		if trigger < 0 {
 			ast.MergeOrAppendTextSegment(container, segment.WithStop(segment.Start+limit))
-			block.Advance(limit)
+			advanceTo(block, segment.Start+limit)
 			continue
 		}
 		if trigger > 0 {
 			ast.MergeOrAppendTextSegment(container, segment.WithStop(segment.Start+trigger))
-			block.Advance(trigger)
+			advanceTo(block, segment.Start+trigger)
 			continue
 		}
 
@@ -281,7 +311,7 @@ func parseEmphasisBody(container ast.Node, block text.Reader, pc parser.Context,
 			if len(line) > 1 && isEscapedChar(line[1]) {
 				escaped := segment.WithStart(segment.Start + 1)
 				ast.MergeOrAppendTextSegment(container, escaped.WithStop(segment.Start+2))
-				block.Advance(2)
+				advanceTo(block, segment.Start+2)
 				continue
 			}
 		case '*', '_':
@@ -295,9 +325,17 @@ func parseEmphasisBody(container ast.Node, block text.Reader, pc parser.Context,
 			if line[0] == delim {
 				nestedCutoff = cutoff
 			}
-			data := string(line)
-			if index, end, fs, fe, ss, se, ok := matchEmphasis(nestedPatterns, data, 0, nestedCutoff, nestedFloor); ok {
-				node := buildEmphasis(block, pc, segment.Start, 0, index, line[0], end, fs, fe, ss, se)
+			// **The body is the lookbehind context**, exactly as at the top
+			// level: `parse_sub_patterns` matches with `pattern.match(data,
+			// pos)` where `data` is the whole group text
+			// (`inlinepatterns.py:613-620`), so a `_` one byte into a body has
+			// the byte before it to look at. Matching from the trigger made
+			// `(?<!\w)` vacuous again, and `*__(_*` came out
+			// `<em>_<em>(</em></em>` where upstream leaves `__(_` literal.
+			data := string(source[startAbs:endAbs])
+			nestedPos := segment.Start - startAbs
+			if index, end, fs, fe, ss, se, ok := matchEmphasis(nestedPatterns, data, nestedPos, nestedCutoff, nestedFloor); ok {
+				node := buildEmphasis(block, pc, startAbs, nestedPos, index, line[0], end, fs, fe, ss, se)
 				container.AppendChild(container, node)
 				continue
 			}
@@ -305,7 +343,7 @@ func parseEmphasisBody(container ast.Node, block text.Reader, pc parser.Context,
 
 		// The trigger byte matched nothing: literal.
 		ast.MergeOrAppendTextSegment(container, segment.WithStop(segment.Start+1))
-		block.Advance(1)
+		advanceTo(block, segment.Start+1)
 	}
 }
 
@@ -338,7 +376,7 @@ func buildBodyCodeSpan(block text.Reader, line []byte, start int) (ast.Node, boo
 	contentSegment := segment.WithStop(segment.Start + after - width)
 	contentSegment = contentSegment.WithStart(segment.Start + width)
 	span.AppendChild(span, ast.NewTextSegment(contentSegment))
-	block.Advance(after)
+	advanceTo(block, start+after)
 	return span, true
 }
 
@@ -370,9 +408,9 @@ func buildBodyLink(block text.Reader, pc parser.Context, line []byte, start, end
 		link.Title = title
 	}
 
-	block.Advance(1) // the opening `[`
+	advanceTo(block, segment.Start+1) // the opening `[`
 	parseEmphasisBody(link, block, pc, segment.Start+after-1, -1, noCutoffDelim, false)
-	block.Advance(parenEnd - (after - 1)) // the closing `]` through the `)`
+	advanceTo(block, segment.Start+parenEnd) // the closing `]` through the `)`
 
 	return link, true
 }
