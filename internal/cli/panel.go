@@ -4,6 +4,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 // PanelWidth is Rich's fallback console width — what it uses when stdout is not
@@ -171,8 +172,8 @@ func panelRule(left, right string, width int) string {
 }
 
 // wrap folds one row to the panel's inner width, the way Rich's `divide_line`
-// does: break before the word that would overflow, drop the whitespace the break
-// consumed, and hard-split a single word that cannot fit on a line of its own.
+// does: break before the word that would overflow and hard-split a single word
+// that cannot fit on a line of its own.
 //
 // It always returns at least one line, so a blank separator row survives.
 func wrap(text string, width int) []string {
@@ -200,76 +201,133 @@ func fold(text string, width int, splitLongWords bool) []string {
 		return []string{text}
 	}
 
-	var lines []string
-	var line strings.Builder
-	lineWidth := 0
+	runes := []rune(text)
+	breaks := divideLine(runes, width, splitLongWords)
 
-	flush := func() {
-		lines = append(lines, line.String())
-		line.Reset()
-		lineWidth = 0
-	}
-
-	for word, gap := range words(text) {
-		wordWidth := cellLen(word)
-
-		// The word does not fit after what is already on the line. The gap that
-		// preceded it is dropped rather than carried to the next line, which is
-		// why a wrapped row's continuation starts flush left.
-		if lineWidth > 0 && lineWidth+wordWidth > width {
-			flush()
+	lines := make([]string, 0, len(breaks)+1)
+	previous := 0
+	for _, offset := range append(breaks, len(runes)) {
+		line := rstripEnd(runes[previous:offset], width)
+		if splitLongWords {
+			// `line.truncate(width, overflow=wrap_overflow)`
+			// (`rich/text.py:1249`) under the panel's `"fold"`, which crops
+			// rather than ellipsizes. The ellipsizing callers truncate the
+			// lines themselves, because their `…` costs a column this one does
+			// not spend.
+			line, _ = cutCells(line, width)
 		}
-
-		// A word too long for an empty line is broken at the width, which is
-		// what Rich's `fold` overflow does. Callers that want it ellipsized
-		// instead pass splitLongWords false and truncate the line themselves.
-		//
-		// The break is at a **column** boundary, and between graphemes:
-		// `chop_cells` never cuts a double-width character in half, so a line
-		// of wide characters holds half as many of them as a line of Latin
-		// ones.
-		if splitLongWords && wordWidth > width {
-			chunks := chopCells(word, width)
-			lines = append(lines, chunks[:len(chunks)-1]...)
-			word = chunks[len(chunks)-1]
-			wordWidth = cellLen(word)
-		}
-
-		line.WriteString(word)
-		lineWidth += wordWidth
-
-		if lineWidth+cellLen(gap) <= width {
-			line.WriteString(gap)
-			lineWidth += cellLen(gap)
-		}
-	}
-
-	if lineWidth > 0 || len(lines) == 0 {
-		// Trailing whitespace on the last line is padding, not content.
-		lines = append(lines, strings.TrimRight(line.String(), " "))
+		lines = append(lines, line)
+		previous = offset
 	}
 	return lines
 }
 
-// words splits a row into (word, following spaces) pairs. The label column is
-// padded with runs of spaces, so the gap is kept rather than collapsed: it is
-// what puts the value in its column.
-func words(text string) func(func(string, string) bool) {
-	return func(yield func(string, string) bool) {
-		for i := 0; i < len(text); {
-			word := i
-			for i < len(text) && text[i] != ' ' {
-				i++
+// wordSpan is one match of Rich's `re_word` (`rich/_wrap.py:9`).
+type wordSpan struct {
+	start, end int
+}
+
+// richWords is Rich's `words` (`rich/_wrap.py:12-23`), which scans
+// `\s*\S+\s*`.
+//
+// **The whitespace after a word belongs to the word.** That single fact is what
+// makes a run of padding fold into lines of its own instead of vanishing at the
+// break, and the port's own splitter — which yielded the word and its gap
+// separately, then dropped the gap whenever it did not fit — was a line short
+// every time a padded field overflowed.
+//
+// Offsets are in runes, because `divide_line` advances by `len(line)` over a
+// Python string, which counts codepoints.
+func richWords(text []rune) []wordSpan {
+	var spans []wordSpan
+	position := 0
+	for position < len(text) {
+		start := position
+		for position < len(text) && unicode.IsSpace(text[position]) {
+			position++
+		}
+		if position == len(text) {
+			// Trailing whitespace with no `\S+` after it is not a match at all.
+			break
+		}
+		for position < len(text) && !unicode.IsSpace(text[position]) {
+			position++
+		}
+		for position < len(text) && unicode.IsSpace(text[position]) {
+			position++
+		}
+		spans = append(spans, wordSpan{start: start, end: position})
+	}
+	return spans
+}
+
+// divideLine is Rich's `divide_line` (`rich/_wrap.py:26-78`): the rune offsets
+// a line is broken at.
+//
+// A word is measured **without** its trailing whitespace when deciding whether
+// it fits (`:45`) and **with** it when the cursor advances (`:51`, `:64`), so a
+// line may end up wider than the width by exactly the whitespace it carries —
+// which is what rstripEnd then trims back.
+func divideLine(text []rune, width int, foldWords bool) []int {
+	var breaks []int
+	offset := 0
+
+	for _, span := range richWords(text) {
+		word := text[span.start:span.end]
+		wordLength := cellLen(strings.TrimRightFunc(string(word), unicode.IsSpace))
+		if width-offset >= wordLength {
+			offset += cellLen(string(word))
+			continue
+		}
+
+		start := span.start
+		switch {
+		case wordLength > width && foldWords:
+			// The word does not fit on any line, so it is broken at a column
+			// boundary — and between graphemes, so a double-width character is
+			// never cut in half.
+			chunks := chopCells(string(word), width)
+			for i, chunk := range chunks {
+				if start != 0 {
+					breaks = append(breaks, start)
+				}
+				if i == len(chunks)-1 {
+					offset = cellLen(chunk)
+				} else {
+					start += len([]rune(chunk))
+				}
 			}
-			end := i
-			for i < len(text) && text[i] == ' ' {
-				i++
+		case wordLength > width:
+			// Folding is not allowed, so the word starts a line and the caller
+			// crops it.
+			if start != 0 {
+				breaks = append(breaks, start)
 			}
-			if !yield(text[word:end], text[end:i]) {
-				return
-			}
+			offset = cellLen(string(word))
+		case offset != 0 && start != 0:
+			// It fits on the next, empty line.
+			breaks = append(breaks, start)
+			offset = cellLen(string(word))
 		}
 	}
+	return breaks
+}
+
+// rstripEnd is Rich's `Text.rstrip_end` (`rich/text.py:1015-1023`): trailing
+// whitespace is removed **only as far as the width**, so a line of `ms` plus
+// four spaces at width five keeps three of them.
+//
+// The comparison is against the rune count, not the cell count, exactly as
+// upstream compares against `len(self)`.
+func rstripEnd(line []rune, size int) string {
+	if len(line) <= size {
+		return string(line)
+	}
+	trailing := 0
+	for i := len(line) - 1; i >= 0 && unicode.IsSpace(line[i]); i-- {
+		trailing++
+	}
+	return string(line[:len(line)-min(trailing, len(line)-size)])
 }
 
 // tabSize is Rich's default `Console.tab_size` (`rich/console.py:643`), and
