@@ -64,7 +64,6 @@ func (emphasisParser) Parse(_ ast.Node, block text.Reader, pc parser.Context) as
 	// to change `NOT_STRONG_RE`'s `(^|(?<=\s))`: a `>_` line left its `_`
 	// unclaimed here and emphasised the rest, where upstream takes the `_` as a
 	// stand-alone delimiter.
-	source := block.Source()
 	lineStart := lineHead(block)
 	// **A pattern's body may cross a soft line break.** Every emphasis regex is
 	// compiled with `re.DOTALL` (`inlinepatterns.py:546-552`) and matched
@@ -75,16 +74,27 @@ func (emphasisParser) Parse(_ ast.Node, block text.Reader, pc parser.Context) as
 	//
 	// The window extends across following lines whose gap from the previous one
 	// is only whitespace goldmark stripped; see blockWindow.
-	dataStop := blockWindow(block, segment)
-	data := string(source[lineStart:dataStop])
-	pos := segment.Start - lineStart
+	// The window is the **reader's** text, not a slice of the source: each line
+	// arrives with its block marker already stripped, and `offs` maps every
+	// byte back to where it came from. A blockquote's `> ` is the case that
+	// forces this — it sits between two lines in the source but not in the text
+	// upstream matches, so a source slice would feed the matchers two bytes
+	// that are not there and a window that refused to span it lost 40 shapes
+	// that worked before this parser existed.
+	w := buildWindow(block, lineStart, -1)
+	pos := w.index(segment.Start)
+	if pos < 0 {
+		return nil
+	}
 
-	index, end, firstStart, firstEnd, secondStart, secondEnd, ok := matchEmphasis(patterns, data, pos, -1, floor)
+	index, end, firstStart, firstEnd, secondStart, secondEnd, ok := matchEmphasis(patterns, string(w.text), pos, -1, floor)
 	if !ok {
 		return nil
 	}
 
-	return buildEmphasis(block, pc, lineStart, pos, index, delim, end, firstStart, firstEnd, secondStart, secondEnd)
+	return buildEmphasis(block, pc, index, delim,
+		w.source(end), w.source(firstStart), w.source(firstEnd),
+		w.source(secondStart), w.source(secondEnd))
 }
 
 // buildEmphasis builds the node tree for one matched pattern and advances
@@ -95,47 +105,127 @@ func (emphasisParser) Parse(_ ast.Node, block text.Reader, pc parser.Context) as
 // It assumes block is positioned at `dataStart + pos`; every offset parameter
 // is an index into the same data `matchEmphasis` was handed, whose first byte
 // sits at absolute source offset `dataStart`.
-func buildEmphasis(block text.Reader, pc parser.Context, dataStart, _, index int, delim byte, end, firstStart, firstEnd, secondStart, secondEnd int) ast.Node {
-	advanceTo(block, dataStart+firstStart)
+func buildEmphasis(block text.Reader, pc parser.Context, index int, delim byte, end, firstStart, firstEnd, secondStart, secondEnd int) ast.Node {
+	advanceTo(block, firstStart)
 
 	switch index {
 	case 0: // EM_STRONG_RE / EM_STRONG2_RE: strong[ em[first] second ]
 		strong := ast.NewEmphasis(2)
 		em := ast.NewEmphasis(1)
 		strong.AppendChild(strong, em)
-		parseEmphasisBody(em, block, pc, dataStart+firstEnd, index, delim, true)
-		advanceTo(block, dataStart+secondStart)
-		parseEmphasisBody(strong, block, pc, dataStart+secondEnd, index, delim, true)
-		advanceTo(block, dataStart+end)
+		parseEmphasisBody(em, block, pc, firstEnd, index, delim, true)
+		advanceTo(block, secondStart)
+		parseEmphasisBody(strong, block, pc, secondEnd, index, delim, true)
+		advanceTo(block, end)
 		return strong
 	case 1: // STRONG_EM_RE / STRONG_EM2_RE: em[ strong[first] second ]
 		em := ast.NewEmphasis(1)
 		strong := ast.NewEmphasis(2)
 		em.AppendChild(em, strong)
-		parseEmphasisBody(strong, block, pc, dataStart+firstEnd, index, delim, true)
-		advanceTo(block, dataStart+secondStart)
-		parseEmphasisBody(em, block, pc, dataStart+secondEnd, index, delim, true)
-		advanceTo(block, dataStart+end)
+		parseEmphasisBody(strong, block, pc, firstEnd, index, delim, true)
+		advanceTo(block, secondStart)
+		parseEmphasisBody(em, block, pc, secondEnd, index, delim, true)
+		advanceTo(block, end)
 		return em
 	case 2: // STRONG_EM3_RE / SMART_STRONG_EM_RE: strong[ first em[second] ]
 		strong := ast.NewEmphasis(2)
-		parseEmphasisBody(strong, block, pc, dataStart+firstEnd, index, delim, true)
-		advanceTo(block, dataStart+secondStart)
+		parseEmphasisBody(strong, block, pc, firstEnd, index, delim, true)
+		advanceTo(block, secondStart)
 		em := ast.NewEmphasis(1)
-		parseEmphasisBody(em, block, pc, dataStart+secondEnd, index, delim, true)
+		parseEmphasisBody(em, block, pc, secondEnd, index, delim, true)
 		strong.AppendChild(strong, em)
-		advanceTo(block, dataStart+end)
+		advanceTo(block, end)
 		return strong
 	case 3: // STRONG_RE / SMART_STRONG_RE: strong[first]
 		strong := ast.NewEmphasis(2)
-		parseEmphasisBody(strong, block, pc, dataStart+firstEnd, index, delim, true)
-		advanceTo(block, dataStart+end)
+		parseEmphasisBody(strong, block, pc, firstEnd, index, delim, true)
+		advanceTo(block, end)
 		return strong
 	default: // 4, EMPHASIS_RE / SMART_EMPHASIS_RE: em[first]
 		em := ast.NewEmphasis(1)
-		parseEmphasisBody(em, block, pc, dataStart+firstEnd, index, delim, true)
-		advanceTo(block, dataStart+end)
+		parseEmphasisBody(em, block, pc, firstEnd, index, delim, true)
+		advanceTo(block, end)
 		return em
+	}
+}
+
+// window is the block text the emphasis matchers see — the reader's own lines,
+// markers stripped, joined exactly as upstream joins them — together with the
+// source offset of every byte. `text` is what the patterns match; `offs` is how
+// a match's boundaries become positions the reader can be seeked to.
+type window struct {
+	text []byte
+	offs []int
+}
+
+// index is the window position of a source offset, or -1.
+func (w window) index(src int) int {
+	for i, off := range w.offs {
+		if off == src {
+			return i
+		}
+	}
+	return -1
+}
+
+// source is the source offset of a window position. One past the end maps to
+// one past the last byte's source offset, which is what an exclusive bound
+// needs; a negative position stays negative, marking "no second group".
+func (w window) source(i int) int {
+	switch {
+	case i < 0:
+		return i
+	case i < len(w.offs):
+		return w.offs[i]
+	case len(w.offs) == 0:
+		return 0
+	default:
+		return w.offs[len(w.offs)-1] + 1
+	}
+}
+
+// buildWindow joins the block's lines over the source range [from, to), where
+// a `to` of -1 means the rest of the block. It walks the reader and restores
+// it, the same contract `blockWindow` has.
+func buildWindow(block text.Reader, from, to int) window {
+	line, seg := block.Position()
+	defer block.SetPosition(line, seg)
+
+	block.SetPosition(line, text.NewSegment(-1, -1))
+
+	var w window
+	for {
+		next, nextSeg := block.PeekLine()
+		if len(next) == 0 {
+			return w
+		}
+		for i := 0; i < len(next); i++ {
+			at := nextSeg.Start + i
+			if at < from {
+				continue
+			}
+			if to >= 0 && at >= to {
+				return w
+			}
+			w.text = append(w.text, next[i])
+			w.offs = append(w.offs, at)
+		}
+		block.AdvanceLine()
+	}
+}
+
+// appendSpans adds w[from:to) to node as text segments, one per maximal
+// contiguous run of source. A range that steps over a stripped block marker
+// becomes two segments rather than one that would drag the marker along.
+func appendSpans(node ast.Node, w window, from, to int) {
+	for i := from; i < to && i < len(w.offs); {
+		start := w.offs[i]
+		j := i + 1
+		for j < to && j < len(w.offs) && w.offs[j] == w.offs[j-1]+1 {
+			j++
+		}
+		node.AppendChild(node, ast.NewTextSegment(text.NewSegment(start, w.offs[j-1]+1)))
+		i = j
 	}
 }
 
@@ -258,7 +348,15 @@ func parseEmphasisBody(container ast.Node, block text.Reader, pc parser.Context,
 		// finds no code span and falls back to literal text. The window is
 		// contiguous in the source by construction, so this slice is exactly the
 		// body text upstream matches against.
-		line := source[segment.Start:endAbs]
+		// Bounded by the **contiguous run**, not by endAbs: a body may span a
+		// soft line break, but only where the source across it is unbroken.
+		// Emitting past a stripped block marker would put a blockquote's `> `
+		// into the text. The loop simply comes round again on the next line.
+		stop := endAbs
+		if runStop := blockWindow(block, segment); runStop < stop {
+			stop = runStop
+		}
+		line := source[segment.Start:stop]
 		limit := len(line)
 		if startAbs < 0 {
 			startAbs = segment.Start
@@ -311,7 +409,7 @@ func parseEmphasisBody(container ast.Node, block text.Reader, pc parser.Context,
 				continue
 			}
 		case '`':
-			if node, ok := buildBodyCodeSpan(block, line, segment.Start); ok {
+			if node, ok := buildBodyCodeSpan(block, buildWindow(block, segment.Start, endAbs)); ok {
 				container.AppendChild(container, node)
 				continue
 			}
@@ -319,7 +417,7 @@ func parseEmphasisBody(container ast.Node, block text.Reader, pc parser.Context,
 			if !allowLink {
 				break
 			}
-			if node, ok := buildBodyLink(block, pc, line, segment.Start, endAbs); ok {
+			if node, ok := buildBodyLink(block, pc, buildWindow(block, segment.Start, endAbs), endAbs); ok {
 				container.AppendChild(container, node)
 				continue
 			}
@@ -380,10 +478,14 @@ func parseEmphasisBody(container ast.Node, block text.Reader, pc parser.Context,
 			// the byte before it to look at. Matching from the trigger made
 			// `(?<!\w)` vacuous again, and `*__(_*` came out
 			// `<em>_<em>(</em></em>` where upstream leaves `__(_` literal.
-			data := string(source[startAbs:endAbs])
-			nestedPos := segment.Start - startAbs
-			if index, end, fs, fe, ss, se, ok := matchEmphasis(nestedPatterns, data, nestedPos, nestedCutoff, nestedFloor); ok {
-				node := buildEmphasis(block, pc, startAbs, nestedPos, index, line[0], end, fs, fe, ss, se)
+			nw := buildWindow(block, startAbs, endAbs)
+			nestedPos := nw.index(segment.Start)
+			if nestedPos < 0 {
+				break
+			}
+			if index, end, fs, fe, ss, se, ok := matchEmphasis(nestedPatterns, string(nw.text), nestedPos, nestedCutoff, nestedFloor); ok {
+				node := buildEmphasis(block, pc, index, line[0],
+					nw.source(end), nw.source(fs), nw.source(fe), nw.source(ss), nw.source(se))
 				container.AppendChild(container, node)
 				continue
 			}
@@ -434,8 +536,8 @@ var (
 // content between a run of N backticks and the next run of exactly N, stripped
 // at both ends by the renderer (`codespan.go`'s `codeSpanRenderer`), which is
 // why this hands back the raw, unstripped segment.
-func buildBodyCodeSpan(block text.Reader, line []byte, start int) (ast.Node, bool) {
-	segment := text.NewSegment(start, start+len(line))
+func buildBodyCodeSpan(block text.Reader, w window) (ast.Node, bool) {
+	line := w.text
 	width := 0
 	for width < len(line) && line[width] == '`' {
 		width++
@@ -445,10 +547,8 @@ func buildBodyCodeSpan(block text.Reader, line []byte, start int) (ast.Node, boo
 		return nil, false
 	}
 	span := ast.NewCodeSpan()
-	contentSegment := segment.WithStop(segment.Start + after - width)
-	contentSegment = contentSegment.WithStart(segment.Start + width)
-	span.AppendChild(span, ast.NewTextSegment(contentSegment))
-	advanceTo(block, start+after)
+	appendSpans(span, w, width, after-width)
+	advanceTo(block, w.source(after))
 	return span, true
 }
 
@@ -459,8 +559,8 @@ func buildBodyCodeSpan(block text.Reader, line []byte, start int) (ast.Node, boo
 // own recursive `self.parser.parseChunk` does. It declines anything
 // reference-style, unbalanced, or reaching past endAbs, the same narrowness
 // `imageParser` already documents.
-func buildBodyLink(block text.Reader, pc parser.Context, line []byte, start, endAbs int) (ast.Node, bool) {
-	segment := text.NewSegment(start, start+len(line))
+func buildBodyLink(block text.Reader, pc parser.Context, w window, endAbs int) (ast.Node, bool) {
+	line := w.text
 	if len(line) < 2 || line[0] != '[' {
 		return nil, false
 	}
@@ -470,7 +570,7 @@ func buildBodyLink(block text.Reader, pc parser.Context, line []byte, start, end
 		return nil, false
 	}
 	href, title, hasTitle, parenEnd, ok := getLink(scan, line, after)
-	if !ok || segment.Start+parenEnd > endAbs {
+	if !ok || w.source(parenEnd) > endAbs {
 		return nil, false
 	}
 
@@ -480,9 +580,9 @@ func buildBodyLink(block text.Reader, pc parser.Context, line []byte, start, end
 		link.Title = title
 	}
 
-	advanceTo(block, segment.Start+1) // the opening `[`
-	parseEmphasisBody(link, block, pc, segment.Start+after-1, -1, noCutoffDelim, false)
-	advanceTo(block, segment.Start+parenEnd) // the closing `]` through the `)`
+	advanceTo(block, w.source(1)) // the opening `[`
+	parseEmphasisBody(link, block, pc, w.source(after-1), -1, noCutoffDelim, false)
+	advanceTo(block, w.source(parenEnd)) // the closing `]` through the `)`
 
 	return link, true
 }

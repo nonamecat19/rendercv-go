@@ -1094,5 +1094,25 @@
   {
     "In": "> _a\n> b_",
     "Out": "<blockquote>\n<p><em>a\nb</em></p>\n</blockquote>"
+  },
+  {
+    "In": "> *a `x\n> y` b*",
+    "Out": "<blockquote>\n<p><em>a <code>x\ny</code> b</em></p>\n</blockquote>"
+  },
+  {
+    "In": "> **a [x\n> y](u) b**",
+    "Out": "<blockquote>\n<p><strong>a <a href=\"u\">x\ny</a> b</strong></p>\n</blockquote>"
+  },
+  {
+    "In": "> *a\n> b\n> c*",
+    "Out": "<blockquote>\n<p><em>a\nb\nc</em></p>\n</blockquote>"
+  },
+  {
+    "In": "> *a  \n> b*",
+    "Out": "<blockquote>\n<p><em>a<br />\nb</em></p>\n</blockquote>"
+  },
+  {
+    "In": "> **a `x\n> y` b**",
+    "Out": "<blockquote>\n<p><strong>a <code>x\ny</code> b</strong></p>\n</blockquote>"
   }
 ]
