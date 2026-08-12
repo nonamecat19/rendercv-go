@@ -340,6 +340,11 @@ func TestEveryPhrasingRowIsReachable(t *testing.T) {
 			"mapping values are not allowed here",
 			"cv:\n  name: John\n   bad: 1\n",
 		},
+		{
+			"value is not allowed in this context",
+			"while parsing a block collection",
+			"cv:\n  - name: John\n  bad: 1\n",
+		},
 	}
 
 	covered := make(map[int]bool, len(reaching))
@@ -1801,5 +1806,208 @@ func TestAKeyIndicatorOnlyBreaksASatisfiedFlow(t *testing.T) {
 					span.Start.Line, span.End.Line, test.startLine, test.endLine)
 			}
 		})
+	}
+}
+
+// TestBlockContextNamesTheInnermostOpenConstruct pins goccy's shorter spelling,
+// `value is not allowed in this context`, onto the four things ruamel says
+// about a badly indented line in block context.
+//
+// goccy reports one failure here; ruamel reports four, and which one it is
+// depends on the source rather than on anything in goccy's text:
+//
+//   - `while parsing a block mapping` and `while parsing a block collection`
+//     are its *parser* failing at a token that cannot follow the construct it
+//     is inside. Which construct that is, is the innermost block level still
+//     open at the offending line's own indentation.
+//   - `mapping values are not allowed here` is its *scanner*, when a plain
+//     scalar runs across lines and the next one carries a colon.
+//   - `while scanning a simple key` is the same scanner refusing a key that
+//     does not fit on one line.
+//
+// Every expectation below was measured against the vendored Python, message
+// and both marks. `blockScan` is the reconstruction; the rows here are the
+// shapes where competing readings of it disagree.
+func TestBlockContextNamesTheInnermostOpenConstruct(t *testing.T) {
+	tests := []struct {
+		name     string
+		src      string
+		message  string
+		from, to yamldoc.Position
+	}{{
+		// The two indentations that bracket a sequence item: one step left of
+		// the item's keys is the *sequence*, two more is the mapping above it.
+		name:    "aligned with the dash",
+		src:     "cv:\n  - name: John\n  bad: 1\n",
+		message: "while parsing a block collection",
+		from:    yamldoc.Position{Line: 2, Column: 3},
+		to:      yamldoc.Position{Line: 3, Column: 3},
+	}, {
+		name:    "left of the dash",
+		src:     "cv:\n  - name: John\n bad: 1\n",
+		message: "while parsing a block mapping",
+		from:    yamldoc.Position{Line: 1, Column: 1},
+		to:      yamldoc.Position{Line: 3, Column: 2},
+	}, {
+		name:    "between the dash and the item keys",
+		src:     "cv:\n  - name: John\n    extra: 1\n   bad: 2\n",
+		message: "while parsing a block collection",
+		from:    yamldoc.Position{Line: 2, Column: 3},
+		to:      yamldoc.Position{Line: 4, Column: 4},
+	}, {
+		name:    "under-indented key in a plain mapping",
+		src:     "cv:\n    name: John\n  bad: 1\n",
+		message: "while parsing a block mapping",
+		from:    yamldoc.Position{Line: 1, Column: 1},
+		to:      yamldoc.Position{Line: 3, Column: 3},
+	}, {
+		name:    "a top-level sequence",
+		src:     "- name: John\n bad: 1\n",
+		message: "while parsing a block collection",
+		from:    yamldoc.Position{Line: 1, Column: 1},
+		to:      yamldoc.Position{Line: 2, Column: 2},
+	}, {
+		// A sequence whose dash sits at its parent mapping's own column adds no
+		// indentation level, so ruamel names the mapping and not the sequence.
+		name:    "a sequence at its parent's column",
+		src:     "name:\n- bad: 1\n\n tail: 2\n",
+		message: "while parsing a block mapping",
+		from:    yamldoc.Position{Line: 1, Column: 1},
+		to:      yamldoc.Position{Line: 4, Column: 2},
+	}, {
+		name:    "three levels, the innermost mapping",
+		src:     "cv:\n  a:\n    - b: 1\n      c: 2\n     bad: 3\n",
+		message: "while parsing a block collection",
+		from:    yamldoc.Position{Line: 3, Column: 5},
+		to:      yamldoc.Position{Line: 5, Column: 6},
+	}, {
+		name:    "three levels, the sequence",
+		src:     "cv:\n  a:\n    - b: 1\n      c: 2\n    bad: 3\n",
+		message: "while parsing a block collection",
+		from:    yamldoc.Position{Line: 3, Column: 5},
+		to:      yamldoc.Position{Line: 5, Column: 5},
+	}, {
+		// A bare scalar at exactly the open construct's indentation is a key
+		// ruamel *requires* to fit on one line.
+		name:    "a required key that never ends",
+		src:     "cv:\n  - name: John\n  bad\n",
+		message: "while scanning a simple key",
+		from:    yamldoc.Position{Line: 3, Column: 3},
+		to:      yamldoc.Position{Line: 4, Column: 1},
+	}, {
+		name:    "a required key run into the next line",
+		src:     "cv:\n  - name: John\n  bad\n    tail: 2\n",
+		message: "while scanning a simple key",
+		from:    yamldoc.Position{Line: 3, Column: 3},
+		to:      yamldoc.Position{Line: 4, Column: 9},
+	}, {
+		// One step further left the key is not required, so the scalar folds
+		// into the next line instead and the colon there is the failure.
+		name:    "a plain scalar folded into a colon",
+		src:     "cv:\n    name:\n   bad\n    deep:\n      x: 1\n",
+		message: "mapping values are not allowed here",
+		from:    yamldoc.Position{Line: 4, Column: 9},
+		to:      yamldoc.Position{Line: 4, Column: 9},
+	}, {
+		name:    "the same, two levels out",
+		src:     "cv:\n  sections:\n    name: John\n bad\n    tail: 2\n",
+		message: "mapping values are not allowed here",
+		from:    yamldoc.Position{Line: 5, Column: 9},
+		to:      yamldoc.Position{Line: 5, Column: 9},
+	}, {
+		// The successor is *not* deeper than the level the scalar sits in, so
+		// it does not fold and the parser reports the scalar itself.
+		name:    "a successor that does not continue it",
+		src:     "cv:\n  - name: \"John\"\n     bad\n    deep:\n      x: 1\n",
+		message: "while parsing a block mapping",
+		from:    yamldoc.Position{Line: 2, Column: 5},
+		to:      yamldoc.Position{Line: 3, Column: 6},
+	}, {
+		name:    "a comment ends the scalar",
+		src:     "cv:\n   name: John\n   bad: 1\n# c\n     tail: 2\n",
+		message: "while parsing a block mapping",
+		from:    yamldoc.Position{Line: 2, Column: 4},
+		to:      yamldoc.Position{Line: 5, Column: 6},
+	}, {
+		name:    "a trailing comment ends it too",
+		src:     "cv:\n  name: John\n  bad: 1 # c\n    tail: 2\n",
+		message: "while parsing a block mapping",
+		from:    yamldoc.Position{Line: 2, Column: 3},
+		to:      yamldoc.Position{Line: 4, Column: 5},
+	}, {
+		name:    "a block scalar's content is not a continuation",
+		src:     "a: |\n  x\n bad: 1\n",
+		message: "while parsing a block mapping",
+		from:    yamldoc.Position{Line: 1, Column: 1},
+		to:      yamldoc.Position{Line: 3, Column: 2},
+	}, {
+		name:    "a document marker restarts the levels",
+		src:     "---\ncv:\n  name: John\n bad: 1\n",
+		message: "while parsing a block mapping",
+		from:    yamldoc.Position{Line: 2, Column: 1},
+		to:      yamldoc.Position{Line: 4, Column: 2},
+	}, {
+		// The shape an independent panel-vs-panel audit found and demoted
+		// iteration 12 for: the offending line sits between the sequence's dash
+		// and the key that opened it, so neither the sequence nor `cv` is the
+		// answer — the mapping `a` belongs to is. The port reported line 6
+		// alone, with goccy's `[6:6]` coordinate still in the text.
+		name:    "the iteration 12 audit shape",
+		src:     "cv:\n  name: A\n  sections:\n    a:\n      - hi\n     b: 2\n",
+		message: "while parsing a block mapping",
+		from:    yamldoc.Position{Line: 4, Column: 5},
+		to:      yamldoc.Position{Line: 6, Column: 6},
+	}}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := ReadYamlWithValidationErrors(test.src, schemaerr.SourceMain)
+
+			var userErr *schemaerr.UserValidationError
+			if !errors.As(err, &userErr) {
+				t.Fatalf("expected *schemaerr.UserValidationError, got %T: %v", err, err)
+			}
+			record := userErr.Errors[0]
+			if want := "This is not a valid YAML file. " + test.message + "."; record.Message != want {
+				t.Errorf("message =\n  %q\nwant\n  %q", record.Message, want)
+			}
+			if record.YamlLocation == nil {
+				t.Fatal("yaml location = nil, want a span")
+			}
+			if got := *record.YamlLocation; got.Start != test.from || got.End != test.to {
+				t.Errorf("location = %v to %v, want %v to %v",
+					got.Start, got.End, test.from, test.to)
+			}
+		})
+	}
+}
+
+// TestBlockContextWithoutAnOpenConstructFallsThrough is the boundary of the row
+// above: when the offending line is indented less than everything the document
+// opened, ruamel is no longer inside a block construct at all and says
+// `expected '<document start>', but found ...` — a phrasing whose found-token
+// spelling is not reconstructible from goccy's text. The row declines rather
+// than borrowing the nearest block phrase, so goccy's own line reaches the
+// user, visibly wrong instead of silently misattributed.
+func TestBlockContextWithoutAnOpenConstructFallsThrough(t *testing.T) {
+	_, err := ReadYamlWithValidationErrors("  cv:\n bad: 1\n", schemaerr.SourceMain)
+
+	var userErr *schemaerr.UserValidationError
+	if !errors.As(err, &userErr) {
+		t.Fatalf("expected *schemaerr.UserValidationError, got %T: %v", err, err)
+	}
+	message := userErr.Errors[0].Message
+	if !strings.Contains(message, "value is not allowed in this context") {
+		t.Errorf("message = %q, want goccy's own text to reach the user", message)
+	}
+	for _, phrase := range []string{
+		"while parsing a block mapping",
+		"while parsing a block collection",
+		"mapping values are not allowed here",
+		"while scanning a simple key",
+	} {
+		if strings.Contains(message, phrase) {
+			t.Errorf("a declined shape borrowed %q: %q", phrase, message)
+		}
 	}
 }
