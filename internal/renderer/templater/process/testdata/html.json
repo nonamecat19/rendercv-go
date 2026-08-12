@@ -1162,5 +1162,69 @@
   {
     "In": "    x",
     "Out": "<pre><code>x\n</code></pre>"
+  },
+  {
+    "In": "-     a",
+    "Out": "<ul>\n<li>a</li>\n</ul>"
+  },
+  {
+    "In": "-      a",
+    "Out": "<ul>\n<li>a</li>\n</ul>"
+  },
+  {
+    "In": "-     a &  \n-     a b",
+    "Out": "<ul>\n<li>a &amp;  </li>\n<li>a b</li>\n</ul>"
+  },
+  {
+    "In": "*     a",
+    "Out": "<ul>\n<li>a</li>\n</ul>"
+  },
+  {
+    "In": "1.     a",
+    "Out": "<ol>\n<li>a</li>\n</ol>"
+  },
+  {
+    "In": "-     `x`",
+    "Out": "<ul>\n<li><code>x</code></li>\n</ul>"
+  },
+  {
+    "In": "-     **b** c",
+    "Out": "<ul>\n<li><strong>b</strong> c</li>\n</ul>"
+  },
+  {
+    "In": "-     a\n      b",
+    "Out": "<ul>\n<li>a\n      b</li>\n</ul>"
+  },
+  {
+    "In": "-     a\n\n-     b",
+    "Out": "<ul>\n<li>\n<p>a</p>\n</li>\n<li>\n<p>b</p>\n</li>\n</ul>"
+  },
+  {
+    "In": "> -     a",
+    "Out": "<blockquote>\n<ul>\n<li>a</li>\n</ul>\n</blockquote>"
+  },
+  {
+    "In": "  -     a",
+    "Out": "<ul>\n<li>a</li>\n</ul>"
+  },
+  {
+    "In": "-    a",
+    "Out": "<ul>\n<li>a</li>\n</ul>"
+  },
+  {
+    "In": "-     ",
+    "Out": "<ul>\n<li></li>\n</ul>"
+  },
+  {
+    "In": "a\n\n    -     x",
+    "Out": "<p>a</p>\n<pre><code>-     x\n</code></pre>"
+  },
+  {
+    "In": "        -     x",
+    "Out": "<pre><code>    -     x\n</code></pre>"
+  },
+  {
+    "In": "- a\n\n    -     b",
+    "Out": "<ul>\n<li>\n<p>a</p>\n<ul>\n<li>b</li>\n</ul>\n</li>\n</ul>"
   }
 ]
