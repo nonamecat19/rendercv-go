@@ -81,14 +81,21 @@ func Panel(title string, rows []PanelRow) string {
 
 	width := ConsoleWidth()
 
-	head := "╭─ " + title + " "
-	out.WriteString(head)
-	out.WriteString(strings.Repeat("─", width-cellLen(head)-1))
-	out.WriteString("╮\n")
-
 	// The inner width is the panel minus the two borders and their padding
 	// spaces.
 	inner := width - 4
+
+	out.WriteString(panelTop(title, width))
+	out.WriteString("\n")
+
+	// **At four columns or fewer there is no body at all.** The child renders
+	// at `width - 4`, and Rich yields no lines for a width of zero
+	// (`rich/panel.py:225`), so the box is its two borders and nothing else.
+	if inner <= 0 {
+		out.WriteString(panelRule("╰", "╯", width))
+		out.WriteString("\n")
+		return out.String()
+	}
 
 	for _, row := range rows {
 		body := row.Mark + " " + pad(row.Timing, timingWidth) + pad(row.Label, labelWidth) + row.Value
@@ -114,10 +121,53 @@ func Panel(title string, rows []PanelRow) string {
 		}
 	}
 
-	out.WriteString("╰")
-	out.WriteString(strings.Repeat("─", width-2))
-	out.WriteString("╯\n")
+	out.WriteString(panelRule("╰", "╯", width))
+	out.WriteString("\n")
 	return out.String()
+}
+
+// panelTop draws the bordered line the title sits in
+// (`rich/panel.py:234-246`).
+//
+// **The title is cropped, not ellipsized, and it never widens the box.** Rich
+// renders it at exactly `width - 4` under the console's default overflow,
+// `"fold"` (`rich/text.py:36`), and `truncate` spends a column on `…` only for
+// `"ellipsis"` — so `Error` at nine columns is `╭─ Erro─╮`. `align_text` then
+// pads whatever is left over with the box's own `─` (`:176-186`).
+//
+// The port instead wrote `╭─ ` + title + ` ` and filled the remainder, which is
+// a negative count once the title no longer fits: `COLUMNS=30 rendercv-go
+// render CV.yaml` on a document with any validation error died with `panic:
+// strings: negative Repeat count` rather than printing upstream's panel.
+func panelTop(title string, width int) string {
+	// `title_text is None or width <= 4` (`:234`): no title, just the box's own
+	// top edge.
+	if width <= 4 {
+		return panelRule("╭", "╮", width)
+	}
+
+	// `title_text.pad(1)` (`rich/panel.py:121`): one space either side, added
+	// before the crop, so a title cropped to nothing still leaves its leading
+	// space.
+	band := " " + title + " "
+	inner := width - 4
+	if cellLen(band) > inner {
+		band, _ = cutCells(band, inner)
+	} else {
+		band += strings.Repeat("─", inner-cellLen(band))
+	}
+	return "╭─" + band + "─╮"
+}
+
+// panelRule draws a titleless border. The fill is `width - 2` columns, and the
+// whole line is cropped to the console width, which is what makes a one-column
+// panel a lone `╭`.
+func panelRule(left, right string, width int) string {
+	line := left + strings.Repeat("─", max(width-2, 0)) + right
+	if cellLen(line) > width {
+		line, _ = cutCells(line, width)
+	}
+	return line
 }
 
 // wrap folds one row to the panel's inner width, the way Rich's `divide_line`

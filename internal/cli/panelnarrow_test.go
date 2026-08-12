@@ -3,7 +3,6 @@ package cli
 import (
 	"slices"
 	"strconv"
-	"strings"
 	"testing"
 )
 
@@ -121,7 +120,10 @@ func TestPanelNarrowerThanItsTitle(t *testing.T) {
 		t.Run(strconv.Itoa(test.width), func(t *testing.T) {
 			t.Setenv("COLUMNS", strconv.Itoa(test.width))
 
-			got := splitLines(strings.TrimRight(Panel("Error", []PanelRow{{Text: message}}), "\n"))
+			// No `TrimRight`: `splitLines` keeps only what a `\n` closes, so
+			// trimming the panel's last newline would drop its closing border
+			// and no expectation below could ever be met.
+			got := splitLines(Panel("Error", []PanelRow{{Text: message}}))
 			if !slices.Equal(got, test.want) {
 				t.Errorf("panel at %d columns:\n got %q\nwant %q", test.width, got, test.want)
 			}
