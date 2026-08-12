@@ -108,10 +108,11 @@ func MarkdownToHTML(markdown string) (string, error) {
 	return strings.TrimRight(out.String(), "\n"), nil
 }
 
-// pythonBlockParsers is goldmark's default block parser set with four changes
+// pythonBlockParsers is goldmark's default block parser set with five changes
 // upstream forces: no fenced code, a narrowed raw-HTML block, a list item that
-// swallows all of its marker's padding (`listitem.go`), and an indented code
-// block that survives a line only Python calls whitespace (`codeblock.go`).
+// swallows all of its marker's padding (`listitem.go`), an indented code block
+// that survives a line only Python calls whitespace (`codeblock.go`), and a
+// paragraph that is `lstrip`ped and thrown away when blank (`paragraph.go`).
 //
 // **Fenced code has no counterpart in `markdown.markdown(string)`.**
 //
@@ -131,6 +132,7 @@ func pythonBlockParsers() []util.PrioritizedValue {
 	htmlBlock := parser.NewHTMLBlockParser()
 	listItem := parser.NewListItemParser()
 	codeBlock := parser.NewCodeBlockParser()
+	paragraph := parser.NewParagraphParser()
 
 	kept := make([]util.PrioritizedValue, 0, len(parser.DefaultBlockParsers()))
 	for _, p := range parser.DefaultBlockParsers() {
@@ -145,6 +147,9 @@ func pythonBlockParsers() []util.PrioritizedValue {
 		case codeBlock:
 			kept = append(kept, util.Prioritized(
 				pythonCodeBlockParser{BlockParser: codeBlock}, p.Priority))
+		case paragraph:
+			kept = append(kept, util.Prioritized(
+				pythonParagraphParser{BlockParser: paragraph}, p.Priority))
 		default:
 			kept = append(kept, p)
 		}
