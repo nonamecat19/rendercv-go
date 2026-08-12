@@ -5,7 +5,9 @@ import (
 
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/renderer"
 	"github.com/yuin/goldmark/text"
+	"github.com/yuin/goldmark/util"
 )
 
 // blockLevelElements is python-markdown's `BLOCK_LEVEL_ELEMENTS`
@@ -71,4 +73,87 @@ func lower(name []byte) string {
 		out[i] = c
 	}
 	return string(out)
+}
+
+// blankLineRe is `htmlparser.py:93`'s `blank_line_re`, applied to the source
+// **from just after the raw block's closing tag**.
+var blankLineRe = regexp.MustCompile(`^(?:[ ]*\n){2}`)
+
+// htmlBlockRenderer gives a raw HTML block the trailing newline upstream keeps
+// inside the stash, so a block that follows one is separated by a **blank
+// line** and not by the single newline every other block boundary gets.
+//
+// # Why there are two newlines here and one everywhere else
+//
+// A raw block does not travel through the tree as markup. `HTMLBlockPreprocessor`
+// (`preprocessors.py:86-91`) hands the source to `HTMLExtractor`, which replaces
+// each raw block with an opaque placeholder and keeps the text in
+// `md.htmlStash`. When the outermost tag closes, `htmlparser.py:242-244` appends
+// **a newline to the stashed text itself** — its comment is "Preserve blank line
+// and end of raw block" — if `blank_line_re` (`:93`, `^([ ]*\n){2}`) matches what
+// follows the closing tag. `NormalizeWhitespace` has already appended `"\n\n"` to
+// the document (`preprocessors.py:73`), so a raw block at the end of the input
+// satisfies it too.
+//
+// That newline is part of the *stashed string*. `RawHtmlPostprocessor`
+// (`postprocessors.py:83-86`) substitutes it back into the already-serialized
+// document verbatim, and it therefore arrives **in addition to** the ordinary
+// inter-block separator, which `PrettifyTreeprocessor` writes as the element's
+// tail (`treeprocessors.py:421, 432-433`). One newline from the tree, one from
+// the stash: a blank line.
+//
+//	<div>block</div>\n\nafter   →  <div>block</div>\n\n<p>after</p>
+//	after\n\n<div>block</div>   →  <p>after</p>\n<div>block</div>
+//
+// The second is not an exception. The stash newline is there too, at the very
+// end of the document, where `Markdown.convert`'s closing `output.strip()`
+// (`core.py:392`) removes it — as `MarkdownToHTML`'s own `TrimRight` does here.
+//
+// goldmark writes the block's source lines with their own newlines, which
+// supplies the tree's separator and nothing else, so the extra one is what this
+// renderer adds. **The condition is `blank_line_re`, not "has a next sibling".**
+// The two agree on every shape measured, and only the first is upstream's rule.
+type htmlBlockRenderer struct {
+	inner renderer.NodeRendererFunc
+}
+
+// RegisterFuncs claims the HTML block node, and only that one.
+func (r htmlBlockRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer) {
+	reg.Register(ast.KindHTMLBlock, r.renderHTMLBlock)
+}
+
+func (r htmlBlockRenderer) renderHTMLBlock(
+	w util.BufWriter, source []byte, node ast.Node, entering bool,
+) (ast.WalkStatus, error) {
+	status, err := r.inner(w, source, node, entering)
+	if entering || err != nil {
+		return status, err
+	}
+	if blankLineAfterRawBlock(source, node.(*ast.HTMLBlock)) {
+		_ = w.WriteByte('\n')
+	}
+	return status, nil
+}
+
+// blankLineAfterRawBlock is `blank_line_re.match(rawdata[after the end tag:])`.
+//
+// The offset is measured from the closing tag, so the newline ending the tag's
+// own line is the match's first `[ ]*\n` — goldmark's segments carry that
+// newline, so it is stepped back over rather than reconstructed. The `"\n\n"`
+// `NormalizeWhitespace` appends is supplied here for the same reason it is
+// there: without it a raw block at the end of the input would not match.
+func blankLineAfterRawBlock(source []byte, block *ast.HTMLBlock) bool {
+	stop := len(source)
+	if block.HasClosure() {
+		stop = block.ClosureLine.Stop
+	} else if lines := block.Lines(); lines.Len() > 0 {
+		stop = lines.At(lines.Len() - 1).Stop
+	}
+	if stop > len(source) {
+		stop = len(source)
+	}
+	if stop > 0 && source[stop-1] == '\n' {
+		stop--
+	}
+	return blankLineRe.MatchString(string(source[stop:]) + "\n\n")
 }
