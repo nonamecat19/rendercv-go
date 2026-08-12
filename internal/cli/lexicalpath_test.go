@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/nonamecat19/rendercv-go/internal/renderer/generate"
 )
 
 // The whole file turns on one distinction.
@@ -59,7 +61,7 @@ func symlinkTree(t *testing.T) (root, lexical, cleaned, input string) {
 func TestOutputFolderIsLexical(t *testing.T) {
 	_, _, _, input := symlinkTree(t)
 
-	got := outputFolderFor(RenderOptions{InputPath: input})
+	got := generate.OutputFolderFor(input, "")
 	want := strings.TrimSuffix(input, "/CV.yaml") + "/" + DefaultOutputFolder
 	if got != want {
 		t.Errorf("outputFolderFor = %q, want %q", got, want)
@@ -70,7 +72,7 @@ func TestOutputFolderIsLexical(t *testing.T) {
 // disturb: an absolute `--output-folder` is taken as it stands.
 func TestOutputFolderKeepsAnAbsoluteFolderAsGiven(t *testing.T) {
 	absolute := filepath.Join(t.TempDir(), "out")
-	if got := outputFolderFor(RenderOptions{InputPath: "sub/cv.yaml", OutputFolder: absolute}); got != absolute {
+	if got := generate.OutputFolderFor("sub/cv.yaml", absolute); got != absolute {
 		t.Errorf("outputFolderFor = %q, want %q", got, absolute)
 	}
 }

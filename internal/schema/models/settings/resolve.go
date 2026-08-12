@@ -32,6 +32,28 @@ type Resolved struct {
 // used to gate generation on the CLI flag alone, so a CV — or a `--settings`
 // overlay — asking for no PDF still got a PDF and both PNGs.
 type RenderCommand struct {
+	// OutputFolder and the five path templates are `render_command`'s path
+	// keys (`settings/render_command.py:22-55`). They are read here for the
+	// same reason the switches are: upstream passes
+	// `model.settings.render_command.<x>_path` to `resolve_rendercv_file_path`
+	// (`renderer/typst.py:26`, `pdf_png.py:36`, and the rest), so a document
+	// that names its own output folder gets it.
+	//
+	// **They were not resolved at all before**, so `settings.render_command.
+	// output_folder: from_doc` in an ordinary CV was silently ignored and every
+	// artifact went to `rendercv_output`. The CLI could only ever see its own
+	// flags, which is why nothing caught it.
+	//
+	// An empty string means the key was absent, and the format's default
+	// applies. The CLI's flags are merged into this block before it is
+	// resolved, so a flag already wins over the document here.
+	OutputFolder string
+	TypstPath    string
+	PDFPath      string
+	PNGPath      string
+	MarkdownPath string
+	HTMLPath     string
+
 	DontGenerateTypst    bool
 	DontGeneratePDF      bool
 	DontGeneratePNG      bool
@@ -121,8 +143,24 @@ func resolveRenderCommand(node *yamldoc.Node) RenderCommand {
 		if item.Value == nil {
 			continue
 		}
+		text := ""
+		if item.Value.Kind == yamldoc.KindString {
+			text = item.Value.Raw
+		}
 		on := item.Value.Kind == yamldoc.KindBool && yamldoc.BoolIsTrue(item.Value.Raw)
 		switch item.Key {
+		case "output_folder":
+			out.OutputFolder = text
+		case "typst_path":
+			out.TypstPath = text
+		case "pdf_path":
+			out.PDFPath = text
+		case "png_path":
+			out.PNGPath = text
+		case "markdown_path":
+			out.MarkdownPath = text
+		case "html_path":
+			out.HTMLPath = text
 		case "dont_generate_typst":
 			out.DontGenerateTypst = on
 		case "dont_generate_pdf":

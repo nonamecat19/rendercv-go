@@ -3,6 +3,8 @@ package cli
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/nonamecat19/rendercv-go/internal/renderer/generate"
 )
 
 // TestOutputFolderResolvesAgainstInputDir is G-8: upstream types
@@ -39,7 +41,7 @@ func TestOutputFolderResolvesAgainstInputDir(t *testing.T) {
 	}
 	for _, row := range cases {
 		t.Run(row.name, func(t *testing.T) {
-			if got := outputFolderFor(row.options); filepath.ToSlash(got) != filepath.ToSlash(row.want) {
+			if got := generate.OutputFolderFor(row.options.InputPath, row.options.OutputFolder); filepath.ToSlash(got) != filepath.ToSlash(row.want) {
 				t.Errorf("= %q, want %q", got, row.want)
 			}
 		})

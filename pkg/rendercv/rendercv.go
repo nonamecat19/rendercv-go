@@ -73,18 +73,13 @@ func Build(mainYAML string, options BuildOptions) (*Document, *Model, error) {
 	// the working directory: upstream types it PlannedPathRelativeToInput
 	// (settings/render_command.py:30).
 	inputDir := generate.InputDirFor(options.InputFilePath)
-	outputFolder := generate.OutputFolderFor(options.InputFilePath, options.OutputFolder)
+	outputFolder := generate.OutputFolderFor(options.InputFilePath, doc.Settings.RenderCommand.OutputFolder)
 
 	return built.Document, &Model{
 		doc: doc,
 		options: generateOptions{
-			InputDir:     inputDir,
-			PathInput:    generate.PathInputFor(doc, outputFolder),
-			TypstPath:    options.TypstPath,
-			PDFPath:      options.PDFPath,
-			PNGPath:      options.PNGPath,
-			MarkdownPath: options.MarkdownPath,
-			HTMLPath:     options.HTMLPath,
+			InputDir:  inputDir,
+			PathInput: generate.PathInputFor(doc, outputFolder),
 		},
 	}, nil
 }
