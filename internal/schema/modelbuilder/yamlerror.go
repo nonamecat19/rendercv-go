@@ -396,11 +396,13 @@ func outermostFlowOpenLine(content string, before int) int {
 // indicator counts as indentation, so the `a` of `  - a: 1` is at column 5 and
 // matches the `a` of `    a: 2`.
 //
-// Measured against ruamel on ten shapes: adjacent and distant duplicates, a
+// Measured against ruamel on eleven shapes: adjacent and distant duplicates, a
 // duplicate that is not the mapping's first key (the case where goccy's own
-// "already defined at" line is the wrong answer), nesting, a value block
-// between the two keys, blank lines, comments, a sequence of mappings, and a
-// document marker.
+// "already defined at" line is the wrong answer) both at the top level and
+// nested, nesting one and two levels deep, a value block between the two keys,
+// blank lines, comments, a sequence of mappings, and a document marker. They
+// are `TestDuplicateKeySpansItsMapping`'s rows, one for one; the count and the
+// list are part of what that test pins, so a new row belongs in both.
 func mappingStartLine(content string, line, column int) int {
 	lines := strings.Split(content, "\n")
 	if line < 1 || line > len(lines) {
