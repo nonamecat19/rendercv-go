@@ -11,7 +11,6 @@ import (
 
 	"github.com/nonamecat19/rendercv-go/internal/renderer/bridge"
 	"github.com/nonamecat19/rendercv-go/internal/renderer/generate"
-	"github.com/nonamecat19/rendercv-go/internal/renderer/templater/process"
 	"github.com/nonamecat19/rendercv-go/internal/schema/modelbuilder"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/design"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/valctx"
@@ -173,20 +172,7 @@ func renderOnce(options RenderOptions, stdout, stderr io.Writer) int {
 	// `design.Validate` and arrive through `BuildModel` above with every other
 	// record — which is what `err_unknown_theme` compares.
 
-	pathInput := PathInput{
-		Name: plainName(doc),
-		// **Relative to the input file, not the working directory** (G-8).
-		// Upstream types it `PlannedPathRelativeToInput`
-		// (`schema/models/settings/render_command.py:30`), so
-		// `render sub/cv.yaml` writes `sub/rendercv_output/` — measured. The
-		// port wrote `./rendercv_output/`, which is the same path only when the
-		// input is in the working directory, as it is in every corpus case.
-		OutputFolder: outputFolderFor(options),
-		Placeholders: process.BuildDatePlaceholders(doc.Settings.CurrentDate, process.Catalog{
-			MonthNames:         doc.Locale.MonthNames,
-			MonthAbbreviations: doc.Locale.MonthAbbreviations,
-		}),
-	}
+	pathInput := generate.PathInputFor(doc, outputFolderFor(options))
 
 	// **The order is upstream's**: Typst, then PDF, then PNG, then Markdown,
 	// then HTML — and it is the order the result panel lists them in.
@@ -439,27 +425,6 @@ func buildArguments(options RenderOptions) (modelbuilder.BuildArguments, error) 
 	}, nil
 }
 
-// plainName is `rendercv_model.cv.name` as the path resolver reads it
-// (`path_resolver.py:76-102`), which drops every name placeholder when the name
-// is falsy.
-//
-// **A null name has no text.** `cv.name: null` is `None` upstream, so the
-// placeholders are dropped and the file keeps its literal
-// `NAME_IN_SNAKE_CASE_CV.typ` name; the port read the node's raw token and
-// wrote `null_CV.typ`, naming the CV after the YAML keyword the user typed.
-// Only a null can reach this now — every other non-string fails the field
-// (cv.py:32).
-func plainName(doc bridge.Document) *string {
-	if doc.Model == nil || doc.Model.CvModel == nil {
-		return nil
-	}
-	name := doc.Model.CvModel.Name
-	if name == nil || name.Kind != yamldoc.KindString {
-		return nil
-	}
-	return &name.Raw
-}
-
 func orDefault(value, fallback string) string {
 	if value == "" {
 		return fallback
@@ -478,11 +443,7 @@ func orDefault(value, fallback string) string {
 // `render ./bb/../bb/CV.yaml` wrote `other/real/rendercv_output` where upstream
 // wrote `other/bb/rendercv_output`, at exit 0 with nothing warning the user.
 func outputFolderFor(options RenderOptions) string {
-	folder := orDefault(options.OutputFolder, DefaultOutputFolder)
-	if filepath.IsAbs(folder) {
-		return folder
-	}
-	return design.Join(inputDirFor(options), folder)
+	return generate.OutputFolderFor(options.InputPath, options.OutputFolder)
 }
 
 // inputDirFor is the input file's directory as every upstream site that needs

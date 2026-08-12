@@ -10,9 +10,11 @@ import (
 	"github.com/nonamecat19/rendercv-go/internal/renderer/bridge"
 	"github.com/nonamecat19/rendercv-go/internal/renderer/document"
 	"github.com/nonamecat19/rendercv-go/internal/renderer/templater"
+	"github.com/nonamecat19/rendercv-go/internal/renderer/templater/process"
 	"github.com/nonamecat19/rendercv-go/internal/renderer/typstc"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/cv"
 	"github.com/nonamecat19/rendercv-go/internal/schema/models/design"
+	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
 )
 
 // Options is what a generator needs besides the model itself.
@@ -38,6 +40,61 @@ type Options struct {
 	PNGPath      string
 	MarkdownPath string
 	HTMLPath     string
+}
+
+// OutputFolderFor is where artifacts go, given the input file and whatever
+// output folder was asked for.
+//
+// **It resolves against the input file's directory, not the working
+// directory**: upstream types output_folder as PlannedPathRelativeToInput
+// (`settings/render_command.py:30`), so `render sub/cv.yaml` writes
+// `sub/rendercv_output/`. An absolute folder is taken as given.
+func OutputFolderFor(inputPath, outputFolder string) string {
+	folder := orDefault(outputFolder, DefaultOutputFolder)
+	if filepath.IsAbs(folder) {
+		return folder
+	}
+	return design.Join(InputDirFor(inputPath), folder)
+}
+
+// InputDirFor is the input file's directory as every upstream site that needs
+// it spells it: `input_file_path.parent`, which is lexical
+// (`schema/models/path.py:39`, `renderer/templater/templater.py:38`,
+// `renderer/pdf_png.py:179`) — so it is `design.Parent`, not `filepath.Dir`.
+func InputDirFor(inputPath string) string {
+	return design.Parent(inputPath)
+}
+
+// PathInputFor assembles what the path templates substitute into.
+//
+// Upstream has no counterpart because `resolve_rendercv_file_path` reads all of
+// it off the model it is handed (`path_resolver.py:40-109`). The port resolves
+// the model into a `bridge.Document` before rendering, so the pieces are read
+// off that instead — and they are read in one place, here, so the CLI and the
+// public API cannot assemble them differently.
+func PathInputFor(doc bridge.Document, outputFolder string) PathInput {
+	return PathInput{
+		Name:         plainName(doc),
+		OutputFolder: outputFolder,
+		Placeholders: process.BuildDatePlaceholders(doc.Settings.CurrentDate, process.Catalog{
+			MonthNames:         doc.Locale.MonthNames,
+			MonthAbbreviations: doc.Locale.MonthAbbreviations,
+		}),
+	}
+}
+
+// plainName is `cv.name` **before** processing — the placeholders spell the
+// user's own text, not the escaped Typst one. A nil result is upstream's
+// `None`, which the placeholder table filters out entirely.
+func plainName(doc bridge.Document) *string {
+	if doc.Model == nil || doc.Model.CvModel == nil {
+		return nil
+	}
+	name := doc.Model.CvModel.Name
+	if name == nil || name.Kind != yamldoc.KindString {
+		return nil
+	}
+	return &name.Raw
 }
 
 // Typst is `generate_typst` (`renderer/typst.py:9-29`).
