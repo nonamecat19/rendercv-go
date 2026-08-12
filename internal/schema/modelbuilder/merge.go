@@ -71,7 +71,7 @@ func BuildDictionary(mainYaml string, args BuildArguments) (*BuildResult, error)
 	// Spec §3.14: settings and settings.render_command are force-created as
 	// empty mappings before anything else touches the document.
 	settings := setDefaultMapping(document, "settings")
-	renderCommand := setDefaultMapping(settings, "render_command")
+	setDefaultMapping(settings, "render_command")
 
 	overlaySources := map[schemaerr.OverlayKey]*yamldoc.Node{}
 	for _, key := range overlayOrder {
@@ -98,6 +98,19 @@ func BuildDictionary(mainYaml string, args BuildArguments) (*BuildResult, error)
 		mappingSet(document, string(key), value)
 		overlaySources[key] = overlay
 	}
+
+	// **The mapping has to be looked up again, after the overlays.** Upstream
+	// writes `input_dict["settings"]["render_command"][key] = value`
+	// (`rendercv_model_builder.py:149-151`) — a fresh subscript every time — and
+	// a settings overlay **replaces** the whole `settings` value at `:132`. The
+	// port captured `render_command` before that replacement, so with a
+	// `--settings` overlay present every render-command override was written
+	// into a node no longer attached to the document and silently lost.
+	//
+	// Measured: `render cv.yaml --settings s.yaml --dont-generate-typst
+	// --dont-generate-pdf --dont-generate-png` generated all five formats here
+	// and two upstream.
+	renderCommand := setDefaultMapping(setDefaultMapping(document, "settings"), "render_command")
 
 	for _, override := range renderCommandOverrides(args) {
 		// Spec §3.20: only truthy values are written.
