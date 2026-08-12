@@ -41,30 +41,40 @@ func (emphasisParser) Parse(_ ast.Node, block text.Reader, pc parser.Context) as
 	}
 	delim := line[0]
 
-	// NOT_STRONG_RE (`inlinepatterns.py:141`): a lone delimiter with
-	// whitespace-or-edge on both sides is never emphasis, matching
-	// `inline.go`'s `isolatedDelimiter` but read from the reader's absolute
-	// position rather than a local string, since PeekLine only exposes what is
-	// at and after the trigger.
-	source := block.Source()
-	beforeIsSpace := segment.Start == 0 || isSpaceByte(source[segment.Start-1])
-	afterIsSpace := len(line) == 1 || isSpaceByte(line[1])
-	if beforeIsSpace && afterIsSpace {
-		return nil
-	}
-
 	patterns := asteriskPatterns
 	if delim == '_' {
 		patterns = underscorePatterns
 	}
 
-	data := string(line)
-	index, end, firstStart, firstEnd, secondStart, secondEnd, ok := matchEmphasis(patterns, data, 0, -1)
+	// **The data has to begin at the line, not at the trigger.** Upstream
+	// matches each pattern against the whole block with `pattern.match(data,
+	// m.start(0))` (`inlinepatterns.py:663-668`), so every lookbehind — the
+	// `(?<!\w)` that all three smart underscore patterns open with, and
+	// `NOT_STRONG_RE`'s `(?<=\s)` — sees what precedes the delimiter. Handing
+	// the matchers a string that starts at the delimiter made every one of
+	// those guards vacuous, which is how `snake_case_` became
+	// `snake<em>case</em>`: the trailing `_` opened an emphasis whose `(?<!\w)`
+	// had no `e` to look at.
+	//
+	// The line, rather than the whole block, is this path's existing bound —
+	// the same one `knownRemainder`'s `[t](a\nb)` records. A block prefix a
+	// block parser already stripped (a list marker, a blockquote `>`) ends in
+	// whitespace, so it is indistinguishable from the start of a block to
+	// every guard here.
+	source := block.Source()
+	lineStart := segment.Start
+	for lineStart > 0 && source[lineStart-1] != '\n' {
+		lineStart--
+	}
+	data := string(source[lineStart:segment.Stop])
+	pos := segment.Start - lineStart
+
+	index, end, firstStart, firstEnd, secondStart, secondEnd, ok := matchEmphasis(patterns, data, pos, -1)
 	if !ok {
 		return nil
 	}
 
-	return buildEmphasis(block, pc, segment.Start, index, delim, end, firstStart, firstEnd, secondStart, secondEnd)
+	return buildEmphasis(block, pc, lineStart, pos, index, delim, end, firstStart, firstEnd, secondStart, secondEnd)
 }
 
 // buildEmphasis builds the node tree for one matched pattern and advances
@@ -72,47 +82,48 @@ func (emphasisParser) Parse(_ ast.Node, block text.Reader, pc parser.Context) as
 // the way — the opening one, the middle one for a double pattern, and the
 // closing one — none of which are literal content.
 //
-// It assumes block is positioned at the match's start; every offset parameter
-// is relative to that start, matching what `matchEmphasis` returns.
-func buildEmphasis(block text.Reader, pc parser.Context, spanStart int, index int, delim byte, end, firstStart, firstEnd, secondStart, secondEnd int) ast.Node {
-	block.Advance(firstStart)
+// It assumes block is positioned at `dataStart + pos`; every offset parameter
+// is an index into the same data `matchEmphasis` was handed, whose first byte
+// sits at absolute source offset `dataStart`.
+func buildEmphasis(block text.Reader, pc parser.Context, dataStart, pos, index int, delim byte, end, firstStart, firstEnd, secondStart, secondEnd int) ast.Node {
+	block.Advance(firstStart - pos)
 
 	switch index {
 	case 0: // EM_STRONG_RE / EM_STRONG2_RE: strong[ em[first] second ]
 		strong := ast.NewEmphasis(2)
 		em := ast.NewEmphasis(1)
 		strong.AppendChild(strong, em)
-		parseEmphasisBody(em, block, pc, spanStart+firstEnd, index, delim)
+		parseEmphasisBody(em, block, pc, dataStart+firstEnd, index, delim)
 		block.Advance(secondStart - firstEnd)
-		parseEmphasisBody(strong, block, pc, spanStart+secondEnd, index, delim)
+		parseEmphasisBody(strong, block, pc, dataStart+secondEnd, index, delim)
 		block.Advance(end - secondEnd)
 		return strong
 	case 1: // STRONG_EM_RE / STRONG_EM2_RE: em[ strong[first] second ]
 		em := ast.NewEmphasis(1)
 		strong := ast.NewEmphasis(2)
 		em.AppendChild(em, strong)
-		parseEmphasisBody(strong, block, pc, spanStart+firstEnd, index, delim)
+		parseEmphasisBody(strong, block, pc, dataStart+firstEnd, index, delim)
 		block.Advance(secondStart - firstEnd)
-		parseEmphasisBody(em, block, pc, spanStart+secondEnd, index, delim)
+		parseEmphasisBody(em, block, pc, dataStart+secondEnd, index, delim)
 		block.Advance(end - secondEnd)
 		return em
 	case 2: // STRONG_EM3_RE / SMART_STRONG_EM_RE: strong[ first em[second] ]
 		strong := ast.NewEmphasis(2)
-		parseEmphasisBody(strong, block, pc, spanStart+firstEnd, index, delim)
+		parseEmphasisBody(strong, block, pc, dataStart+firstEnd, index, delim)
 		block.Advance(secondStart - firstEnd)
 		em := ast.NewEmphasis(1)
-		parseEmphasisBody(em, block, pc, spanStart+secondEnd, index, delim)
+		parseEmphasisBody(em, block, pc, dataStart+secondEnd, index, delim)
 		strong.AppendChild(strong, em)
 		block.Advance(end - secondEnd)
 		return strong
 	case 3: // STRONG_RE / SMART_STRONG_RE: strong[first]
 		strong := ast.NewEmphasis(2)
-		parseEmphasisBody(strong, block, pc, spanStart+firstEnd, index, delim)
+		parseEmphasisBody(strong, block, pc, dataStart+firstEnd, index, delim)
 		block.Advance(end - firstEnd)
 		return strong
 	default: // 4, EMPHASIS_RE / SMART_EMPHASIS_RE: em[first]
 		em := ast.NewEmphasis(1)
-		parseEmphasisBody(em, block, pc, spanStart+firstEnd, index, delim)
+		parseEmphasisBody(em, block, pc, dataStart+firstEnd, index, delim)
 		block.Advance(end - firstEnd)
 		return em
 	}
@@ -221,7 +232,7 @@ func parseEmphasisBody(container ast.Node, block text.Reader, pc parser.Context,
 			}
 			data := string(line)
 			if index, end, fs, fe, ss, se, ok := matchEmphasis(nestedPatterns, data, 0, nestedCutoff); ok {
-				node := buildEmphasis(block, pc, segment.Start, index, line[0], end, fs, fe, ss, se)
+				node := buildEmphasis(block, pc, segment.Start, 0, index, line[0], end, fs, fe, ss, se)
 				container.AppendChild(container, node)
 				continue
 			}
