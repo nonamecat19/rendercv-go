@@ -1,6 +1,6 @@
 # Spec delta 011-A — the ATX heading rule
 
-**Status:** proposal · **Extends:** [`spec.md`](spec.md) §6 · **Inherits:**
+**Status:** implemented (§10) · **Extends:** [`spec.md`](spec.md) §6 · **Inherits:**
 [`specs/000-parity-contract/spec.md`](../000-parity-contract/spec.md) · **Supersedes:** nothing
 
 python-markdown **3.10.2** as vendored (`third_party/rendercv/.venv/lib/python3.12/site-packages/`),
@@ -24,7 +24,7 @@ in one pass over 194 shapes (`AGENTS.md` §10.1). The recipes are in §8. **It p
 | **Reach** | **every `#`-initial line in every CV**, in both directions |
 | **Direction** | rule 1: the port under-produces headings. Rule 2: the port **over**-produces them. |
 | **Measured** | 194 shapes probed, **127 differ**; 122 belong to this delta, 4 to the setext delta, 1 to an unrelated blockquote finding (§9) |
-| **Ordinary prose** | **15 of 15** shapes a user would write as prose change meaning (§3.2) |
+| **Ordinary prose** | **15 of 15** shapes a user would write as prose change meaning (§3.2); 14 of them by this delta's rules and one, `#include <stdio.h>`, by a different one (§10.2) |
 | **Artifacts affected** | `.html` only. `.typ` and `.pdf` cannot reach it (§2.3) — the Typst instance deregisters both header processors |
 | **Differential blindness** | **0 of the 761 `html.json` rows would change** (§5.1) |
 | **Corpus blindness** | **0 of the golden `.md` lines** are in the divergent class (§5.2) |
@@ -208,6 +208,9 @@ Three observations, in descending order of how much they matter:
 1. **Upstream escapes an entity the port emits.** `#include <stdio.h>` keeps its literal `<stdio.h>`
    in the heading because python-markdown treats it as inline HTML, while the port's paragraph
    escapes it to `&lt;stdio.h&gt;`. So the fix changes more than a tag name on this row.
+   **Correction (§10.2): it changes only the tag name.** `a <stdio.h> b`, `<stdio.h>` and
+   `a <b.c> d` are escaped the same way inside an ordinary paragraph, measured, so the entity is a
+   dotted-tag-name divergence that has nothing to do with headings and is out of this delta.
 2. **The hashes are consumed.** `#1 in sales` loses its `#` and becomes the heading `1 in sales`. A
    fix changes the characters, not only the element.
 3. **Not affected**, each measured: `Ranked #1 in sales`, `C# and .NET`, `issue #42`, `a #b` — the
@@ -488,3 +491,52 @@ path with the ATX parser:
 - **The tab-expanded first line** (`"\t\n==="`), already a named skip in `paragraph_test.go`.
 - **Blockquote merging**, found while sweeping §3.4: `> q\n\n> # h` is one `<blockquote>` upstream and
   two here. Nothing to do with headings; **needs its own investigation.**
+
+---
+
+## 10. As implemented
+
+Commits `3a8bb14`..`4f45ee7` on `fix/blankctl`. Option **A** as recommended, with the amendments
+below; each is a measurement the proposal did not have.
+
+### 10.1 What the tasks actually needed
+
+- **A2 took two seams, not one.** The proposal expected the indent test to be awkward inside `Open`
+  (§6) and it is — `pc.BlockIndent()` answers it. What it did not see is that
+  `flattenShallowLists` (`html.go`) had *already* moved an indented line to column 0 before goldmark
+  ever saw it, doing `ListIndentProcessor`'s job and `ParagraphProcessor`'s `lstrip` in one pass. A
+  hash run now keeps **one space** of its indentation there: enough to leave a list item, and the
+  paragraph strips it anyway.
+- **A third case appeared with them**: a list item's *continuation* line, `- item\n  # h`, where
+  upstream keeps the two spaces inside the item's own block and goldmark reads them as the item's
+  padding. `containerSwallowedIndent` (`heading.go`) is that case, and its bound is a tab length,
+  because at four the block really is the item's child in both libraries.
+- **A8 replaced `Open` rather than wrapping it.** After the space rule, the level cap and the
+  closing run, nothing of goldmark's version was still reachable, which is what §6 predicted would
+  have to be reproduced. `cutHeaderGroup` is the `header`/`#*` split, scanned left to right for the
+  first position from which the rest of the line is hashes — the non-greedy group, directly.
+
+### 10.2 What was measured that the proposal did not have
+
+- **A line ending in a lone backslash is not a heading at all.** `header` is `(?:\\.|[^\\])*?` and
+  `.` does not match a newline, so the expression cannot reach the line end: `#h\`, `# h\` and
+  `####### h\` are paragraphs upstream, and the line **after** such a line joins the same paragraph
+  with it. The dangling-backslash and escape shapes are pinned in `html.json` alongside §3.6.
+- **`#include <stdio.h>` is not this delta's.** A dotted tag name is raw inline HTML to
+  python-markdown's `HTMLExtractor` and ordinary text under CommonMark 0.31 §6.6, which spells a tag
+  name `[A-Za-z][A-Za-z0-9-]*`. It differs identically in a plain paragraph. It is the one row of
+  §3.2 the fix does not close, and it is pinned as its own class in `knownRemainder`
+  (`html_conformance_test.go`) rather than as a heading bug.
+
+### 10.3 Measured after
+
+| | |
+|---|---|
+| the 200-shape sweep | **133 divergent before, 3 after** |
+| what is left in it | blockquote merging (§9), the dotted tag name (§10.2), the multi-line setext (§9) — all three named as out of this delta before the work started |
+| `html.json` | 761 rows before, **888 after**; **0 of the 761 moved** |
+| the 761's blindness | 0 no-space, 0 indented, 0 seven-hash, 0 bare-closing-run rows — §5.1 confirmed and extended to the two classes it did not count |
+| golden `.md` corpus | 16 files, 2812 lines, 298 hash-initial, **0 in any divergent class** — §5.2 confirmed |
+| the Typst differential | 428 rows before, **434 after**, green on arrival: `#1 in sales` is `\#1 in sales` there. §2.3 confirmed by measurement, not only by construction |
+
+**The 27-shape closing-hash item is closed** by A7–A8, as §9 argued it should be.
