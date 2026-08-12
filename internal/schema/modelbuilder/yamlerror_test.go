@@ -310,35 +310,43 @@ func TestParserMessageUsesRuamelPhrasing(t *testing.T) {
 // `flowNodeExpectedAtEOF` answers first. The inputs below are chosen to avoid
 // both interceptors.
 //
-// Each `ruamel` value was read off the exception the vendored ruamel raises for
-// that same input (`e.context`).
+// Each `ruamel` value below was read off the exception the vendored ruamel
+// raises for that same input (`e.context`) and is **written out here**, not
+// taken from the row under test. The equality half used to read
+// `row.ruamel`, which made it a tautology: corrupting a table value moved the
+// expectation with the answer and the assertion stayed green. It is the
+// measured constant that gives this test its teeth; the row is what is on
+// trial.
+//
+// Rows are found by their `goccy` substring rather than by position, so
+// reordering the table is not a failure, and every row is required to be
+// covered by name at the end — a row nothing names is exactly the dead weight
+// this test exists to catch.
 func TestEveryPhrasingRowIsReachable(t *testing.T) {
-	// One input per row, in the table's own order.
-	reaching := []struct{ goccy, src string }{
-		{"sequence end token", "this: [is, not, a, cv\n"},
-		{"']' must be specified", "cv: [a\nb: c\n"},
-		{"'}' must be specified", "cv: {a: 1\nb: c\n"},
-		{"unexpected map key", "cv: [a\n  b: {c,\n"},
-		{"flow map", "a: {b\n"},
-		{"quoted text", "a: 'unterminated\n"},
-		{"tab character", "a: |\n\tx\n"},
-		{"cannot start any token", "a: b[\n\tc\n"},
-		{"already defined", "a: 1\na: 2\n"},
+	// One input per row, each with ruamel's own phrasing for it.
+	reaching := []struct{ goccy, ruamel, src string }{
+		{"sequence end token", "while parsing a flow sequence", "this: [is, not, a, cv\n"},
+		{"']' must be specified", "while parsing a flow sequence", "cv: [a\nb: c\n"},
+		{"'}' must be specified", "while parsing a flow mapping", "cv: {a: 1\nb: c\n"},
+		{"unexpected map key", "while parsing a flow sequence", "cv: [a\n  b: {c,\n"},
+		{"flow map", "while parsing a flow mapping", "a: {b\n"},
+		{"quoted text", "while scanning a quoted scalar", "a: 'unterminated\n"},
+		{"tab character", "while scanning for the next token", "a: |\n\tx\n"},
+		{"cannot start any token", "while scanning for the next token", "a: b[\n\tc\n"},
+		{"already defined", "while constructing a mapping", "a: 1\na: 2\n"},
 	}
 
-	if len(reaching) != len(ruamelPhrasing) {
-		t.Fatalf("the table has %d rows and %d have a reaching input; every new"+
-			" row needs one, measured", len(ruamelPhrasing), len(reaching))
-	}
+	covered := make(map[int]bool, len(reaching))
 
-	for i, want := range reaching {
-		row := ruamelPhrasing[i]
-		if row.goccy != want.goccy {
-			t.Fatalf("row %d is %q, but the reaching input was measured for %q",
-				i, row.goccy, want.goccy)
+	for _, want := range reaching {
+		i := rowIndex(want.goccy)
+		if i < 0 {
+			t.Errorf("no row carries %q, but an input was measured for it", want.goccy)
+			continue
 		}
+		covered[i] = true
 
-		t.Run(row.goccy, func(t *testing.T) {
+		t.Run(want.goccy, func(t *testing.T) {
 			_, err := ReadYamlWithValidationErrors(want.src, schemaerr.SourceMain)
 
 			var userErr *schemaerr.UserValidationError
@@ -346,7 +354,7 @@ func TestEveryPhrasingRowIsReachable(t *testing.T) {
 				t.Fatalf("err = %v (%T), want *schemaerr.UserValidationError", err, err)
 			}
 			if got, expect := userErr.Errors[0].Message,
-				"This is not a valid YAML file. "+row.ruamel+"."; got != expect {
+				"This is not a valid YAML file. "+want.ruamel+"."; got != expect {
 				t.Fatalf("message =\n  %q\nwant\n  %q", got, expect)
 			}
 
@@ -364,10 +372,28 @@ func TestEveryPhrasingRowIsReachable(t *testing.T) {
 			if got := firstMatchingRow(parserErr.Error()); got != i {
 				t.Errorf("%q selects row %d (%q), want row %d (%q) — the row is"+
 					" shadowed and can be deleted with the suite still green",
-					want.src, got, rowName(got), i, row.goccy)
+					want.src, got, rowName(got), i, want.goccy)
 			}
 		})
 	}
+
+	for i, row := range ruamelPhrasing {
+		if !covered[i] {
+			t.Errorf("row %d (%q) has no reaching input; every new row needs one,"+
+				" measured", i, row.goccy)
+		}
+	}
+}
+
+// rowIndex is the position of the row carrying exactly this goccy substring, or
+// -1 when the table has none.
+func rowIndex(goccy string) int {
+	for i, row := range ruamelPhrasing {
+		if row.goccy == goccy {
+			return i
+		}
+	}
+	return -1
 }
 
 // firstMatchingRow is parserMessage's own row selection, exposed so a test can
