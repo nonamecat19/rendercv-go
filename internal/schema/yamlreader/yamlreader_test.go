@@ -570,9 +570,16 @@ func kindTree(node *yamldoc.Node) string {
 			parts = append(parts, kindTree(elem))
 		}
 		return "[" + strings.Join(parts, ",") + "]"
-	default:
+	case yamldoc.KindNull, yamldoc.KindBool, yamldoc.KindInt,
+		yamldoc.KindFloat, yamldoc.KindString, yamldoc.KindTagged:
+		// Every scalar prints as its kind number and text. Spelled out rather
+		// than left to a `default` so a new kind has to be considered here too
+		// (kindguard) — this helper's whole job is to make two trees comparable
+		// by kind, and a kind it silently lumps in with the rest is a
+		// difference it would hide.
 		return fmt.Sprintf("%d(%q)", node.Kind, node.Raw)
 	}
+	return fmt.Sprintf("%d(%q)", node.Kind, node.Raw)
 }
 
 // A tag that names a type the loader constructs forces that type on the scalar
