@@ -189,8 +189,11 @@ write, exit 1); **all six of row 3's probes byte-identical**, so that promotion 
 **What it broke, and the ledger is corrected accordingly:**
 
 1. **Row 12's promotion was wrong and the row is demoted.** Its claim that residual differences are
-   "Python tracebacks only, D-011's class" is false — a panel-vs-panel mismatch exists in an
-   unmapped phrasing, carrying both defects the row said were fixed.
+   "Python tracebacks only, D-011's class" was false — a panel-vs-panel mismatch existed in an
+   unmapped phrasing, carrying both defects the row said were fixed. **That half is now CLOSED**
+   (`cv:\n  name: A\n  sections:\n    a:\n      - hi\n     b: 2` is byte-identical, both exit 1),
+   fixed by the porter that owned the phrasing table. **The row stays demoted for finding 2 below**,
+   which is the larger blocker.
 2. **The port emits no ANSI colour on a tty** — zero escape sequences against upstream's thirteen
    escape-carrying lines. Every golden is captured non-tty, so **the suite has never been able to
    see the port's terminal appearance**. This is the largest blind spot found all pass.
