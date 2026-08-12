@@ -854,5 +854,33 @@
  {
   "in": "\\``code`\\`",
   "want": "``code``"
+ },
+ {
+  "in": "a *b\nc* d",
+  "want": "a #sym.ast.basic#h(0pt, weak: true) b\nc#sym.ast.basic d"
+ },
+ {
+  "in": "- *a\nb*",
+  "want": "- #sym.ast.basic#h(0pt, weak: true) a\nb#sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "> *a\nb*",
+  "want": "\\> #sym.ast.basic#h(0pt, weak: true) a\nb#sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "***a\nb***",
+  "want": "#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) a\nb#sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true) #sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "_a\nb_",
+  "want": "\\_a\nb\\_"
+ },
+ {
+  "in": "__a\nb__",
+  "want": "\\_\\_a\nb\\_\\_"
+ },
+ {
+  "in": "*a\n\nb*",
+  "want": "#sym.ast.basic#h(0pt, weak: true) a\n\nb#sym.ast.basic#h(0pt, weak: true)"
  }
 ]
