@@ -340,6 +340,11 @@ func TestEveryPhrasingRowIsReachable(t *testing.T) {
 			"mapping values are not allowed here",
 			"cv:\n  name: John\n   bad: 1\n",
 		},
+		{
+			"value is not allowed in this context",
+			"while parsing a block collection",
+			"cv:\n  - name: John\n  bad: 1\n",
+		},
 	}
 
 	covered := make(map[int]bool, len(reaching))
