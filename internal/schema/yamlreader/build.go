@@ -426,9 +426,17 @@ func buildMapping(n *ast.MappingNode) *yamldoc.Node {
 		}
 
 		item := yamldoc.Item{
-			Key:       key,
-			KeySpan:   keySpan,
-			Value:     buildNode(mv.Value),
+			Key:     key,
+			KeySpan: keySpan,
+			Value:   buildNode(mv.Value),
+			// The key as a node, built from `mv.Key` — the tag still on it,
+			// the same path a value takes. That is ruamel's own shape, and it
+			// is what makes a key's repr fall out: an unforced tag leaves a
+			// KindTagged node and a forced one constructs the value, so
+			// `{!!str k: a}` reprs as a TaggedScalar and `{!!int 1: a}` as 1.
+			// The untagged `keyNode` above is the *binding* key's text and
+			// answers a different question.
+			KeyNode:   buildNode(mv.Key),
 			KeyTagged: keyTagged,
 		}
 		node.Items = append(node.Items, item)

@@ -37,15 +37,7 @@ func PythonText(node *yamldoc.Node) string {
 	case yamldoc.KindMapping:
 		parts := make([]string, 0, len(node.Items))
 		for _, item := range node.Items {
-			// **The key is repr'd like any other value, and this renders every
-			// key as a string.** Upstream's `{1: a}` is `{1: 'a'}`, with the
-			// integer key unquoted, but `yamldoc.Item` carries the key's text
-			// and neither its kind nor its quoting style, so `1:` and `'1':`
-			// are the same three bytes here. Guessing from the text would get
-			// the quoted spelling wrong instead, so the guess is not made.
-			// Telling the two apart needs an `Item` that keeps the key's node
-			// — the same change `repr(TaggedScalar)` waits on.
-			parts = append(parts, pythonStringRepr(item.Key)+": "+pythonRepr(item.Value))
+			parts = append(parts, pythonKeyRepr(item)+": "+pythonRepr(item.Value))
 		}
 		return "{" + strings.Join(parts, ", ") + "}"
 	case yamldoc.KindNull, yamldoc.KindBool, yamldoc.KindInt, yamldoc.KindFloat,
@@ -57,6 +49,24 @@ func PythonText(node *yamldoc.Node) string {
 		return RenderInput(node)
 	}
 	return RenderInput(node)
+}
+
+// pythonKeyRepr is `repr()` of a mapping key, which upstream renders with the
+// very same function it renders a value with — so the key's **kind** decides
+// the spelling, and `{1: a}` is `{1: 'a'}` where `{'1': a}` is `{'1': 'a'}`.
+//
+// This renders `Item.KeyNode` rather than `Item.Key`: the text is identical for
+// the two spellings above, and a rule guessed from it would only move the
+// defect to the quoted one (spec 015 delta §4).
+//
+// A key with no source node — the ones a CLI overlay synthesizes
+// (`modelbuilder/merge.go`) — falls back to the text, which is exact there
+// because an overlay key is always a string.
+func pythonKeyRepr(item yamldoc.Item) string {
+	if item.KeyNode == nil {
+		return pythonStringRepr(item.Key)
+	}
+	return pythonRepr(item.KeyNode)
 }
 
 // pythonRepr is `repr(value)` — `str()` for everything except a string, which
