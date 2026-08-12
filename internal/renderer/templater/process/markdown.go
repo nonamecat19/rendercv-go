@@ -112,6 +112,17 @@ func convertLine(line string) string {
 		return ""
 	}
 
+	// **A blank line is a blank line, however it is spelled.** The block parser
+	// splits on blank lines before `indent` ever runs, so a line of nothing but
+	// whitespace produces no element at all — `markdown_to_typst("    ")` and
+	// `markdown_to_typst("  \t")` are both `""` upstream. Without this the
+	// indent branch below reads an empty body and emits an empty code block,
+	// which `NormalizeWhitespace` then made reachable from `" \t"` by expanding
+	// the tab to the fourth column.
+	if strings.TrimSpace(line) == "" {
+		return ""
+	}
+
 	// A tab counts as the same indent.
 	for _, indent := range []string{"    ", "\t"} {
 		if body, indented := strings.CutPrefix(line, indent); indented {
