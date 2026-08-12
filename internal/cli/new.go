@@ -198,7 +198,17 @@ func newBanner(path string, inputFileCreated bool, templatesRows []PanelRow) str
 	// **A leading blank line**, which Rich emits before the greeting and which
 	// is easy to lose: it is the first byte of the golden, so dropping it shifts
 	// the whole comparison by one.
-	fmt.Fprintf(&out, "\nWelcome to RenderCV v%s!\n\n", Version)
+	//
+	// **And it wraps.** `rich.print` lays a plain string out at the console
+	// width under the default `"fold"` overflow, so at 20 columns the greeting
+	// is two lines and not one. Nothing else on this surface is outside a box,
+	// which is why the overflow went unseen.
+	out.WriteString("\n")
+	for _, line := range wrap(fmt.Sprintf("Welcome to RenderCV v%s!", Version), ConsoleWidth()) {
+		out.WriteString(line)
+		out.WriteString("\n")
+	}
+	out.WriteString("\n")
 
 	out.WriteString(Panel("Useful Links", []PanelRow{
 		{Text: "RenderCV App:   https://rendercv.com"},
