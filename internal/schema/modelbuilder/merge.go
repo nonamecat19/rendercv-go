@@ -148,8 +148,21 @@ func setByLocation(node *yamldoc.Node, path []string, value, fullKey string) err
 	}
 	previous := strings.Join(strings.Split(fullKey, ".")[:len(strings.Split(fullKey, "."))-len(path)], ".")
 
-	switch {
-	case node != nil && node.Kind == yamldoc.KindSequence:
+	// Every kind that is neither a list nor a mapping ends the walk with the
+	// same message, and the arms name them one by one rather than leaning on a
+	// `default`, so a new kind cannot join that set without a decision
+	// (kindguard).
+	unwalkable := func() error {
+		return &schemaerr.UserError{Message: fmt.Sprintf(
+			"It seems like there's something wrong with `%s`, but we don't know what it is.",
+			fullKey)}
+	}
+	if node == nil {
+		return unwalkable()
+	}
+
+	switch node.Kind {
+	case yamldoc.KindSequence:
 		index, err := strconv.Atoi(path[0])
 		if err != nil {
 			return &schemaerr.UserError{Message: fmt.Sprintf(
@@ -165,7 +178,7 @@ func setByLocation(node *yamldoc.Node, path []string, value, fullKey string) err
 		}
 		return setByLocation(node.Elems[index], path[1:], value, fullKey)
 
-	case node != nil && node.Kind == yamldoc.KindMapping:
+	case yamldoc.KindMapping:
 		if len(path) == 1 {
 			setMappingValue(node, path[0], stringOverride(value))
 			return nil
@@ -173,11 +186,12 @@ func setByLocation(node *yamldoc.Node, path []string, value, fullKey string) err
 		child := setDefaultMapping(node, path[0])
 		return setByLocation(child, path[1:], value, fullKey)
 
-	default:
-		return &schemaerr.UserError{Message: fmt.Sprintf(
-			"It seems like there's something wrong with `%s`, but we don't know what it is.",
-			fullKey)}
+	case yamldoc.KindNull, yamldoc.KindBool, yamldoc.KindInt,
+		yamldoc.KindFloat, yamldoc.KindString, yamldoc.KindTagged:
+		return unwalkable()
 	}
+
+	return unwalkable()
 }
 
 // setMappingValue replaces a key's value, appending the key when it is absent.
