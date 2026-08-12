@@ -1542,5 +1542,101 @@
  {
   "in": "a `　x　` span",
   "want": "a `x` span"
+ },
+ {
+  "in": "a `\rx` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "a `x\r` span",
+  "want": "a `x` span"
+ },
+ {
+  "in": "`\r`",
+  "want": "``"
+ },
+ {
+  "in": "`\rx\r`",
+  "want": "`x`"
+ },
+ {
+  "in": "``a\rb``",
+  "want": "`a\nb`"
+ },
+ {
+  "in": "a `x\r y` b",
+  "want": "a `x\n y` b"
+ },
+ {
+  "in": "![alt `x\r` t](p.png)",
+  "want": ""
+ },
+ {
+  "in": "[t `a\rb`](u)",
+  "want": "#link(\"u\")[t `a\nb`]"
+ },
+ {
+  "in": "**a `x\ry` b**",
+  "want": "#strong[a `x\ny` b]"
+ },
+ {
+  "in": "a `&\r<` b",
+  "want": "a `&amp;\n&lt;` b"
+ },
+ {
+  "in": "a `  x\ry  ` b",
+  "want": "a `x\ny` b"
+ },
+ {
+  "in": "`a\r\rb`",
+  "want": "`a\nb`"
+ },
+ {
+  "in": "a `x\r\r\ny` b",
+  "want": "a `x\ny` b"
+ },
+ {
+  "in": "a `x\ny` b",
+  "want": "a `x\ny` b"
+ },
+ {
+  "in": "a `x\r\ny` b",
+  "want": "a `x\ny` b"
+ },
+ {
+  "in": "`a\rb`",
+  "want": "`a\nb`"
+ },
+ {
+  "in": "!!! note\r    a `x\ry` b",
+  "want": "#summary[a `x]\ny` b"
+ },
+ {
+  "in": "a\r!!! note\r    x",
+  "want": "a\n#summary[x]"
+ },
+ {
+  "in": "a\r---\rb",
+  "want": "a\n\nb"
+ },
+ {
+  "in": "    x\r    y",
+  "want": "`x\ny\n`"
+ },
+ {
+  "in": "a\r\r    x",
+  "want": "a\n`x\n`"
+ },
+ {
+  "in": "  a\r  b",
+  "want": "a\n  b"
+ },
+ {
+  "in": "a\r \rb",
+  "want": "a\nb"
+ },
+ {
+  "in": "a\rb\rc",
+  "want": "a\nb\nc"
  }
 ]
