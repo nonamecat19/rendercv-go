@@ -55,6 +55,18 @@ func isHorizontalRule(line string) bool {
 // every following line indented by four spaces — which is converted as a unit
 // because it is multi-line by design and is what `process_summary` produces.
 func MarkdownToTypst(text string) string {
+	// `NormalizeWhitespace` is a **preprocessor** (`preprocessors.py:66-73`), so
+	// it runs before any parsing on this path too — the HTML path has called it
+	// since spec 011, and this one never did. A lone `\r` was dropped instead of
+	// becoming a newline, silently merging two lines, and a tab stayed a tab
+	// where upstream expands it:
+	//
+	//	a\rb      ->  "ab"     upstream "a\nb"
+	//	a\tb      ->  "a\tb"   upstream "a   b"
+	//
+	// Both are ordinary things to find in a CV field pasted from elsewhere.
+	text = normalizeWhitespace(text)
+
 	lines := strings.Split(text, "\n")
 	parts := make([]string, 0, len(lines))
 
