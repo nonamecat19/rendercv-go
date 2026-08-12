@@ -402,35 +402,22 @@ func buildArguments(options RenderOptions) (modelbuilder.BuildArguments, error) 
 	}
 
 	return modelbuilder.BuildArguments{
-		SettingsYaml: settingsYaml,
-		DesignYaml:   designYaml,
-		LocaleYaml:   localeYaml,
-		OutputFolder: options.OutputFolder,
-		TypstPath:    options.TypstPath,
-		PdfPath:      options.PDFPath,
-		MarkdownPath: options.MarkdownPath,
-		HtmlPath:     options.HTMLPath,
-		PngPath:      options.PNGPath,
-		// **A switch that is off contributes no override**, not an override
-		// spelling false: upstream's `--nopdf` family can only set the flag
-		// true, so an unset switch is an absent key and the settings file
-		// decides. `onlyIfSet` is that rule.
-		DontGenerateTypst:    onlyIfSet(options.NoTypst),
-		DontGeneratePdf:      onlyIfSet(options.NoPDF),
-		DontGeneratePng:      onlyIfSet(options.NoPNG),
-		DontGenerateMarkdown: onlyIfSet(options.NoMarkdown),
-		DontGenerateHtml:     onlyIfSet(options.NoHTML),
+		SettingsYaml:         settingsYaml,
+		DesignYaml:           designYaml,
+		LocaleYaml:           localeYaml,
+		OutputFolder:         options.OutputFolder,
+		TypstPath:            options.TypstPath,
+		PdfPath:              options.PDFPath,
+		MarkdownPath:         options.MarkdownPath,
+		HtmlPath:             options.HTMLPath,
+		PngPath:              options.PNGPath,
+		DontGenerateTypst:    options.NoTypst,
+		DontGeneratePdf:      options.NoPDF,
+		DontGeneratePng:      options.NoPNG,
+		DontGenerateMarkdown: options.NoMarkdown,
+		DontGenerateHtml:     options.NoHTML,
 		Overrides:            options.Overrides,
 	}, nil
-}
-
-// onlyIfSet turns a CLI switch into the tri-state BuildArguments carries: an
-// unset switch is an absent key, never an explicit false.
-func onlyIfSet(on bool) *bool {
-	if !on {
-		return nil
-	}
-	return &on
 }
 
 func orDefault(value, fallback string) string {

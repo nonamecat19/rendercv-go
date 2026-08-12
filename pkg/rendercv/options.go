@@ -33,44 +33,25 @@ type BuildOptions struct {
 	MarkdownPath string
 	HTMLPath     string
 
-	// The five dont_generate_* flags are tri-state, mirroring upstream's
-	// `bool | None`:
+	// The five dont_generate_* flags. true suppresses a format; false is the
+	// same as leaving it out, so the document's own settings decide.
 	//
-	//   nil          the key is absent, so settings.yaml decides
-	//   &true        do not generate this format
-	//   &false       generate it, overriding a settings file that switched it off
+	// Upstream types these `bool | None`, which looks like three states, but
+	// its override loop is `if value:` (rendercv_model_builder.py:149) — so an
+	// explicit False is dropped exactly as an absent key is, and there is no
+	// third state to represent. Measured against the vendored Python: passing
+	// dont_generate_pdf=False leaves the key absent from the merged dictionary.
 	//
-	// A plain bool cannot express the third case, and its zero value would
-	// silently mean the first — which is why these are pointers even though
-	// most callers will leave them nil.
-	DontGenerateTypst    *bool
-	DontGeneratePDF      *bool
-	DontGeneratePNG      *bool
-	DontGenerateMarkdown *bool
-	DontGenerateHTML     *bool
+	// A *bool here would let a caller express something upstream cannot, which
+	// would be a divergence rather than a convenience.
+	DontGenerateTypst    bool
+	DontGeneratePDF      bool
+	DontGeneratePNG      bool
+	DontGenerateMarkdown bool
+	DontGenerateHTML     bool
 
 	// Overrides are the dotted key/value pairs the CLI parses from
 	// `--key=value`, mirroring the overrides dict. A library caller supplies
 	// them already parsed.
 	Overrides map[string]string
-}
-
-// No is a convenience for the common tri-state case: No() is a *bool meaning
-// "do not generate this format" — the True of upstream's `bool | None`
-// (rendercv_model_builder.py:24-39).
-//
-// It exists because &true is not expressible as a literal in Go, and
-// BuildOptions{DontGeneratePDF: rendercv.No()} reads better than declaring a
-// variable at every call site.
-func No() *bool {
-	value := true
-	return &value
-}
-
-// Yes is the opposite of [No]: a *bool meaning "generate this format even if a
-// settings file switched it off" — the False of upstream's `bool | None`
-// (rendercv_model_builder.py:24-39), and the case a plain bool could not reach.
-func Yes() *bool {
-	value := false
-	return &value
 }

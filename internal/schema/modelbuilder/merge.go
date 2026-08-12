@@ -25,21 +25,21 @@ type BuildArguments struct {
 	MarkdownPath string
 	HtmlPath     string
 	PngPath      string
-	// The five dont_generate_* flags are **tri-state**, mirroring upstream's
-	// `bool | None` in a `TypedDict(total=False)`
-	// (`schema/rendercv_model_builder.py:24-39`). nil is an absent key, which
-	// defers to whatever `settings.yaml` says; a non-nil false is an explicit
-	// override that forces the format back on.
+	// **An explicit false is indistinguishable from an absent key**, and that
+	// is upstream's behavior, not a limitation of this type: the override loop
+	// is `if value:` (`rendercv_model_builder.py:149`), which drops False along
+	// with None and "". Measured — passing dont_generate_pdf=False to
+	// build_rendercv_dictionary leaves the key absent from the merged
+	// dictionary.
 	//
-	// A plain bool could not hold that difference — `boolOverride(false)`
-	// emitted no override at all — so "force it on over a settings file that
-	// switched it off" was unreachable. The CLI cannot reach it either, its
-	// flags being switches that only set true, which is why nothing noticed.
-	DontGenerateTypst    *bool
-	DontGenerateHtml     *bool
-	DontGenerateMarkdown *bool
-	DontGeneratePdf      *bool
-	DontGeneratePng      *bool
+	// So there is no third state to represent. A *bool here would let this port
+	// express something upstream cannot, which is a divergence rather than a
+	// feature.
+	DontGenerateTypst    bool
+	DontGenerateHtml     bool
+	DontGenerateMarkdown bool
+	DontGeneratePdf      bool
+	DontGeneratePng      bool
 
 	Overrides map[string]string
 }
@@ -272,18 +272,14 @@ func stringOverride(value string) *yamldoc.Node {
 	return &yamldoc.Node{Kind: yamldoc.KindString, Raw: value}
 }
 
-// boolOverride is the tri-state of BuildArguments' dont_generate_* fields: nil
-// contributes no override, and a non-nil value contributes its own spelling —
-// including false, which forces a format back on over a settings file that
-// switched it off.
-func boolOverride(value *bool) *yamldoc.Node {
-	if value == nil {
+// boolOverride is upstream's `if value:` for a bool: only true contributes an
+// override, and false is dropped exactly as an absent key is
+// (`rendercv_model_builder.py:149`).
+func boolOverride(value bool) *yamldoc.Node {
+	if !value {
 		return nil
 	}
-	if *value {
-		return &yamldoc.Node{Kind: yamldoc.KindBool, Raw: "true"}
-	}
-	return &yamldoc.Node{Kind: yamldoc.KindBool, Raw: "false"}
+	return &yamldoc.Node{Kind: yamldoc.KindBool, Raw: "true"}
 }
 
 // setDefaultMapping mirrors dict.setdefault(key, {}) on a mapping node: it

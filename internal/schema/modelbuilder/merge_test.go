@@ -148,8 +148,8 @@ func TestRenderCommandOverridesWritten(t *testing.T) {
 	result := mustBuild(t, minimalCV, BuildArguments{
 		OutputFolder:      "out",
 		PdfPath:           "cv.pdf",
-		DontGeneratePng:   boolPtr(true),
-		DontGenerateTypst: boolPtr(true),
+		DontGeneratePng:   true,
+		DontGenerateTypst: true,
 	})
 
 	renderCommand := get(t, result.Document, "settings", "render_command")
@@ -174,15 +174,13 @@ func TestRenderCommandOverridesWritten(t *testing.T) {
 	}
 }
 
-func boolPtr(value bool) *bool { return &value }
-
 // Spec §3.20, §5.17 — an ABSENT override is dropped and does not overwrite a
 // YAML value. The flags are tri-state, so absent is nil; an explicit false is a
 // different input and is covered by the test below.
 func TestFalsyOverridesAreDropped(t *testing.T) {
 	main := minimalCV + "settings:\n  render_command:\n    dont_generate_pdf: true\n    output_folder: from_yaml\n"
 	result := mustBuild(t, main, BuildArguments{
-		DontGeneratePdf: nil,
+		DontGeneratePdf: false,
 		OutputFolder:    "",
 	})
 
@@ -300,28 +298,5 @@ func TestOverlaysAreIndependent(t *testing.T) {
 	}
 	if got := get(t, result.Document, "locale", "language").Raw; got != "tr" {
 		t.Errorf("locale.language = %q, want the main document's %q", got, "tr")
-	}
-}
-
-// An explicit false is an override in its own right, and it overwrites a YAML
-// value that switched the format off.
-//
-// This case was **unreachable before the flags became tri-state**: the field
-// was a plain bool and `boolOverride(false)` emitted nothing, so "generate the
-// PDF even though settings.yaml says not to" could not be expressed. The CLI
-// still cannot express it — its switches only set true — so nothing noticed.
-// Whether upstream honours it the same way is measured by spec 016's T-1;
-// what this pins is the port-side mechanism.
-func TestAnExplicitFalseOverwritesTheYamlValue(t *testing.T) {
-	main := minimalCV + "settings:\n  render_command:\n    dont_generate_pdf: true\n"
-	result := mustBuild(t, main, BuildArguments{DontGeneratePdf: boolPtr(false)})
-
-	renderCommand := get(t, result.Document, "settings", "render_command")
-	value, ok := mappingGet(renderCommand, "dont_generate_pdf")
-	if !ok {
-		t.Fatal("dont_generate_pdf not written")
-	}
-	if value.Raw != "false" || value.Kind != yamldoc.KindBool {
-		t.Errorf("= %+v, want raw %q kind %v", value, "false", yamldoc.KindBool)
 	}
 }
