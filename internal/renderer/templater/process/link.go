@@ -93,7 +93,7 @@ func (linkParser) Parse(_ ast.Node, block text.Reader, pc parser.Context) ast.No
 	if after < 0 || after >= len(line) || line[after] != '(' {
 		return nil
 	}
-	href, title, hasTitle, parenEnd, ok := getLink(line, after)
+	href, title, hasTitle, parenEnd, ok := getLink(line, line, after)
 	if !ok {
 		return nil
 	}
@@ -121,13 +121,19 @@ func (linkParser) Parse(_ ast.Node, block text.Reader, pc parser.Context) ast.No
 // `linkRenderer` and `imageRenderer` only write a `title=""` attribute when
 // `Title != nil`.
 //
+// It scans `scan` but slices `src`. The two are the same length and are the
+// same bytes until a caller has something to hide from the scanner — an
+// escape-masked copy, which the next commit's callers pass. Everything here
+// passes the same slice twice, so this split is a no-op by construction.
+//
 // unescape and Python's own `dequote` (backslash-escape resolution and
 // redundant-quote-stripping on an already-extracted title) are not
 // reproduced: nothing in spec 011's corpus reaches either, and this file's own
 // `linkRenderer` comment already documents that the destination is not
 // further transformed once matched.
-func getLink(data []byte, index int) (href, title []byte, hasTitle bool, end int, ok bool) {
-	if dest, ttl, hasTtl, angleEnd, matched := matchAngleLink(data, index); matched {
+func getLink(scan, src []byte, index int) (href, title []byte, hasTitle bool, end int, ok bool) {
+	data := scan
+	if dest, ttl, hasTtl, angleEnd, matched := matchAngleLink(scan, src, index); matched {
 		return trimSpaceBytes(dest), normalizeTitleWhitespace(ttl), hasTtl, angleEnd, true
 	}
 
@@ -187,15 +193,15 @@ func getLink(data []byte, index int) (href, title []byte, hasTitle bool, end int
 		if bracketCount == 0 {
 			switch {
 			case exitQuote >= 0 && quote == last:
-				href = data[startIndex : startQuote-1]
-				title = data[startQuote : exitQuote-1]
+				href = src[startIndex : startQuote-1]
+				title = src[startQuote : exitQuote-1]
 				hasTitle = true
 			case exitAltQuote >= 0 && altQuote == last:
-				href = data[startIndex : startAltQuote-1]
-				title = data[startAltQuote : exitAltQuote-1]
+				href = src[startIndex : startAltQuote-1]
+				title = src[startAltQuote : exitAltQuote-1]
 				hasTitle = true
 			default:
-				href = data[startIndex : next-1]
+				href = src[startIndex : next-1]
 			}
 			return trimSpaceBytes(href), normalizeTitleWhitespace(title), hasTitle, next, true
 		}
@@ -206,7 +212,7 @@ func getLink(data []byte, index int) (href, title []byte, hasTitle bool, end int
 	}
 
 	if bracketCount != 0 && backtrackCount == 0 {
-		href = data[startIndex : lastBracket-1]
+		href = src[startIndex : lastBracket-1]
 		return trimSpaceBytes(href), nil, false, lastBracket, true
 	}
 
@@ -215,7 +221,8 @@ func getLink(data []byte, index int) (href, title []byte, hasTitle bool, end int
 
 // matchAngleLink is `RE_LINK`'s angle-bracket alternative,
 // `\(\s*(<[^<>]*>)\s*(?:('[^']*'|"[^"]*")\s*)?\)`, index pointing at the `(`.
-func matchAngleLink(data []byte, index int) (dest, title []byte, hasTitle bool, end int, ok bool) {
+// It splits scanning from slicing for the reason `getLink` documents.
+func matchAngleLink(data, src []byte, index int) (dest, title []byte, hasTitle bool, end int, ok bool) {
 	pos := index + 1
 	for pos < len(data) && isSpaceByte(data[pos]) {
 		pos++
@@ -236,7 +243,7 @@ func matchAngleLink(data []byte, index int) (dest, title []byte, hasTitle bool, 
 	if closeAngle < 0 {
 		return nil, nil, false, 0, false
 	}
-	dest = data[pos+1 : closeAngle]
+	dest = src[pos+1 : closeAngle]
 
 	next := closeAngle + 1
 	for next < len(data) && isSpaceByte(data[next]) {
@@ -249,7 +256,7 @@ func matchAngleLink(data []byte, index int) (dest, title []byte, hasTitle bool, 
 		if closeQuote < 0 {
 			return nil, nil, false, 0, false
 		}
-		title = data[next+1 : closeQuote]
+		title = src[next+1 : closeQuote]
 		hasTitle = true
 		next = closeQuote + 1
 		for next < len(data) && isSpaceByte(data[next]) {
