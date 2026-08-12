@@ -17,8 +17,14 @@
 //     `default`. Adding a Kind then breaks the build at every such switch.
 //  2. No single decision compares a Kind against more than one constant
 //     outside such a switch — no `k == A || k == B`, no tagless
-//     `switch { case k == A: ...; case k == B: }`. A subset enumerated by hand
-//     is exactly the shape that silently gained a wrong answer.
+//     `switch { case k == A: ...; case k == B: }`, no
+//     `if k == A { } else if k == B { }`. A subset enumerated by hand is
+//     exactly the shape that silently gained a wrong answer, and an
+//     `if`/`else if` chain is a `switch` written in the one spelling the
+//     `exhaustive` check cannot see. A composite literal naming two or more
+//     Kinds — `map[yamldoc.Kind]bool{A: true, B: true}`, `[]yamldoc.Kind{A, B}`
+//     — is the same subset with the decision moved to a lookup, where a new
+//     Kind answers `false` rather than failing to compile.
 //
 // A *single* comparison (`k != yamldoc.KindMapping`) stays legal: it is total
 // by construction — it splits every Kind, present and future, into the named
@@ -50,6 +56,9 @@ const (
 	// RuleMultiConstantPredicate is one decision comparing a Kind against
 	// more than one constant outside a Kind switch.
 	RuleMultiConstantPredicate Rule = "multi-constant-predicate"
+	// RuleKindSetLiteral is a composite literal naming more than one Kind,
+	// which enumerates the same subset by hand as a lookup table.
+	RuleKindSetLiteral Rule = "kind-set-literal"
 )
 
 // Violation is one place that breaks a rule.
@@ -192,9 +201,10 @@ func CheckSource(name string, source []byte, kinds []string) ([]Violation, error
 		return nil, fmt.Errorf("parsing %s: %w", name, err)
 	}
 	checker := &checker{
-		fset:  fset,
-		name:  name,
-		kinds: kinds,
+		fset:    fset,
+		name:    name,
+		kinds:   kinds,
+		chained: map[*ast.IfStmt]bool{},
 		// Inside package yamldoc the constants are unqualified; everywhere
 		// else they must be reached through the package name, which no file
 		// aliases.
@@ -213,6 +223,9 @@ type checker struct {
 	// suppress holds the extents of already-reported predicate groups, so an
 	// inner `||` is not reported again under the outer one that contains it.
 	suppress []span
+	// chained holds the `else if` members of chains already walked from their
+	// head, so a chain is considered once and not again from each link.
+	chained map[*ast.IfStmt]bool
 }
 
 type span struct{ from, to token.Pos }
@@ -222,6 +235,10 @@ func (c *checker) check(file *ast.File) {
 		switch typed := node.(type) {
 		case *ast.SwitchStmt:
 			c.checkSwitch(typed)
+		case *ast.IfStmt:
+			c.checkIfChain(typed)
+		case *ast.CompositeLit:
+			c.checkCompositeLit(typed)
 		case *ast.BinaryExpr:
 			if typed.Op == token.LAND || typed.Op == token.LOR {
 				c.checkPredicateGroup(typed, c.kindComparisons(typed), "boolean expression")
@@ -283,12 +300,82 @@ func (c *checker) checkSwitchArms(stmt *ast.SwitchStmt, named map[string]bool, h
 	}
 }
 
-// checkPredicateGroup applies rule 2 to one decision's worth of comparisons.
-func (c *checker) checkPredicateGroup(node ast.Node, compared []*ast.BinaryExpr, shape string) {
-	if len(compared) < 2 || c.suppressed(node.Pos()) {
+// checkCompositeLit applies rule 2 to a literal that names Kinds directly —
+// `map[yamldoc.Kind]bool{A: true, B: true}`, `[]yamldoc.Kind{A, B}` — where
+// the decision has moved from a comparison into a lookup, and a ninth Kind
+// reads back the zero value instead of breaking the build.
+//
+// Only the literal's own keys and values count, never a nested literal's: a
+// test table of nodes that each carry one Kind is a corpus, not a decision.
+func (c *checker) checkCompositeLit(lit *ast.CompositeLit) {
+	var named []string
+	for _, element := range lit.Elts {
+		if pair, isPair := element.(*ast.KeyValueExpr); isPair {
+			if kind, isKind := c.kindConstant(pair.Key); isKind {
+				named = append(named, kind)
+				continue
+			}
+			if kind, isKind := c.kindConstant(pair.Value); isKind {
+				named = append(named, kind)
+			}
+			continue
+		}
+		if kind, isKind := c.kindConstant(element); isKind {
+			named = append(named, kind)
+		}
+	}
+	if len(named) < 2 {
 		return
 	}
-	c.suppress = append(c.suppress, span{node.Pos(), node.End()})
+	c.report(lit.Pos(), RuleKindSetLiteral,
+		"this literal enumerates yamldoc.Kind by hand ("+strings.Join(named, ", ")+"); "+
+			"use an exhaustive switch so a new kind cannot read back the zero value")
+}
+
+// checkIfChain applies rule 2 to an `if`/`else if` chain, which is one
+// decision spread over several conditions: `if k == A { } else if k == B { }`
+// is the same hand-enumerated subset as `k == A || k == B`, written in the
+// shape neither `exhaustive` nor rule 1 looks at.
+//
+// Only the head of a chain is walked; a lone `if`, with or without an `else`
+// block, holds a single condition and stays legal for the same reason a single
+// comparison does.
+func (c *checker) checkIfChain(stmt *ast.IfStmt) {
+	if c.chained[stmt] {
+		return
+	}
+	var conditions []span
+	var compared []*ast.BinaryExpr
+	for current := stmt; ; {
+		conditions = append(conditions, span{current.Cond.Pos(), current.Cond.End()})
+		compared = append(compared, c.kindComparisons(current.Cond)...)
+		next, isElseIf := current.Else.(*ast.IfStmt)
+		if !isElseIf {
+			break
+		}
+		c.chained[next] = true
+		current = next
+	}
+	if len(conditions) < 2 {
+		return
+	}
+	// Only the conditions are suppressed, never the bodies: a predicate inside
+	// an arm is its own decision and must still be reported.
+	c.checkPredicateGroupIn(conditions, stmt.Pos(), compared, "if/else chain")
+}
+
+// checkPredicateGroup applies rule 2 to one decision's worth of comparisons.
+func (c *checker) checkPredicateGroup(node ast.Node, compared []*ast.BinaryExpr, shape string) {
+	c.checkPredicateGroupIn([]span{{node.Pos(), node.End()}}, node.Pos(), compared, shape)
+}
+
+// checkPredicateGroupIn reports at pos and suppresses further reports inside
+// covered, which is the extent the decision spans.
+func (c *checker) checkPredicateGroupIn(covered []span, pos token.Pos, compared []*ast.BinaryExpr, shape string) {
+	if len(compared) < 2 || c.suppressed(pos) {
+		return
+	}
+	c.suppress = append(c.suppress, covered...)
 
 	names := make([]string, 0, len(compared))
 	for _, comparison := range compared {
@@ -299,7 +386,7 @@ func (c *checker) checkPredicateGroup(node ast.Node, compared []*ast.BinaryExpr,
 		kind, _ := c.kindConstant(comparison.X)
 		names = append(names, kind)
 	}
-	c.report(node.Pos(), RuleMultiConstantPredicate,
+	c.report(pos, RuleMultiConstantPredicate,
 		"this "+shape+" enumerates yamldoc.Kind by hand ("+strings.Join(names, ", ")+"); "+
 			"use an exhaustive switch so a new kind cannot fall to the unwritten arm")
 }
