@@ -3042,5 +3042,109 @@
   {
     "In": " \n---",
     "Out": "<h2></h2>"
+  },
+  {
+    "In": " # h",
+    "Out": "<p># h</p>"
+  },
+  {
+    "In": "  # h",
+    "Out": "<p># h</p>"
+  },
+  {
+    "In": "   # h",
+    "Out": "<p># h</p>"
+  },
+  {
+    "In": " ### h",
+    "Out": "<p>### h</p>"
+  },
+  {
+    "In": "  ### h",
+    "Out": "<p>### h</p>"
+  },
+  {
+    "In": "   ### h",
+    "Out": "<p>### h</p>"
+  },
+  {
+    "In": " # h #",
+    "Out": "<p># h #</p>"
+  },
+  {
+    "In": "a\n\n # h",
+    "Out": "<p>a</p>\n<p># h</p>"
+  },
+  {
+    "In": "a\n\n  ## h",
+    "Out": "<p>a</p>\n<p>## h</p>"
+  },
+  {
+    "In": "a\n # h\nb",
+    "Out": "<p>a\n # h\nb</p>"
+  },
+  {
+    "In": ">  # h",
+    "Out": "<blockquote>\n<p># h</p>\n</blockquote>"
+  },
+  {
+    "In": "- item\n  # h",
+    "Out": "<ul>\n<li>item\n  # h</li>\n</ul>"
+  },
+  {
+    "In": "- item\n\n  # h",
+    "Out": "<ul>\n<li>item</li>\n</ul>\n<p># h</p>"
+  },
+  {
+    "In": " # h\n===",
+    "Out": "<h1># h</h1>"
+  },
+  {
+    "In": " #h",
+    "Out": "<p>#h</p>"
+  },
+  {
+    "In": "  #h",
+    "Out": "<p>#h</p>"
+  },
+  {
+    "In": "   #h",
+    "Out": "<p>#h</p>"
+  },
+  {
+    "In": " #1 in sales",
+    "Out": "<p>#1 in sales</p>"
+  },
+  {
+    "In": "  #1 in sales",
+    "Out": "<p>#1 in sales</p>"
+  },
+  {
+    "In": "- # h",
+    "Out": "<ul>\n<li>\n<h1>h</h1>\n</li>\n</ul>"
+  },
+  {
+    "In": "-   # h",
+    "Out": "<ul>\n<li>\n<h1>h</h1>\n</li>\n</ul>"
+  },
+  {
+    "In": "1. # h",
+    "Out": "<ol>\n<li>\n<h1>h</h1>\n</li>\n</ol>"
+  },
+  {
+    "In": "   1. # h",
+    "Out": "<ol>\n<li>\n<h1>h</h1>\n</li>\n</ol>"
+  },
+  {
+    "In": "> # h",
+    "Out": "<blockquote>\n<h1>h</h1>\n</blockquote>"
+  },
+  {
+    "In": "    #h",
+    "Out": "<pre><code>#h\n</code></pre>"
+  },
+  {
+    "In": "    # h",
+    "Out": "<pre><code># h\n</code></pre>"
   }
 ]
