@@ -36,11 +36,27 @@ func (r codeSpanRenderer) renderCodeSpan(
 
 	_, _ = w.WriteString("<code>")
 	var value []byte
+	prevStop := -1
 	for child := node.FirstChild(); child != nil; child = child.NextSibling() {
 		text, ok := child.(*ast.Text)
 		if !ok {
 			continue
 		}
+		// **The gap between two of goldmark's segments is the author's text.**
+		// A code span's children are one segment per line
+		// (`parser/code_span.go`), and a continuation line's segment starts
+		// *after* the indent the block parser stripped, so concatenating the
+		// segments alone deletes it: `` a `x\n  y` b `` came out as `x\ny`
+		// where upstream keeps both spaces. python-markdown has no equivalent
+		// strip — `ParagraphProcessor` lstrips the block, not each line
+		// (`blockprocessors.py:612-640`) — so `BACKTICK_RE` reads the indent as
+		// content. `markerEnd` is the same reader `buildWindow` uses, and for
+		// the same reason: a blockquote's `>` is not the author's, the
+		// indentation after it is.
+		if prevStop >= 0 && text.Segment.Start > prevStop {
+			value = append(value, source[markerEnd(source, prevStop, text.Segment.Start):text.Segment.Start]...)
+		}
+		prevStop = text.Segment.Stop
 		value = append(value, text.Segment.Value(source)...)
 	}
 	// RawWrite is the code-span escaping cell — see `htmlescape.go`.

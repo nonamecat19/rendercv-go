@@ -23,28 +23,41 @@ import (
 // the node's only child and no inline parsing of it at all.
 //
 // It is deliberately narrow. Reference images (`![a][ref]`), an unbalanced
-// label, a missing `(`, and anything continuing onto the next line are all
-// declined, and goldmark's own link parser handles them exactly as before.
+// label and a missing `(` are all declined, and goldmark's own link parser
+// handles them exactly as before.
 type imageParser struct{}
 
 // Trigger is `!`, which goldmark's link parser also uses.
 func (imageParser) Trigger() []byte { return []byte{'!'} }
 
-// Parse claims one `![label](destination)` on the current line, or returns nil.
+// Parse claims one `![label](destination)` at the reader's position, or returns
+// nil.
+//
+// **The match runs to the end of the block, not to the end of the line.**
+// `IMAGE_LINK_RE` is applied to the joined block text and `re.DOTALL` is on
+// (`inlinepatterns.py:143`, `:399`), so a label or a destination broken across a
+// soft line break is still one image upstream — where this declined and left
+// goldmark's own parser to build one whose `alt` had lost the break entirely:
+// `![alt x\n y](p.png)` was `alt="alt xy"`. A wrapped alt text is what any CV
+// long enough to wrap produces.
 func (imageParser) Parse(_ ast.Node, block text.Reader, _ parser.Context) ast.Node {
-	line, segment := block.PeekLine()
-	node, ok := buildImage(block, line, segment.Start)
+	_, segment := block.PeekLine()
+	node, ok := buildImage(block, buildWindow(block, segment.Start, -1))
 	if !ok {
 		return nil
 	}
 	return node
 }
 
-// buildImage is the body of `imageParser.Parse`, taking the bytes to match
-// against explicitly so that an emphasis body can hand it a slice that spans a
-// soft line break (`parseEmphasisBody`). `imageParser` itself passes the
-// current line, which is what it always matched.
-func buildImage(block text.Reader, line []byte, start int) (ast.Node, bool) {
+// buildImage is the body of `imageParser.Parse`, taking the window to match
+// against explicitly so that an emphasis body can hand it one bounded by the
+// body's end rather than by the block's (`parseEmphasisBody`).
+//
+// The window is what makes a multi-line match expressible: it carries the
+// source offset of every byte, so a label spanning a soft break is contiguous
+// text here and the reader is still seeked to a real position afterwards.
+func buildImage(block text.Reader, w window) (ast.Node, bool) {
+	line := w.text
 	if len(line) < 2 || line[1] != '[' {
 		return nil, false
 	}
@@ -73,7 +86,7 @@ func buildImage(block text.Reader, line []byte, start int) (ast.Node, bool) {
 	// python's backslash unescaping — its `self.unescape(text)`.
 	image.AppendChild(image, ast.NewString(resolveCodeSpans(label)))
 
-	advanceTo(block, start+end)
+	advanceTo(block, w.source(end))
 
 	return image, true
 }
