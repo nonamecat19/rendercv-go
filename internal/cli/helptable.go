@@ -1,9 +1,6 @@
 package cli
 
-import (
-	"strings"
-	"unicode/utf8"
-)
+import "strings"
 
 // helpColumn is one column of a help panel's table.
 //
@@ -74,7 +71,9 @@ func helpTableWidths(columns []helpColumn, rows [][]helpCell, maxWidth int) []in
 					continue
 				}
 				for _, item := range row[i].items {
-					widest = max(widest, utf8.RuneCountInString(item))
+					// Cells, not runes: a column's natural width is
+					// `Measurement.get`'s, and that is `cell_len`.
+					widest = max(widest, cellLen(item))
 				}
 			}
 			widths[i] = widest + padding
