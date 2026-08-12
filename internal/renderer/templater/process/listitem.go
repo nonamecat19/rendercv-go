@@ -6,6 +6,7 @@ import (
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
+	"github.com/yuin/goldmark/util"
 )
 
 // widePaddedListMarker is a list marker followed by more than a tab length of
@@ -61,6 +62,90 @@ func (p pythonListItemParser) Open(parent ast.Node, reader text.Reader, pc parse
 	// the continuation lines keep the offsets python-markdown gives them.
 	reader.Advance(extra)
 	return node, state
+}
+
+// itemPhase is where a list item's parse has got to, which decides how much
+// indentation a continuation line loses. See `Continue`.
+type itemPhase int
+
+const (
+	// itemFirstBlock is the item's own block: the marker's line and every line
+	// up to the first blank one. goldmark's offset governs it.
+	itemFirstBlock itemPhase = iota
+	// itemAfterBlank is a blank line inside the item; the next non-blank line
+	// is a new block and `ListIndentProcessor` gets to claim it.
+	itemAfterBlank
+	// itemDetabbed is a block `ListIndentProcessor` claimed, whose every line
+	// loses one tab length rather than the item's offset.
+	itemDetabbed
+)
+
+// itemPhases is the phase of every list item open in one parse. It is context
+// state rather than a field because the parser is a stateless singleton shared
+// by every conversion, and nested items are each in a phase of their own.
+var itemPhases = parser.NewContextKey()
+
+func phases(pc parser.Context) map[ast.Node]itemPhase {
+	m, _ := pc.Get(itemPhases).(map[ast.Node]itemPhase)
+	if m == nil {
+		m = map[ast.Node]itemPhase{}
+		pc.Set(itemPhases, m)
+	}
+	return m
+}
+
+// Continue applies `ListIndentProcessor`'s dedent to the blocks that follow a
+// blank line inside an item.
+//
+// python-markdown splits the document at blank lines and hands each block to a
+// processor. A block indented by at least `tab_length` under a list becomes
+// that list's child (`ListIndentProcessor.test`, `blockprocessors.py:175-179`)
+// and `run` strips `looseDetab(block, level)` from it — `tab_length` spaces per
+// **nesting level** (`:184`, `:99-105`), counted from column 0 and completely
+// independent of how wide the item's marker was.
+//
+// CommonMark instead measures a continuation line against the column the item's
+// content starts at, which is the marker plus its padding: 2 for `- x`, 3 for
+// `1. x`. So `- x\n\n        a` is a code block holding `a` upstream and one
+// holding `  a` in goldmark, and every extra character of marker shifts the
+// result again.
+//
+// The dedent is one tab length here, not `tab_length*level`, because the levels
+// compose on their own: an item nested inside another is only reached after the
+// outer item's `Continue` has already consumed its own tab length, so a block at
+// column 8 under two levels of list arrives at column 0.
+//
+// The phase, rather than the blank line alone, is what makes the whole block
+// move together — `looseDetab` runs over every line of the block, so the second
+// line of an indented code block loses a tab length just as its first did.
+func (p pythonListItemParser) Continue(node ast.Node, reader text.Reader, pc parser.Context) parser.State {
+	line, _ := reader.PeekLine()
+	phase := phases(pc)
+	if util.IsBlank(line) {
+		phase[node] = itemAfterBlank
+		return p.BlockParser.Continue(node, reader, pc)
+	}
+	if phase[node] == itemFirstBlock {
+		return p.BlockParser.Continue(node, reader, pc)
+	}
+	indent, _ := util.IndentWidth(line, reader.LineOffset())
+	if indent < pythonMarkdownTabLength {
+		// `ListIndentProcessor.test` declines the block, so it is not the
+		// item's child at all and goldmark's own rule decides what it is.
+		phase[node] = itemFirstBlock
+		return p.BlockParser.Continue(node, reader, pc)
+	}
+	phase[node] = itemDetabbed
+	pos, padding := util.IndentPosition(line, reader.LineOffset(), pythonMarkdownTabLength)
+	reader.AdvanceAndSetPadding(pos, padding)
+	return parser.Continue | parser.HasChildren
+}
+
+// Close forgets the item's phase, so the map cannot grow past the items open at
+// any one moment.
+func (p pythonListItemParser) Close(node ast.Node, reader text.Reader, pc parser.Context) {
+	delete(phases(pc), node)
+	p.BlockParser.Close(node, reader, pc)
 }
 
 // widePadding is the number of spaces goldmark leaves in front of a list item's

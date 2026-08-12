@@ -4,7 +4,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"unicode/utf8"
 )
 
 // PanelWidth is Rich's fallback console width — what it uses when stdout is not
@@ -72,9 +71,11 @@ const timingWidth = 9
 // is exactly PanelWidth columns of *display* width, the title sits after
 // `╭─ ` with a space before the fill, and the fill is `─` to the closing corner.
 //
-// Width here is counted in runes, not bytes. Every character these panels use is
-// single-width, so runes and columns agree; a CJK name in a path would break
-// that, and no golden has one.
+// **Width here is counted in display columns**, by `cellLen` — Rich's
+// `cell_len`, table and all. It used to be counted in runes, on the grounds
+// that every character in the goldens is single-width; `rendercv new
+// "Ольга Ковальчук 李雷"` is enough to break that, and the two wide characters
+// pushed the row two columns past the border it was drawn inside.
 func Panel(title string, rows []PanelRow) string {
 	var out strings.Builder
 
@@ -82,7 +83,7 @@ func Panel(title string, rows []PanelRow) string {
 
 	head := "╭─ " + title + " "
 	out.WriteString(head)
-	out.WriteString(strings.Repeat("─", width-utf8.RuneCountInString(head)-1))
+	out.WriteString(strings.Repeat("─", width-cellLen(head)-1))
 	out.WriteString("╮\n")
 
 	// The inner width is the panel minus the two borders and their padding
@@ -140,7 +141,12 @@ func wrapKeepingWords(text string, width int) []string {
 }
 
 func fold(text string, width int, splitLongWords bool) []string {
-	if width <= 0 || utf8.RuneCountInString(text) <= width {
+	// `Text.wrap` expands the line's tabs before it measures anything
+	// (`rich/text.py:1231-1233`), so this is where the expansion belongs: a row
+	// whose tab pushes it past the width wraps because of it.
+	text = expandTabs(text)
+
+	if width <= 0 || cellLen(text) <= width {
 		return []string{text}
 	}
 
@@ -155,7 +161,7 @@ func fold(text string, width int, splitLongWords bool) []string {
 	}
 
 	for word, gap := range words(text) {
-		wordWidth := utf8.RuneCountInString(word)
+		wordWidth := cellLen(word)
 
 		// The word does not fit after what is already on the line. The gap that
 		// preceded it is dropped rather than carried to the next line, which is
@@ -167,19 +173,24 @@ func fold(text string, width int, splitLongWords bool) []string {
 		// A word too long for an empty line is broken at the width, which is
 		// what Rich's `fold` overflow does. Callers that want it ellipsized
 		// instead pass splitLongWords false and truncate the line themselves.
-		for splitLongWords && wordWidth > width {
-			head := string([]rune(word)[:width])
-			lines = append(lines, head)
-			word = string([]rune(word)[width:])
-			wordWidth = utf8.RuneCountInString(word)
+		//
+		// The break is at a **column** boundary, and between graphemes:
+		// `chop_cells` never cuts a double-width character in half, so a line
+		// of wide characters holds half as many of them as a line of Latin
+		// ones.
+		if splitLongWords && wordWidth > width {
+			chunks := chopCells(word, width)
+			lines = append(lines, chunks[:len(chunks)-1]...)
+			word = chunks[len(chunks)-1]
+			wordWidth = cellLen(word)
 		}
 
 		line.WriteString(word)
 		lineWidth += wordWidth
 
-		if lineWidth+utf8.RuneCountInString(gap) <= width {
+		if lineWidth+cellLen(gap) <= width {
 			line.WriteString(gap)
-			lineWidth += utf8.RuneCountInString(gap)
+			lineWidth += cellLen(gap)
 		}
 	}
 
@@ -211,8 +222,50 @@ func words(text string) func(func(string, string) bool) {
 	}
 }
 
+// tabSize is Rich's default `Console.tab_size` (`rich/console.py:643`), and
+// nothing in RenderCV overrides it.
+const tabSize = 8
+
+// expandTabs is Rich's `Text.expand_tabs` (`rich/text.py:817-857`): a tab is
+// replaced by **one space plus however many more it takes to reach the next
+// eight-column stop**, and the stops are counted in display cells from the
+// start of the line — so a tab after a wide character moves less far than a tab
+// after a narrow one.
+//
+// The port wrote the tab byte through, which left the terminal to decide how
+// wide the row was and the panel's border wherever that landed.
+func expandTabs(line string) string {
+	if !strings.Contains(line, "\t") {
+		return line
+	}
+
+	var out strings.Builder
+	position := 0
+	rest := line
+	for {
+		index := strings.IndexByte(rest, '\t')
+		if index < 0 {
+			out.WriteString(rest)
+			return out.String()
+		}
+
+		// Rich rewrites the tab itself as a space and only then asks how far
+		// the next stop is, which is why a tab that lands exactly on a stop
+		// still advances a full eight columns.
+		part := rest[:index] + " "
+		out.WriteString(part)
+		position += cellLen(part)
+		if remainder := position % tabSize; remainder != 0 {
+			spaces := tabSize - remainder
+			out.WriteString(strings.Repeat(" ", spaces))
+			position += spaces
+		}
+		rest = rest[index+1:]
+	}
+}
+
 func pad(text string, width int) string {
-	if missing := width - utf8.RuneCountInString(text); missing > 0 {
+	if missing := width - cellLen(text); missing > 0 {
 		return text + strings.Repeat(" ", missing)
 	}
 	return text
