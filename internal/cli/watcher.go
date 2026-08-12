@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"os"
 	"os/signal"
@@ -103,10 +102,22 @@ func WatchSet(options RenderOptions) []string {
 // `contextlib.suppress(typer.Exit)` (`:30-31`, `:62-63`), so the exit code the
 // render computed is discarded and the loop carries on. Only cancellation
 // returns.
-func watchLoop(ctx context.Context, set []string, render func() int) error {
+//
+// **It returns nothing because upstream reports nothing.** Neither of the two
+// ways watching can fail to start reaches the user there — see the two comments
+// below — so there is no error for a caller to print, and no way for one to
+// print it on a stream `--quiet` does not silence.
+func watchLoop(ctx context.Context, set []string, render func() int) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		return fmt.Errorf("watch: %w", err)
+		// Upstream cannot report this either: watchdog builds its inotify
+		// buffer inside the emitter thread (`observer.start()`), so a failure
+		// there kills that thread and leaves `run_function_if_files_change`
+		// rendering and sleeping exactly as before. Render once, then wait for
+		// the interrupt that is the only way out.
+		render()
+		<-ctx.Done()
+		return
 	}
 	defer func() { _ = watcher.Close() }()
 
@@ -126,10 +137,18 @@ func watchLoop(ctx context.Context, set []string, render func() int) error {
 		watched[filepath.Join(directory, filepath.Base(path))] = struct{}{}
 		directories[directory] = struct{}{}
 	}
+	// **A directory that cannot be watched is not an error upstream.**
+	// `observer.schedule` (`watcher.py:57`) returns normally on a directory
+	// inotify refuses — measured against the vendored watchdog on mode 0311,
+	// where `inotify_add_watch` itself is EACCES — leaving the observer alive
+	// and silently eventless. Upstream renders and loops all the same, and
+	// never reports it. Treating `Add`'s error as fatal skipped the first
+	// render entirely and exited 1 where upstream renders once and blocks.
+	//
+	// The events of the directories that *did* register still arrive, which is
+	// upstream's behavior too when only one of several fails.
 	for directory := range directories {
-		if err := watcher.Add(directory); err != nil {
-			return fmt.Errorf("watch %s: %w", directory, err)
-		}
+		_ = watcher.Add(directory)
 	}
 
 	// The observer is started before the first render (`watcher.py:59-63`), so
@@ -139,10 +158,10 @@ func watchLoop(ctx context.Context, set []string, render func() int) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return nil
+			return
 		case event, ok := <-watcher.Events:
 			if !ok {
-				return nil
+				return
 			}
 			// `on_modified` only, and only for a member of the set
 			// (`watcher.py:24-31`): a creation or a removal in the directory
@@ -158,7 +177,7 @@ func watchLoop(ctx context.Context, set []string, render func() int) error {
 			// An observer error is not a render failure and upstream has no
 			// handler for one; the loop still may not end.
 			if !ok {
-				return nil
+				return
 			}
 		}
 	}
@@ -212,11 +231,8 @@ func watch(options RenderOptions, stdout, stderr io.Writer) int {
 	ctx, stop := watchContext()
 	defer stop()
 
-	if err := watchLoop(ctx, WatchSet(resolved), func() int {
+	watchLoop(ctx, WatchSet(resolved), func() int {
 		return renderOnce(options, stdout, stderr)
-	}); err != nil {
-		failPanel(stdout, err)
-		return exitValidationError
-	}
+	})
 	return 0
 }
