@@ -10,7 +10,7 @@ import (
 	"github.com/nonamecat19/rendercv-go/internal/renderer/templater/process"
 )
 
-// Differential against python-markdown, now 176 shapes and growing. The
+// Differential against python-markdown, now 211 shapes and growing. The
 // fixture is CPython's own output, generated through the vendored submodule's
 // `markdown.markdown` — never hand-written (`AGENTS.md` §10.1).
 //
@@ -23,8 +23,15 @@ import (
 // newlines, URL escaping, line-break rules, and whitespace at the end of a block.
 // Iteration 11's Wave C (spec §7-8) added the emphasis and link-destination
 // classes, then 17 more rows pinning a regression a fresh-context verifier
-// found in Wave C's own first pass — see `maskEmphasisBarriers`'s doc comment
-// in `emphasis.go`.
+// found in Wave C's own first pass.
+//
+// **A second fresh-context verifier then measured 147 shapes that Wave C had
+// broken and no fixture could see**, 124 of them one class: a delimiter run
+// flanked by whitespace. The 35 rows at the end of this file pin all six
+// classes it reported, and the mechanism they forced —
+// resolving every pattern registered above `em_strong` before the emphasis
+// matchers ever run — is `stash.go`'s `maskAbove`. Both verdicts came from a
+// green suite, which is the whole argument for the differential being wide.
 //
 // Measured after that work: 2 of these rows differ, both in `knownRemainder`,
 // checked by running `MarkdownToHTML` over every `In` and diffing against the
