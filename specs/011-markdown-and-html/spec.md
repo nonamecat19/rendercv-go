@@ -489,6 +489,18 @@ parse time *and* at serialization time yields one.
 the whole block, so a body may cross a soft line break: `*a\nb*` is one `<em>` spanning the
 newline, in a paragraph, a list item and a blockquote alike.
 
+**Behavior 42.** The two emphasis processors are two registry entries, not one:
+`AsteriskProcessor` at 60 and `UnderscoreProcessor` at 50 (`inlinepatterns.py:94-95`). The
+asterisk pass therefore claims its spans over the whole block before any underscore pattern is
+tried, **even where the asterisk run begins later in the text**. `_a *b\nc_ d*` is
+`<p>_a <em>b\nc_ d</em></p>`: the asterisk pass takes `*b\nc_ d*`, and the `_` that opened the
+line is left with nothing to close against.
+
+**Behavior 43.** `getLink`'s fallback is `href = data[start_index:last_bracket - 1]` with
+`index = last_bracket` (`:817-819`), and `last_bracket` is still `-1` whenever the backtrack
+found no `)`. Python slices that from the end, so upstream takes `data[:-2]` and keeps the
+block's final byte. `[]("(` — five bytes — is `<p><a href=""></a>(</p>`.
+
 ### 12.5 Still open
 
 - **A link inside an image label.** `![[b](c)](u)` is `alt="b"` upstream — `link` (160) resolves
