@@ -1456,6 +1456,177 @@ func TestBadIndentationReportsTheOffendingLine(t *testing.T) {
 	}
 }
 
+// TestContextMarkIsTheInnermostOpenFlow pins where ruamel's context mark
+// points when an unterminated flow collection is nested across lines.
+//
+// The port named the *outermost* collection still open at the end of the file.
+// ruamel names the innermost one open **where the parser stopped**, and the two
+// differ whenever the inner delimiter opens on a later line than the outer:
+// `cv: [\n  b: {c` is ruamel's line 2 to line 3, and the port reported line 1
+// to line 3 — a collection the failure is not about.
+//
+// Where the parser stopped is the earlier of two places, both recoverable from
+// the source and goccy's own error:
+//
+//   - the block line that broke the flow, when one did (`cv: [a\n  b: [c,`
+//     stops at the `:` on line 2, so the inner `[` after it was never opened
+//     and the answer is the outer one on line 1);
+//   - the token goccy names, which is **inclusive** when goccy ran to the end
+//     of the stream — it names the delimiter it could not close, and that one
+//     is open — and **exclusive** when goccy names an offending token, which
+//     was never consumed (`cv: [a\n  {d` fails *at* the `{`, so the `{` is not
+//     open and the answer is the `[` on line 1).
+//
+// Measured over 1050 enumerated shapes: 458 start lines disagreed with ruamel
+// before, 12 after, and no shape whose start line was already right changes.
+// The 12 are not a location defect at all — see
+// TestGoccyRejectsAFoldedFlowScalar.
+func TestContextMarkIsTheInnermostOpenFlow(t *testing.T) {
+	tests := []struct {
+		name               string
+		src                string
+		startLine, endLine int
+		want               string
+	}{
+		// The swallowed shapes: the outer flow was still expecting an element,
+		// so the block line became one and the inner delimiter on it is what
+		// ran to EOF.
+		{
+			name: "an empty sequence swallows the pair", src: "cv: [\n  b: {c\n",
+			startLine: 2, endLine: 3, want: "while parsing a flow mapping",
+		},
+		{
+			name: "a trailing comma swallows the pair", src: "cv: [a,\n  b: {c\n",
+			startLine: 2, endLine: 3, want: "while parsing a flow mapping",
+		},
+		{
+			name: "an inner sequence swallowed", src: "cv: [\n  b: [c\n",
+			startLine: 2, endLine: 3, want: "while parsing a flow sequence",
+		},
+		{
+			name: "a mapping value swallows the pair", src: "cv: {a: [\n  b: {c\n",
+			startLine: 2, endLine: 3, want: "while parsing a flow mapping",
+		},
+		{
+			name: "an empty mapping swallows the pair", src: "cv: {\n  b: {c\n",
+			startLine: 2, endLine: 3, want: "while parsing a flow mapping",
+		},
+		// The controls: a block line that really did break the flow still
+		// reports the collection that was open *before* it.
+		{
+			name: "a block line breaks the flow", src: "cv: [a\n  b: [c,\n",
+			startLine: 1, endLine: 2, want: "while parsing a flow sequence",
+		},
+		{
+			name: "the corpus case", src: "this: [is, not, a, cv\n",
+			startLine: 1, endLine: 2, want: "while parsing a flow sequence",
+		},
+		{
+			// A quoted scalar keeps its own line either way.
+			name: "a quoted scalar under an open flow", src: "cv: [a\n  b: 'c\n",
+			startLine: 2, endLine: 3, want: "while scanning a quoted scalar",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := ReadYamlWithValidationErrors(test.src, schemaerr.SourceMain)
+
+			var userErr *schemaerr.UserValidationError
+			if !errors.As(err, &userErr) {
+				t.Fatalf("expected *schemaerr.UserValidationError, got %T: %v", err, err)
+			}
+
+			want := "This is not a valid YAML file. " + test.want + "."
+			if got := userErr.Errors[0].Message; got != want {
+				t.Errorf("message =\n  %q\nwant\n  %q", got, want)
+			}
+			span := userErr.Errors[0].YamlLocation
+			if span == nil {
+				t.Fatal("yaml location = nil, want a location")
+			}
+			if span.Start.Line != test.startLine || span.End.Line != test.endLine {
+				t.Errorf("location = line %d to line %d, want line %d to line %d",
+					span.Start.Line, span.End.Line, test.startLine, test.endLine)
+			}
+		})
+	}
+
+	// **The shapes where goccy's own token is the stop**, asserted on the start
+	// line alone. Their *end* line is wrong for a different reason — the scan's
+	// stopping point is read from the source rather than from the token, which
+	// is a defect of its own and not this one — so pinning the whole span here
+	// would pin a value ruamel does not report. ruamel's measured spans are
+	// line 1 to line 2 and line 2 to line 3 respectively; the port reports the
+	// ends as line 3 and line 4.
+	startOnly := []struct {
+		name      string
+		src       string
+		startLine int
+	}{
+		{
+			// goccy fails *at* the `{`, which is therefore not open: the
+			// answer is the sequence that was.
+			name: "an offending token is not open", src: "cv: [a\n  {d\n", startLine: 1,
+		},
+		{
+			name: "an offending token two levels in", src: "cv: [\n  b: [c\n  {h\n", startLine: 2,
+		},
+	}
+
+	for _, test := range startOnly {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := ReadYamlWithValidationErrors(test.src, schemaerr.SourceMain)
+
+			var userErr *schemaerr.UserValidationError
+			if !errors.As(err, &userErr) {
+				t.Fatalf("expected *schemaerr.UserValidationError, got %T: %v", err, err)
+			}
+			span := userErr.Errors[0].YamlLocation
+			if span == nil {
+				t.Fatal("yaml location = nil, want a location")
+			}
+			if span.Start.Line != test.startLine {
+				t.Errorf("start line = %d, want %d", span.Start.Line, test.startLine)
+			}
+		})
+	}
+}
+
+// TestGoccyRejectsAFoldedFlowScalar records why twelve shapes in the
+// enumeration cannot be located correctly, and it is **not** a location bug.
+//
+// A plain scalar may span lines inside a flow collection, and ruamel folds it
+// in both kinds: `cv: {a: 1\n  d}` loads as `{'cv': {'a': '1 d'}}` and
+// `cv: [a\n  b]` as `{'cv': ['a b']}`. goccy folds it in a flow *sequence* and
+// rejects it in a flow *mapping*, with `',' or '}' must be specified`.
+//
+// So for `cv: {a: 1\n  d,` the two parsers disagree about what the document
+// says, not about where an error is: goccy stops at line 2 where ruamel reads
+// on to the end of the stream. No rule over goccy's token can recover ruamel's
+// mark there, because goccy's token is a position in a parse ruamel never made.
+//
+// **The wider consequence is a document the port rejects and upstream renders**
+// — `cv: {a: 1\n  d}` is valid YAML — which is a bigger finding than the
+// location residue and belongs to whoever takes it on. This test pins the
+// divergence so it cannot be mistaken for a fix's leftovers.
+func TestGoccyRejectsAFoldedFlowScalar(t *testing.T) {
+	// The sequence form round-trips, so folding is not absent from goccy.
+	if _, err := yamlreader.ReadString("cv: [a\n  b]\n"); err != nil {
+		t.Errorf("a folded scalar in a flow sequence = %v, want it accepted", err)
+	}
+
+	// The mapping form does not, and upstream loads it as `{'a': '1 d'}`.
+	_, err := yamlreader.ReadString("cv: {a: 1\n  d}\n")
+	if err == nil {
+		t.Skip("goccy now folds a plain scalar in a flow mapping; the twelve" +
+			" shapes this explains should be re-measured against ruamel")
+	}
+	if !strings.Contains(err.Error(), "must be specified") {
+		t.Errorf("err = %v, want goccy's flow-mapping refusal", err)
+	}
+}
+
 // TestScanStopsAtADocumentMarker pins that a `---` or `...` ends the stream
 // ruamel's scanner was reading, so an unterminated construct spans to the
 // marker rather than to the physical end of the file.
