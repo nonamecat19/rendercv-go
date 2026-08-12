@@ -882,5 +882,33 @@
  {
   "in": "*a\n\nb*",
   "want": "#sym.ast.basic#h(0pt, weak: true) a\n\nb#sym.ast.basic#h(0pt, weak: true)"
+ },
+ {
+  "in": "[](\"(",
+  "want": "#link(\"https://example.com\")[]("
+ },
+ {
+  "in": "[]('(",
+  "want": "#link(\"https://example.com\")[]("
+ },
+ {
+  "in": "[a](\"b",
+  "want": "\\[a\\](\\\"b"
+ },
+ {
+  "in": "[t](a\"b",
+  "want": "\\[t\\](a\\\"b"
+ },
+ {
+  "in": "[t](a\"b)c",
+  "want": "#link(\"a\"b\")[t]c"
+ },
+ {
+  "in": "[]((",
+  "want": "\\[\\](("
+ },
+ {
+  "in": "[](\"",
+  "want": "\\[\\](\\\""
  }
 ]
