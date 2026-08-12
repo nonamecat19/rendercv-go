@@ -56,7 +56,8 @@ type BuildOptions struct {
 }
 
 // No is a convenience for the common tri-state case: No() is a *bool meaning
-// "do not generate this format".
+// "do not generate this format" — the True of upstream's `bool | None`
+// (rendercv_model_builder.py:24-39).
 //
 // It exists because &true is not expressible as a literal in Go, and
 // BuildOptions{DontGeneratePDF: rendercv.No()} reads better than declaring a
@@ -67,7 +68,8 @@ func No() *bool {
 }
 
 // Yes is the opposite of [No]: a *bool meaning "generate this format even if a
-// settings file switched it off". It is the case a plain bool could not reach.
+// settings file switched it off" — the False of upstream's `bool | None`
+// (rendercv_model_builder.py:24-39), and the case a plain bool could not reach.
 func Yes() *bool {
 	value := false
 	return &value
