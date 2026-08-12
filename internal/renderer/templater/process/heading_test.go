@@ -78,6 +78,118 @@ func TestHTMLHeadingStripsBothEnds(t *testing.T) {
 	}
 }
 
+// TestHTMLHeadingOpensWithoutASpace sweeps the opening rule of
+// `HashHeaderProcessor.RE` (`blockprocessors.py:461`) over levels 1 to 8 and
+// seven followers.
+//
+// Nothing in the expression separates `#{1,6}` from `header`, so a space after
+// the hashes is not required, and the run is greedy but capped, so a seventh
+// hash is the text's first character rather than a seventh level. Both `want`
+// formulas were run against the vendored `markdown.markdown` over all 56
+// combinations before being written here.
+func TestHTMLHeadingOpensWithoutASpace(t *testing.T) {
+	for level := 1; level <= 8; level++ {
+		t.Run(fmt.Sprintf("run%d", level), func(t *testing.T) {
+			for _, follower := range "h1!-._(" {
+				in := strings.Repeat("#", level) + string(follower)
+				capped := min(level, 6)
+				want := fmt.Sprintf("<h%d>%s%s</h%d>",
+					capped, strings.Repeat("#", level-capped), string(follower), capped)
+				got, err := process.MarkdownToHTML(in)
+				if err != nil {
+					t.Fatalf("MarkdownToHTML(%q): %v", in, err)
+				}
+				if got != want {
+					t.Errorf("MarkdownToHTML(%q) = %q, want %q", in, got, want)
+				}
+			}
+		})
+	}
+}
+
+// TestHTMLHeadingRefusesIndentation is the other half of the same anchor: the
+// hash run has to sit immediately after `^` or a `\n`, where CommonMark 0.31
+// §4.2 allows three spaces of indentation.
+//
+// One space is already too many and the line is prose, `#` and all. At four it
+// is an indented code block, which is where both libraries agree again. Every
+// `want` is measured.
+func TestHTMLHeadingRefusesIndentation(t *testing.T) {
+	for indent := range 5 {
+		t.Run(fmt.Sprintf("indent%d", indent), func(t *testing.T) {
+			for _, level := range []int{1, 3} {
+				hashes := strings.Repeat("#", level)
+				in := strings.Repeat(" ", indent) + hashes + " h"
+				var want string
+				switch {
+				case indent == 0:
+					want = fmt.Sprintf("<h%d>h</h%d>", level, level)
+				case indent < 4: // a tab length, where the indented code block begins
+					want = fmt.Sprintf("<p>%s h</p>", hashes)
+				default:
+					want = fmt.Sprintf("<pre><code>%s h\n</code></pre>", hashes)
+				}
+				got, err := process.MarkdownToHTML(in)
+				if err != nil {
+					t.Fatalf("MarkdownToHTML(%q): %v", in, err)
+				}
+				if got != want {
+					t.Errorf("MarkdownToHTML(%q) = %q, want %q", in, got, want)
+				}
+			}
+		})
+	}
+}
+
+// TestHTMLHeadingInProse is the reach of the two rules above, in the words a CV
+// actually carries (spec-delta-atx §3.2).
+//
+// **Every one of the first thirteen turns prose into a heading**, and the
+// hashes are consumed rather than shown: `#1 in sales` is `<h1>1 in sales</h1>`
+// and not the sentence the user wrote. That is upstream's answer, so it is the
+// port's; the five after them are the shapes that stay prose, because the hash
+// is not at a line start or is escaped.
+//
+// `#include <stdio.h>` belongs to this set and is not here: it differs on the
+// dotted tag name and not on the heading, and is pinned as its own class in
+// `html_conformance_test.go`'s `knownRemainder`.
+func TestHTMLHeadingInProse(t *testing.T) {
+	tests := []struct{ in, want string }{
+		{"#1 in sales", "<h1>1 in sales</h1>"},
+		{"#1 ranked team", "<h1>1 ranked team</h1>"},
+		{"#2 of 300 applicants", "<h1>2 of 300 applicants</h1>"},
+		{"#hashtag", "<h1>hashtag</h1>"},
+		{"#TeamWork", "<h1>TeamWork</h1>"},
+		{"#tag and #tag2", "<h1>tag and #tag2</h1>"},
+		{"#!/bin/sh", "<h1>!/bin/sh</h1>"},
+		{"#define X 1", "<h1>define X 1</h1>"},
+		{"#FF00AA is the brand colour", "<h1>FF00AA is the brand colour</h1>"},
+		{"#1 in sales\nand more prose", "<h1>1 in sales</h1>\n<p>and more prose</p>"},
+		{
+			"#1 in sales -- led the team\n\nnext paragraph",
+			"<h1>1 in sales -- led the team</h1>\n<p>next paragraph</p>",
+		},
+		{"#1 in sales\n===", "<h1>1 in sales</h1>\n<p>===</p>"},
+		{"- #1 in sales", "<ul>\n<li>\n<h1>1 in sales</h1>\n</li>\n</ul>"},
+		{"Ranked #1 in sales", "<p>Ranked #1 in sales</p>"},
+		{"C# and .NET", "<p>C# and .NET</p>"},
+		{"issue #42", "<p>issue #42</p>"},
+		{"a #b", "<p>a #b</p>"},
+		{"\\#1 in sales", "<p>#1 in sales</p>"},
+	}
+	for _, test := range tests {
+		t.Run(test.in, func(t *testing.T) {
+			got, err := process.MarkdownToHTML(test.in)
+			if err != nil {
+				t.Fatalf("MarkdownToHTML(%q): %v", test.in, err)
+			}
+			if got != test.want {
+				t.Errorf("MarkdownToHTML(%q) = %q, want %q", test.in, got, test.want)
+			}
+		})
+	}
+}
+
 // TestHTMLSetextHeadingStripsEveryPythonSpace sweeps `SetextHeaderProcessor`'s
 // strip (`blockprocessors.py:510`) over all 29 characters, at both bars.
 //
