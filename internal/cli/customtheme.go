@@ -24,7 +24,10 @@ type CreateThemeOptions struct {
 // CreateTheme is the `create-theme` command
 // (`create_theme_command.py`).
 //
-// **Two of its fourteen files cannot be upstream's bytes — D-008, approved.**
+// **None of its fourteen files carries upstream's bytes — D-008, approved.**
+// Measured file by file: 5 of the 13 templates differ by a missing final
+// newline and 8 in content, so the entry's old "the other twelve are
+// byte-identical" was wrong on the count, not on the reason.
 // `__init__.py` is Python the port cannot execute (D-002), so it writes
 // `init.lua` instead; the `.j2.typ` files are the pongo2 transform this
 // binary's own loader reads (D-005), not upstream's Jinja source.
