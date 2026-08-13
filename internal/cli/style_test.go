@@ -305,3 +305,87 @@ func TestTextTruncateClipsTheSpanWithThePlainText(t *testing.T) {
 		})
 	}
 }
+
+// TestTextSegmentsCutsAtEverySpanBoundary pins the difference between
+// `Segments` and `Render` (delta §2.4): Rich yields one run per interval
+// between span boundaries, **not** one per distinct style, so two neighbours
+// that resolve to the same style are still opened and closed twice.
+//
+// It is the whole reason the `Error` panel's title band is three runs of
+// `bold red` while the progress panel's plain title is one — measured on both.
+func TestTextSegmentsCutsAtEverySpanBoundary(t *testing.T) {
+	boldRed := style(t, "bold red")
+
+	tests := []struct {
+		name string
+		text cli.Text
+		want []string
+	}{
+		{
+			name: "markup inside the padding is three segments of one style",
+			text: cli.PlainText(" Error ").
+				StylizeBefore(0, 7, boldRed).
+				Stylize(1, 6, boldRed),
+			want: []string{" ", "Error", " "},
+		},
+		{
+			name: "the same band with no markup of its own is one segment",
+			text: cli.PlainText(" Your CV is ready ").StylizeBefore(0, 18, boldRed),
+			want: []string{" Your CV is ready "},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			segments := test.text.Segments()
+			if len(segments) != len(test.want) {
+				t.Fatalf("Segments() produced %d segments, want %d: %#v", len(segments), len(test.want), segments)
+			}
+			for i, segment := range segments {
+				if segment.Text != test.want[i] {
+					t.Errorf("segment %d = %q, want %q", i, segment.Text, test.want[i])
+				}
+				if segment.Style != boldRed {
+					t.Errorf("segment %d carries %+v, want %+v", i, segment.Style, boldRed)
+				}
+			}
+		})
+	}
+}
+
+// TestTextExpandTabsMovesTheSpans is `Text.expand_tabs` (`rich/text.py:817-857`)
+// on the styled path: a tab is widened to the next eight-column stop and every
+// span after it moves with the text, or the row's colours land on the wrong
+// characters as soon as a path contains one.
+func TestTextExpandTabsMovesTheSpans(t *testing.T) {
+	// `a` + tab + `bc`, with `cyan` over `bc` — the span sits entirely after the
+	// tab, so its offsets are the ones the expansion has to carry.
+	text := cli.PlainText("a\tbc").Stylize(2, 4, style(t, "cyan"))
+
+	expanded := text.ExpandTabs()
+	if expanded.Plain != "a       bc" {
+		t.Fatalf("ExpandTabs().Plain = %q, want %q", expanded.Plain, "a       bc")
+	}
+	want := "a       ESC[36mbcESC[0m"
+	if got := readable(expanded.Render(truecolorTerminal)); got != want {
+		t.Errorf("ExpandTabs().Render() = %q, want %q", got, want)
+	}
+}
+
+// TestTextSplitLinesKeepsTheSpans is the hard break Rich takes before it wraps
+// (`rich/text.py:1231`): each piece becomes its own bordered line, and the
+// styles go with the piece they covered.
+func TestTextSplitLinesKeepsTheSpans(t *testing.T) {
+	text := cli.PlainText("ab\ncd").Stylize(0, 5, style(t, "green"))
+
+	lines := text.SplitLines()
+	want := []string{"ESC[32mabESC[0m", "ESC[32mcdESC[0m"}
+	if len(lines) != len(want) {
+		t.Fatalf("SplitLines() produced %d lines, want %d", len(lines), len(want))
+	}
+	for i, line := range lines {
+		if got := readable(line.Render(truecolorTerminal)); got != want[i] {
+			t.Errorf("line %d = %q, want %q", i, got, want[i])
+		}
+	}
+}

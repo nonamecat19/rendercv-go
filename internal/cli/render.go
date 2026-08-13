@@ -298,8 +298,18 @@ func finish(options RenderOptions, rows []PanelRow, stdout io.Writer) int {
 	if len(rows) == 0 {
 		rows = []PanelRow{{Text: "Rendering..."}}
 	}
-	writeLivePanel(stdout, Panel("Your CV is ready", rows))
+	writeLivePanel(stdout, progressPanel("Your CV is ready", rows, stdout))
 	return 0
+}
+
+// progressPanel is the box `print_progress_panel` updates the `Live` display
+// with (`cli/render_command/progress_panel.py:111-118`): a `bright_black`
+// border, and a title that carries **no markup of its own** — which is why its
+// band is one run where the `Error` panel's is three.
+//
+// The rows' own `green`, `bold green` and `purple` come from `PanelRow.body`.
+func progressPanel(title string, rows []PanelRow, stdout io.Writer) string {
+	return StyledPanel(PlainText(title), rows, StyleBrightBlack, TerminalFor(stdout))
 }
 
 // writeLivePanel writes a panel the way `render`'s three panels reach the
@@ -580,7 +590,8 @@ func failPanel(stdout io.Writer, err error) {
 // `border_style="bold red"`, and the six runs of the top line are what the pty
 // differential compares (spec 012 delta §2.4).
 func errorPanel(message string, stdout io.Writer) string {
-	return StyledPanel("Error", []PanelRow{{Text: message}}, StyleBoldRed, TerminalFor(stdout))
+	return StyledPanel(StyledText("Error", StyleBoldRed), []PanelRow{{Text: message}},
+		StyleBoldRed, TerminalFor(stdout))
 }
 
 // failPrintedPanel is `failPanel`'s pre-progress-panel twin: the `Error` box the

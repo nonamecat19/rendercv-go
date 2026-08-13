@@ -4,6 +4,8 @@ package cli_test
 
 import (
 	"path/filepath"
+	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -201,6 +203,99 @@ func TestErrorPanelColour(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestProgressPanelColour is delta §8's unit C: the box `render` leaves the
+// reader looking at, compared against upstream's on a pty.
+//
+// **The final frame, and only the final frame.** This surface *is* the `Live`
+// display of §5 — upstream hides the cursor, repaints the whole panel once per
+// completed step at up to 4 Hz, and shows the cursor again — and the number of
+// repaints varies between two runs of the same binary. So the comparison
+// collapses the repaint stream to the frame that survives it and drops the
+// cursor sequences, which are the §5 decision rather than anything unit C
+// attaches. What is compared inside that frame is bytes: every run, around
+// exactly the characters upstream puts it around.
+//
+// **The document is rendered to Typst and no further** (`-nopdf -nopng -nomd
+// -nohtml`). One step is enough to carry all four styles, and it keeps both
+// sides off the PDF path, where the port's compile time is an order of magnitude
+// from upstream's and a slow enough step would push the timing field past the
+// eight columns `normalizeTimings` can absorb.
+func TestProgressPanelColour(t *testing.T) {
+	// A document small enough to render in single-digit milliseconds on both
+	// sides, so the timing field never outgrows its column.
+	const validCV = "cv:\n  name: John Doe\n"
+
+	tests := []struct {
+		name string
+		env  map[string]string
+	}{
+		{name: "default tty"},
+		// `purple` is the panel's one palette colour, and this is the row that
+		// catches a port which hard-codes `ESC[38;5;129m`: on eight colours
+		// upstream writes `ESC[35m` (delta §2.2).
+		{name: "eight colour TERM", env: map[string]string{"TERM": "xterm", "COLORTERM": ""}},
+		{name: "256 colour TERM", env: map[string]string{"TERM": "xterm-256color", "COLORTERM": ""}},
+		{name: "NO_COLOR keeps bold", env: map[string]string{"NO_COLOR": "1"}},
+		{name: "NO_COLOR set but empty is ignored", env: map[string]string{"NO_COLOR": ""}},
+		{name: "TERM=dumb", env: map[string]string{"TERM": "dumb"}},
+		{name: "TTY_COMPATIBLE=0", env: map[string]string{"TTY_COMPATIBLE": "0"}},
+	}
+
+	args := []string{"render", "CV.yaml", "-nopdf", "-nopng", "-nomd", "-nohtml"}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			dir := filepath.Join(t.TempDir(), "w")
+			want := runSide(t, dir, upstreamArgv(t, args), test.env, validCV)
+			got := runSide(t, dir, portArgv(t, args), test.env, validCV)
+
+			if styledFrame(got) != styledFrame(want) {
+				t.Error("the styled progress panel differs from upstream's")
+				diffLines(t, styledFrame(got), styledFrame(want))
+			}
+		})
+	}
+}
+
+// styledFrame is the final frame with its escape sequences **kept** — the
+// counterpart of `frameText`, for the one comparison that is about them.
+//
+// Three normalizations, each a thing neither side controls:
+//
+//   - the cursor hide/show `Live` brackets its run with (delta §5, deliberately
+//     not reproduced by the port);
+//   - the pty's own ONLCR `\r`, and the extra line `Live.stop` writes on a
+//     terminal;
+//   - the timing, which is different on the two sides by construction.
+func styledFrame(capture string) string {
+	frame := cursorVisibility.ReplaceAllString(finalFrame(capture), "")
+	frame = strings.ReplaceAll(frame, "\r\n", "\n")
+	return normalizeTimings(strings.TrimRight(frame, "\r\n"))
+}
+
+// cursorVisibility matches `Live`'s `ESC[?25l` / `ESC[?25h`.
+var cursorVisibility = regexp.MustCompile(`\x1b\[\?25[lh]`)
+
+// timingField matches the duration and whatever padding follows it.
+//
+// **The replacement is the same width as what it replaced**, which is what lets
+// two sides that took different times be compared column for column: the field
+// is laid out to eight columns and `<timing>` is eight characters, so a match of
+// `n` columns becomes `<timing>` plus `n-8` spaces. That holds as long as the
+// duration itself fits the field — a step slow enough to print nine digits of
+// milliseconds would shift the row, which is delta §6.2.2's warning and the
+// reason this case renders Typst only.
+var timingField = regexp.MustCompile(`\d+ ms +`)
+
+func normalizeTimings(frame string) string {
+	return timingField.ReplaceAllStringFunc(frame, func(field string) string {
+		const token = "<timing>"
+		if len(field) < len(token) {
+			return field
+		}
+		return token + strings.Repeat(" ", len(field)-len(token))
+	})
 }
 
 // TestTerminalDetection drives the environment matrix of delta §3. Each row is a

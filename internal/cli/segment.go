@@ -44,25 +44,9 @@ func renderSegments(segments []Segment, terminal Terminal) string {
 	return out.String()
 }
 
-// cropSegments cuts a line of segments to a cell width, dropping whatever falls
-// past it — the operation `align_text` performs on a panel title that no longer
-// fits (`rich/panel.py:174-178`).
-//
-// It cuts with `cutCells`, so the crop lands exactly where the unstyled path's
-// does and a double-width character is replaced by a space rather than halved.
-func cropSegments(segments []Segment, width int) []Segment {
-	out := make([]Segment, 0, len(segments))
-	remaining := width
-	for _, segment := range segments {
-		if remaining <= 0 {
-			break
-		}
-		text := segment.Text
-		if cellLen(text) > remaining {
-			text, _ = cutCells(text, remaining)
-		}
-		remaining -= cellLen(text)
-		out = append(out, Segment{Text: text, Style: segment.Style})
-	}
-	return out
-}
+// A panel title is cropped by `Text.Truncate` and cut into runs by
+// `Text.Segments` (`style.go`), not by a segment-wise crop: `align_text` copies
+// the title, truncates the *text*, and only then lets Rich cut it at its span
+// boundaries (`rich/panel.py:174-178`). Cropping the segments instead gets the
+// same characters and the wrong number of runs for a title whose markup
+// straddles the cut.
