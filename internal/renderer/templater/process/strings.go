@@ -12,8 +12,6 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-	"unicode"
-	"unicode/utf8"
 )
 
 // SubstitutePlaceholders is `substitute_placeholders`
@@ -138,25 +136,21 @@ func MakeKeywordsBold(text string, keywords []string) string {
 // would leave it unbolded, and `bold_keywords` is an unconstrained `list[str]`
 // with a diacritics case already in the corpus. So the boundary is checked here
 // rather than in the pattern.
-func isWordBoundary(text string, at int) bool {
-	before, _ := utf8.DecodeLastRuneInString(text[:at])
-	after, _ := utf8.DecodeRuneInString(text[at:])
-	return isWordRune(before) != isWordRune(after)
-}
-
-// isWordRune is Python's `\w` under `re.UNICODE`: a letter, a digit or an
-// underscore. `utf8.RuneError` from an empty side is not a word rune, which
-// makes a match at either end of the string a boundary.
 //
-// **It is `unicode.IsDigit` where `pyclass.go`'s `isPyWordRune` is
-// `unicode.IsNumber`, and that is a known gap, not a distinction.** `\w` takes
-// all of `N*`, so a keyword next to `²` (`No`) or `Ⅷ` (`Nl`) gets a boundary
-// here that Python does not give it. Closing it changes `MakeKeywordsBold`'s
-// output, which is a different feature with its own differential and no
-// measurement yet — spec 011-E §11.1, its own unit. Whoever takes it deletes
-// this function and calls `isPyWordRune`.
-func isWordRune(r rune) bool {
-	return r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r)
+// The `\w` it is built from is `pyclass.go`'s — the same predicate the emphasis
+// patterns use, swept against Python's `re` over every codepoint by
+// `TestPyClassesMatchPython`. It carried its own copy until spec 011-E §11.1,
+// and that copy said `unicode.IsDigit` where `\w` takes all of `N*`: ten
+// measured shapes moved when it was deleted, in both directions. `²Java` was
+// bolded where upstream leaves it alone, and the keyword `R²` in `x R² y` was
+// *not* bolded where upstream bolds it — the trailing `²` is a word rune, so
+// the space after it is a boundary.
+//
+// A position at either end of the string has no rune on that side, which
+// `wordBefore`/`wordAt` report as "not a word rune" and which makes the end a
+// boundary.
+func isWordBoundary(text string, at int) bool {
+	return wordBefore(text, at) != wordAt(text, at)
 }
 
 // keywordBoldPattern is `build_keyword_matcher_pattern` with boundaries.
