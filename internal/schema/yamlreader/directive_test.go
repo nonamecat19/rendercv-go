@@ -271,3 +271,62 @@ func TestAMalformedYamlDirectiveVersionIsRefused(t *testing.T) {
 		}
 	}
 }
+
+// D-014 — a well-formed `%YAML 1.<n>` whose minor part is neither 1 nor 2.
+//
+// ruamel's parser lets it past: `process_directives` checks only the major part
+// (`ruamel/yaml/parser.py:296-304`). The failure comes one line later, at
+// `self.loader.version = yaml_version` (`:321`), where the setter asserts
+// (`ruamel/yaml/main.py:849-851`). Nothing catches an `AssertionError`, so
+// upstream exits 1 with a Rich traceback on stderr and nothing on stdout —
+// measured at 0 bytes stdout / 12958 bytes stderr for `%YAML 1.3`.
+//
+// The traceback is D-014's class and is not reproducible. The exit code and the
+// refusal are, so the port reports the nearest clean error: upstream's own
+// assertion text, which is the one deterministic line of that traceback, as a
+// validation record. The port rendered these at exit 0 before.
+//
+// **The split is by minor part only, once the major part is 1.** Measured on
+// every row: 1.1 and 1.2 load, 1.0, 1.3, 1.9, 1.10 and 1.20 assert.
+func TestAnOutOfRangeYamlMinorVersionIsRefused(t *testing.T) {
+	tests := []struct{ yaml, directive, tuple string }{
+		{yaml: "%YAML 1.0\n---\nk: v\n", directive: "%YAML 1.0", tuple: "(1, 0)"},
+		{yaml: "%YAML 1.3\n---\nk: v\n", directive: "%YAML 1.3", tuple: "(1, 3)"},
+		{yaml: "%YAML 1.9\n---\nk: v\n", directive: "%YAML 1.9", tuple: "(1, 9)"},
+		{yaml: "%YAML 1.10\n---\nk: v\n", directive: "%YAML 1.10", tuple: "(1, 10)"},
+		{yaml: "%YAML 1.20\n---\nk: v\n", directive: "%YAML 1.20", tuple: "(1, 20)"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.directive, func(t *testing.T) {
+			_, err := yamlreader.ReadString(test.yaml)
+
+			var version *yamlreader.UnsupportedVersionError
+			if !errors.As(err, &version) {
+				t.Fatalf("ReadString err = %v, want UnsupportedVersionError", err)
+			}
+			if version.Line != 1 {
+				t.Errorf("Line = %d, want 1", version.Line)
+			}
+			want := "The '" + test.directive + "' directive is not supported: version minor" +
+				" part can only be 2 or 1, got " + test.tuple + "."
+			if version.Error() != want {
+				t.Errorf("Error() =\n  %q\nwant\n  %q", version.Error(), want)
+			}
+		})
+	}
+
+	// The minor parts ruamel's setter accepts, and every major part it rejects
+	// before reaching the setter at all — a wrong major is its parser's
+	// `found incompatible YAML document`, not this assertion.
+	for _, yaml := range []string{
+		"%YAML 1.1\n---\nk: v\n", "%YAML 1.2\n---\nk: v\n",
+		"%YAML 0.1\n---\nk: v\n", "%YAML 2.0\n---\nk: v\n",
+		"%YAML 3.0\n---\nk: v\n", "%YAML 10.2\n---\nk: v\n",
+	} {
+		var version *yamlreader.UnsupportedVersionError
+		if _, err := yamlreader.ReadString(yaml); errors.As(err, &version) {
+			t.Errorf("ReadString(%q) = %v, want no UnsupportedVersionError", yaml, err)
+		}
+	}
+}

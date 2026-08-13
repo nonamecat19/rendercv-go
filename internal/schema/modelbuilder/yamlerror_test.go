@@ -606,6 +606,30 @@ func TestAMalformedDirectiveIsLocatedAtItsOwnLine(t *testing.T) {
 	}
 }
 
+// D-014 — `%YAML 1.3` is an uncaught `AssertionError` upstream, so there is no
+// panel to copy and no `This is not a valid YAML file.` prefix to wear: the
+// document *is* valid YAML, exactly as with D-018's `%YAML 1.1` next to it.
+// What the port owes is the exit code and the refusal, with upstream's own
+// assertion text as the explanation.
+func TestAnOutOfRangeMinorVersionReportsAPlainRecord(t *testing.T) {
+	_, err := ReadYamlWithValidationErrors("%YAML 1.3\n---\ncv: 1\n", schemaerr.SourceMain)
+
+	var userErr *schemaerr.UserValidationError
+	if !errors.As(err, &userErr) {
+		t.Fatalf("err = %v (%T), want *schemaerr.UserValidationError", err, err)
+	}
+	record := userErr.Errors[0]
+
+	const want = "The '%YAML 1.3' directive is not supported: version minor part can only" +
+		" be 2 or 1, got (1, 3)."
+	if record.Message != want {
+		t.Errorf("message =\n  %q\nwant\n  %q", record.Message, want)
+	}
+	if record.YamlLocation == nil || record.YamlLocation.Start.Line != 1 {
+		t.Errorf("yaml location = %+v, want line 1", record.YamlLocation)
+	}
+}
+
 // A single document carrying the optional `---` and `...` markers is not a
 // multi-document stream, and must keep parsing as it always did.
 func TestSingleDocumentWithMarkersStillParses(t *testing.T) {
