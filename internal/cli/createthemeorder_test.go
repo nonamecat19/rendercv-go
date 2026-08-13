@@ -24,13 +24,9 @@ import (
 // input — measured against the vendored CLI, which reports
 // `The theme folder "Bad" already exists!`.
 //
-// This does not close the whole ordering gap and is not meant to: upstream
-// copies thirteen files BEFORE it validates the name, so `create-theme MyTheme`
-// leaves a partial theme on disk where the port leaves nothing. That half is
-// recorded in specs/divergences.md rather than matched here, because matching it
-// means writing a template tree to a path the port has already judged invalid —
-// `create-theme ../escaped` writes outside the working directory upstream,
-// measured.
+// The other half of the same ordering — that the copy happens BEFORE the name
+// is validated, so a rejected name still leaves thirteen files on disk — is
+// covered by createthemesideeffect_test.go.
 func TestCreateThemeReportsAnExistingFolderBeforeABadName(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
