@@ -335,9 +335,27 @@ write, exit 1); **all six of row 3's probes byte-identical**, so that promotion 
    (`cv:\n  name: A\n  sections:\n    a:\n      - hi\n     b: 2` is byte-identical, both exit 1),
    fixed by the porter that owned the phrasing table. **The row stays demoted for finding 2 below**,
    which is the larger blocker.
-2. **The port emits no ANSI colour on a tty** — zero escape sequences against upstream's thirteen
-   escape-carrying lines. Every golden is captured non-tty, so **the suite has never been able to
-   see the port's terminal appearance**. This is the largest blind spot found all pass.
+2. **PARTIALLY CLOSED, 2026-08-13.** A porter sent to investigate found this finding itself stale in
+   an important way: a full 7-unit spec already existed
+   (`specs/012-cli/spec-delta-colour.md`) and units A (a pty differential harness) and B (Rich's
+   colour-system detection + style model) were **already built** — the actual defect was narrower
+   than "no ANSI colour subsystem exists": `DetectTerminal` simply had no production caller, so a
+   complete, tested subsystem sat wired to nothing. Landed unit D's deterministic half, `eda2f32`:
+   the one-message `Error` panel now colours on a terminal, verified against a real pty differential
+   over 7 environments (`TestErrorPanelColour`, `go test -tags conformance ./internal/cli/`,
+   independently re-run from this checkout with the submodule present — PASS, and the full tagged
+   suite tree-wide is still 0 FAIL / 0 SKIP after merging). A real bug fell out of the measurement:
+   `Style.SGR` emitted attribute codes even with no colour system, where Rich's own
+   `color_system=None` prints nothing extra — fixed (`e0bec9d`), with two `style_test.go` rows that
+   had been asserting the wrong thing corrected. First-time dependency: `golang.org/x/term` (pinned
+   `v0.42.0`), for `isatty` only.
+   **Still open, each its own unit, inverted assertions already in place naming them**: the
+   validation table (unit D's other half — `Table` doesn't emit segments yet, and cell-run counting
+   differs between content cells (3 runs: pad/content/pad) and blank continuation cells (1 run
+   spanning the column) — measured, not guessed), the progress panel (C), `new`/`create-theme`
+   including OSC 8 links (E), `--help` under typer's own console (F), and dumb-terminal width
+   handling (G). The usage-error panel (`internal/cli/root.go:291`) is deliberately out of scope —
+   it's typer's own, plain `red` not `bold red`.
 3. **CLOSED, does not reproduce.** `markdown.markdown("<div>block</div>\n\nafter")` was measured
    again 2026-08-13 by a fresh porter: port and upstream both give `<div>block</div>\n\n<p>after</p>`,
    the double newline, byte-identical, on the full 15-shape adjacency matrix (`go run ./tools/mdprobe
