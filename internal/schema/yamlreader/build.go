@@ -35,6 +35,16 @@ func parse(src string) (*yamldoc.Node, error) {
 	if len(docs) == 0 {
 		return nil, nil
 	}
+	handles := tagHandlesFor(file.Docs)
+	// **Before the document count, because ruamel reaches it first.** The
+	// composer only raises on a second document once the first one has been
+	// built, and building it is where a bad tag handle raises — so an undefined
+	// handle in document 1 outranks a document 2 that should never have been
+	// there. A bad handle in document 2 keeps losing to the composer, which is
+	// why only the first document is checked here.
+	if err := checkTagHandles(src, docs[0].Body, handles); err != nil {
+		return nil, err
+	}
 	if err := checkSingleDocument(docs); err != nil {
 		return nil, err
 	}
@@ -42,7 +52,7 @@ func parse(src string) (*yamldoc.Node, error) {
 	if body == nil {
 		return nil, nil
 	}
-	return builder{handles: tagHandlesFor(file.Docs)}.node(body), nil
+	return builder{handles: handles}.node(body), nil
 }
 
 // builder carries the parse state a node needs beyond its own subtree, which
