@@ -56,7 +56,7 @@ var ErrTooDeep = errors.New("this custom theme's options are nested too deeply (
 // blocked global is `nil`, so a script touching it fails with Lua's own
 // "attempt to index a non-table object", which names the line. Inventing a
 // wrapper would mean inventing user-facing wording, which spec 014 §2
-// behavior 9 sends to the human gate.
+// behavior 9 addresses.
 
 // blocked are the standard-library globals a theme script may not touch.
 //

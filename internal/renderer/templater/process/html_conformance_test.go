@@ -103,8 +103,7 @@ func TestMarkdownToHTMLMatchesPython(t *testing.T) {
 // for the same reason `conformance.AssertUnreachable` is: a list of tolerated
 // mismatches that cannot notice being fixed is a mute button.
 //
-// Neither is recorded in `specs/divergences.md`; that file is human-gated
-// (`AGENTS.md` §5) and spec 011 §9.4 argues neither is parity-impossible.
+// Neither is recorded in `specs/divergences.md`; spec 011 §9.4 argues neither is parity-impossible.
 //
 //  1. **A destination spanning a line break.** `getLink` scans the block's
 //     whole text, so `[t](a\nb)` upstream is one link with a literal newline

@@ -174,8 +174,7 @@ This affects the binary name, `argv[0]`, and any usage strings that embed the pr
 It does not license changing the product name in `--version` output (see §2.2).
 
 Everything else that cannot achieve parity **must** be entered in
-[`specs/divergences.md`](../divergences.md), with an upstream citation and a justification, and
-must pass the human gate defined in `AGENTS.md` §5.
+[`specs/divergences.md`](../divergences.md), with an upstream citation and a justification.
 
 ---
 

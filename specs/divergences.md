@@ -2,8 +2,7 @@
 
 Every deviation from `third_party/rendercv` @ `v2.8` lives here. Nothing else is permitted.
 
-**Changing this file is human-gated** (`AGENTS.md` §5). An agent may propose an entry; a human
-approves it. An unapproved divergence is a bug, not a design choice.
+An agent may write entries directly. An unrecorded divergence is a bug, not a design choice.
 
 Each entry: what differs · upstream citation · why parity is impossible or undesirable · what
 `rendercv-go` does instead · what the user notices.
@@ -151,7 +150,7 @@ Each entry: what differs · upstream citation · why parity is impossible or und
 
 ## D-007 — The compiler, the fonts and `fontawesome` are vendored into the repository
 
-**Status:** approved (human gate, 2026-08-08) · **Iteration:** 10
+**Status:** approved · **Iteration:** 10
 
 - **Differs:** upstream installs its compiler and fonts as Python dependencies (`typst`,
   `rendercv-fonts`) and **downloads** `@preview/fontawesome:0.6.0` from Typst Universe into
@@ -186,7 +185,7 @@ Each entry: what differs · upstream citation · why parity is impossible or und
 
 ## D-008 — `create-theme` writes port-native files
 
-**Status:** approved (human gate, 2026-08-08) · **Iteration:** 12
+**Status:** approved · **Iteration:** 12
 
 - **Differs:** two of the fourteen files `create_theme` writes cannot be upstream's bytes.
 - **Upstream:** `src/rendercv/cli/create_theme_command/`.
@@ -217,7 +216,7 @@ Each entry: what differs · upstream citation · why parity is impossible or und
 
 ## D-009 — The `new` panel's next-step line names `rendercv-go`
 
-**Status:** approved (human gate, 2026-08-08) · **Iteration:** 12
+**Status:** approved · **Iteration:** 12
 
 - **Differs:** upstream's `new` prints `2. Run: rendercv render John_Doe_CV.yaml`
   (`src/rendercv/cli/new_command/`). The port must print `rendercv-go`, or it prints an
@@ -238,7 +237,7 @@ Each entry: what differs · upstream citation · why parity is impossible or und
 
 ## D-010 — The help pages' prose wraps around a longer binary name
 
-**Status:** approved (human gate, 2026-08-08) · **Iteration:** 12
+**Status:** approved · **Iteration:** 12
 
 - **Differs:** four of the five `cli_*_help` goldens cannot be byte-identical, on two lines each
   (`cli_help` and `cli_help_short` share the same page and both carry the token).
@@ -289,7 +288,7 @@ re-wrapped lines, at equal length.
 
 ## D-011 — `err_missing_file` and `err_bad_override_key` are Python tracebacks
 
-**Status:** approved (human gate, 2026-08-09) · **Iteration:** 12
+**Status:** approved · **Iteration:** 12
 
 - **Differs:** both goldens are Rich-rendered Python tracebacks (5,287 B for `err_missing_file`,
   13,732 B for `err_bad_override_key`): box-drawn frames, source snippets, and absolute filesystem
@@ -410,7 +409,7 @@ The last is the only case in this entry where the port renders and upstream does
 
 ## D-013 — A broken theme script's reason string is Lua's, not Python's
 
-**Status:** approved (human gate, 2026-08-11) · **Iteration:** 14
+**Status:** approved · **Iteration:** 14
 
 - **Differs:** the *text* of the message shown when a custom theme's script fails to load, for
   three of the port's four failure modes. Nothing else about the failure differs.

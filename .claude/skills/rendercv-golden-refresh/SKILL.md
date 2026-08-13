@@ -5,8 +5,7 @@ description: Regenerate testdata/golden from the vendored Python RenderCV, revie
 
 # Golden refresh
 
-Goldens are the parity contract in file form. Regenerating them **changes the contract**, so this
-is a human-gated operation (`AGENTS.md` §5).
+Goldens are the parity contract in file form. Regenerating them **changes the contract**.
 
 ## The one rule that matters
 

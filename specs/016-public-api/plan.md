@@ -265,7 +265,7 @@ behavioral divergence, and it stops for the gate rather than being fixed inside 
 4. **Semver.** This surface is declared stable by `AGENTS.md` §3 while sitting on `internal/` types
    that are still moving — iteration 11 and 8 both have open items. Aliases mean an `internal/`
    change is a public change. Mitigation is scope, not mechanism: freezing is explicitly out of scope
-   (spec §7) and stays a release decision behind the human gate.
+    (spec §7) and stays a release decision.
 
 ## 7. Dependencies
 

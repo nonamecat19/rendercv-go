@@ -178,7 +178,7 @@ naive "one item per line" is the reverse. The port needs `Columns`' own rule.
 - **`create-theme` as a runnable command.** Its help panel needs the command *declared*, with its
   argument and help text; running it is D-008's, still unwritten.
 
-## 7. The binary name re-wraps the prose — HUMAN GATE
+## 7. The binary name re-wraps the prose
 
 **The renderer is finished and three of the five cases still cannot be byte-identical.** Measured
 against the goldens, page by page, with the binary name substituted and shortened rows re-padded:

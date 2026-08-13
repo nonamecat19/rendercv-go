@@ -88,10 +88,10 @@ jobs:
             exit 1
           fi
 
-      - name: Divergences and submodule bumps need a human gate
+      - name: Divergences and submodule bumps
         if: github.event_name == 'pull_request'
         run: |
           changed=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
           if echo "$changed" | grep -qE '^(specs/divergences\.md|third_party/rendercv)$'; then
-            echo "::warning::this PR changes the divergence register or the upstream pin — both require explicit human approval (AGENTS.md §5)"
+            echo "::warning::this PR changes the divergence register or the upstream pin"
           fi

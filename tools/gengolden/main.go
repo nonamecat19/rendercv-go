@@ -4,7 +4,7 @@
 //
 // Goldens are the parity contract in file form (specs/000-parity-contract/spec.md).
 // They are NEVER hand-written or hand-edited; this program is their only author.
-// Regenerating them changes the contract and is human-gated — see
+// Regenerating them changes the contract — see
 // .claude/skills/rendercv-golden-refresh.
 //
 // Usage:

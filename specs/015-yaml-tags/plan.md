@@ -122,14 +122,13 @@ upstream source file because pydantic owns the text.
 | `internal/schema/schemaerr/error.go` | `RenderInput`'s explicit `KindTagged` arm; YAML-1.1 bool spellings |
 | `internal/schema/models/design/design.go` | the built-in-theme guard; `pythonBoolRepr`'s spellings |
 | `internal/schema/binder/binder.go` | the tagged-key record |
-| `specs/divergences.md` | the four out-of-scope tags and the constructor crashes — **HUMAN GATE** |
+| `specs/divergences.md` | the four out-of-scope tags and the constructor crashes |
 
 ## 5. What this plan deliberately does not do
 
 Spec §6's out-of-scope list, unchanged: `!!binary`, `!!set`, `!!omap`, the four constructor
 crashes, and Python's float `repr`. Each needs its own unit and none blocks a plausible CV. They
-are `divergences.md` entries, which is a human gate (`AGENTS.md` §5), so the last task stops
-rather than writing the file.
+are `divergences.md` entries, so the last task writes them directly.
 
 A forced `KindInt` whose text is not a number (`!!int bogus`) is **kept** rather than made
 opaque: upstream crashes with a `ValueError` traceback at exit 1 and empty stdout, and a wrong

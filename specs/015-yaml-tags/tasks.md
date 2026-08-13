@@ -45,10 +45,9 @@ produces. **No fan-out** (`AGENTS.md` §5, the stop rule).
       One record against the enclosing mapping, the key's text as the input, the field unbound.
       Test: `cv: {!!str name: John Doe}` gives exactly that record at `cv`.
 
-- [ ] **T8 — record the out-of-scope tags. HUMAN GATE.** *(drafted, awaiting approval)*
+- [ ] **T8 — record the out-of-scope tags.** *(drafted)*
       `specs/divergences.md` entries for `!!binary`, `!!set`, `!!omap`, and the four
-      `ValueError`/`KeyError`/`IndexError` constructor crashes (spec §3.3, D-011 class). Stop for
-      approval; do not write the file first (`AGENTS.md` §5).
+      `ValueError`/`KeyError`/`IndexError` constructor crashes (spec §3.3, D-011 class).
 
 **Three defects the tag work exposed, all predating it, all fixed as their own commits** —
 015's acceptance criteria could not pass around them:

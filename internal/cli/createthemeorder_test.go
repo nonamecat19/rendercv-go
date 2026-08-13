@@ -27,7 +27,7 @@ import (
 // This does not close the whole ordering gap and is not meant to: upstream
 // copies thirteen files BEFORE it validates the name, so `create-theme MyTheme`
 // leaves a partial theme on disk where the port leaves nothing. That half is
-// reported for the human gate rather than matched here, because matching it
+// recorded in specs/divergences.md rather than matched here, because matching it
 // means writing a template tree to a path the port has already judged invalid —
 // `create-theme ../escaped` writes outside the working directory upstream,
 // measured.

@@ -20,7 +20,7 @@
 //
 // GENERATED, never hand-edited (AGENTS.md §10.1); this program is their only
 // author. None of it is under testdata/golden, so a rerun changes no golden and
-// needs no human gate.
+// needs no special approval.
 //
 // Usage:
 //

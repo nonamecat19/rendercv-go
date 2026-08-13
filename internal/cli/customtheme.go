@@ -53,7 +53,7 @@ func CreateTheme(options CreateThemeOptions, stdout, stderr io.Writer) int {
 	// name leaves a partial theme on disk — and `create-theme ../escaped`
 	// leaves it outside the working directory, measured. Matching that means
 	// writing a template tree to a path this binary has already judged invalid,
-	// so it is reported for the human gate rather than reproduced here.
+	// so it is recorded in specs/divergences.md rather than reproduced here.
 	if !customThemeNamePattern.MatchString(name) {
 		//nolint:staticcheck // upstream's text
 		failPanel(stdout, fmt.Errorf(

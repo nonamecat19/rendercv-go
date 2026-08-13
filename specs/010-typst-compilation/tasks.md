@@ -7,12 +7,11 @@ stop rule keeps the spine with one owner. Nothing here fans out to porters.
 
 ---
 
-## Blocked on the human gate
+## Blocked on the divergence entry
 
 **T2, T3 and T6 cannot land until the distribution question in `specs/STATE.md` is answered.**
 They put a 29 MB `.wasm` and 59 MB of font files into the repository, which changes what a user
-installs — `spec.md` §5 count 3 says that needs a `divergences.md` entry, and `divergences.md` is
-human-gated (`AGENTS.md` §5). T1 and T4 are unblocked because they add only source.
+installs — `spec.md` §5 count 3 says that needs a `divergences.md` entry. T1 and T4 are unblocked because they add only source.
 
 ---
 

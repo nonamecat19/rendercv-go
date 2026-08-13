@@ -531,7 +531,8 @@ func overlayFile(path string) (string, error) {
 
 // errMissingFile carries upstream's wording verbatim.
 func errMissingFile(path string) error {
-	return fmt.Errorf("The file %s does not exist!", path) //nolint:staticcheck // upstream's text
+	//nolint:staticcheck // upstream's text
+	return fmt.Errorf("The file %s does not exist!", path)
 }
 
 // fail writes an error to stderr. The write itself cannot be usefully reported —

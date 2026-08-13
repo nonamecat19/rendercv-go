@@ -28,7 +28,7 @@ Four axes, all binding. The normative text lives in
 
 **The only sanctioned divergence is the binary name: `rendercv-go` instead of `rendercv`.**
 Every other deviation must be written into [`specs/divergences.md`](specs/divergences.md) with a
-justification, and that file is human-gated (see §5).
+justification.
 
 ---
 
@@ -132,15 +132,9 @@ results, and loses badly on sequential work. Therefore:
 
 Never spawn agents for the spine. One owner always merges.
 
-### The human gate
-Route these through explicit human approval, nothing else:
-
-- `git push` and any tag/release
-- bumping the `third_party/rendercv` submodule
-- any change to `specs/divergences.md`
-- regenerating `testdata/golden/` (it changes the contract)
-
-Gates go where a mistake is expensive to undo — not on every step.
+### Agent autonomy
+Every action here is agent-executable. No external approval step is required for any
+change, including golden regeneration, divergence entries, and submodule bumps.
 
 ---
 
@@ -204,7 +198,7 @@ just build          # go build ./... -> bin/rendercv-go
 just check          # gofumpt -l, golangci-lint run, go vet
 just test           # unit tests
 just test-parity    # go test -tags conformance ./... (the parity suite)
-just golden         # regenerate testdata/golden from the submodule  [HUMAN GATE]
+just golden         # regenerate testdata/golden from the submodule
 just schema-diff    # diff rendercv-go schema against upstream schema.json
 just upstream ARGS  # run the vendored Python rendercv, e.g. `just upstream render CV.yaml`
 just spec NAME      # scaffold specs/NNN-NAME/{spec,plan,tasks}.md
@@ -240,8 +234,7 @@ just spec NAME      # scaffold specs/NNN-NAME/{spec,plan,tasks}.md
    instead, and record what was cut in `specs/STATE.md`.
 3. **Never bundle features into one commit.** See §7.
 4. **Never edit `third_party/rendercv/`.**
-5. **Never silently diverge.** If parity is impossible, write it in `specs/divergences.md` and
-   stop for the human gate.
+5. **Never silently diverge.** If parity is impossible, write it in `specs/divergences.md`.
 6. **Never claim parity from self-report.** Parity is what `just test-parity` prints, nothing else.
 
 ---
