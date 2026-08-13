@@ -84,9 +84,10 @@ func lineEnd(source []byte, from int) int {
 //	1. a\n   b          →  <li>a\n   b</li> a lazy line owes the marker nothing
 //
 // The container's share is read off the first line of the block this text sits
-// in — except when that line carries a list marker, because then the block is
-// the item's own first paragraph and its continuation lines are lazy ones, which
-// `ListIndentProcessor` never reaches.
+// in — the line the block *opened* on, which is not always the first line it
+// still has (`blockStartAttribute`) — except when that line carries a list
+// marker, because then the block is the item's own first paragraph and its
+// continuation lines are lazy ones, which `ListIndentProcessor` never reaches.
 func continuationIndent(source []byte, node ast.Node) []byte {
 	next := indentBefore(source, nextContentStart(source, node))
 	block := node
@@ -96,7 +97,10 @@ func continuationIndent(source []byte, node ast.Node) []byte {
 	if block == nil || block.Lines().Len() == 0 {
 		return next
 	}
-	start := block.Lines().At(0).Start
+	start, ok := blockStart(block)
+	if !ok {
+		start = block.Lines().At(0).Start
+	}
 	if listMarker.MatchString(" " + string(lineAt(source, start))) {
 		return next
 	}

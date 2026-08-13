@@ -76,18 +76,16 @@ func (p pythonParagraphParser) Close(node ast.Node, reader text.Reader, pc parse
 		return
 	}
 
+	// Recorded before either edit below moves it, because both of them move it
+	// past text that is *content* rather than container prefix, and
+	// `continuationIndent` reads the block's own share of the indentation off
+	// this offset (`softbreak.go`).
+	markBlockStart(node, lines.At(0).Start)
+
 	if first > 0 {
 		// The lines are dropped, not emptied: a zero-length line panics
 		// goldmark's inline parser, which indexes the last byte of every line
 		// it is given (`parser/parser.go:1174`).
-		//
-		// One shape pays for that. `continuationIndent` reads the block's own
-		// share of the indentation off `Lines().At(0).Start` (`softbreak.go`),
-		// so a paragraph that lost its first line takes the second line's
-		// indentation for its own and a *third* line loses that much:
-		// `"\v\n    a\n    b"` is `<p>a\n    b</p>` upstream and `<p>a\nb</p>`
-		// here. It differed before this rule too, by the `\v`, and no other
-		// measured shape moves.
 		lines.SetSliced(first, lines.Len())
 	}
 
@@ -97,6 +95,42 @@ func (p pythonParagraphParser) Close(node ast.Node, reader text.Reader, pc parse
 	if width := pythonSpacePrefix(line.Value(source)); width > 0 {
 		lines.Set(0, line.WithStart(line.Start+width))
 	}
+}
+
+// blockStartAttribute is where `Close` leaves the offset the block's first line
+// began at, for `continuationIndent`.
+//
+// **The block's own indentation and a continuation line's are the same bytes
+// seen from two sides**, and only the offset the block opened at tells them
+// apart: what stands in front of the *first* line is the prefix the container
+// stripped and python-markdown never shows, and what stands in front of every
+// later line is text. Dropping the blank leading lines above loses that offset —
+// the surviving first line is a continuation line, and reading its indentation
+// as the container's charged every *later* line for it:
+// `"\v\n    a\n    b"` came out `<p>a\nb</p>` against upstream's
+// `<p>a\n    b</p>`.
+//
+// It is an attribute for the reason `detabEmptiedAttribute` is one
+// (`codeblock.go`): the parser knows it and the renderer needs it, and the
+// source offset alone cannot be recovered once the segment has moved. Nothing
+// renders it — goldmark's paragraph renderer filters attribute names through
+// `html.ParagraphAttributeFilter`, which this one is not in.
+const blockStartAttribute = "rendercvBlockStart"
+
+// markBlockStart records where the block's first line began.
+func markBlockStart(node ast.Node, start int) {
+	node.SetAttributeString(blockStartAttribute, start)
+}
+
+// blockStart is the offset markBlockStart recorded, and false for a block whose
+// parser does not record one.
+func blockStart(node ast.Node) (int, bool) {
+	value, ok := node.AttributeString(blockStartAttribute)
+	if !ok {
+		return 0, false
+	}
+	start, ok := value.(int)
+	return start, ok
 }
 
 // pythonSpacePrefix is the byte length of the leading whitespace `str.lstrip()`

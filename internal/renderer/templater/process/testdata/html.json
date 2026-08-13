@@ -4258,5 +4258,61 @@
   {
     "In": "- <b>bold</b>",
     "Out": "<ul>\n<li><b>bold</b></li>\n</ul>"
+  },
+  {
+    "In": "\u000b\n    a\n    b",
+    "Out": "<p>a\n    b</p>"
+  },
+  {
+    "In": "\f\n    a\n    b",
+    "Out": "<p>a\n    b</p>"
+  },
+  {
+    "In": "\u000b\n    a\n    b\n    c",
+    "Out": "<p>a\n    b\n    c</p>"
+  },
+  {
+    "In": "\u000b\n  a\n    b",
+    "Out": "<p>a\n    b</p>"
+  },
+  {
+    "In": "\u000b\n    a\n  b",
+    "Out": "<p>a\n  b</p>"
+  },
+  {
+    "In": "\u000b\n\ta\n\tb",
+    "Out": "<p>a\n    b</p>"
+  },
+  {
+    "In": "\u000b\n    a\n    b\n  c\n      d",
+    "Out": "<p>a\n    b\n  c\n      d</p>"
+  },
+  {
+    "In": "\u000b\n    a\n    b\n        c",
+    "Out": "<p>a\n    b\n        c</p>"
+  },
+  {
+    "In": "\u000b\n    *a*\n    b",
+    "Out": "<p><em>a</em>\n    b</p>"
+  },
+  {
+    "In": "\u000b\n    a\n    b  \n    c",
+    "Out": "<p>a\n    b<br />\n    c</p>"
+  },
+  {
+    "In": "\u000b\n\u000b\n    a\n    b",
+    "Out": "<p>a\n    b</p>"
+  },
+  {
+    "In": "> \u000b\n>   a\n>   b",
+    "Out": "<blockquote>\n<p>a\n  b</p>\n</blockquote>"
+  },
+  {
+    "In": "\u000b\n    a\nb",
+    "Out": "<p>a\nb</p>"
+  },
+  {
+    "In": "\u000b\na\n  b",
+    "Out": "<p>a\n  b</p>"
   }
 ]
