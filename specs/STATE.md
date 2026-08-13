@@ -481,13 +481,27 @@ surrounding numbers trustworthy.
   same class inside a blockquote; a blockquote paragraph with no dropped line still over-counting its
   own indent; and a tight-list item, where goldmark's list transform rebuilds the `TextBlock` and the
   attribute doesn't survive.
-- A non-string mapping **key** (`{1: a}` → upstream `{1: 'a'}`, port `{'1': 'a'}`) is
-  unrepresentable: `yamldoc.Item` keeps the key's text and drops its kind and quoting style, and the
-  quoted spelling `'1': a` genuinely *is* `{'1': 'a'}` upstream — so guessing from the text moves the
-  defect rather than fixing it. Rows sit skipped with measured upstream values and a named reason.
-- `repr(TaggedScalar)`, at top level and inside a container. Same cause. **These three close
-  together**, and a spec delta for the `yamldoc` change is being written; AGENTS.md §4 forbids the
-  code before it.
+- **CLOSED, both of these — stale as phrased, corrected 2026-08-13.** A spec-writer sent to write
+  the missing `yamldoc` delta found the delta already existed and its work already landed —
+  `specs/015-yaml-tags/spec-delta.md` units A–C, `952c559`/`24ff903`/`7eea6dc`/`43b0baa`: `Node.Tag`
+  (ruamel's resolved `trval`) plus `Item.KeyNode *Node` (a key built by the same path as any value,
+  kept separate from the binding `Item.Key`, which 45 non-test sites read). Re-verified live against
+  16 shapes covering both classes — non-string keys of every ruamel-producible kind (int, bool,
+  float, hex, null, date-like string, `.inf`) and `TaggedScalar` at top level, nested in a list, and
+  as a key — all byte-identical to the live vendored binary. `go test
+  ./internal/schema/models/locale/` passes with 5 total skips across `keyrepr_test.go` and
+  `taggedrepr_test.go`, each carrying a measured upstream value and a goccy-named reason (container
+  mapping keys, D-012 §2's class — the parser refuses them before any node exists, not a `yamldoc`
+  gap). No porter task needed for these two.
+  **What re-measuring this surfaced instead**: `specs/015-yaml-tags/spec-delta.md` §6.1 had deferred
+  measuring `%TAG` directives on the stated premise "the harness cannot place a directive before the
+  document it builds" — **that premise was wrong**, and measuring it found a live, unspec'd defect:
+  the port rejects *every* document carrying *any* directive (including `%YAML 1.2` and unrecognised
+  directives, which upstream treats as no-ops), because goccy emits a directive line as its own
+  `*ast.DocumentNode` and `checkSingleDocument` miscounts it as a second document. Specced fresh at
+  `specs/002-yaml-and-core-model/spec-delta-directives.md`, six units, with two proposed divergences
+  gating the core fix (`%YAML 1.1`'s resolver switch — silently changes values once directives parse
+  at all; container mapping keys, already covered above). Implementation not started.
 - **`HashHeaderProcessor`'s strip (25 shapes) — CORRECTED, does not reproduce.** Re-measured
   2026-08-13: `blockprocessors.py:479`'s `.strip()` is green, 0 mismatches across 5,624 shapes
   (`heading.go`'s `pythonSpacePrefix`/`pythonSpaceSuffix` already reproduce it exactly). The real
