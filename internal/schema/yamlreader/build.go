@@ -25,10 +25,20 @@ func parse(src string) (*yamldoc.Node, error) {
 	if len(file.Docs) == 0 {
 		return nil, nil
 	}
-	if err := checkSingleDocument(file.Docs); err != nil {
+	if err := checkDirectives(file.Docs); err != nil {
 		return nil, err
 	}
-	body := file.Docs[0].Body
+	// A directive line is a document to goccy and not one to ruamel, so the
+	// count and the body both have to be taken over the content documents —
+	// see directive.go.
+	docs := contentDocuments(file.Docs)
+	if len(docs) == 0 {
+		return nil, nil
+	}
+	if err := checkSingleDocument(docs); err != nil {
+		return nil, err
+	}
+	body := docs[0].Body
 	if body == nil {
 		return nil, nil
 	}

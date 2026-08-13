@@ -62,6 +62,25 @@ func ReadYamlWithValidationErrors(
 		}
 	}
 
+	// D-018 — a `%YAML 1.1` directive. The port has no 1.1 scalar resolver and
+	// says so, rather than resolving by 1.2 and silently changing values. The
+	// message is the port's own: upstream has no error here at all, so there is
+	// no phrasing to match and no `This is not a valid YAML file.` prefix,
+	// which would be untrue — the document *is* valid YAML.
+	var directiveErr *yamlreader.UnsupportedDirectiveError
+	if errors.As(err, &directiveErr) {
+		at := yamldoc.Position{Line: directiveErr.Line, Column: 1}
+		return nil, &schemaerr.UserValidationError{
+			Errors: []schemaerr.ValidationError{{
+				SchemaLocation: nil,
+				YamlLocation:   &yamldoc.Span{Start: at, End: at},
+				YamlSource:     source,
+				Message:        directiveErr.Error(),
+				Input:          schemaerr.InputEllipsis,
+			}},
+		}
+	}
+
 	var parserErr goyaml.Error
 	if !errors.As(err, &parserErr) {
 		return nil, err

@@ -32,7 +32,7 @@ type Unreachable struct {
 	Why string
 }
 
-// unreachableCases is the whole list. Eight cases, three divergences.
+// unreachableCases is the whole list. Nine cases, four divergences.
 //
 // It is deliberately a Go literal rather than a field in `corpus.json`: the
 // corpus is generated from the vendored upstream by `tools/gengolden`, and what
@@ -56,6 +56,13 @@ var unreachableCases = []Unreachable{
 	// generating machine's absolute paths and CPython frames.
 	{Case: "err_missing_file", Divergence: "D-011", Why: "the golden is a Python traceback with absolute paths"},
 	{Case: "err_bad_override_key", Divergence: "D-011", Why: "the golden is a Python traceback with absolute paths"},
+
+	// D-018 — `%YAML 1.1` switches ruamel to its 1.1 scalar resolver, so
+	// upstream reads `cv.name: yes` as the bool `True` and reports a type
+	// error against it. The port has no 1.1 resolver and refuses the directive
+	// by name instead, which is the divergence's own prescription: the
+	// alternative is resolving by 1.2 and silently rendering a different CV.
+	{Case: "yaml_11_directive", Divergence: "D-018", Why: "upstream resolves `yes` as a bool under the 1.1 tables; the port has no 1.1 resolver"},
 }
 
 // UnreachableFor returns the divergence forbidding a case's parity, if there is
