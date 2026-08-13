@@ -190,3 +190,84 @@ func TestYamlOnePointOneIsRefusedByName(t *testing.T) {
 		t.Errorf("%%YAML 1.2 must still load: %v", err)
 	}
 }
+
+// A `%YAML` directive whose version is not `<digits>.<digits>` never reaches
+// ruamel's *parser* at all: its scanner refuses the line while reading it
+// (`ruamel/yaml/scanner.py:892-937`, `:978-995`), so upstream reports
+// `while scanning a directive` and exits 1.
+//
+// **goccy's taxonomy does not cover this.** It accepts a bare `%YAML` with no
+// version silently — the port rendered `%YAML\n---\n<cv>` at exit 0 where
+// upstream exits 1 — and it lumps every other malformed spelling in with an
+// out-of-range one under `unknown YAML version`, which the port mapped to
+// ruamel's *parser* message `found incompatible YAML document`. Both are the
+// wrong verdict, so the syntax is checked against ruamel's own rule on the
+// source before goccy sees it.
+//
+// The rule, transcribed from the scanner: optional spaces, one or more digits,
+// a literal `.`, one or more digits, then either the end of the line or spaces
+// followed by the end of the line or a `#` comment. Nothing else about the
+// numbers matters here — `01.2` and `1.02` are well formed and `10.2` is too
+// (it is the *parser* that later rejects major 10). Measured against the
+// vendored CLI on every row below.
+func TestAMalformedYamlDirectiveVersionIsRefused(t *testing.T) {
+	malformed := []struct{ name, yaml string }{
+		{name: "no version at all", yaml: "%YAML\n---\nk: v\n"},
+		{name: "major only", yaml: "%YAML 1\n---\nk: v\n"},
+		{name: "not numeric", yaml: "%YAML x.y\n---\nk: v\n"},
+		{name: "trailing dot", yaml: "%YAML 1.\n---\nk: v\n"},
+		{name: "no major", yaml: "%YAML .2\n---\nk: v\n"},
+		{name: "three parts", yaml: "%YAML 1.2.3\n---\nk: v\n"},
+		{name: "trailing junk", yaml: "%YAML 1.2 x\n---\nk: v\n"},
+	}
+
+	for _, test := range malformed {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := yamlreader.ReadString(test.yaml)
+
+			var directive *yamlreader.MalformedDirectiveError
+			if !errors.As(err, &directive) {
+				t.Fatalf("ReadString err = %v, want MalformedDirectiveError", err)
+			}
+			if directive.Line != 1 {
+				t.Errorf("Line = %d, want 1", directive.Line)
+			}
+			if directive.Error() != "while scanning a directive" {
+				t.Errorf("Error() = %q, want %q", directive.Error(), "while scanning a directive")
+			}
+		})
+	}
+
+	// The spellings the scanner accepts. `1.1` is refused further along by
+	// D-018, so it cannot be asserted to load; what is asserted is that the
+	// *scanner* let it past.
+	wellFormed := []struct{ name, yaml string }{
+		{name: "the ordinary spelling", yaml: "%YAML 1.2\n---\nk: v\n"},
+		{name: "extra leading spaces", yaml: "%YAML  1.2\n---\nk: v\n"},
+		{name: "a trailing comment", yaml: "%YAML 1.2 # hi\n---\nk: v\n"},
+		{name: "trailing spaces", yaml: "%YAML 1.2  \n---\nk: v\n"},
+		{name: "leading zero in major", yaml: "%YAML 01.2\n---\nk: v\n"},
+		{name: "leading zero in minor", yaml: "%YAML 1.02\n---\nk: v\n"},
+		{name: "a two-digit major", yaml: "%YAML 10.2\n---\nk: v\n"},
+		{name: "a version this port refuses later", yaml: "%YAML 1.1\n---\nk: v\n"},
+	}
+
+	for _, test := range wellFormed {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := yamlreader.ReadString(test.yaml)
+
+			var directive *yamlreader.MalformedDirectiveError
+			if errors.As(err, &directive) {
+				t.Fatalf("ReadString err = %v, want no MalformedDirectiveError", err)
+			}
+		})
+	}
+
+	// A directive that is not `%YAML` carries no version to scan, and ruamel
+	// drops an unrecognised one whole.
+	for _, yaml := range []string{"%TAG !e! a:\n---\nk: v\n", "%FOO bar\n---\nk: v\n"} {
+		if _, err := yamlreader.ReadString(yaml); err != nil {
+			t.Errorf("ReadString(%q) = %v, want nil", yaml, err)
+		}
+	}
+}
