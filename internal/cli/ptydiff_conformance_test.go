@@ -5,8 +5,11 @@ package cli_test
 import (
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/nonamecat19/rendercv-go/internal/conformance"
 )
 
 // The documents the cases below are driven with. Both are **deterministic
@@ -133,12 +136,12 @@ func TestTerminalStylingIsPending(t *testing.T) {
 		// point of the case.
 		wrapsOnTheBinaryName bool
 	}{
-		// The `user error panel` row is **gone, not disabled**: that surface is
-		// styled now and is compared byte for byte by `TestErrorPanelColour`
-		// below. What is left of unit D is the validation table's own three
-		// column styles and the header's bold.
+		// The `user error panel` and `new` rows are **gone, not disabled**:
+		// those surfaces are styled now and are compared line by line by
+		// `TestErrorPanelColour` and `TestNewCommandColour` below. What is left
+		// of unit D is the validation table's own three column styles and the
+		// header's bold.
 		{name: "validation table", unit: "D (the table half)", args: []string{"render", "CV.yaml"}, input: invalidCV},
-		{name: "new", unit: "E", args: []string{"new", "JohnDoe"}},
 		{name: "help", unit: "F", args: []string{"render", "--help"}, wrapsOnTheBinaryName: true},
 	}
 
@@ -256,6 +259,151 @@ func TestProgressPanelColour(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestNewCommandColour is delta §8's unit E on `new`: the greeting, the
+// `Useful Links` panel with its **OSC 8 hyperlinks**, and the `Get started`
+// panel, compared line by line against upstream on a pty.
+//
+// **Lines, not one string, because exactly one line may differ** — the
+// `2. Run: rendercv-go render …` instruction, which is the sanctioned binary
+// name (D-009). It is compared as its plain text after `RebindBinaryName` and
+// as its **run structure**, so a port that dropped the `cyan` from it would
+// still fail. Every other line is compared as bytes, escape sequences included.
+//
+// `new` never builds a `Live`, so there is no repaint to collapse and no
+// timing to normalize: the only thing normalized is the OSC 8 id, which is
+// `randint(0, 999999)` upstream and cannot be compared at all (delta §2.5).
+func TestNewCommandColour(t *testing.T) {
+	tests := []struct {
+		name string
+		env  map[string]string
+	}{
+		{name: "default tty"},
+		// `dodger_blue3` and `purple` are palette entries and this is the row
+		// that catches a port hard-coding `ESC[38;5;26m`: on eight colours
+		// upstream writes `ESC[94m` (delta §2.2).
+		{name: "eight colour TERM", env: map[string]string{"TERM": "xterm", "COLORTERM": ""}},
+		{name: "256 colour TERM", env: map[string]string{"TERM": "xterm-256color", "COLORTERM": ""}},
+		// `Style.without_color` keeps the link (`rich/style.py:474-490`), so
+		// this row pins that `NO_COLOR=1` drops the colour and leaves both the
+		// bold and the hyperlink standing.
+		{name: "NO_COLOR keeps bold and the links", env: map[string]string{"NO_COLOR": "1"}},
+		{name: "NO_COLOR set but empty is ignored", env: map[string]string{"NO_COLOR": ""}},
+		// No colour system means no OSC 8 either: `Style.render` returns before
+		// the hyperlink branch (`rich/style.py:706`).
+		{name: "TERM=dumb", env: map[string]string{"TERM": "dumb"}},
+		{name: "TTY_COMPATIBLE=0", env: map[string]string{"TTY_COMPATIBLE": "0"}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			dir := filepath.Join(t.TempDir(), "w")
+			want := runSide(t, dir, upstreamArgv(t, []string{"new", "JohnDoe"}), test.env, "")
+			got := runSide(t, dir, portArgv(t, []string{"new", "JohnDoe"}), test.env, "")
+
+			// **Non-vacuity.** Two empty captures compare equal, so the row
+			// that is supposed to carry the whole surface has to be seen
+			// carrying it before any agreement means anything.
+			if len(test.env) == 0 && !strings.Contains(want, "\x1b]8;") {
+				t.Fatal("upstream emitted no OSC 8 hyperlink on a pty; the harness is not" +
+					" seeing the surface this case is about")
+			}
+
+			assertStyledLines(t, got, want, func(gotLine, wantLine string) bool {
+				// D-009: the port names the binary it is. The row is re-padded
+				// by the established helper rather than by substituting the
+				// captured bytes, which is the phantom of delta §6.3.
+				return conformance.RebindBinaryName(plain(gotLine)) == plain(wantLine)
+			})
+		})
+	}
+}
+
+// TestCreateThemeColour is unit E's other half: the `Theme created` panel,
+// whose markup is the awkward one — three tags upstream never closes, so the
+// `purple` opened on the `1. Modify` line runs over five more and the two
+// `[cyan]` tags override its colour without ending it (delta §2.1).
+//
+// **One line cannot match and must not**: D-008 writes `init.lua` where
+// upstream writes `__init__.py`, because the port cannot execute the Python
+// upstream's `__init__.py` is (D-002). That line is compared as its run
+// structure — three separately opened `purple` runs either side — and the rest
+// of the panel as bytes.
+func TestCreateThemeColour(t *testing.T) {
+	tests := []struct {
+		name string
+		env  map[string]string
+	}{
+		{name: "default tty"},
+		{name: "eight colour TERM", env: map[string]string{"TERM": "xterm", "COLORTERM": ""}},
+		{name: "256 colour TERM", env: map[string]string{"TERM": "xterm-256color", "COLORTERM": ""}},
+		{name: "NO_COLOR keeps bold", env: map[string]string{"NO_COLOR": "1"}},
+		{name: "TERM=dumb", env: map[string]string{"TERM": "dumb"}},
+		{name: "TTY_COMPATIBLE=0", env: map[string]string{"TTY_COMPATIBLE": "0"}},
+	}
+
+	args := []string{"create-theme", "mytheme"}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			dir := filepath.Join(t.TempDir(), "w")
+			want := runSide(t, dir, upstreamArgv(t, args), test.env, "")
+			got := runSide(t, dir, portArgv(t, args), test.env, "")
+
+			if len(test.env) == 0 && !strings.Contains(want, "\x1b[38;5;129m") {
+				t.Fatal("upstream emitted no purple on a pty; the harness is not seeing the" +
+					" surface this case is about")
+			}
+
+			assertStyledLines(t, got, want, func(gotLine, wantLine string) bool {
+				return strings.Contains(gotLine, "/init.lua") &&
+					strings.Contains(wantLine, "/__init__.py")
+			})
+		})
+	}
+}
+
+// assertStyledLines compares two captures line by line with their escape
+// sequences kept.
+//
+// A line the two sides are **allowed** to differ on — a sanctioned divergence,
+// and nothing else — still has to carry the same runs in the same order, which
+// is what `sequences` compares. That is the part of a styled line a divergence
+// in its *text* cannot excuse: it catches a run opened around the wrong
+// characters, or dropped altogether, on exactly the line whose bytes cannot be
+// compared.
+func assertStyledLines(t *testing.T, got, want string, sanctioned func(gotLine, wantLine string) bool) {
+	t.Helper()
+
+	gotLines, wantLines := styledLines(got), styledLines(want)
+	if len(gotLines) != len(wantLines) {
+		t.Fatalf("the port wrote %d lines, upstream %d:\n  port     %q\n  upstream %q",
+			len(gotLines), len(wantLines), readable(got), readable(want))
+	}
+
+	for i := range wantLines {
+		if gotLines[i] == wantLines[i] {
+			continue
+		}
+		if !sanctioned(gotLines[i], wantLines[i]) {
+			t.Errorf("line %d differs:\n  port     %q\n  upstream %q",
+				i+1, readable(gotLines[i]), readable(wantLines[i]))
+			continue
+		}
+		if !slices.Equal(sequences(gotLines[i]), sequences(wantLines[i])) {
+			t.Errorf("line %d is a sanctioned divergence but its runs differ:"+
+				"\n  port     %q\n  upstream %q",
+				i+1, readable(gotLines[i]), readable(wantLines[i]))
+		}
+	}
+}
+
+// styledLines is a capture as lines, escape sequences kept and the OSC 8 id
+// normalized. The `\r` is the pty's own ONLCR translation and is neither
+// side's doing.
+func styledLines(capture string) []string {
+	text := strings.ReplaceAll(normalize(capture), "\r\n", "\n")
+	return strings.Split(strings.TrimRight(text, "\r\n"), "\n")
 }
 
 // styledFrame is the final frame with its escape sequences **kept** — the

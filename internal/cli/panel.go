@@ -43,12 +43,25 @@ type PanelRow struct {
 	Timing string
 
 	// Text is a whole row of free text, used by the panels that are prose
-	// rather than a table — `new`'s two. When it is set the other fields are
-	// ignored.
+	// rather than a table — the validation table's lines. When it is set the
+	// other fields are ignored.
 	Text string
 	// IsText marks a row as free text even when Text is empty, which is how a
 	// blank separator row inside a panel is spelled.
 	IsText bool
+
+	// Body is the row as **styled** text, and it may carry newlines.
+	//
+	// It is how the panels upstream builds from one markup string reach the
+	// box: `new` and `create-theme` both pass a single `"\n".join(lines)` to
+	// `rich.panel.Panel` (`new_command.py:171-178`,
+	// `create_theme_command.py:57-64`), so their whole body is one renderable
+	// whose spans cross the line breaks — `create-theme`'s outer `[purple]`
+	// runs over five lines. Splitting it into a row per line first would cut
+	// those spans at the wrong places.
+	//
+	// When it is set the other fields are ignored.
+	Body Text
 }
 
 // body is the row as styled text — the line `print_progress_panel` assembles,
@@ -74,6 +87,9 @@ type PanelRow struct {
 // a terminal with no colour every one of these renders as the plain string it
 // used to be.
 func (r PanelRow) body() Text {
+	if r.Body.Plain != "" || len(r.Body.Spans) > 0 {
+		return r.Body
+	}
 	if r.IsText || r.Text != "" {
 		return PlainText(r.Text)
 	}
