@@ -157,7 +157,11 @@ func convertChunk(chunk string) string {
 // per line instead; upstream appends `"\n\n"` before the substitution, which is
 // what makes a trailing space-only line match its own trailing newline.
 func normalizeChunk(chunk string) []string {
-	lines := strings.Split(normalizeWhitespace(chunk), "\n")
+	// `HtmlBlockPreprocessor` is registered at 20 and `NormalizeWhitespace` at 30
+	// (`preprocessors.py:40-41`), so the raw-HTML pass sees the normalized text —
+	// which is what makes `<div>a</div>\t t` an indented code block, the tab
+	// having become the fourth column before the tail is a line of its own.
+	lines := strings.Split(splitRawBlockTails(normalizeWhitespace(chunk), "\n\n"), "\n")
 	for i := 1; i < len(lines); i++ {
 		if lines[i] != "" && strings.Trim(lines[i], " ") == "" {
 			lines[i] = ""

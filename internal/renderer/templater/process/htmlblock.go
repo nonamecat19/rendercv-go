@@ -57,7 +57,8 @@ type blockLevelHTMLParser struct {
 	parser.BlockParser
 }
 
-// Open declines a non-block-level tag and otherwise defers to goldmark.
+// Open declines a non-block-level tag and otherwise defers to goldmark, then
+// records where the raw block ends so `Continue` can stop there.
 func (p blockLevelHTMLParser) Open(
 	parent ast.Node, reader text.Reader, pc parser.Context,
 ) (ast.Node, parser.State) {
@@ -67,10 +68,65 @@ func (p blockLevelHTMLParser) Open(
 			return nil, parser.NoChildren
 		}
 	}
-	if !atLineStart(reader.Source(), segment.Start) {
+	source := reader.Source()
+	if !atLineStart(source, segment.Start) {
 		return nil, parser.NoChildren
 	}
-	return p.BlockParser.Open(parent, reader, pc)
+	node, state := p.BlockParser.Open(parent, reader, pc)
+	if block, ok := node.(*ast.HTMLBlock); ok && isTagBlock(block) {
+		if end := rawBlockEnd(source, segment.Start+tagOffset(line)); end >= 0 {
+			block.SetAttributeString(rawBlockEndKey, end)
+		}
+	}
+	return node, state
+}
+
+// rawBlockEndKey holds the source offset just past the closing tag that ends a
+// raw block, as `Open` measured it.
+const rawBlockEndKey = "rawBlockEnd"
+
+// Continue closes the raw block at its closing tag, where upstream closes it,
+// rather than at the next blank line.
+//
+// `HTMLExtractor` ends a raw block the moment its tag stack empties
+// (`htmlparser.py:240-253`): the stashed text stops at the closing tag and
+// `'\n\n'` goes back into the document, so whatever follows is ordinary markdown
+// even with no blank line in between. goldmark's HTML block types 6 and 7 run to
+// the next blank line instead (`parser/html_block.go:206-209`), so the port
+// swallowed the following block whole:
+//
+//	<div>block</div>\nafter   upstream <div>block</div>\n<p>after</p>
+//	                              port <div>block</div>\nafter
+//
+// The other five block types already close on a terminator of their own and are
+// left to goldmark. The **same line** case — content after the closing tag — is
+// not reachable from here, because a block parser cannot hand back half a line;
+// `splitRawBlockTails` puts that tail on its own line before the parse.
+func (p blockLevelHTMLParser) Continue(
+	node ast.Node, reader text.Reader, pc parser.Context,
+) parser.State {
+	if end, ok := node.AttributeString(rawBlockEndKey); ok {
+		if _, segment := reader.PeekLine(); segment.Start >= end.(int) {
+			return parser.Close
+		}
+	}
+	return p.BlockParser.Continue(node, reader, pc)
+}
+
+// isTagBlock reports whether a raw block is one of the two goldmark opens on a
+// tag name, which are the two that run to a blank line.
+func isTagBlock(block *ast.HTMLBlock) bool {
+	return block.HTMLBlockType == ast.HTMLBlockType6 ||
+		block.HTMLBlockType == ast.HTMLBlockType7
+}
+
+// tagOffset is the position of the `<` within a line `atLineStart` accepted.
+func tagOffset(line []byte) int {
+	offset := 0
+	for offset < len(line) && (line[offset] == ' ' || line[offset] == '\t') {
+		offset++
+	}
+	return offset
 }
 
 // atLineStart is `HTMLExtractor.at_line_start` (`htmlparser.py:181-191`), the
