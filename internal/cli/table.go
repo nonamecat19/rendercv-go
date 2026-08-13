@@ -13,7 +13,21 @@ type TableColumn struct {
 	// NoWrap is upstream's `no_wrap=True`: the cell is never folded, only
 	// truncated. `Location` and `Input Value` carry it; `Explanation` does not.
 	NoWrap bool
+
+	// Style is `add_column(style=…)` — `cyan`, `magenta` and `orange4` on the
+	// three validation columns (`progress_panel.py:149-151`).
+	//
+	// **It covers the cells and not the header.** Rich renders a header cell
+	// under `header_style` alone (`rich/table.py:671-674`), and the column's own
+	// style is passed to the *cell* renderer (`:838-841`) — measured on a pty,
+	// `Location`'s header is `ESC[1m` and never `ESC[1;36m`.
+	Style Style
 }
+
+// tableHeaderStyle is Rich's `table.header` (`rich/default_styles.py:110`),
+// which `Table(header_style="table.header")` resolves by default
+// (`rich/table.py:208`). RenderCV overrides neither.
+var tableHeaderStyle = StyleBold
 
 // tablePadding is Rich's default cell padding, one space either side.
 const tablePadding = 2
@@ -40,6 +54,25 @@ const ellipsis = "…"
 // A table that got any one of these wrong would still look plausible and would
 // differ from upstream on every row.
 func Table(columns []TableColumn, rows [][]string, maxWidth int) string {
+	var out strings.Builder
+	for _, line := range StyledTable(columns, rows, maxWidth) {
+		out.WriteString(line.Plain)
+		out.WriteString("\n")
+	}
+	return out.String()
+}
+
+// StyledTable is Table as **styled lines**, one `Text` per line, for the caller
+// that nests it in a panel on a terminal.
+//
+// It is where the table's three column styles live, and it is a separate entry
+// point for the same reason `StyledPanel` is: the plain callers assert whole
+// tables as strings, and on a terminal with no colour the two forms are
+// byte-identical — `Table` is literally this function's `Plain`.
+//
+// **The box's own characters are unstyled.** Only the cells carry a colour, and
+// only the enclosing panel's border carries `bold red` — measured on a pty.
+func StyledTable(columns []TableColumn, rows [][]string, maxWidth int) []Text {
 	// Every string Rich renders becomes a `Text`, whose constructor sanitizes
 	// it (`rich/text.py:156`). Do it once, before anything is measured, so the
 	// stripped characters cannot occupy a column.
@@ -60,20 +93,18 @@ func Table(columns []TableColumn, rows [][]string, maxWidth int) string {
 	// closing one.
 	widths := columnWidths(columns, rows, maxWidth, len(columns)+1)
 
-	var out strings.Builder
-	out.WriteString(rule(widths, "╭", "┬", "╮"))
-	out.WriteString(tableRow(columns, headerCells(columns), widths))
-	out.WriteString(rule(widths, "├", "┼", "┤"))
+	lines := []Text{PlainText(rule(widths, "╭", "┬", "╮"))}
+	lines = append(lines, tableRow(columns, headerCells(columns), widths, true)...)
+	lines = append(lines, PlainText(rule(widths, "├", "┼", "┤")))
 	for i, row := range rows {
 		if i > 0 {
 			// `show_lines=True` puts a separator between every pair of rows and
 			// nowhere else.
-			out.WriteString(rule(widths, "├", "┼", "┤"))
+			lines = append(lines, PlainText(rule(widths, "├", "┼", "┤")))
 		}
-		out.WriteString(tableRow(columns, row, widths))
+		lines = append(lines, tableRow(columns, row, widths, false)...)
 	}
-	out.WriteString(rule(widths, "╰", "┴", "╯"))
-	return out.String()
+	return append(lines, PlainText(rule(widths, "╰", "┴", "╯")))
 }
 
 func headerCells(columns []TableColumn) []string {
@@ -249,7 +280,8 @@ func bankersRound(value float64) int {
 	return int(rounded)
 }
 
-// rule draws one horizontal border of the ROUNDED box.
+// rule draws one horizontal border of the ROUNDED box. It carries no style:
+// the box characters are plain and only the cells are coloured.
 func rule(widths []int, left, join, right string) string {
 	var out strings.Builder
 	out.WriteString(left)
@@ -260,13 +292,22 @@ func rule(widths []int, left, join, right string) string {
 		out.WriteString(strings.Repeat("─", width))
 	}
 	out.WriteString(right)
-	out.WriteString("\n")
 	return out.String()
 }
 
 // tableRow renders one row, which may occupy several lines when a wrappable
 // cell folds. Cells shorter than the tallest one are padded with blanks.
-func tableRow(columns []TableColumn, cells []string, widths []int) string {
+//
+// **A cell is three runs and a blank continuation is one**, and the difference
+// is not cosmetic — it is what the bytes say. A rendered line is a `Padding`
+// around the cell, so Rich emits the left pad, the padded content and the right
+// pad separately, each opened and closed:
+// `ESC[36m ESC[0mESC[36mlocale  ESC[0mESC[36m ESC[0m`. A line that exists only
+// because a taller cell in the same row demanded it is `Segment(" " * width,
+// style)` — **one** run spanning the whole column, padding included
+// (`Segment.align_top`, `rich/segment.py:489`): `ESC[36m          ESC[0m`.
+// Both were measured on a pty.
+func tableRow(columns []TableColumn, cells []string, widths []int, header bool) []Text {
 	rendered := make([][]string, len(widths))
 	height := 1
 	for i := range widths {
@@ -281,26 +322,30 @@ func tableRow(columns []TableColumn, cells []string, widths []int) string {
 		height = max(height, len(rendered[i]))
 	}
 
-	var out strings.Builder
+	lines := make([]Text, 0, height)
 	for line := range height {
-		out.WriteString("│")
+		row := PlainText("│")
 		for i, width := range widths {
-			text := ""
-			if line < len(rendered[i]) {
-				text = rendered[i][line]
+			style := columns[i].Style
+			if header {
+				style = tableHeaderStyle
 			}
 			content := max(width-tablePadding, 0)
-			if width >= tablePadding {
-				out.WriteString(" " + pad(text, content) + " ")
-			} else {
-				out.WriteString(strings.Repeat(" ", width))
+			switch {
+			case line >= len(rendered[i]), width < tablePadding:
+				// The blank continuation, and the column too narrow to hold its
+				// own padding: one run over the whole column.
+				row = row.Append(StyledText(strings.Repeat(" ", width), style))
+			default:
+				row = row.Append(StyledText(" ", style)).
+					Append(StyledText(pad(rendered[i][line], content), style)).
+					Append(StyledText(" ", style))
 			}
-			_ = i
-			out.WriteString("│")
+			row = row.Append(PlainText("│"))
 		}
-		out.WriteString("\n")
+		lines = append(lines, row)
 	}
-	return out.String()
+	return lines
 }
 
 // renderCell lays one cell out at the given content width.
