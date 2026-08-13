@@ -14,15 +14,20 @@ import (
 // nine shapes spec 011 §9.5's enumeration had pinned, and these are the rest of
 // the class — the ones that establish the rule rather than one instance of it.
 //
-// **The residual is four columns of whitespace after a closing tag.** The
-// whitespace before a raw block that opens in another's tail, and the whitespace
-// between a closing tag and the end of its line, are both dropped now
-// (`splitRawBlockTails`) — but upstream leaves them in the document, where four
-// or more columns of them are an indented code block, an empty one:
+// **The whitespace after a closing tag is dropped below four columns and kept at
+// four or more**, which is the width at which upstream reads it as an indented
+// code block — an empty one, since the whitespace is all there is:
 // `<div>a</div>\t<div>b</div>` is `<div>a</div>\n<pre><code>\n</code></pre>\n
-// <div>b</div>` upstream and `<div>a</div>\n<div>b</div>` here. Reproducing it
-// needs a block goldmark does not read from a whitespace-only line; the two
-// differentials carry no row for that shape.
+// <div>b</div>`. goldmark drops a whitespace-only line before any block parser
+// sees it (`SkipBlankLines`), so `splitRawBlockTails` marks the line to keep it
+// and `codeBlockText` unmarks it; both differentials carry rows for the shape.
+//
+// **The residual is a comment that opens in such a tail.**
+// `<div>a</div>    <!-- c -->` is a code block *and* a raw comment block
+// upstream, and here the comment is the code block's text —
+// `handle_comment` sets `intail` too (`htmlparser.py`), where `rawBlockOnLine`
+// asks for a block-level start tag. That is the tail's scanner, not its width,
+// and no differential row asserts it.
 func TestRawBlockEndsAtClosingTag(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -61,6 +66,34 @@ func TestRawBlockEndsAtClosingTag(t *testing.T) {
 		in:    "<div>a</div>\t t",
 		html:  "<div>a</div>\n<pre><code> t\n</code></pre>",
 		typst: "<div>a</div>\n` t\n`",
+	}, {
+		name: "four columns of tail are an empty code block",
+		// The block that follows opens on the next line, so the code block sits
+		// between the two and no blank line does.
+		in:    "<div>a</div>    <div>b</div>",
+		html:  "<div>a</div>\n<pre><code>\n</code></pre>\n<div>b</div>",
+		typst: "<div>a</div>\n`\n`\n<div>b</div>",
+	}, {
+		name: "a tail at the end of the input keeps the stash's blank line",
+		// `blank_line_re` matches the `"\n\n"` `NormalizeWhitespace` appends, so
+		// the stash carries a newline of its own — the one shape of this class
+		// with a blank line before the code block.
+		in:    "<div>a</div>    ",
+		html:  "<div>a</div>\n\n<pre><code>\n</code></pre>",
+		typst: "<div>a</div>\n\n`\n`",
+	}, {
+		name: "the fifth column is the code block's own text",
+		// The tail is dedented by `tab_length` like any other code line, and
+		// what is left of it is text — here a space, which the next line joins.
+		in:   "<div>a</div>     \n    x",
+		html: "<div>a</div>\n<pre><code> \nx\n</code></pre>",
+		// The Typst path converts line by line, so the two are two blocks.
+		typst: "<div>a</div>\n\n`\n`\n`x\n`",
+	}, {
+		name:  "three columns of tail are still invisible",
+		in:    "<div>a</div>   <div>b</div>",
+		html:  "<div>a</div>\n<div>b</div>",
+		typst: "<div>a</div>\n<div>b</div>",
 	}, {
 		name:  "the stack pops back to the tag's own name",
 		in:    "<div><br></div> t",
