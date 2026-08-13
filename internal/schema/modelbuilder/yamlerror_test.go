@@ -277,6 +277,21 @@ func TestParserMessageUsesRuamelPhrasing(t *testing.T) {
 			src:  "a: 1\na: 2\n",
 			want: "This is not a valid YAML file. while constructing a mapping.",
 		},
+		{
+			// These two reach the sentence through
+			// yamlreader.MalformedDirectiveError, which — like the tab branch
+			// above — runs before goccy and phrases the failure itself. ruamel's
+			// scanner never gets as far as the version's *value*, so a bare
+			// `%YAML` and a three-part one are the same failure.
+			name: "a %YAML directive with no version",
+			src:  "%YAML\n---\na: 1\n",
+			want: "This is not a valid YAML file. while scanning a directive.",
+		},
+		{
+			name: "a %YAML directive with a three-part version",
+			src:  "%YAML 1.2.3\n---\na: 1\n",
+			want: "This is not a valid YAML file. while scanning a directive.",
+		},
 	}
 
 	for _, test := range tests {
@@ -564,6 +579,54 @@ func TestMultiDocumentStreamIsRejected(t *testing.T) {
 					span.Start.Line, span.End.Line, test.startLine, test.endLine)
 			}
 		})
+	}
+}
+
+// ruamel's ScannerError for a directive carries a context mark at the `%` and a
+// problem mark further along the same line, so upstream's location extractor
+// (`rendercv_model_builder.py:42-62`) reports one line and the port reports a
+// point on it. Measured: `%YAML\n---\n<cv>` prints `main_yaml_file: line 1`.
+func TestAMalformedDirectiveIsLocatedAtItsOwnLine(t *testing.T) {
+	_, err := ReadYamlWithValidationErrors("%YAML\n---\ncv: 1\n", schemaerr.SourceMain)
+
+	var userErr *schemaerr.UserValidationError
+	if !errors.As(err, &userErr) {
+		t.Fatalf("err = %v (%T), want *schemaerr.UserValidationError", err, err)
+	}
+	span := userErr.Errors[0].YamlLocation
+	if span == nil {
+		t.Fatal("yaml location = nil, want a span")
+	}
+	if span.Start.Line != 1 || span.End.Line != 1 {
+		t.Errorf("location = line %d to line %d, want line 1 to line 1",
+			span.Start.Line, span.End.Line)
+	}
+	if userErr.Errors[0].Input != schemaerr.InputEllipsis {
+		t.Errorf("input = %v, want the ellipsis", userErr.Errors[0].Input)
+	}
+}
+
+// D-014 — `%YAML 1.3` is an uncaught `AssertionError` upstream, so there is no
+// panel to copy and no `This is not a valid YAML file.` prefix to wear: the
+// document *is* valid YAML, exactly as with D-018's `%YAML 1.1` next to it.
+// What the port owes is the exit code and the refusal, with upstream's own
+// assertion text as the explanation.
+func TestAnOutOfRangeMinorVersionReportsAPlainRecord(t *testing.T) {
+	_, err := ReadYamlWithValidationErrors("%YAML 1.3\n---\ncv: 1\n", schemaerr.SourceMain)
+
+	var userErr *schemaerr.UserValidationError
+	if !errors.As(err, &userErr) {
+		t.Fatalf("err = %v (%T), want *schemaerr.UserValidationError", err, err)
+	}
+	record := userErr.Errors[0]
+
+	const want = "The '%YAML 1.3' directive is not supported: version minor part can only" +
+		" be 2 or 1, got (1, 3)."
+	if record.Message != want {
+		t.Errorf("message =\n  %q\nwant\n  %q", record.Message, want)
+	}
+	if record.YamlLocation == nil || record.YamlLocation.Start.Line != 1 {
+		t.Errorf("yaml location = %+v, want line 1", record.YamlLocation)
 	}
 }
 

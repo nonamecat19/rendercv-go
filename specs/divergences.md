@@ -504,6 +504,18 @@ The last is the only case in this entry where the port renders and upstream does
   this was first measured but is no longer the boundary of the class. `create-theme`'s stream
   inversion is the one instance with its own exact message pair and is called out by name so a
   future audit does not have to re-derive it.
+- **Named vector — a `%YAML 1.<n>` whose minor part is neither 1 nor 2** (`1.0`, `1.3`, `1.9`,
+  `1.10`, `1.20`, …). Not a `RenderCVInternalError` raise site and not a `RenderCVUserError`: an
+  `AssertionError` out of ruamel itself. `process_directives` checks only the *major* part and
+  raises a clean `ParserError` when it is not 1 (`ruamel/yaml/parser.py:296-304`); one line later it
+  writes the version onto the loader (`:321`) and the property setter asserts
+  `version minor part can only be 2 or 1, got (1, 3)` (`ruamel/yaml/main.py:849-851`). Measured on
+  the vendored CLI: exit 1, **0 bytes stdout**, 12958 bytes stderr ending on that line. The port
+  reports it as a stdout validation record carrying upstream's own assertion sentence — the one
+  line of that traceback with no machine paths in it — at the same exit 1
+  (`internal/schema/yamlreader/directive.go`'s `UnsupportedVersionError`). Same stream inversion as
+  `create-theme`'s. A *major* part other than 1 is **not** in this class: it is ruamel's
+  `ParserError`, reached first, and the port matches its panel byte for byte.
 
 ---
 
