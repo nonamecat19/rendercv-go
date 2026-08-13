@@ -101,9 +101,18 @@ func TestStyleSGRWhenColourIsOff(t *testing.T) {
 		{name: "NO_COLOR keeps dim", style: "dim red", terminal: noColorTerminal, want: "ESC[2m"},
 		{name: "NO_COLOR drops a bare colour", style: "green", terminal: noColorTerminal, want: ""},
 		{name: "NO_COLOR drops a palette colour", style: "purple", terminal: noColorTerminal, want: ""},
-		{name: "a dumb terminal keeps bold", style: "bold green", terminal: dumbTerminal, want: "ESC[1m"},
+		// **A dumb terminal drops the attributes too**, which is the one place
+		// this table used to disagree with its own heading. `Style.render`
+		// returns the text untouched when the colour system is `None`
+		// (`rich/style.py:346-349`), so there is no sequence to keep the bold
+		// in. Measured through the vendored Rich —
+		// `Console(force_terminal=True, color_system=None)` printing
+		// `[bold green]hi` writes `hi` — and end to end by
+		// `TestTerminalDetection`'s colourless rows, which require upstream to
+		// emit **zero** sequences under `TERM=dumb` on a pty.
+		{name: "a dumb terminal drops bold as well", style: "bold green", terminal: dumbTerminal, want: ""},
 		{name: "a dumb terminal has no colour", style: "green", terminal: dumbTerminal, want: ""},
-		{name: "a pipe keeps bold but has no colour", style: "bold red", terminal: pipe, want: "ESC[1m"},
+		{name: "a pipe emits nothing at all", style: "bold red", terminal: pipe, want: ""},
 	}
 
 	for _, test := range tests {
