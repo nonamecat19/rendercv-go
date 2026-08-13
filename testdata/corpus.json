@@ -603,6 +603,174 @@
         "2025-03-05"
       ],
       "expect_exit": 1
+    },
+    {
+      "name": "yaml_directive_noop",
+      "axis": "artifacts",
+      "inline_files": [
+        {
+          "dst": "cv.yaml",
+          "content": "%YAML 1.2\n---\ncv:\n  name: John Doe\n  sections:\n    test_section:\n    - this is a text entry.\n"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ]
+    },
+    {
+      "name": "unknown_directive",
+      "axis": "artifacts",
+      "inline_files": [
+        {
+          "dst": "cv.yaml",
+          "content": "%FOO bar\n---\ncv:\n  name: John Doe\n  sections:\n    test_section:\n    - this is a text entry.\n"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ]
+    },
+    {
+      "name": "tag_directive_primary",
+      "axis": "errors",
+      "inline_files": [
+        {
+          "dst": "cv.yaml",
+          "content": "%TAG !! tag:example.com,2000:\n---\ncv:\n  name: John Doe\n  sections:\n    test_section:\n    - this is a text entry.\nlocale:\n  language: [!!str x]\n"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ],
+      "expect_exit": 1
+    },
+    {
+      "name": "tag_directive_named",
+      "axis": "errors",
+      "inline_files": [
+        {
+          "dst": "cv.yaml",
+          "content": "%TAG !e! tag:example.com,2000:\n---\ncv:\n  name: John Doe\n  sections:\n    test_section:\n    - this is a text entry.\nlocale:\n  language: [!e!x v]\n"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ],
+      "expect_exit": 1
+    },
+    {
+      "name": "tag_directive_default",
+      "axis": "errors",
+      "inline_files": [
+        {
+          "dst": "cv.yaml",
+          "content": "%TAG ! tag:example.com,2000:\n---\ncv:\n  name: John Doe\n  sections:\n    test_section:\n    - this is a text entry.\nlocale:\n  language: [!foo v]\n"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ],
+      "expect_exit": 1
+    },
+    {
+      "name": "directive_no_marker",
+      "axis": "errors",
+      "inline_files": [
+        {
+          "dst": "cv.yaml",
+          "content": "%TAG !e! tag:x,1:\ncv:\n  name: John Doe\n  sections:\n    test_section:\n    - this is a text entry.\n"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ],
+      "expect_exit": 1
+    },
+    {
+      "name": "yaml_version_major",
+      "axis": "errors",
+      "inline_files": [
+        {
+          "dst": "cv.yaml",
+          "content": "%YAML 2.0\n---\ncv:\n  name: John Doe\n  sections:\n    test_section:\n    - this is a text entry.\n"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ],
+      "expect_exit": 1
+    },
+    {
+      "name": "yaml_duplicate_directive",
+      "axis": "errors",
+      "inline_files": [
+        {
+          "dst": "cv.yaml",
+          "content": "%YAML 1.2\n%YAML 1.2\n---\ncv:\n  name: John Doe\n  sections:\n    test_section:\n    - this is a text entry.\n"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ],
+      "expect_exit": 1
+    },
+    {
+      "name": "duplicate_tag_handle",
+      "axis": "errors",
+      "inline_files": [
+        {
+          "dst": "cv.yaml",
+          "content": "%TAG !e! a:\n%TAG !e! b:\n---\ncv:\n  name: John Doe\n  sections:\n    test_section:\n    - this is a text entry.\n"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ],
+      "expect_exit": 1
+    },
+    {
+      "name": "yaml_11_directive",
+      "axis": "errors",
+      "inline_files": [
+        {
+          "dst": "cv.yaml",
+          "content": "%YAML 1.1\n---\ncv:\n  name: yes\n  sections:\n    test_section:\n    - this is a text entry.\n"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ],
+      "expect_exit": 1
     }
   ]
 }
