@@ -192,6 +192,19 @@ func codeBlockText(node ast.Node, source []byte) string {
 		segment := lines.At(i)
 		line := strings.TrimSuffix(string(segment.Value(source)), "\n")
 		switch {
+		case i == 0 && isRawTailLine(line):
+			// `splitRawBlockTails` wrote this line: a whitespace-only tail that
+			// upstream leaves in the document as an indented code block, plus
+			// `rawTailMarker` so that goldmark does not read it as blank
+			// (`htmlextract.go`). Only the marker comes off — the columns past
+			// the fourth are the block's own text upstream, which is why
+			// `<div>a</div>` followed by five spaces and then `    x` is
+			// `" \nx\n"` and not `"\nx\n"`.
+			//
+			// **Only at the head of a block**, because that is the only place
+			// the marker is ever written: a tail follows a raw block's closing
+			// tag, so its line always opens the code block it makes.
+			kept[i] = strings.TrimSuffix(line, rawTailMarker)
 		case emptied[i]:
 			// `detab` emptied it (`pythonCodeBlockParser`); the chunk
 			// runs straight through it.
@@ -215,6 +228,14 @@ func codeBlockText(node ast.Node, source []byte) string {
 		chunks[i] = trimPythonSpaceRight(chunk)
 	}
 	return trimPythonSpaceRight(strings.Join(chunks, "\n\n")) + "\n"
+}
+
+// isRawTailLine reports whether a code block's first line is the one
+// `splitRawBlockTails` wrote for a whitespace-only tail: spaces and then the
+// marker, nothing else.
+func isRawTailLine(line string) bool {
+	rest, ok := strings.CutSuffix(line, rawTailMarker)
+	return ok && strings.Trim(rest, " ") == ""
 }
 
 // chunkOnBlankLines is `'\n'.join(lines).split('\n\n')` over lines whose
