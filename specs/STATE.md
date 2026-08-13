@@ -513,9 +513,36 @@ surrounding numbers trustworthy.
   the port rejects *every* document carrying *any* directive (including `%YAML 1.2` and unrecognised
   directives, which upstream treats as no-ops), because goccy emits a directive line as its own
   `*ast.DocumentNode` and `checkSingleDocument` miscounts it as a second document. Specced fresh at
-  `specs/002-yaml-and-core-model/spec-delta-directives.md`, six units, with two proposed divergences
-  gating the core fix (`%YAML 1.1`'s resolver switch — silently changes values once directives parse
-  at all; container mapping keys, already covered above). Implementation not started.
+  `specs/002-yaml-and-core-model/spec-delta-directives.md`, six units.
+  **CLOSED, `93a4c40`, 2026-08-13.** D-018 (`%YAML 1.1`, reject by name) written and both blocking
+  divergence decisions made; all four implementation units landed (`3b94c58`/`2e0d128`/`7bd8b45`/
+  `30bcd24`) — `checkSingleDocument`'s predicate is "the body is a directive node", not "bodyless" as
+  the spec's own §6.1 guessed (goccy's directive pseudo-document has a body, an `*ast.DirectiveNode`,
+  measured live rather than trusted); `%TAG` handle expansion needed a real per-document handle table
+  (the spec's probe answered "no", goccy hands back tags unexpanded), and a further live measurement
+  found ruamel resolves a `%TAG`-expanded tag's *constructor* by the resolved URI, not the written
+  handle — `!<tag:yaml.org,2002:int> 7` is now the integer `7`, matching upstream, a fix beyond what
+  the spec asked for. 10 new golden cases, all regenerated from the live vendored Python and verified
+  by `gengolden -verify` (419 files, clean). Re-verified independently after merge, from this
+  checkout: `go test -tags conformance ./...` 0 FAIL/0 SKIP tree-wide, `just check` 0 issues.
+  **A new axis-1 finding surfaced by the implementation, not predicted by the spec**: a document
+  combining a `%YAML` directive *and* a `%TAG` directive together — each legal alone, both landed by
+  this fix — renders upstream but goccy accepts at most one directive per stream and refuses the
+  whole document. Recorded as D-020, same class and same recommendation as D-017 (upstream goccy
+  issue, not filed, left for confirmation). The port's own directive code correctly declines to
+  fabricate a phrasing for this shape rather than guess — `directivescan.go` leaks goccy's own text,
+  which the D-017 precedent already calls the honest failure over a wrong one.
+  **Two further, smaller findings, D-011's class (uncaught upstream exception vs. a port that now
+  silently renders), named but not gated as divergences — worth a decision, both out of the spec's
+  corpus**: `%YAML 1.3` (a `%YAML` minor version that is neither 1 nor 2) is a bare Python
+  `AssertionError` traceback upstream, exit 1, nothing on stdout; the port now renders, exit 0. A
+  `%YAML` directive with **no version at all** is a `ScannerError` upstream (`expected a digit, but
+  found '\n'`); the port now renders, exit 0. Both are goccy accepting more than ruamel does, on
+  shapes with no upstream test coverage and no CV in either project.
+  **One pre-existing, unrelated gap, unchanged by this fix**: a named tag handle used without its
+  `%TAG` binding (`[!e!x v]` with no directive) is a `ParserError` upstream (`found undefined tag
+  handle '!e!'`); the port still treats it as a local tag `!e!x`. Out of the spec's corpus,
+  deliberately left rather than widen scope.
 - **`HashHeaderProcessor`'s strip (25 shapes) — CORRECTED, does not reproduce.** Re-measured
   2026-08-13: `blockprocessors.py:479`'s `.strip()` is green, 0 mismatches across 5,624 shapes
   (`heading.go`'s `pythonSpacePrefix`/`pythonSpaceSuffix` already reproduce it exactly). The real

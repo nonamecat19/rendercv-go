@@ -696,3 +696,36 @@ The last is the only case in this entry where the port renders and upstream does
 - **Not licensed by this:** any other reordering of upstream output. Ordering upstream states in
   its source — sections, entries, options, the file list in `files.txt` — is contractual and is
   compared as-is. This entry covers exactly the one panel upstream fills from a directory listing.
+
+---
+
+## D-020 — A document with more than one YAML directive is refused
+
+**Status:** approved · **Axis 1 (artifact parity)** · Costing:
+[`specs/002-yaml-and-core-model/spec-delta-directives.md`](002-yaml-and-core-model/spec-delta-directives.md)
+
+- **Differs:** `%YAML 1.2\n%TAG !e! tag:x,1:\n---\n<CV>` — a `%YAML` directive **and** a `%TAG`
+  directive on the same document, each legal alone (D-017/D-019's directive-parsing fix landed both)
+  — renders upstream. The port refuses the whole document.
+- **Upstream:** `ruamel/yaml/parser.py:288-330`'s `process_directives` loops over every
+  `DirectiveToken` before the document body, so any number of distinct directives compose freely;
+  `specs/002-yaml-and-core-model/spec-delta-directives.md` §4.1.3 measured this directly (multiple
+  directives are allowed, cited there).
+- **Why parity is impossible as found:** `goccy/go-yaml` accepts **at most one** directive per
+  stream — a second directive line makes goccy treat the stream as carrying more than one document
+  and fail the whole parse with its own `[1:1] unexpected directive value. document not started`,
+  before any of the port's directive-handling code (D-017/D-019's fix) ever runs. This is a parser
+  limitation of the same shape and in the same dependency as D-017 (`goccy/go-yaml` rejects some
+  documents `ruamel` accepts) — not a gap in the port's directive logic, which was built and tested
+  against exactly this shape and correctly declines to fabricate a phrasing goccy's parse state
+  doesn't support (`internal/schema/modelbuilder/directivescan.go`).
+- **Instead:** `rendercv-go` reports goccy's own parse error rather than upstream's phrasing or a
+  fabricated one — the same choice D-017 already documents for a stricter parser: the leaked
+  goccy-native text is the honest failure until the strictness itself is decided.
+- **User notices:** a hand-written CV combining a `%YAML` version directive with a `%TAG` handle
+  directive on the same document fails to render here and renders upstream. Rare: no example,
+  template, or generated file in either project uses even one directive, let alone two together.
+- **Recommendation:** the same as D-017's — an upstream issue against `goccy/go-yaml`, since this is
+  the same "at most one directive" limitation as the class D-017 already tracks, filed together if
+  D-017's issue is ever opened. Not filed this pass, for the same reason D-017 gives: it is an action
+  on a third-party public tracker, left for explicit confirmation.
