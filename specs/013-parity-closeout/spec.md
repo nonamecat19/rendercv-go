@@ -901,8 +901,13 @@ one-process-per-case is not.
       The earlier form of this bullet asked for `tools/sampleprobe` to be deleted too, on the
       reading that it existed only to write those fixtures. It does not: it is also the sole
       generator of `blocks/**`, so deleting it would remove the regeneration path for embedded
-      production data after a submodule bump. **The tool stays; whether that regeneration path is
-      worth keeping now that the differential is live is a human gate, unresolved.**
+      production data after a submodule bump. **Resolved 2026-08-13**: the tool stays. The
+      regeneration path is worth keeping regardless of whether the differential is live, because
+      the differential only verifies output *given* the current embedded `blocks/**`; a submodule
+      bump changing upstream's block shapes still needs something to regenerate that data from, and
+      `tools/sampleprobe` is the only thing that does. The 198-case criterion above is satisfied
+      independently by the live differential and does not depend on this tool's fixtures, which are
+      already deleted per this bullet.
 - [ ] `ErrSampleNameUnsupported` (`internal/cli/new.go`) is deleted and no invocation of `new`
       can produce it.
 - [ ] A unit test asserts the block order `cv`, `design`, `locale`, `settings` and that exactly
