@@ -586,12 +586,19 @@ session by direct edit, not by a porter or a fresh-context verifier — **flag t
    `skipped`, not passing, in every run inspected. Not fixed by this session; a runner-provisioning
    gap plus whatever `err_unknown_theme` needs (now closed by item 2's own fix, unverified against
    an actual CI run).
-   **A second, different portability defect surfaced verifying this one — unfixed, own decision
-   needed**: `cli_help`/`cli_help_short` also don't survive a foreign upstream path, for a reason
-   with nothing to do with D-011 or the work root — upstream's `app.py:144` discovers CLI commands
-   via `cli_folder_path.rglob("*_command.py")`, whose yield order is filesystem readdir order, so the
-   `render`/`new` block order in the help listing can flip between checkouts. Needs a divergence
-   entry or a sorted capture in the corpus; not attempted.
+   **The `cli_help`/`cli_help_short` follow-on — CLOSED**, `1f34948`, 2026-08-13 (D-019). Confirmed
+   live: `app.py:142-151`'s `rglob("*_command.py")` yields raw readdir order, Typer lists subcommands
+   in that registration order rather than click's sorted one, and the two checkouts measured really
+   do disagree (`create-theme, new, render` vs `render, new, create-theme`, both 2,433 bytes,
+   differing only in entry order) — so there is no upstream order to be byte-identical to, a coin
+   flip per checkout. Fix: a new `internal/conformance/cmdpanel` package canonicalizes the `Commands`
+   panel's entries (ascending name) on both sides of every comparison, deliberately narrow — only
+   that one panel, whole entries move together, anything it doesn't recognize passes through
+   untouched; `Options`/`Arguments` panels are untouched since their order **is** written in
+   upstream's source. **Verified against a real foreign-order copy**: `gengolden -verify` on
+   `cli_help`/`cli_help_short` now passes against it; with `cmdpanel.Sort` removed and nothing else
+   changed, the same command fails as before. Re-verified independently after merge, from this
+   checkout: `go test -tags conformance ./...` 0 FAIL/0 SKIP tree-wide, `just check` 0 issues.
    `/tmp/rendercv-go-conformance` is also not user-namespaced (deliberate — namespacing would break
    the same-string property this fix depends on), so two users sharing a box can collide on it.
 3. **`tools/sampleprobe`** — resolved: spec 013 §8 amended to say the tool stays unconditionally
