@@ -344,10 +344,19 @@ write, exit 1); **all six of row 3's probes byte-identical**, so that promotion 
    -fixture html`, 1065/1065 reproducing). `a8db308` (`internal/renderer/templater/process/htmlblock.go:136-213`)
    had already fixed this before pass 24 measured it stale — the audit's finding 5 ("my 'narrow
    terminals' entry was stale within hours") applies here too. **`html.json` is not blind to the
-   adjacency** as this row claimed — it carries the exact shape and ~30 siblings as live rows. What
-   remains open in this area is a *different* defect, `rawBlockTail` in
-   `htmlblock_adjacency_test.go` (no blank line **after the closing tag**, 9 HTML shapes + 1 Typst
-   shape) — a block-parser problem, not this one, already pinned and named as its own unit.
+   adjacency** as this row claimed — it carries the exact shape and ~30 siblings as live rows. The
+   `rawBlockTail` defect this row pointed to (no blank line after the closing tag) is **also now
+   CLOSED**, `f9a2649`, 2026-08-13: upstream's `HTMLExtractor.handle_endtag` ends a raw block the
+   instant its tag stack empties, unconditionally — a blank line only decides whether the stash
+   appends one `\n` or two, not whether the block continues. `blockLevelHTMLParser.Continue` now
+   closes goldmark's type-6/7 block at that offset via a new upstream-shaped tag scanner
+   (`htmlextract.go`) instead of at the next blank line; a tail on the closing tag's own line —
+   unreachable from a block parser that always `AdvanceLine`s — is split onto its own line first.
+   Both HTML and Typst paths fixed; `htmlblock_adjacency_test.go`'s `rawBlockTail` and
+   `rawBlockTailTypst` inverted-assertion maps are deleted (both empty). Two residuals named in the
+   new test's doc comment, neither in either differential, both about a raw block's *own*
+   indentation rather than this rule: whitespace between two adjacent raw blocks, and trailing
+   spaces after a closing tag.
 4. Eight commits bundle differential fixtures with the production code that fixes them, against §7's
    "fixtures land first, red".
 5. My "narrow terminals" entry was **stale within hours** — recorded open, already closed.
