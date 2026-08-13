@@ -70,7 +70,7 @@ func TestCommandsPanelMeasuresCells(t *testing.T) {
 
 	helpOffset := func(name string) int {
 		t.Helper()
-		panel := commandsPanel([]helpSubcommand{{Name: name, Help: help}})
+		panel := plainPanel(commandsPanel([]helpSubcommand{{Name: name, Help: helpString{Text: help}}}))
 		for _, line := range splitLines(panel) {
 			if before, _, found := strings.Cut(line, help); found {
 				return cellLen(before)

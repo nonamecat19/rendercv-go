@@ -72,6 +72,18 @@ func splitLines(text string) []string {
 	return out
 }
 
+// plainPanel renders lines of segments the way a terminal with no colour does:
+// the text alone, one line per row. It is what the geometry fixtures compare,
+// and it is exactly what `HelpPage` writes under `Terminal{}`.
+func plainPanel(lines [][]Segment) string {
+	var out strings.Builder
+	for _, line := range lines {
+		out.WriteString(renderSegments(line, Terminal{}))
+		out.WriteString("\n")
+	}
+	return out.String()
+}
+
 func runeWidth(s string) int {
 	n := 0
 	for range s {

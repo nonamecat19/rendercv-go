@@ -109,7 +109,7 @@ func TestNoArgumentsPrintsTheRootHelp(t *testing.T) {
 	if stderr.Len() != 0 {
 		t.Errorf("stderr = %q, want empty — the help goes to stdout", stderr.String())
 	}
-	if got, want := stdout.String(), HelpPage(""); got != want {
+	if got, want := stdout.String(), HelpPage("", TerminalForHelp(&stdout)); got != want {
 		t.Errorf("stdout is not the root help page (%d bytes vs %d)", len(got), len(want))
 	}
 }
@@ -146,7 +146,7 @@ func TestHelpFlagsReachTheRenderer(t *testing.T) {
 			if code != 0 {
 				t.Errorf("exit code = %d, want 0", code)
 			}
-			if got, want := stdout.String(), HelpPage(row.page); got != want {
+			if got, want := stdout.String(), HelpPage(row.page, TerminalForHelp(&stdout)); got != want {
 				t.Errorf("stdout is not the %q page (%d bytes vs %d)", row.page, len(got), len(want))
 			}
 		})

@@ -84,83 +84,122 @@ func TestPTYHarnessSeesUpstreamColour(t *testing.T) {
 	}
 }
 
-// assertStylingIsStillPending is the **inverted assertion** this file is built
-// on, and it is the reason the file can land while units C–G are outstanding.
+// TestHelpColour is delta §8's unit F: the four `--help` pages, which are not
+// RenderCV's output at all but typer's, printed through a console of its own
+// (§3.5) with a style inventory of its own (§4).
 //
-// It is `conformance.AssertUnreachable`'s shape (`internal/conformance/unreachable.go`)
-// applied to unfinished work rather than to an approved divergence: it does not
-// skip, it *requires* the port to emit nothing and fails the moment it starts
-// emitting something. So the entry cannot rot — the unit that attaches the
-// styles fails this test on the way in and has to replace the inversion with a
-// real inventory comparison.
+// **Two widths, because D-010 is a function of the width.** The port's binary
+// name is three columns longer than upstream's, so prose that quotes it wraps
+// somewhere else — and a line that re-wrapped cannot be compared to the line it
+// no longer corresponds to. So:
 //
-// What is asserted positively, and stays asserted afterwards: upstream really
-// does emit colour here, so a harness that stopped seeing it is caught; and the
-// plain text agrees, so a styling unit that moves the geometry is caught by the
-// same case that gates its colour.
-func assertStylingIsStillPending(t *testing.T, unit, got, want string) {
-	t.Helper()
-
-	if len(sequences(want)) == 0 {
-		t.Fatalf("upstream emitted no escape sequence at all; the case is not measuring"+
-			" what it claims, or the harness has stopped seeing a terminal (unit %s)", unit)
+//   - at `COLUMNS=80`, the goldens' own width, every line is compared **byte for
+//     byte** unless it carries the binary name on one side or the other. That is
+//     130 of the 136 lines of the four pages, borders, option names, metavars,
+//     `[required]` markers and all;
+//   - at `COLUMNS=200`, where no prose in any of the four pages wraps at all,
+//     the lines that carry the name are compared too — as their **run
+//     structure**, and as their text after the established rebinding. Nothing
+//     re-wraps there, so a difference is a real one.
+//
+// The differing-line counts are budgets, measured, and a change to one fails
+// here rather than passing quietly.
+func TestHelpColour(t *testing.T) {
+	pages := []struct {
+		name string
+		args []string
+		// rebound is how many lines may differ, all of which must carry the
+		// binary name on one side or the other.
+		rebound80, rebound200 int
+	}{
+		{name: "root", args: []string{"--help"}, rebound80: 7, rebound200: 4},
+		{name: "render", args: []string{"render", "--help"}, rebound80: 3, rebound200: 2},
+		{name: "new", args: []string{"new", "--help"}, rebound80: 3, rebound200: 2},
+		{name: "create-theme", args: []string{"create-theme", "--help"}, rebound80: 2, rebound200: 2},
 	}
-	if count := len(sequences(got)); count != 0 {
-		t.Errorf("the port emitted %d escape sequences, where this case records that it emits"+
-			" none. If unit %s has landed, delete this inversion and assert the inventory"+
-			" against upstream instead:\n  port     %v\n  upstream %v",
-			count, unit, inventory(got), inventory(want))
+
+	for _, page := range pages {
+		for _, columns := range []string{"80", "200"} {
+			t.Run(page.name+" at "+columns, func(t *testing.T) {
+				dir := filepath.Join(t.TempDir(), "w")
+				env := map[string]string{"COLUMNS": columns}
+				want := runSide(t, dir, upstreamArgv(t, page.args), env, "")
+				got := runSide(t, dir, portArgv(t, page.args), env, "")
+
+				// **Non-vacuity.** Two colourless captures compare equal, so the
+				// harness has to be seen carrying the surface before any
+				// agreement means anything. `ESC[2m` is the panel border and
+				// `ESC[1;36m` an option name; neither can be absent from a help
+				// page on a terminal.
+				for _, sequence := range []string{"ESC[2m", "ESC[1;36m", "ESC[1;33m"} {
+					if inventory(want)[sequence] == 0 {
+						t.Fatalf("upstream emitted no %s; the harness is not seeing the"+
+							" surface this case is about", sequence)
+					}
+				}
+
+				budget := page.rebound80
+				strict := false
+				if columns == "200" {
+					budget, strict = page.rebound200, true
+				}
+				assertHelpLines(t, got, want, budget, strict)
+			})
+		}
 	}
 }
 
-// TestTerminalStylingIsPending records the finding of spec 012 delta §1 — on a
-// terminal the port emits **no escape sequence of any kind** where upstream
-// emits many — as an inverted assertion per surface.
+// assertHelpLines compares two help captures line by line under D-010.
 //
-// Each row names the unit of delta §8 that closes it and must then delete it.
-func TestTerminalStylingIsPending(t *testing.T) {
-	tests := []struct {
-		name  string
-		unit  string
-		args  []string
-		input string
-		// wrapsOnTheBinaryName marks a surface whose *plain* text cannot be
-		// compared after rebinding, because the port laid it out with the
-		// longer name before the rebinding shortened it.
-		//
-		// `--help` is the one: the description "Details: rendercv-go render
-		// --help" is three columns wider than upstream's while it is being
-		// wrapped, so the break lands in a different place and no amount of
-		// re-padding recovers it (D-009, and D-010 for the re-padding rule it
-		// exceeds). The escape inventory is still compared, which is the whole
-		// point of the case.
-		wrapsOnTheBinaryName bool
-	}{
-		// The `user error panel`, `new` and `validation table` rows are **gone,
-		// not disabled**: those surfaces are styled now and are compared line by
-		// line by `TestErrorPanelColour`, `TestNewCommandColour` and
-		// `TestValidationTableColour` below. `--help` is the last one left, and
-		// it is unit F.
-		{name: "help", unit: "F", args: []string{"render", "--help"}, wrapsOnTheBinaryName: true},
+// A line the two sides disagree on has to be one the binary name reaches —
+// **on either side**, because at 80 columns the re-wrap can carry the name onto
+// a different line than upstream put it on. When `strict`, the page was rendered
+// wide enough that nothing re-wrapped, so those lines are compared as well: the
+// same runs in the same order, and the same text once the name is rebound.
+func assertHelpLines(t *testing.T, got, want string, budget int, strict bool) {
+	t.Helper()
+
+	gotLines, wantLines := styledLines(got), styledLines(want)
+	if len(gotLines) != len(wantLines) {
+		t.Fatalf("the port wrote %d lines, upstream %d", len(gotLines), len(wantLines))
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			dir := filepath.Join(t.TempDir(), "w")
-			want := normalize(runSide(t, dir, upstreamArgv(t, test.args), nil, test.input))
-			got := normalize(runSide(t, dir, portArgv(t, test.args), nil, test.input))
+	differing := 0
+	for i := range wantLines {
+		if gotLines[i] == wantLines[i] {
+			continue
+		}
+		differing++
 
-			// The final frame, not the whole capture: upstream repaints a Live
-			// panel once per step and the port paints once, which is the §5
-			// decision and not a geometry defect. What must agree either way is
-			// what the reader is left looking at.
-			if !test.wrapsOnTheBinaryName && portText(got) != frameText(want) {
-				t.Error("the final frame's plain text differs, which is a geometry defect" +
-					" and not a colour one")
-				diffLines(t, portText(got), frameText(want))
-			}
-			assertStylingIsStillPending(t, test.unit, got, want)
-		})
+		if !strings.Contains(plain(gotLines[i]), "rendercv-go") &&
+			!strings.Contains(plain(wantLines[i]), "rendercv") {
+			t.Errorf("line %d differs and carries no binary name, so it is not D-010's:"+
+				"\n  port     %q\n  upstream %q",
+				i+1, readable(gotLines[i]), readable(wantLines[i]))
+			continue
+		}
+		if !strict {
+			continue
+		}
+		if !slices.Equal(sequences(gotLines[i]), sequences(wantLines[i])) {
+			t.Errorf("line %d is a sanctioned divergence but its runs differ:"+
+				"\n  port     %q\n  upstream %q",
+				i+1, readable(gotLines[i]), readable(wantLines[i]))
+		}
+		// The right-hand padding is reconstructed rather than compared on these
+		// lines, which is D-009's recorded cost: `RebindBinaryName` re-pads a
+		// bordered row, and a `Padding` region's trailing run is trimmed here
+		// because the helper's own width constant is the goldens' 80.
+		rebound := strings.TrimRight(conformance.RebindBinaryName(plain(gotLines[i])), " ")
+		if rebound != strings.TrimRight(plain(wantLines[i]), " ") {
+			t.Errorf("line %d differs by more than the binary name:"+
+				"\n  port     %q\n  upstream %q",
+				i+1, readable(plain(gotLines[i])), readable(plain(wantLines[i])))
+		}
+	}
+
+	if differing != budget {
+		t.Errorf("%d lines differ, want %d: the re-wrapped region has moved", differing, budget)
 	}
 }
 

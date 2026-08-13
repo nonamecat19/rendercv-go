@@ -24,14 +24,18 @@ const columnsPadding = 1
 // So neither "join with a space" nor "one per line" is right, and each is right
 // for one of the two.
 func HelpColumns(items []string, width int) []string {
-	return helpColumnsOverflow(items, width, false)
+	styled := make([]helpItem, len(items))
+	for i, item := range items {
+		styled[i] = helpItem{Text: PlainText(item)}
+	}
+	return plainLines(helpColumnsOverflow(styled, width, false))
 }
 
 // helpColumnsOverflow is HelpColumns under an explicit overflow: fold splits an
 // over-long word across lines, and the default cuts it with `…`. The choice
 // belongs to the enclosing table column (`rich/table.py:834`), which is why it
 // is a parameter here rather than a property of the layout.
-func helpColumnsOverflow(items []string, width int, fold bool) []string {
+func helpColumnsOverflow(items []helpItem, width int, fold bool) []Text {
 	if len(items) == 0 {
 		return nil
 	}
@@ -47,12 +51,12 @@ func helpColumnsOverflow(items []string, width int, fold bool) []string {
 	// proof that non-ASCII reaches here.
 	measured := make([]int, len(items))
 	for i, item := range items {
-		measured[i] = min(cellLen(item), width)
+		measured[i] = min(cellLen(item.Text.Plain), width)
 	}
 
 	count := columnCount(measured, width)
 
-	var lines []string
+	var lines []Text
 	for start := 0; start < len(items); start += count {
 		end := min(start+count, len(items))
 		lines = append(lines, columnsRow(items[start:end], measured, count, width, fold)...)
@@ -96,44 +100,59 @@ func columnCount(measured []int, width int) int {
 
 // columnsRow renders one row of the flow, wrapping each cell to its column's
 // width and padding the shorter cells so the row is rectangular.
-func columnsRow(row []string, measured []int, count, width int, fold bool) []string {
+//
+// **Every item is padded to its grid column, inside its own style**, the last
+// one included — which the plain layout could leave to the outer table because
+// trailing spaces are trailing spaces either way. On a terminal they are not:
+// `[default: classic]` is the only item on its line and comes out `dim` across
+// all thirty-three columns of the cell, padding and all (measured on
+// `new --help`).
+func columnsRow(row []helpItem, measured []int, count, width int, fold bool) []Text {
 	widths := gridColumnWidths(measured, count, width)
 
-	cells := make([][]string, len(row))
+	cells := make([][]Text, len(row))
 	height := 0
 	for i, item := range row {
 		cells[i] = overflowLines(item, widths[i], fold)
 		height = max(height, len(cells[i]))
 	}
 
-	lines := make([]string, 0, height)
+	lines := make([]Text, 0, height)
 	for line := range height {
-		var out strings.Builder
+		var out Text
 		for i := range row {
 			if i > 0 {
-				out.WriteString(strings.Repeat(" ", columnsPadding))
+				out = out.Append(PlainText(strings.Repeat(" ", columnsPadding)))
 			}
-			text := ""
-			if line < len(cells[i]) {
-				text = cells[i][line]
+			if line >= len(cells[i]) {
+				// A grid cell shorter than its neighbour is padded by the grid,
+				// which carries no style of its own.
+				out = out.Append(PlainText(strings.Repeat(" ", widths[i])))
+				continue
 			}
-			// The last column is not padded: the outer table pads the cell.
-			if i < len(row)-1 {
-				text = pad(text, widths[i])
-			}
-			out.WriteString(text)
+			out = out.Append(cells[i][line])
 		}
-		lines = append(lines, strings.TrimRight(out.String(), " "))
+		lines = append(lines, out)
 	}
 	return lines
 }
 
-// gridColumnWidths is each grid column's width: the widest item that lands in it.
-// A single column takes the whole cell, which is what makes the stacked case
-// wrap to the full width.
+// gridColumnWidths is each grid column's width: the widest item that lands in
+// it (`rich/columns.py:128-142`, whose `widths` the grid is built from).
+//
+// **A single column is the widest item, not the whole cell.** The two agree
+// whenever an item fills the cell, which is every case at `COLUMNS=80` and is
+// why the plain layout could take the cell — and they part at a wider console:
+// measured at `COLUMNS=200`, `new --help`'s `[default: classic]` is `dim` across
+// 138 columns, the width of the prose above it, with the cell's remaining 16
+// left plain by the table.
 func gridColumnWidths(measured []int, count, width int) []int {
 	if count <= 1 {
-		return []int{width}
+		widest := 0
+		for _, itemWidth := range measured {
+			widest = max(widest, itemWidth)
+		}
+		return []int{min(widest, width)}
 	}
 	widths := make([]int, count)
 	for i, itemWidth := range measured {
@@ -148,13 +167,34 @@ func gridColumnWidths(measured []int, count, width int) []int {
 // is wider than the column. The ellipsis path is the other half of
 // `Text.wrap`: divide without folding, so a word too long for the column stays
 // whole, then cut each line at the width (`rich/text.py:1239`, `:1248`).
-func overflowLines(item string, width int, fold bool) []string {
+//
+// Each line comes back padded to the column inside the item's own style, which
+// is where `Text.justify` puts it.
+func overflowLines(item helpItem, width int, fold bool) []Text {
+	var lines []Text
 	if fold {
-		return wrap(item, width)
+		lines = wrapText(item.Text, width)
+	} else {
+		lines = wrapTextKeepingWords(item.Text, width)
+		for i, line := range lines {
+			lines[i] = line.TruncateEllipsis(width)
+		}
 	}
-	lines := wrapKeepingWords(item, width)
 	for i, line := range lines {
-		lines[i] = truncate(line, width)
+		lines[i] = line.PadRight(width, item.Base)
 	}
 	return lines
+}
+
+// plainLines is the styled layout as the strings the plain callers expect, with
+// the padding this layout now keeps trimmed back off.
+func plainLines(lines []Text) []string {
+	if lines == nil {
+		return nil
+	}
+	plain := make([]string, len(lines))
+	for i, line := range lines {
+		plain[i] = strings.TrimRight(line.Plain, " ")
+	}
+	return plain
 }

@@ -18,7 +18,7 @@ import (
 func TestEmbeddedHelpModelParses(t *testing.T) {
 	model := loadHelpModel()
 
-	if model.Root.Usage == "" {
+	if model.Root.Usage.Text == "" {
 		t.Error("the embedded help model has no root usage line; helpdata/help.json did not decode")
 	}
 	for _, name := range []string{"render", "new", "create-theme"} {
@@ -64,7 +64,7 @@ func TestHelpPageMatchesGolden(t *testing.T) {
 				t.Fatalf("reading the golden: %v", err)
 			}
 
-			got := strings.Split(rebindToUpstream(HelpPage(row.command)), "\n")
+			got := strings.Split(rebindToUpstream(HelpPage(row.command, Terminal{})), "\n")
 			want := strings.Split(string(raw), "\n")
 
 			if len(got) != len(want) {
@@ -100,7 +100,7 @@ func TestHelpPageMatchesGolden(t *testing.T) {
 // text at all while differing from the golden on five lines per page.
 func TestHelpPageIsFullWidth(t *testing.T) {
 	for _, command := range []string{"", "render", "new", "create-theme"} {
-		page := HelpPage(command)
+		page := HelpPage(command, Terminal{})
 		lines := strings.Split(strings.TrimSuffix(page, "\n\n"), "\n")
 		for i, line := range lines {
 			if width := len([]rune(line)); width != PanelWidth {
@@ -114,7 +114,7 @@ func TestHelpPageIsFullWidth(t *testing.T) {
 // `╯\n\n`.
 func TestHelpPageEndsWithABlankLine(t *testing.T) {
 	for _, command := range []string{"", "render", "new", "create-theme"} {
-		if page := HelpPage(command); !strings.HasSuffix(page, "╯\n\n") {
+		if page := HelpPage(command, Terminal{}); !strings.HasSuffix(page, "╯\n\n") {
 			t.Errorf("%q does not end with a panel and a blank line: %q",
 				command, page[max(0, len(page)-8):])
 		}

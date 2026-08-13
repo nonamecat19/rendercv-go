@@ -392,6 +392,103 @@ func (t Text) Truncate(width int) Text {
 	return truncated
 }
 
+// TruncateEllipsis crops to a cell width and spends the last column on `…` —
+// the `overflow="ellipsis"` half of `Text.truncate` (`rich/text.py:875`), where
+// `Truncate` above is the `"fold"` half.
+//
+// **The ellipsis inherits the style of the text it displaced.** `truncate`
+// assigns `self.plain`, and the setter only *trims* the spans to the new length
+// (`rich/text.py:120-129`); it does not pull one back off the last character.
+// Measured on `render --help` at `COLUMNS=24`, where the `dim red` `[required]`
+// comes out as `[r…` with the ellipsis inside the run.
+func (t Text) TruncateEllipsis(width int) Text {
+	runes := []rune(t.Plain)
+	if cellLen(t.Plain) <= width {
+		return t
+	}
+	if width <= 1 {
+		cut := t.Slice(0, min(max(width, 0), len(runes)))
+		cut.Plain = strings.Repeat(ellipsis, max(width, 0))
+		return cut
+	}
+	// `set_cell_size(plain, max_width - 1) + "…"`: the ellipsis costs one column,
+	// and a cut inside a double-width character leaves a space in its place.
+	head, _ := cutCells(t.Plain, width-1)
+	cut := t.Slice(0, min(len([]rune(head))+1, len(runes)))
+	cut.Plain = head + ellipsis
+	return cut
+}
+
+// PadRight extends the text to a cell width with spaces and lays base
+// **underneath** the whole of it — the padding included.
+//
+// That is where a `Text`'s own style reaches: `Text.justify` pads the plain
+// string (`rich/text.py:1015-1040`) and `Text.render` then covers everything
+// with `self.style`. Measured twice on `--help`, and both would be wrong the
+// other way round: an empty metavar cell is four `bold yellow` spaces, and
+// `[default: classic]` is `dim` out to the full column.
+func (t Text) PadRight(width int, base Style) Text {
+	if missing := width - cellLen(t.Plain); missing > 0 {
+		t = t.Append(PlainText(strings.Repeat(" ", missing)))
+	}
+	return t.StylizeBefore(0, len([]rune(t.Plain)), base)
+}
+
+// ReplaceAll rewrites every occurrence of old, moving the spans to follow the
+// text — what D-009's binary-name rebinding needs once the text is styled.
+//
+// **A span that covered the replaced token grows with it**: `[yellow]rendercv
+// render John_Doe_CV.yaml[/yellow]` stays yellow to its last character after
+// `rendercv` becomes `rendercv-go`, and every span after it moves by the three
+// columns the longer name took. Substituting the *rendered bytes* instead is the
+// phantom of spec 012 delta §6.3.
+func (t Text) ReplaceAll(old, replacement string) Text {
+	if old == "" || !strings.Contains(t.Plain, old) {
+		return t
+	}
+
+	runes := []rune(t.Plain)
+	oldRunes, newRunes := []rune(old), []rune(replacement)
+	var starts []int
+	for index := 0; index+len(oldRunes) <= len(runes); {
+		if string(runes[index:index+len(oldRunes)]) == old {
+			starts = append(starts, index)
+			index += len(oldRunes)
+			continue
+		}
+		index++
+	}
+
+	// An offset *inside* a replaced token has no image in the new text, so a
+	// boundary that lands there is pushed to the token's near edge: a start to
+	// where the token begins, an end to where it now ends.
+	move := func(offset int, isEnd bool) int {
+		delta := 0
+		for _, start := range starts {
+			switch {
+			case offset >= start+len(oldRunes):
+				delta += len(newRunes) - len(oldRunes)
+			case offset > start:
+				if isEnd {
+					return start + delta + len(newRunes)
+				}
+				return start + delta
+			}
+		}
+		return offset + delta
+	}
+
+	moved := Text{Plain: strings.ReplaceAll(t.Plain, old, replacement)}
+	for _, span := range t.Spans {
+		moved.Spans = append(moved.Spans, Span{
+			Start: move(span.Start, false),
+			End:   move(span.End, true),
+			Style: span.Style,
+		})
+	}
+	return moved
+}
+
 // Render writes the text with its styles as escape sequences, or as plain text
 // when the terminal has no colour and no attributes to carry.
 //

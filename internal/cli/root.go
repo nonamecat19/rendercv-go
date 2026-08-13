@@ -144,7 +144,7 @@ func execute(args []string, stdout, stderr io.Writer, run runners) int {
 			}
 			// **No arguments at all is the help page, and exit 0**
 			// (`cli/app.py:41-44`). The port used to exit 70 in silence.
-			_, _ = fmt.Fprint(stdout, HelpPage(""))
+			_, _ = fmt.Fprint(stdout, HelpPage("", TerminalForHelp(stdout)))
 			code = 0
 			return nil
 		},
@@ -158,7 +158,7 @@ func execute(args []string, stdout, stderr io.Writer, run runners) int {
 		if cmd != cmd.Root() {
 			name = cmd.Name()
 		}
-		_, _ = fmt.Fprint(stdout, HelpPage(name))
+		_, _ = fmt.Fprint(stdout, HelpPage(name, TerminalForHelp(stdout)))
 		code = 0
 	})
 	root.AddCommand(render)
