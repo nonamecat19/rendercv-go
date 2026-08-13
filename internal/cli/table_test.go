@@ -19,7 +19,10 @@ var errorColumns = []cli.TableColumn{
 // first line. The three stages of Rich's width algorithm are one case each:
 // distribute, collapse, and the even reduction that drives a column to zero.
 func TestTableMatchesTheGoldenGeometry(t *testing.T) {
-	longPath := "`/home/nnc/Projects/rendercv-go/testdata/.work/nosuchtheme` does not exist." +
+	// The path `err_unknown_theme` actually reports, now that the corpus runs at
+	// internal/conformance/workroot.Root rather than under whichever checkout
+	// generated the goldens.
+	longPath := "`/tmp/rendercv-go-conformance/run/err_unknown_theme/nosuchtheme` does not exist." +
 		" It should be in the same directory as the input file."
 
 	cases := []struct {
