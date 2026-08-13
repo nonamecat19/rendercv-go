@@ -20,6 +20,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/nonamecat19/rendercv-go/internal/conformance/cmdpanel"
 )
 
 const (
@@ -247,11 +249,14 @@ func (r Result) artifactBytes(rel string) ([]byte, error) {
 var durationPattern = regexp.MustCompile(`\b\d+(\.\d+)?\s?(ms|s)\b[ \t]*`)
 
 // Normalize applies the same transform gengolden applied to upstream output: it removes
-// wall-clock timings (and the padding that follows them) and nothing else. Any change
-// here must be mirrored in tools/gengolden.
+// wall-clock timings (and the padding that follows them), and puts the entries of a
+// `Commands` help panel into one canonical order, because upstream's is its checkout's
+// readdir order (cmdpanel, D-018). Nothing else. Any change here must be mirrored in
+// tools/gengolden.
 func Normalize(s string) string {
 	s = strings.ReplaceAll(s, "\r\n", "\n")
 	s = durationPattern.ReplaceAllString(s, "<duration> ")
+	s = cmdpanel.Sort(s)
 	if s != "" && !strings.HasSuffix(s, "\n") {
 		s += "\n"
 	}
