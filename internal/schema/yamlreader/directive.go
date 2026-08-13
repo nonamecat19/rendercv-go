@@ -95,6 +95,45 @@ func checkDirectives(docs []*ast.DocumentNode) error {
 	return nil
 }
 
+// tagDirective is the name goccy gives a `%TAG` directive.
+const tagDirective = "TAG"
+
+// TagHandles is ruamel's per-document tag-handle table: the map a `%TAG`
+// directive writes into and `Tag.trval` reads back
+// (`ruamel/yaml/tag.py:55-88`, `ruamel/yaml/parser.py:106`, `:327-329`).
+//
+// It is a property of the *document*, not of a node — a rebound handle changes
+// the value of an existing `Node.Tag` and needs no new field anywhere — so it
+// is carried beside the parse state and never hung off `yamldoc.Node`.
+type TagHandles map[string]string
+
+// DefaultTagHandles is ruamel's `DEFAULT_TAGS` (`ruamel/yaml/parser.py:106`),
+// the table a document with no `%TAG` directive resolves against.
+func DefaultTagHandles() TagHandles {
+	return TagHandles{"!": "!", "!!": "tag:yaml.org,2002:"}
+}
+
+// tagHandlesFor is the table the document resolves its tags against: the
+// defaults, with every handle a `%TAG` directive bound replaced.
+//
+// **goccy hands back the handle unexpanded** — measured, `k: !e!x v` under
+// `%TAG !e! tag:example.com,2000:` leaves the `*ast.TagNode`'s token reading
+// `!e!x` — so the expansion is the port's to do
+// (spec-delta-directives §6.1's probe).
+func tagHandlesFor(docs []*ast.DocumentNode) TagHandles {
+	handles := DefaultTagHandles()
+	for _, doc := range docs {
+		directive, ok := doc.Body.(*ast.DirectiveNode)
+		if !ok {
+			continue
+		}
+		if name, values := directiveWords(directive); name == tagDirective && len(values) >= 2 {
+			handles[values[0]] = values[1]
+		}
+	}
+	return handles
+}
+
 // directiveWords splits a directive into its name and its arguments — `YAML`
 // and `1.2`, or `TAG` and the handle and prefix.
 func directiveWords(directive *ast.DirectiveNode) (name string, values []string) {

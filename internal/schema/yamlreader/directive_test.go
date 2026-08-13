@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamlreader"
 )
 
@@ -66,6 +67,103 @@ func TestAGenuineMultiDocumentStreamStillFails(t *testing.T) {
 			var multiDoc *yamlreader.MultiDocumentError
 			if !errors.As(err, &multiDoc) {
 				t.Fatalf("ReadString err = %v, want MultiDocumentError", err)
+			}
+		})
+	}
+}
+
+// `%TAG` rebinds a handle for the document that carries it, and the rebinding
+// reaches the tag a `TaggedScalar`'s repr names — ruamel's `trval` is
+// `handles[handle] + uri_decode(suffix)` over a per-document table
+// (`ruamel/yaml/tag.py:55-88`, `ruamel/yaml/parser.py:106`, `:327-329`).
+//
+// **goccy hands the handle back unexpanded**, so the expansion is the port's.
+// Every row was measured through the vendored `read_yaml`.
+func TestATagDirectiveRebindsAHandle(t *testing.T) {
+	tests := []struct {
+		name string
+		yaml string
+		kind yamldoc.Kind
+		tag  string
+		raw  string
+	}{
+		{
+			name: "primary handle rebound",
+			yaml: "%TAG !! tag:example.com,2000:\n---\nk: !!str x\n",
+			kind: yamldoc.KindTagged, tag: "tag:example.com,2000:str", raw: "x",
+		},
+		{
+			name: "named handle",
+			yaml: "%TAG !e! tag:example.com,2000:\n---\nk: !e!x v\n",
+			kind: yamldoc.KindTagged, tag: "tag:example.com,2000:x", raw: "v",
+		},
+		{
+			name: "default handle rebound",
+			yaml: "%TAG ! tag:example.com,2000:\n---\nk: !foo v\n",
+			kind: yamldoc.KindTagged, tag: "tag:example.com,2000:foo", raw: "v",
+		},
+		{
+			name: "suffix is URI-decoded after expansion",
+			yaml: "%TAG !e! tag:example.com,2000:\n---\nk: !e!a%21b v\n",
+			kind: yamldoc.KindTagged, tag: "tag:example.com,2000:a!b", raw: "v",
+		},
+
+		// **The constructor is looked up by the resolved tag, not the written
+		// one.** A rebound `!!` takes `!!int` away from ruamel's int
+		// constructor, and a named handle bound to `tag:yaml.org,2002:` gives
+		// it back.
+		{
+			name: "rebound primary handle loses the int constructor",
+			yaml: "%TAG !! tag:example.com,2000:\n---\nk: !!int 1\n",
+			kind: yamldoc.KindTagged, tag: "tag:example.com,2000:int", raw: "1",
+		},
+		{
+			name: "named handle reaches the int constructor",
+			yaml: "%TAG !e! tag:yaml.org,2002:\n---\nk: !e!int 5\n",
+			kind: yamldoc.KindInt, raw: "5",
+		},
+		{
+			name: "a verbatim tag ignores the handles",
+			yaml: "%TAG ! tag:example.com,2000:\n---\nk: !<tag:yaml.org,2002:int> 7\n",
+			kind: yamldoc.KindInt, raw: "7",
+		},
+
+		// A bare `!` is the non-specific tag, not the `!` handle, so rebinding
+		// `!` does not touch it: `! x` is the plain string `x`.
+		{
+			name: "the non-specific tag is unaffected",
+			yaml: "%TAG ! tag:example.com,2000:\n---\nk: ! x\n",
+			kind: yamldoc.KindString, raw: "x",
+		},
+
+		// The defaults still apply where no directive rebinds them.
+		{
+			name: "no directive keeps DEFAULT_TAGS",
+			yaml: "k: !!str x\n",
+			kind: yamldoc.KindTagged, tag: "tag:yaml.org,2002:str", raw: "x",
+		},
+		{
+			name: "an unrelated handle leaves the defaults alone",
+			yaml: "%TAG !e! tag:example.com,2000:\n---\nk: !!str x\n",
+			kind: yamldoc.KindTagged, tag: "tag:yaml.org,2002:str", raw: "x",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			doc, err := yamlreader.ReadString(test.yaml)
+			if err != nil {
+				t.Fatalf("ReadString: %v", err)
+			}
+			node := doc.Items[0].Value
+			if node.Kind != test.kind {
+				t.Errorf("Kind = %v, want %v", node.Kind, test.kind)
+			}
+			if node.Tag != test.tag {
+				t.Errorf("Tag = %q, want %q", node.Tag, test.tag)
+			}
+			if node.Raw != test.raw {
+				t.Errorf("Raw = %q, want %q", node.Raw, test.raw)
 			}
 		})
 	}
