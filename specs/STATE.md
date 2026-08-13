@@ -422,6 +422,11 @@ one, is specified as task E-1 of the emphasis delta and should land before the c
 The Typst path has **no differential fixture in the suite at all** today, which is why 100 divergent
 emphasis shapes on the PDF-visible path went unrecorded until they were probed by hand.
 
+> **Both sentences above are stale as of `d9edd5f` and later, re-confirmed 2026-08-13.**
+> `markdown_to_typst.json` has had a Typst-path differential since iteration 8 (612 rows today);
+> `tools/mdprobe` (task E-1) landed and is the corpus's only writer. Left as historical record of
+> the pass that measured it, not corrected in place.
+
 ### A stale *estimate* is as expensive as a stale finding
 
 The emphasis class was sized as "a hand-written replacement `parser.InlineParser`, a new file each,
@@ -496,10 +501,19 @@ surrounding numbers trustworthy.
   `specs/011-markdown-and-html/spec-delta-atx.md` §3.5's "not needed" finding on the same lines, and
   may share a root cause with that spec's already-declared "blockquote merging" item — needs a spec
   amendment (AGENTS.md §4) before code, not a porter unit.
-- The emphasis flanking whitespace set (23 shapes — belongs with the spec'd emphasis
-  reimplementation, not a patch), five genuine line-break shapes, and the goccy residue where a
-  shorter spelling splits 31/3 between two ruamel phrasings and needs a discriminator — **still
-  open, unmeasured this pass.**
+- **The emphasis flanking whitespace set — CLOSED, stale as phrased.** Re-measured 2026-08-13: tasks
+  E-1 through E-4 of `specs/011-markdown-and-html/spec-delta-emphasis.md` had already landed
+  (`6824a7f`, `9658a7d`, `80d95be`, `d9edd5f`) — `pyclass.go`'s rune-aware `\w`/`\s` predicates,
+  wired into 7 guard sites. Re-verified live against 145 shapes (23 non-ASCII `\s` codepoints, 19
+  `a<ws>_b_ c` shapes, 24 non-word-rune shapes, 7 §3.3 highlights, 26 §4.1 nesting shapes): 0
+  mismatches on both HTML and Typst paths, confirmed non-vacuous by reverting the predicates and
+  getting 114/114 mismatches back. **Two small units genuinely remain from the same delta**: E-5
+  (13 of the 26 §4.1 nesting shapes — `___x___`, `**bold *italic***`, etc. — aren't yet regression
+  rows in either fixture, though they pass live; fixture-only, via `tools/mdprobe -add`), and §11.1
+  (`strings.go`'s `isWordRune` still uses `unicode.IsDigit` rather than the full predicate for a
+  *different* feature, `MakeKeywordsBold`'s `\b` — deliberately left, needs its own unit).
+- Five genuine line-break shapes, and the goccy residue where a shorter spelling splits 31/3 between
+  two ruamel phrasings and needs a discriminator — **still open, unmeasured this pass.**
 
 ### Process findings against the merge owner, recorded so they are not repeated
 
