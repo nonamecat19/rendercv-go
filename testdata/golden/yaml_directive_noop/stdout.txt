@@ -1,0 +1,7 @@
+╭─ Your CV is ready ───────────────────────────────────────────────────────────╮
+│ ✓ <duration> Generated Typst:           ./rendercv_output/John_Doe_CV.typ      │
+│ ✓ <duration> Generated PDF:             ./rendercv_output/John_Doe_CV.pdf      │
+│ ✓ <duration> Generated PNG:             ./rendercv_output/John_Doe_CV_1.png    │
+│ ✓ <duration> Generated Markdown:        ./rendercv_output/John_Doe_CV.md       │
+│ ✓ <duration> Generated HTML:            ./rendercv_output/John_Doe_CV.html     │
+╰──────────────────────────────────────────────────────────────────────────────╯

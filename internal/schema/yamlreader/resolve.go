@@ -66,16 +66,52 @@ func ResolveScalar(raw string, style yamldoc.ScalarStyle) yamldoc.Kind {
 //
 // A bare `!` never reaches here: it is the non-specific tag and `buildTagged`
 // returns the plainly resolved node before asking.
-func ResolveTagText(written string) string {
+//
+// **The table is the document's, not a constant**, because a `%TAG` directive
+// rebinds a handle for the document that carries it. Measured against upstream:
+//
+//	%TAG !! tag:example.com,2000:   !!str x   tag:example.com,2000:str
+//	%TAG !e! tag:example.com,2000:  !e!x v    tag:example.com,2000:x
+//	%TAG ! tag:example.com,2000:    !foo v    tag:example.com,2000:foo
+//	%TAG !e! tag:example.com,2000:  !e!a%21b  tag:example.com,2000:a!b
+//
+// A verbatim `!<…>` tag is its own URI and no handle touches it.
+func ResolveTagText(written string, handles TagHandles) string {
 	if verbatim, ok := strings.CutPrefix(written, "!<"); ok {
 		if uri, closed := strings.CutSuffix(verbatim, ">"); closed {
 			return uriDecode(uri)
 		}
 	}
-	if suffix, ok := strings.CutPrefix(written, "!!"); ok && suffix != "" {
-		return "tag:yaml.org,2002:" + uriDecode(suffix)
+	if handle, suffix, ok := splitTagHandle(written); ok {
+		if prefix, bound := handles[handle]; bound {
+			return prefix + uriDecode(suffix)
+		}
 	}
-	return "!" + uriDecode(strings.TrimPrefix(written, "!"))
+	return handles["!"] + uriDecode(strings.TrimPrefix(written, "!"))
+}
+
+// splitTagHandle splits a written tag into the handle the scanner reads and the
+// suffix that follows it — `!!str` into `!!` and `str`, `!e!x` into `!e!` and
+// `x`, `!foo` into `!` and `foo`.
+//
+// **A handle needs a non-empty suffix**, so `!!` alone is not the `!!` handle:
+// the scanner reads a local tag whose suffix is `!`, which is why `!!` reprs as
+// `!!` and not as `tag:yaml.org,2002:`.
+func splitTagHandle(written string) (handle, suffix string, ok bool) {
+	if !strings.HasPrefix(written, "!") {
+		return "", "", false
+	}
+	if end := strings.IndexByte(written[1:], '!'); end >= 0 {
+		handle, suffix = written[:end+2], written[end+2:]
+		if suffix != "" {
+			return handle, suffix, true
+		}
+		return "", "", false
+	}
+	if suffix = written[1:]; suffix != "" {
+		return "!", suffix, true
+	}
+	return "", "", false
 }
 
 // uriDecode resolves the `%XX` escapes a tag suffix may carry —
@@ -124,17 +160,24 @@ func uriDecode(text string) string {
 //
 // Every other tag — `!!str` included, and every unknown one — makes the scalar
 // opaque, which is KindTagged's job and not this function's.
-func ResolveTag(tag string) (yamldoc.Kind, bool) {
-	switch tag {
-	case "!!int":
+//
+// **The argument is the *resolved* tag, not the written one**, because ruamel
+// looks the constructor up by the expanded URI. The two only coincide when the
+// handles are the defaults: measured, `!!int 1` under
+// `%TAG !! tag:example.com,2000:` is a `TaggedScalar`, not the integer 1, while
+// `!e!int 5` under `%TAG !e! tag:yaml.org,2002:` *is* the integer 5 — and so is
+// the verbatim `!<tag:yaml.org,2002:int> 7`.
+func ResolveTag(resolved string) (yamldoc.Kind, bool) {
+	switch resolved {
+	case "tag:yaml.org,2002:int":
 		return yamldoc.KindInt, true
-	case "!!float":
+	case "tag:yaml.org,2002:float":
 		return yamldoc.KindFloat, true
-	case "!!bool":
+	case "tag:yaml.org,2002:bool":
 		return yamldoc.KindBool, true
-	case "!!null":
+	case "tag:yaml.org,2002:null":
 		return yamldoc.KindNull, true
-	case "!!timestamp":
+	case "tag:yaml.org,2002:timestamp":
 		return yamldoc.KindString, true
 	}
 	return yamldoc.KindTagged, false

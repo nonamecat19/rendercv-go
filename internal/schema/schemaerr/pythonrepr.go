@@ -131,6 +131,13 @@ func pythonStyleRepr(style yamldoc.ScalarStyle) string {
 	return "None"
 }
 
+// PythonStringRepr is pythonStringRepr for callers outside the package.
+//
+// ruamel interpolates a Python `repr()` into its own error text as well as into
+// pydantic's — `duplicate tag handle '!e!'` is `repr(handle)` — so the rule has
+// one home and every quoter reads it from there.
+func PythonStringRepr(text string) string { return pythonStringRepr(text) }
+
 // pythonStringRepr is CPython's `repr(str)` (Objects/unicodeobject.c,
 // `unicode_repr`):
 //
