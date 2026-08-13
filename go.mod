@@ -13,6 +13,7 @@ require (
 	github.com/yuin/goldmark v1.8.5
 	github.com/yuin/gopher-lua v1.1.2
 	golang.org/x/sys v0.44.0
+	golang.org/x/term v0.42.0
 	golang.org/x/text v0.40.0
 )
 
