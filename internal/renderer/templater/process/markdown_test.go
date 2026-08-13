@@ -44,16 +44,6 @@ func TestMarkdownToTypst(t *testing.T) {
 	for _, row := range rows {
 		t.Run(row.In, func(t *testing.T) {
 			got := process.MarkdownToTypst(row.In)
-			// The same inverted pin the HTML differential uses, for the same
-			// reason: a tolerated mismatch that cannot notice being fixed is a
-			// mute button. See `htmlblock_adjacency_test.go`.
-			if rawBlockTailTypst[row.In] {
-				if got == row.Want {
-					t.Errorf("MarkdownToTypst(%q) now matches upstream"+
-						" — remove it from rawBlockTailTypst", row.In)
-				}
-				return
-			}
 			if got != row.Want {
 				t.Errorf("MarkdownToTypst(%q) =\n%q\nwant\n%q", row.In, got, row.Want)
 			}
