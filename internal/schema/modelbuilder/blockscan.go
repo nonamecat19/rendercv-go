@@ -34,9 +34,11 @@ type openBlock struct {
 }
 
 // blockScan reconstructs ruamel's verdict for the failure goccy spells
-// `value is not allowed in this context`, from the source and the token goccy
-// blamed. ok is false when the scan cannot name a block construct, which is
-// where ruamel stops talking about block constructs too.
+// `value is not allowed in this context` — or, when the offending line is a
+// value and goccy's parser was building a mapping, `non-map value is
+// specified` — from the source and the token goccy blamed. ok is false when the
+// scan cannot name a block construct, which is where ruamel stops talking about
+// block constructs too.
 //
 // **One goccy failure, four ruamel ones.** goccy reports a single "this token
 // cannot go here"; ruamel splits the same inputs between its parser and its

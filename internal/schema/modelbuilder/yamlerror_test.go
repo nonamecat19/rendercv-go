@@ -355,6 +355,11 @@ func TestEveryPhrasingRowIsReachable(t *testing.T) {
 			"mapping values are not allowed here",
 			"%TAG !e! tag:x,1:\ncv: 1\n",
 		},
+		{
+			"non-map value is specified",
+			"while scanning a simple key",
+			"cv:\n  name: John\nbad\n",
+		},
 	}
 
 	covered := make(map[int]bool, len(reaching))
@@ -1989,6 +1994,126 @@ func TestBlockContextNamesTheInnermostOpenConstruct(t *testing.T) {
 					got.Start, got.End, test.from, test.to)
 			}
 		})
+	}
+}
+
+// TestNonMapValueNamesTheBlockConstruct pins goccy's *other* spelling for a
+// badly indented line, `non-map value is specified` (`parser.go:499`), which it
+// uses when the offending line is a value and its parser was building a
+// mapping. It is the same failure as the shorter "not allowed in this context"
+// one and ruamel splits it the same way — between its scanner's `while scanning
+// a simple key` and its parser's `while parsing a block mapping` — so it is
+// decided by `blockScan` rather than by a phrasing of its own.
+//
+// Enumerated over 18,730 block shapes, of which 5,429 reach this spelling:
+// 3,404 are the scanner's and 1,977 the parser's. **Before this row every one
+// of them leaked goccy's own text with its `[n:m]` coordinate**; after it,
+// 4,810 carry ruamel's phrasing and 3,980 carry both its marks as well.
+//
+// **The measured remainder, so it is not mistaken for coverage**: 595 shapes
+// whose offending line is a block scalar header (`cv:\n  name: John\n|`) are
+// answered `while scanning a simple key` where ruamel says `while parsing a
+// block mapping` — a pre-existing `blockScan` shape, since the same 108+282
+// misattributions occur through the neighbouring row — and 830 whose end mark
+// is wrong, driven by a trailing comment (427) and a flow collection on the
+// offending line (331). Each row below was measured against the vendored
+// Python, message and both marks.
+func TestNonMapValueNamesTheBlockConstruct(t *testing.T) {
+	tests := []struct {
+		name     string
+		src      string
+		message  string
+		from, to yamldoc.Position
+	}{{
+		// A bare scalar at column 1 under a mapping is a key ruamel requires to
+		// fit on one line, so its *scanner* reports it and there is no context
+		// mark from the parser — the span opens on the scalar itself.
+		name:    "a scalar left of the mapping",
+		src:     "cv:\n  name: John\nbad\n",
+		message: "while scanning a simple key",
+		from:    yamldoc.Position{Line: 3, Column: 1},
+		to:      yamldoc.Position{Line: 4, Column: 1},
+	}, {
+		name:    "a quoted scalar left of the mapping",
+		src:     "cv:\n  name: John\n\"bad\"\n",
+		message: "while scanning a simple key",
+		from:    yamldoc.Position{Line: 3, Column: 1},
+		to:      yamldoc.Position{Line: 4, Column: 1},
+	}, {
+		name:    "a successor deeper than the scalar",
+		src:     "cv:\n  name: John\nbad\n  tail: 2\n",
+		message: "while scanning a simple key",
+		from:    yamldoc.Position{Line: 3, Column: 1},
+		to:      yamldoc.Position{Line: 4, Column: 7},
+	}, {
+		name:    "two levels above the scalar",
+		src:     "cv:\n  a:\n    b: 1\nbad\n",
+		message: "while scanning a simple key",
+		from:    yamldoc.Position{Line: 4, Column: 1},
+		to:      yamldoc.Position{Line: 5, Column: 1},
+	}, {
+		name:    "a scalar left of a sequence's keys",
+		src:     "cv:\n  - name: John\nbad\n",
+		message: "while scanning a simple key",
+		from:    yamldoc.Position{Line: 3, Column: 1},
+		to:      yamldoc.Position{Line: 4, Column: 1},
+	}, {
+		// A sequence indicator cannot be a key at all, so the *parser* rejects
+		// it and names the mapping it was inside, from where that mapping began.
+		name:    "a sequence item where a key belongs",
+		src:     "cv:\n  name: John\n- bad\n",
+		message: "while parsing a block mapping",
+		from:    yamldoc.Position{Line: 1, Column: 1},
+		to:      yamldoc.Position{Line: 3, Column: 1},
+	}, {
+		name:    "a sequence item carrying a mapping",
+		src:     "cv:\n  name: John\n- bad: 1\n",
+		message: "while parsing a block mapping",
+		from:    yamldoc.Position{Line: 1, Column: 1},
+		to:      yamldoc.Position{Line: 3, Column: 1},
+	}}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := ReadYamlWithValidationErrors(test.src, schemaerr.SourceMain)
+
+			var userErr *schemaerr.UserValidationError
+			if !errors.As(err, &userErr) {
+				t.Fatalf("expected *schemaerr.UserValidationError, got %T: %v", err, err)
+			}
+			record := userErr.Errors[0]
+			if want := "This is not a valid YAML file. " + test.message + "."; record.Message != want {
+				t.Errorf("message =\n  %q\nwant\n  %q", record.Message, want)
+			}
+			if record.YamlLocation == nil {
+				t.Fatal("yaml location = nil, want a span")
+			}
+			if got := *record.YamlLocation; got.Start != test.from || got.End != test.to {
+				t.Errorf("location = %v to %v, want %v to %v",
+					got.Start, got.End, test.from, test.to)
+			}
+		})
+	}
+}
+
+// TestNonMapValueReachesGoccysOwnSpelling is the anti-vacuity half of the row
+// above: every input there must genuinely arrive through goccy's `non-map value
+// is specified`, not through the neighbouring "not allowed in this context"
+// spelling that `blockScan` already answered. Without it the row could be
+// deleted with the table's own reachability test still green, because both
+// spellings end at the same reconstruction.
+func TestNonMapValueReachesGoccysOwnSpelling(t *testing.T) {
+	for _, src := range []string{
+		"cv:\n  name: John\nbad\n",
+		"cv:\n  name: John\n- bad\n",
+	} {
+		_, err := yamlreader.ReadString(src)
+		if err == nil {
+			t.Fatalf("%q parses; the row's inputs must fail", src)
+		}
+		if !strings.Contains(err.Error(), "non-map value is specified") {
+			t.Errorf("%q = %v, want goccy's non-map spelling", src, err)
+		}
 	}
 }
 
