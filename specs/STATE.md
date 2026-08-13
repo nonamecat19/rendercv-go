@@ -349,13 +349,27 @@ write, exit 1); **all six of row 3's probes byte-identical**, so that promotion 
    `color_system=None` prints nothing extra — fixed (`e0bec9d`), with two `style_test.go` rows that
    had been asserting the wrong thing corrected. First-time dependency: `golang.org/x/term` (pinned
    `v0.42.0`), for `isatty` only.
+   **Unit C (the progress panel) — CLOSED**, `c073780`, 2026-08-13. Measured upstream through a real
+   pty: three things a naive port would get wrong, all now pinned — the `bold green` timing run
+   covers its own 8-column padding and stops before the following space; the padding after the
+   `purple` path sits outside that run; and the title band is **one** run (a plain title has no
+   markup span, so Rich never opens a boundary in it), which forced `StyledPanel`'s title from
+   `string` to `Text`. `NO_COLOR=1` and `TERM=xterm`'s downgrade both re-verified. **Explicit,
+   documented limitation, not attempted**: byte-exact frame-by-frame matching of Rich's `Live`
+   repaint protocol (cursor hide/show, up to 4Hz, a repaint count that varies run to run) — the new
+   `TestProgressPanelColour` compares the settled final frame only, with the timing field rewritten
+   to a same-width token so columns still line up; the port's own render duration is also far larger
+   than upstream's on the full PDF path (~3s vs ~245ms), which the token substitution also covers.
+   Re-verified independently after merge, from this checkout: `go test -tags conformance ./...` 0
+   FAIL/0 SKIP tree-wide, `just check` 0 issues.
    **Still open, each its own unit, inverted assertions already in place naming them**: the
    validation table (unit D's other half — `Table` doesn't emit segments yet, and cell-run counting
    differs between content cells (3 runs: pad/content/pad) and blank continuation cells (1 run
-   spanning the column) — measured, not guessed), the progress panel (C), `new`/`create-theme`
-   including OSC 8 links (E), `--help` under typer's own console (F), and dumb-terminal width
-   handling (G). The usage-error panel (`internal/cli/root.go:291`) is deliberately out of scope —
-   it's typer's own, plain `red` not `bold red`.
+   spanning the column) — measured, not guessed), `new`/`create-theme` including OSC 8 links (E),
+   `--help` under typer's own console (F), and dumb-terminal width handling (G), plus `Live`'s
+   repaint protocol itself, left as a named human-gated decision by unit C. The usage-error panel
+   (`internal/cli/root.go:291`) is deliberately out of scope — it's typer's own, plain `red` not
+   `bold red`.
 3. **CLOSED, does not reproduce.** `markdown.markdown("<div>block</div>\n\nafter")` was measured
    again 2026-08-13 by a fresh porter: port and upstream both give `<div>block</div>\n\n<p>after</p>`,
    the double newline, byte-identical, on the full 15-shape adjacency matrix (`go run ./tools/mdprobe
