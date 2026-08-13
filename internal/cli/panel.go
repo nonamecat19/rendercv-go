@@ -21,11 +21,17 @@ const PanelWidth = 80
 // A value that is not a positive number is ignored, which is what Rich's own
 // `int()` guard amounts to.
 //
+// **With `COLUMNS` unset it is the real window**, which is the ordinary case:
+// Rich asks the OS through `os.get_terminal_size` (`rich/console.py:1027-1034`)
+// and only falls back to 80 when no descriptor can answer. The port printed 80
+// into every terminal until then — 40 columns of unused width on a 120-column
+// window, and a panel that overflowed and wrapped on a 63-column one.
+//
 // **`COLUMNS` does not always win**: a dumb terminal is 80 whatever it says.
-// The rule is `ConsoleWidthFor`, which this reads the process's own environment
-// and stdout for.
+// The rule is `ConsoleWidthFor`, which this reads the process's own
+// environment, stdout, and standard descriptors for.
 func ConsoleWidth() int {
-	return ConsoleWidthFor(os.LookupEnv, stdoutIsTerminal())
+	return ConsoleWidthFor(os.LookupEnv, stdoutIsTerminal(), stdStreamsTerminalSize)
 }
 
 // PanelRow is one line inside the panel.
