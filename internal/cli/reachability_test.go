@@ -67,8 +67,12 @@ func TestUnreachableFileMessagesAreAbsent(t *testing.T) {
 		}
 		if d.IsDir() {
 			// The vendored Python is the specification and owns both strings.
+			// .claude holds this repo's own worktree copies (agent isolation,
+			// .claude/worktrees/*) — scanning them double-reports whatever this
+			// test finds in the real tree, or reports whatever an in-flight
+			// agent's tree currently contains.
 			switch d.Name() {
-			case "third_party", ".git", "testdata":
+			case "third_party", ".git", "testdata", ".claude":
 				return fs.SkipDir
 			}
 			return nil
