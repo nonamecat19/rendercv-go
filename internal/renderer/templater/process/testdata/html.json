@@ -4314,5 +4314,29 @@
   {
     "In": "\u000b\na\n  b",
     "Out": "<p>a\n  b</p>"
+  },
+  {
+    "In": "<div>a</div> <div>b</div>",
+    "Out": "<div>a</div>\n<div>b</div>"
+  },
+  {
+    "In": "<div>a</div> <div>b</div> tail",
+    "Out": "<div>a</div>\n<div>b</div>\n<p>tail</p>"
+  },
+  {
+    "In": "<div>a</div> <p>b</p>",
+    "Out": "<div>a</div>\n<p>b</p>"
+  },
+  {
+    "In": "<div>block</div>   \nafter",
+    "Out": "<div>block</div>\n<p>after</p>"
+  },
+  {
+    "In": "<div>block</div>   ",
+    "Out": "<div>block</div>"
+  },
+  {
+    "In": "<div>a</div> \n\nafter",
+    "Out": "<div>a</div>\n\n<p>after</p>"
   }
 ]
