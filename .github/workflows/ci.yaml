@@ -58,6 +58,8 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
+      - name: Install poppler-utils (pdftotext)
+        run: sudo apt-get update && sudo apt-get install -y poppler-utils
       - name: Sync vendored upstream
         run: cd third_party/rendercv && uv sync --frozen --all-extras
       - name: Build rendercv-go
