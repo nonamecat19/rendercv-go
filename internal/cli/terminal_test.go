@@ -150,3 +150,75 @@ func TestDetectTerminal(t *testing.T) {
 		})
 	}
 }
+
+// TestConsoleWidthForDumbTerminals pins spec 012 delta §3.4, the width rule that
+// is entangled with detection: a **dumb terminal is 80 and ignores `COLUMNS`**
+// (`rich/console.py:1018-1019`), where everything else honours it.
+//
+// Every row was measured by running the vendored CLI and counting the runes on
+// the panel's top border — on a pty through `script` for the terminal rows, and
+// through a pipe for the rest. The two `TTY_COMPATIBLE` rows are the ones that
+// show the rule composes through `is_terminal` rather than through `isatty`:
+// forced on, a pipe is dumb; forced off, a real dumb pty is not.
+func TestConsoleWidthForDumbTerminals(t *testing.T) {
+	tests := []struct {
+		name   string
+		env    map[string]string
+		isatty bool
+		want   int
+	}{
+		{
+			name: "a dumb tty ignores COLUMNS", isatty: true,
+			env: map[string]string{"TERM": "dumb", "COLUMNS": "100"}, want: 80,
+		},
+		{
+			name: "a dumb tty ignores a COLUMNS narrower than 80", isatty: true,
+			env: map[string]string{"TERM": "dumb", "COLUMNS": "37"}, want: 80,
+		},
+		{
+			// `TERM` is lowercased before the comparison, so a shell that
+			// exports it shouting is still dumb.
+			name: "TERM is matched case-insensitively", isatty: true,
+			env: map[string]string{"TERM": "DUMB", "COLUMNS": "100"}, want: 80,
+		},
+		{
+			name: "TERM=unknown is dumb too", isatty: true,
+			env: map[string]string{"TERM": "unknown", "COLUMNS": "100"}, want: 80,
+		},
+		{
+			name: "TERM=dumb on a pipe is not dumb, merely not a terminal",
+			env:  map[string]string{"TERM": "dumb", "COLUMNS": "100"}, want: 100,
+		},
+		{
+			name: "TTY_COMPATIBLE=1 makes a dumb pipe dumb",
+			env:  map[string]string{"TERM": "dumb", "COLUMNS": "100", "TTY_COMPATIBLE": "1"},
+			want: 80,
+		},
+		{
+			name: "FORCE_COLOR makes a dumb pipe dumb",
+			env:  map[string]string{"TERM": "dumb", "COLUMNS": "100", "FORCE_COLOR": "1"},
+			want: 80,
+		},
+		{
+			name: "TTY_COMPATIBLE=0 takes the dumbness off a dumb tty", isatty: true,
+			env:  map[string]string{"TERM": "dumb", "COLUMNS": "100", "TTY_COMPATIBLE": "0"},
+			want: 100,
+		},
+		{
+			name: "an ordinary tty honours COLUMNS", isatty: true,
+			env: map[string]string{"TERM": "xterm-256color", "COLUMNS": "100"}, want: 100,
+		},
+		{
+			name: "a dumb tty with no COLUMNS is 80 as well", isatty: true,
+			env: map[string]string{"TERM": "dumb"}, want: 80,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := cli.ConsoleWidthFor(environment(test.env), test.isatty); got != test.want {
+				t.Errorf("ConsoleWidthFor() = %d, want %d", got, test.want)
+			}
+		})
+	}
+}
