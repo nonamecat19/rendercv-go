@@ -14,6 +14,10 @@
 //	go run ./tools/gengolden -verify        # regenerate to a temp dir, compare, write nothing
 //	go run ./tools/gengolden -upstream /abs/path/to/third_party/rendercv
 //
+// -verify byte-compares every golden against the committed manifest, with two
+// named exceptions carrying D-011's non-reproducible Python tracebacks — see
+// nonReproducibleStreams.
+//
 // The -upstream flag exists for git worktrees, which do not carry the
 // submodule's checkout. Two goldens are Rich-rendered Python tracebacks that
 // bake the *interpreter's* view of the source files (D-011), so generating from
@@ -379,6 +383,124 @@ func childEnv(env map[string]string) []string {
 	return out
 }
 
+// nonReproducibleStream is a golden stream whose bytes `-verify` may not compare,
+// together with the check that stands in for the comparison.
+//
+// **Exactly two streams qualify, and only under D-011.** Both are Rich-rendered
+// Python tracebacks of an *unhandled* exception — not a `RenderCVUserError`
+// panel — so the interpreter bakes absolute filesystem paths into them twice
+// over: once per stack frame (`…/third_party/rendercv/src/rendercv/…`, the
+// generating checkout) and once for the CPython frames under the uv-managed
+// interpreter (`~/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/…`).
+// `specs/divergences.md` D-011 calls this out as "non-reproducible even for
+// upstream: regenerating them on a different checkout or machine produces
+// different bytes, which is not true of any other golden in the corpus."
+//
+// The work-root change (`internal/conformance/workroot`) fixed the *third* path
+// these goldens carry — the directory the case ran in — and reaches neither of
+// the other two. So the byte comparison could never pass off the machine that
+// generated the goldens, which is every CI runner.
+//
+// Everything else about these two cases stays byte-compared: their `stdout.txt`,
+// `exit_code.txt`, `files.txt`, `pngs.txt` and `case.json` are not listed here,
+// so a crash, a stream swapped for the other, or a changed exit code still fails
+// `-verify` exactly as before. What is checked here instead is that both the
+// committed and the freshly generated stream are still recognizably *this*
+// traceback.
+type nonReproducibleStream struct {
+	// Path is relative to goldenDir, in the OS's separator, as the manifest spells it.
+	Path string
+	// Divergence is the approved entry that makes the bytes non-reproducible.
+	Divergence string
+	// Must are substrings every rendering of this stream contains regardless of
+	// which machine produced it. Each is short enough that Rich's fixed-width
+	// wrapping cannot split it.
+	Must []string
+}
+
+// nonReproducibleStreams is the whole exemption list. Two entries, one divergence.
+//
+// It is a Go literal rather than corpus data on purpose: the corpus describes
+// what upstream does, and "these bytes depend on where the interpreter lives" is
+// a property of the fixture, not of upstream's behavior.
+var nonReproducibleStreams = []nonReproducibleStream{
+	{
+		Path:       filepath.Join("err_missing_file", "stderr.txt"),
+		Divergence: "D-011",
+		Must: []string{
+			"Traceback (most recent call last)",
+			"FileNotFoundError: [Errno 2] No such file or directory:",
+		},
+	},
+	{
+		Path:       filepath.Join("err_bad_override_key", "stderr.txt"),
+		Divergence: "D-011",
+		Must: []string{
+			"Traceback (most recent call last)",
+			"ValidationError: 1 validation error for RenderCVModel",
+			"KeyError: 'no_such_field'",
+		},
+	},
+}
+
+// isNonReproducible reports whether path is exempt from the byte comparison.
+func isNonReproducible(path string) bool {
+	_, ok := nonReproducibleFor(path)
+	return ok
+}
+
+func nonReproducibleFor(path string) (nonReproducibleStream, bool) {
+	for _, s := range nonReproducibleStreams {
+		if s.Path == path {
+			return s, true
+		}
+	}
+	return nonReproducibleStream{}, false
+}
+
+// checkNonReproducible applies the weaker check to both copies of an exempt
+// stream: the committed golden and the one this run just generated. Both must
+// still be the traceback the corpus case is about.
+func checkNonReproducible(committedDir, scratch, path string) []string {
+	s, ok := nonReproducibleFor(path)
+	if !ok {
+		return []string{"not an exempt stream: " + path}
+	}
+	var problems []string
+	for origin, dir := range map[string]string{
+		"the committed golden": committedDir,
+		"the generated stream": scratch,
+	} {
+		raw, err := os.ReadFile(filepath.Join(dir, path))
+		if err != nil {
+			problems = append(problems, fmt.Sprintf("%s %s is unreadable: %v", origin, path, err))
+			continue
+		}
+		problems = append(problems, checkStreamContent(s, origin, string(raw))...)
+	}
+	sort.Strings(problems)
+	return problems
+}
+
+// checkStreamContent is the check itself, kept pure so it can be tested without
+// a filesystem: non-empty, and carrying every marker the stream must have.
+func checkStreamContent(s nonReproducibleStream, origin, content string) []string {
+	if strings.TrimSpace(content) == "" {
+		return []string{fmt.Sprintf(
+			"%s %s is empty; %s exempts its bytes from comparison, not its existence",
+			origin, s.Path, s.Divergence)}
+	}
+	var problems []string
+	for _, marker := range s.Must {
+		if !strings.Contains(content, marker) {
+			problems = append(problems, fmt.Sprintf(
+				"%s %s no longer contains %q; %s exempts only the machine-specific paths",
+				origin, s.Path, marker, s.Divergence))
+		}
+	}
+	return problems
+}
+
 func verifyAgainstCommitted(root, scratch string, got Manifest, only string) error {
 	committedPath := filepath.Join(root, goldenDir, "manifest.json")
 	raw, err := os.ReadFile(committedPath)
@@ -405,6 +527,11 @@ func verifyAgainstCommitted(root, scratch string, got Manifest, only string) err
 		switch {
 		case !ok:
 			problems = append(problems, "golden missing from the committed set: "+path)
+		case isNonReproducible(path):
+			// D-011: these bytes are a property of the machine, not of upstream.
+			// The presence check above still applies; the byte check is replaced.
+			problems = append(problems, checkNonReproducible(
+				filepath.Join(root, goldenDir), scratch, path)...)
 		case w != sum:
 			problems = append(problems, "golden differs from the committed bytes: "+path)
 		}
