@@ -39,13 +39,18 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+
+	"github.com/nonamecat19/rendercv-go/internal/conformance/workroot"
 )
 
 const (
 	upstreamDir = "third_party/rendercv"
 	corpusPath  = "testdata/corpus.json"
 	goldenDir   = "testdata/golden"
-	workDir     = "testdata/.work"
+	// workDir holds the scratch golden tree only. The directory the *cases*
+	// run in is workroot.Root, outside the checkout, because its absolute path
+	// is recorded in the goldens — see that package's doc comment.
+	workDir = "testdata/.work"
 )
 
 // Corpus is testdata/corpus.json.
@@ -155,7 +160,7 @@ func run(only string, verify bool, upstream string) error {
 		if only != "" && c.Name != only {
 			continue
 		}
-		if err := generateCase(root, upstream, bin, corpus.Env, c, scratch); err != nil {
+		if err := generateCase(upstream, bin, corpus.Env, c, scratch); err != nil {
 			return fmt.Errorf("case %s: %w", c.Name, err)
 		}
 		ran++
@@ -187,14 +192,12 @@ func run(only string, verify bool, upstream string) error {
 
 // generateCase runs one corpus case in an isolated directory and captures everything
 // the run produced: created files, stdout, stderr and the exit code.
-func generateCase(root, upstream, bin string, env map[string]string, c Case, scratch string) error {
-	caseWork := filepath.Join(root, workDir, "run", c.Name)
-	if err := os.RemoveAll(caseWork); err != nil {
+func generateCase(upstream, bin string, env map[string]string, c Case, scratch string) error {
+	caseWork, release, err := workroot.Prepare(c.Name)
+	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(caseWork, 0o755); err != nil {
-		return err
-	}
+	defer release()
 
 	for _, f := range c.Files {
 		src := filepath.Join(upstream, f.Src)
