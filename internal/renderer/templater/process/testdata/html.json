@@ -4338,5 +4338,57 @@
   {
     "In": "<div>a</div> \n\nafter",
     "Out": "<div>a</div>\n\n<p>after</p>"
+  },
+  {
+    "In": "___x___",
+    "Out": "<p><strong><em>x</em></strong></p>"
+  },
+  {
+    "In": "____x____",
+    "Out": "<p><strong><em>_x</em></strong>_</p>"
+  },
+  {
+    "In": "_____x_____",
+    "Out": "<p><strong><em>_</em>x</strong>___</p>"
+  },
+  {
+    "In": "***bold italic***",
+    "Out": "<p><strong><em>bold italic</em></strong></p>"
+  },
+  {
+    "In": "**_bold italic_**",
+    "Out": "<p><strong><em>bold italic</em></strong></p>"
+  },
+  {
+    "In": "_a_b_",
+    "Out": "<p><em>a_b</em></p>"
+  },
+  {
+    "In": "a_b_c",
+    "Out": "<p>a_b_c</p>"
+  },
+  {
+    "In": "_snake_case",
+    "Out": "<p>_snake_case</p>"
+  },
+  {
+    "In": "__a__b__",
+    "Out": "<p><strong>a__b</strong></p>"
+  },
+  {
+    "In": "_ a _",
+    "Out": "<p>_ a _</p>"
+  },
+  {
+    "In": "*[link](u)*",
+    "Out": "<p><em><a href=\"u\">link</a></em></p>"
+  },
+  {
+    "In": "**`code`**",
+    "Out": "<p><strong><code>code</code></strong></p>"
+  },
+  {
+    "In": "*<b>x</b>*",
+    "Out": "<p><em><b>x</b></em></p>"
   }
 ]

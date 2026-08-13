@@ -2470,5 +2470,65 @@
  {
   "in": "<div>a</div> \n\nafter",
   "want": "<div>a</div>\n\nafter"
+  },
+  {
+  "in": "___x___",
+  "want": "#strong[#emph[x]]"
+ },
+ {
+  "in": "____x____",
+  "want": "#strong[#emph[\\_x]]\\_"
+ },
+ {
+  "in": "_____x_____",
+  "want": "#strong[#emph[\\_]x]\\_\\_\\_"
+ },
+ {
+  "in": "***a***",
+  "want": "#strong[#emph[a]]"
+ },
+ {
+  "in": "***bold italic***",
+  "want": "#strong[#emph[bold italic]]"
+ },
+ {
+  "in": "**_bold italic_**",
+  "want": "#strong[#emph[bold italic]]"
+ },
+ {
+  "in": "**a*b***",
+  "want": "#strong[a#emph[b]]"
+ },
+ {
+  "in": "***a*b**",
+  "want": "#strong[#emph[a]b]"
+ },
+ {
+  "in": "_snake_case",
+  "want": "\\_snake\\_case"
+ },
+ {
+  "in": "__a__b__",
+  "want": "#strong[a\\_\\_b]"
+ },
+ {
+  "in": "_ a _",
+  "want": "\\_ a \\_"
+ },
+ {
+  "in": "*[link](u)*",
+  "want": "#emph[#link(\"u\")[link]]"
+ },
+ {
+  "in": "**`code`**",
+  "want": "#strong[`code`]"
+ },
+ {
+  "in": "*<b>x</b>*",
+  "want": "#emph[<b>x</b>]"
+ },
+ {
+  "in": "\\*a\\*",
+  "want": "#sym.ast.basic#h(0pt, weak: true) a#sym.ast.basic#h(0pt, weak: true)"
  }
 ]
