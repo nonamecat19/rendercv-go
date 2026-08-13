@@ -409,12 +409,38 @@ write, exit 1); **all six of row 3's probes byte-identical**, so that promotion 
    Detection` matrix (7 colour-emitting rows) is now a real byte comparison, not an inversion.
    Re-verified independently after merge, from this checkout: `go test -tags conformance ./...` 0
    FAIL/0 SKIP tree-wide, `just check` 0 issues.
-   **Still open, each its own unit, inverted assertions already in place naming them**: `--help`
-   under typer's own console (F) — the last inverted colour row — plus `Live`'s repaint protocol
-   itself, left as a named human-gated decision by unit C, and the real-terminal-width gap unit G
-   named (COLUMNS unset on a real, non-dumb terminal still hardcodes 80). The usage-error panel
-   (`internal/cli/root.go:291`) is deliberately out of scope — it's typer's own, plain `red` not
-   `bold red`.
+   **Unit F — CLOSED, `e41cf41`, 2026-08-13, the last named colour unit.** `--help` runs through
+   **typer's own console**, a separate detector from the rest of the binary (`TerminalForHelp`/
+   `DetectHelpTerminal`): typer reads `GITHUB_ACTIONS`/`FORCE_COLOR`/`PY_COLORS` to force a terminal
+   on and `_TYPER_FORCE_DISABLE_TERMINAL` to force one off, at import time, independent of
+   `TTY_COMPATIBLE` — so `PY_COLORS=1` colours only the help page and `_TYPER_FORCE_DISABLE_TERMINAL`
+   uncolours only it, both measured live and reproduced. Finer run-splitting than any prior unit:
+   the usage line's bold covers its own padding as five runs, not one; an option name like
+   `--output-folder` splits into two or three runs where option/switch spans overlap; an *empty*
+   metavar cell is still four bold-yellow spaces (`Text` justifies inside its own style); a
+   `Commands` panel's blank continuation line is one run over the whole column
+   (`Segment.set_shape`); and — the subtlest — at `COLUMNS=200`, `[default: classic]`'s `dim` run
+   spans the width of the **prose above it**, not the cell's own width, because a `Columns` cell
+   differs from a plain `Text` cell exactly there; at 80 the two coincide, which is why a naive
+   implementation would have looked correct and been wrong at every other width. Highlighter spans
+   are captured by `helpprobe` (regenerated, not hand-edited) rather than re-derived from typer's
+   three lookahead regexes, since Go regexp has no lookbehind — the same choice unit E made for
+   `ReprHighlighter`. **Confirmed live in this checkout**: `script -qec 'rendercv-go --help'` under a
+   real pty shows working bold usage, dim panel borders, and coloured option flags. Re-verified
+   independently after merge: `go test -tags conformance ./...` 0 FAIL/0 SKIP tree-wide, `just check`
+   0 issues.
+   **Left open, named rather than silently dropped**: `TERMINAL_WIDTH` (§3.5's fourth env rule, a
+   *width* override) is not implemented — upstream crashes at import on a non-numeric value, which
+   would need its own divergence entry before porting; and the root `--help` page at `COLUMNS=80`
+   can't be compared per-line on 6 `Commands` rows because D-010's re-wrap moves a styled token
+   across a line break the plain-text fix didn't anticipate carrying style through — covered instead
+   at `COLUMNS=200` (no rewrap) plus a separate byte-verbatim pin for the 80-column run structure.
+   `specs/012-cli/help.md` §6 still says "colour: not in scope" and now reads stale beside this.
+   **Every named colour unit (A–G) is now closed.** What remains, all deliberate, none an oversight:
+   `Live`'s repaint protocol itself (unit C's named human-gated decision), the real-terminal-width
+   gap unit G found (`COLUMNS` unset on a real, non-dumb terminal still hardcodes 80), and
+   `TERMINAL_WIDTH`, just named. The usage-error panel (`internal/cli/root.go:291`) is deliberately
+   out of scope — it's typer's own, plain `red` not `bold red`.
 3. **CLOSED, does not reproduce.** `markdown.markdown("<div>block</div>\n\nafter")` was measured
    again 2026-08-13 by a fresh porter: port and upstream both give `<div>block</div>\n\n<p>after</p>`,
    the double newline, byte-identical, on the full 15-shape adjacency matrix (`go run ./tools/mdprobe
