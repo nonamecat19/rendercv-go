@@ -48,7 +48,9 @@ func TestNewGreetingWraps(t *testing.T) {
 		t.Run(strconv.Itoa(test.columns), func(t *testing.T) {
 			t.Setenv("COLUMNS", strconv.Itoa(test.columns))
 
-			banner := newBanner("John_Doe_CV.yaml", true, nil)
+			// A pipe, which is what every golden was captured through and
+			// what leaves the greeting free of escape sequences.
+			banner := newBanner("John_Doe_CV.yaml", true, nil, Terminal{})
 			got := splitLines(banner)
 			got = got[:min(len(got), len(test.want))]
 			if !slices.Equal(got, test.want) {

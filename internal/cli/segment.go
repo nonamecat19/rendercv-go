@@ -26,20 +26,12 @@ type Segment struct {
 // renderSegments writes a line of segments for one terminal.
 //
 // An empty segment writes nothing at all, style or no style: it contributes no
-// text, and Rich has no run to open for it.
+// text, and Rich has no run to open for it — `Style.render` returns the text
+// untouched when it is empty (`rich/style.py:706`).
 func renderSegments(segments []Segment, terminal Terminal) string {
 	var out strings.Builder
 	for _, segment := range segments {
-		if segment.Text == "" {
-			continue
-		}
-		if sequence := segment.Style.SGR(terminal); sequence != "" {
-			out.WriteString(sequence)
-			out.WriteString(segment.Text)
-			out.WriteString(reset)
-			continue
-		}
-		out.WriteString(segment.Text)
+		out.WriteString(segment.Style.Render(segment.Text, terminal))
 	}
 	return out.String()
 }

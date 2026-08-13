@@ -105,7 +105,7 @@ func New(options NewOptions, stdout, stderr io.Writer) int {
 		}
 	}
 
-	_, _ = fmt.Fprint(stdout, newBanner(path, inputFileCreated, templateRows(created, existing)))
+	_, _ = fmt.Fprint(stdout, newBanner(path, inputFileCreated, templateLines(created, existing), TerminalFor(stdout)))
 	return 0
 }
 
@@ -146,30 +146,34 @@ func writeTemplatesIfAbsent(folder string, copy func(string) error) (created boo
 	return true, nil
 }
 
-// templateRows is the "Also created" / "Not modified" block
+// templateLines is the "Also created" / "Not modified" block
 // `new_command.py:150-166` appends to the "Get started" panel. **Each section
-// gets its own leading blank row**, independently of the other — a `--create-
+// gets its own leading blank line**, independently of the other — a `--create-
 // typst-templates --create-markdown-templates` run where one folder already
 // exists produces both sections, each with one entry.
-func templateRows(created, existing []templateItem) []PanelRow {
-	var rows []PanelRow
+//
+// **Lines, not rows**, because upstream appends them to the same `lines` list
+// every other line of the panel is in and joins the lot with `"\n"` before
+// handing it over as one renderable. Neither section carries any markup.
+func templateLines(created, existing []templateItem) []string {
+	var lines []string
 	if len(created) > 0 {
-		rows = append(rows, PanelRow{IsText: true}, PanelRow{Text: "Also created:"})
+		lines = append(lines, "", "Also created:")
 		for _, item := range created {
-			rows = append(rows, PanelRow{Text: fmt.Sprintf("  ○ %s: ./%s", item.desc, item.path)})
+			lines = append(lines, fmt.Sprintf("  ○ %s: ./%s", item.desc, item.path))
 		}
 	}
 	if len(existing) > 0 {
-		rows = append(rows, PanelRow{IsText: true}, PanelRow{Text: "Not modified (already exist):"})
+		lines = append(lines, "", "Not modified (already exist):")
 		for _, item := range existing {
-			rows = append(rows, PanelRow{Text: fmt.Sprintf("  - %s: ./%s", item.desc, item.path)})
+			lines = append(lines, fmt.Sprintf("  - %s: ./%s", item.desc, item.path))
 		}
 	}
 	if len(created) > 0 || len(existing) > 0 {
-		rows = append(rows, PanelRow{IsText: true},
-			PanelRow{Text: "Templates are for advanced design customization. You can ignore or delete them."})
+		lines = append(lines, "",
+			"Templates are for advanced design customization. You can ignore or delete them.")
 	}
-	return rows
+	return lines
 }
 
 // The two defaults typer declares for `new` (`new_command.py:38`, `:49`). The
@@ -193,7 +197,7 @@ const Version = version.RenderCV
 // divergence** (`AGENTS.md` §1, spec 012 §1 behavior 4). The instruction has to
 // name the binary the user actually has, so this line cannot match the golden
 // and must not.
-func newBanner(path string, inputFileCreated bool, templatesRows []PanelRow) string {
+func newBanner(path string, inputFileCreated bool, templatesLines []string, terminal Terminal) string {
 	var out strings.Builder
 	// **A leading blank line**, which Rich emits before the greeting and which
 	// is easy to lose: it is the first byte of the golden, so dropping it shifts
@@ -204,42 +208,76 @@ func newBanner(path string, inputFileCreated bool, templatesRows []PanelRow) str
 	// is two lines and not one. Nothing else on this surface is outside a box,
 	// which is why the overflow went unseen.
 	out.WriteString("\n")
-	for _, line := range wrap(fmt.Sprintf("Welcome to RenderCV v%s!", Version), ConsoleWidth()) {
-		out.WriteString(line)
+	for _, line := range wrapText(newGreeting(), ConsoleWidth()) {
+		out.WriteString(line.RenderSegments(terminal))
 		out.WriteString("\n")
 	}
 	out.WriteString("\n")
 
-	out.WriteString(Panel("Useful Links", []PanelRow{
-		{Text: "RenderCV App:   https://rendercv.com"},
-		{Text: "Documentation:  https://docs.rendercv.com"},
-		{Text: "Source code:    https://github.com/rendercv/rendercv/"},
-		{Text: "Bug reports:    https://github.com/rendercv/rendercv/issues/"},
-	}))
+	out.WriteString(StyledPanel(PlainText("Useful Links"),
+		[]PanelRow{{Body: Markup(strings.Join(usefulLinks(), "\n"))}},
+		StyleBrightBlack, terminal))
 
-	// `new_command.py:126-136` picks between the two first rows on whether the
+	// `new_command.py:126-136` picks between the two first lines on whether the
 	// input file was among the items actually created. Only the created form
-	// carries the check mark.
-	firstRow := "Your YAML input file already exists: ./" + path
+	// carries the check mark, and both carry the `purple` path.
+	firstLine := "Your YAML input file already exists: [purple]./" + path + "[/purple]"
 	if inputFileCreated {
-		firstRow = "✓ Created your YAML input file: ./" + path
+		firstLine = "[green]✓[/green] Created your YAML input file: [purple]./" + path + "[/purple]"
 	}
 
-	rows := []PanelRow{
-		{Text: firstRow},
-		{IsText: true},
-		{Text: "Next steps:"},
-		{Text: "  1. Edit the YAML input file with your information"},
-		{Text: "  2. Run: rendercv-go render " + path},
+	lines := []string{
+		firstLine,
+		"",
+		"Next steps:",
+		"  1. Edit the YAML input file with your information",
+		"  2. Run: [cyan]rendercv-go render " + path + "[/cyan]",
 	}
 	// **The templates block is appended, not interleaved** — upstream builds
 	// the same "Get started" panel one `lines.append` at a time
-	// (`new_command.py:150-166`), so its rows always follow the next-steps
+	// (`new_command.py:150-166`), so its lines always follow the next-steps
 	// block rather than replacing any of it.
-	rows = append(rows, templatesRows...)
-	out.WriteString(Panel("Get started", rows))
+	lines = append(lines, templatesLines...)
+	out.WriteString(StyledPanel(PlainText("Get started"),
+		[]PanelRow{{Body: Markup(strings.Join(lines, "\n"))}},
+		StyleBrightBlack, terminal))
 	return out.String()
 }
+
+// newGreeting is the one **bare string** RenderCV hands to `rich.print`
+// (`cli/new_command/print_welcome.py:14`), and therefore the one place the
+// repr highlighter runs (delta §2.6).
+func newGreeting() Text {
+	return HighlightRepr(Markup(
+		fmt.Sprintf("Welcome to [dodger_blue3]RenderCV v%s[/dodger_blue3]!", Version)))
+}
+
+// usefulLinks is `print_welcome.py:15-24`: the four titles padded to fifteen
+// columns in `bold cyan`, a plain space, and the URL as an **OSC 8 hyperlink**
+// rather than a colour.
+//
+// The padding is `f"{title + ':':<15}"` and is applied *inside* the markup, so
+// it is part of the styled run — the same rule as the progress panel's timing
+// field.
+func usefulLinks() []string {
+	links := []struct{ title, url string }{
+		{title: "RenderCV App", url: "https://rendercv.com"},
+		{title: "Documentation", url: "https://docs.rendercv.com"},
+		{title: "Source code", url: "https://github.com/rendercv/rendercv/"},
+		{title: "Bug reports", url: "https://github.com/rendercv/rendercv/issues/"},
+	}
+
+	lines := make([]string, 0, len(links))
+	for _, link := range links {
+		lines = append(lines, fmt.Sprintf("[bold cyan]%s[/bold cyan] [link=%s]%s[/link]",
+			pad(link.title+":", linkTitleWidth), link.url, link.url))
+	}
+	return lines
+}
+
+// linkTitleWidth is the column the welcome panel's URLs start in — `:<15`
+// (`print_welcome.py:22`).
+const linkTitleWidth = 15
 
 // checkNewFlags is `new_command.py:65-77`: the theme first, then the locale,
 // each against the list the schema publishes. The messages are upstream's, with
