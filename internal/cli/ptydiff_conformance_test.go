@@ -523,32 +523,60 @@ func assertInventory(t *testing.T, got, want string) {
 	}
 }
 
-// TestDumbTerminalWidthIsPending is delta §3.4, and the one part of this
-// surface that is a **wrong** answer today rather than a missing one: a dumb
-// terminal lays out to 80 and ignores `COLUMNS` (`rich/console.py:1011-1045`),
-// where the port honours `COLUMNS` unconditionally
-// (`internal/cli/panel.go:24-31`).
+// TestDumbTerminalWidth is delta §3.4 — the one part of this surface that was a
+// **wrong** answer rather than a missing one: a dumb terminal lays out to 80 and
+// ignores `COLUMNS` (`rich/console.py:1018-1019`), where the port used to honour
+// `COLUMNS` unconditionally.
 //
-// Inverted like the rest, and it is unit G's gate. Both sides are colourless
-// here, so it fails on geometry alone — which is why it is its own test rather
-// than a row in the matrix above.
-func TestDumbTerminalWidthIsPending(t *testing.T) {
-	env := map[string]string{"TERM": "dumb", "COLUMNS": "100"}
-	dir := filepath.Join(t.TempDir(), "w")
-
-	want := runSide(t, dir, upstreamArgv(t, []string{"render", "CV.yaml"}), env, invalidCV)
-	got := runSide(t, dir, portArgv(t, []string{"render", "CV.yaml"}), env, invalidCV)
-
-	upstreamWidth, portWidth := firstLineWidth(frameText(want)), firstLineWidth(portText(got))
-	if upstreamWidth != 80 {
-		t.Fatalf("upstream laid out to %d columns under TERM=dumb COLUMNS=100, want 80;"+
-			" the rule this test records has changed", upstreamWidth)
+// Unit G closed it, so the inversion this case carried is gone and the two sides
+// are compared as text. Both are colourless here, which is what lets a geometry
+// rule be gated on a terminal while the styles are still outstanding — and it is
+// why this is its own test rather than a row in the matrix above.
+//
+// The three rows are the rule and its two boundaries: `COLUMNS` ignored while
+// dumb, `TTY_COMPATIBLE=0` taking the dumbness off again so `COLUMNS` wins, and
+// an ordinary `TERM` where it always did.
+func TestDumbTerminalWidth(t *testing.T) {
+	tests := []struct {
+		name  string
+		env   map[string]string
+		width int
+	}{
+		{
+			name:  "a dumb tty ignores COLUMNS",
+			env:   map[string]string{"TERM": "dumb", "COLUMNS": "100"},
+			width: 80,
+		},
+		{
+			name:  "TTY_COMPATIBLE=0 makes it not a terminal, so COLUMNS wins",
+			env:   map[string]string{"TERM": "dumb", "COLUMNS": "100", "TTY_COMPATIBLE": "0"},
+			width: 100,
+		},
+		{
+			name:  "an ordinary tty honours COLUMNS",
+			env:   map[string]string{"TERM": "xterm-256color", "COLUMNS": "100"},
+			width: 100,
+		},
 	}
-	if portWidth == upstreamWidth {
-		t.Errorf("the port laid out to %d columns, matching upstream. If unit G has landed,"+
-			" replace this inversion with a plain-text comparison", portWidth)
-	} else if portWidth != 100 {
-		t.Errorf("the port laid out to %d columns, want the 100 it takes from COLUMNS;"+
-			" the divergence recorded here is not the one being measured", portWidth)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			dir := filepath.Join(t.TempDir(), "w")
+			want := runSide(t, dir, upstreamArgv(t, []string{"render", "CV.yaml"}), test.env, invalidCV)
+			got := runSide(t, dir, portArgv(t, []string{"render", "CV.yaml"}), test.env, invalidCV)
+
+			upstreamText, portFrame := frameText(want), portText(got)
+			if upstreamWidth := firstLineWidth(upstreamText); upstreamWidth != test.width {
+				t.Fatalf("upstream laid out to %d columns, want %d; the rule this test records"+
+					" has changed", upstreamWidth, test.width)
+			}
+			if portWidth := firstLineWidth(portFrame); portWidth != test.width {
+				t.Errorf("the port laid out to %d columns, want %d", portWidth, test.width)
+			}
+			if portFrame != upstreamText {
+				t.Error("the final frame's plain text differs")
+				diffLines(t, portFrame, upstreamText)
+			}
+		})
 	}
 }
