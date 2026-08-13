@@ -353,10 +353,16 @@ write, exit 1); **all six of row 3's probes byte-identical**, so that promotion 
    (`htmlextract.go`) instead of at the next blank line; a tail on the closing tag's own line —
    unreachable from a block parser that always `AdvanceLine`s — is split onto its own line first.
    Both HTML and Typst paths fixed; `htmlblock_adjacency_test.go`'s `rawBlockTail` and
-   `rawBlockTailTypst` inverted-assertion maps are deleted (both empty). Two residuals named in the
-   new test's doc comment, neither in either differential, both about a raw block's *own*
-   indentation rather than this rule: whitespace between two adjacent raw blocks, and trailing
-   spaces after a closing tag.
+   `rawBlockTailTypst` inverted-assertion maps are deleted (both empty). **Both residuals now also
+   CLOSED**, `2829cd9`, 2026-08-13: upstream's `intail` state opens the next raw block regardless of
+   indentation and prefixes its own `\n`, so 1–3 columns of whitespace between two adjacent raw
+   blocks (or after a closing tag) is invisible; `splitRawBlockTails` now drops it at the same two
+   positions. 12 shapes fixed, 6 rows added to each of `html.json`/`markdown_to_typst.json` via
+   `tools/mdprobe`. **One new residual left open, smaller than either of the two just closed**: 4+
+   columns of whitespace after a closing tag should produce an empty indented code block between the
+   two raw blocks upstream; the port currently produces nothing there (goldmark treats a
+   whitespace-only line as blank, which also confuses `blankLineAfterRawBlock`). No differential row
+   asserts it; named in `htmlextract_test.go`'s doc comment only.
 4. Eight commits bundle differential fixtures with the production code that fixes them, against §7's
    "fixtures land first, red".
 5. My "narrow terminals" entry was **stale within hours** — recorded open, already closed.
@@ -459,10 +465,23 @@ surrounding numbers trustworthy.
 - `repr(TaggedScalar)`, at top level and inside a container. Same cause. **These three close
   together**, and a spec delta for the `yamldoc` change is being written; AGENTS.md §4 forbids the
   code before it.
-- Still open in the markdown path, each sized as its own unit: `HashHeaderProcessor`'s strip (25
-  shapes), the emphasis flanking whitespace set (23 shapes — belongs with the spec'd emphasis
+- **`HashHeaderProcessor`'s strip (25 shapes) — CORRECTED, does not reproduce.** Re-measured
+  2026-08-13: `blockprocessors.py:479`'s `.strip()` is green, 0 mismatches across 5,624 shapes
+  (`heading.go`'s `pythonSpacePrefix`/`pythonSpaceSuffix` already reproduce it exactly). The real
+  open defect is a different line of the same function — `:481-485`'s `blocks.insert(0, after)`: a
+  non-blank line following an ATX heading **stays inside the heading's container** upstream (a list
+  item or blockquote), because upstream re-queues the remainder as a block of the same parent, where
+  goldmark closes the heading and the container both (only a paragraph gets lazy continuation). 48 of
+  264 container shapes measured wrong, 0 of 5,624 in plain (non-container) context — so the old
+  "25 shapes" was both the wrong rule and the wrong count. **Not implemented**: changes goldmark's
+  blockquote/list-item continuation (the block spine, not a leaf fix), contradicts
+  `specs/011-markdown-and-html/spec-delta-atx.md` §3.5's "not needed" finding on the same lines, and
+  may share a root cause with that spec's already-declared "blockquote merging" item — needs a spec
+  amendment (AGENTS.md §4) before code, not a porter unit.
+- The emphasis flanking whitespace set (23 shapes — belongs with the spec'd emphasis
   reimplementation, not a patch), five genuine line-break shapes, and the goccy residue where a
-  shorter spelling splits 31/3 between two ruamel phrasings and needs a discriminator.
+  shorter spelling splits 31/3 between two ruamel phrasings and needs a discriminator — **still
+  open, unmeasured this pass.**
 
 ### Process findings against the merge owner, recorded so they are not repeated
 
@@ -509,11 +528,24 @@ session by direct edit, not by a porter or a fresh-context verifier — **flag t
    trusted from the porter's report**: `go test -tags conformance ./...` 0 FAIL / 0 SKIP,
    `gengolden -verify` clean against the pinned upstream (351 files), run *after* merging, from this
    checkout's own path — the thing the fix claims to have stopped mattering.
-   **Not closed by this fix, named by the porter**: `gengolden -verify` still cannot pass run against
-   a *different* machine's upstream checkout — `err_bad_override_key/stderr.txt` and
-   `err_missing_file/stderr.txt` are D-011 Python tracebacks embedding that machine's CPython
-   install path, which no work-root change reaches; this is pre-existing, and CI's own "Verify golden
-   fixtures" step should be checked against an actual run to see whether it was ever really passing.
+   **The D-011-stream half is now ALSO CLOSED**, `0058c3b`, 2026-08-13: `gengolden -verify` exempts
+   exactly those two streams from byte comparison (a marker check instead — non-empty, names the
+   right traceback class), everything else about both cases (`stdout.txt`, `exit_code.txt`,
+   `files.txt`, `pngs.txt`, `case.json`) stays fully byte-compared. Verified against a real foreign
+   clone of the pinned submodule at a different absolute path: both cases pass where they failed
+   before; a deliberately emptied golden still fails loudly (existence is still checked).
+   **CI's "Verify golden fixtures" step was checked against real run history (`gh run view`) and it
+   has never actually run**: the parity-suite job fails *before* reaching it (missing `pdftotext` on
+   the runner, plus `err_unknown_theme` — pre-dating both of today's fixes), so `-verify` is
+   `skipped`, not passing, in every run inspected. Not fixed by this session; a runner-provisioning
+   gap plus whatever `err_unknown_theme` needs (now closed by item 2's own fix, unverified against
+   an actual CI run).
+   **A second, different portability defect surfaced verifying this one — unfixed, own decision
+   needed**: `cli_help`/`cli_help_short` also don't survive a foreign upstream path, for a reason
+   with nothing to do with D-011 or the work root — upstream's `app.py:144` discovers CLI commands
+   via `cli_folder_path.rglob("*_command.py")`, whose yield order is filesystem readdir order, so the
+   `render`/`new` block order in the help listing can flip between checkouts. Needs a divergence
+   entry or a sorted capture in the corpus; not attempted.
    `/tmp/rendercv-go-conformance` is also not user-namespaced (deliberate — namespacing would break
    the same-string property this fix depends on), so two users sharing a box can collide on it.
 3. **`tools/sampleprobe`** — resolved: spec 013 §8 amended to say the tool stays unconditionally
