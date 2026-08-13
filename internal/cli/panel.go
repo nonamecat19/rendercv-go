@@ -51,6 +51,39 @@ type PanelRow struct {
 	IsText bool
 }
 
+// body is the row as styled text — the line `print_progress_panel` assembles,
+// markup and all (`cli/render_command/progress_panel.py:104-107`):
+//
+//	f"[green]✓[/green] {timing} {message:<26} {paths_display}"
+//
+// with `timing` `[bold green]{timing_ms + ' ms':<8}[/bold green]` and
+// `paths_display` `[purple]{paths}[/purple]`.
+//
+// Three things the plain string this replaces cannot say, each measured:
+//
+//  1. **The timing field's padding is inside its run.** `bold green` covers
+//     `11 ms   ` to the full eight columns, because the padding is applied to
+//     the field before the markup closes around it.
+//  2. **The message and its padding are unstyled**, and so is the single space
+//     that separates each field from the next.
+//  3. **The trailing padding after the paths is outside the `purple` run** — it
+//     belongs to the panel, not to the field.
+//
+// The styles are attached unconditionally rather than behind a flag: a row with
+// a `Mark` is the progress panel's row and no other surface builds one, and on
+// a terminal with no colour every one of these renders as the plain string it
+// used to be.
+func (r PanelRow) body() Text {
+	if r.IsText || r.Text != "" {
+		return PlainText(r.Text)
+	}
+	return StyledText(r.Mark, StyleGreen).
+		Append(PlainText(" ")).
+		Append(StyledText(pad(r.Timing, timingWidth-1), StyleBoldGreen)).
+		Append(PlainText(" " + pad(r.Label, labelWidth))).
+		Append(StyledText(r.Value, StylePurple))
+}
+
 // labelWidth is the column the value starts in, measured from two goldens
 // rather than one: `Generated Typst:` (16 characters) is followed by 11 spaces
 // and `Generated Markdown:` (19) by 8, so both paths begin at 27.
@@ -63,6 +96,12 @@ const labelWidth = 27
 // `<duration> `, so the normalized line is longer than the real one by a known
 // amount — 2 characters on `render_typst_only`, which puts the real field at 9.
 // A timing printed without that padding shifts every column to its right.
+//
+// **The nine columns are eight plus a separator, and the seam is visible on a
+// terminal**: upstream pads the field to eight *inside* the `bold green` markup
+// (`{step.timing_ms + ' ms':<8}`, `progress_panel.py:104`) and then writes one
+// unstyled space after it, so `body` styles `timingWidth-1` and leaves the last
+// column plain.
 const timingWidth = 9
 
 // Panel renders Rich's bordered box (`rich.panel.Panel`).
@@ -78,7 +117,7 @@ const timingWidth = 9
 // "Ольга Ковальчук 李雷"` is enough to break that, and the two wide characters
 // pushed the row two columns past the border it was drawn inside.
 func Panel(title string, rows []PanelRow) string {
-	return renderPanel(title, rows, Style{}, Terminal{})
+	return renderPanel(PlainText(title), rows, Style{}, Terminal{})
 }
 
 // StyledPanel is Panel with a border style, written for one terminal — the
@@ -90,11 +129,17 @@ func Panel(title string, rows []PanelRow) string {
 // callers' tests assert whole panels as plain strings; a styled panel on a
 // terminal that has no colour is byte-identical to a plain one, so the two
 // converge exactly where they must.
-func StyledPanel(title string, rows []PanelRow, border Style, terminal Terminal) string {
+//
+// **The title is a `Text`, not a string, because its markup changes the bytes.**
+// `title="[bold red]Error[/bold red]"` puts span boundaries either side of the
+// word, and Rich opens a run per boundary — so the `Error` panel's band is three
+// runs where the progress panel's plain `Your CV is ready` is one, even though
+// both are styled edge to edge. Both were measured.
+func StyledPanel(title Text, rows []PanelRow, border Style, terminal Terminal) string {
 	return renderPanel(title, rows, border, terminal)
 }
 
-func renderPanel(title string, rows []PanelRow, border Style, terminal Terminal) string {
+func renderPanel(title Text, rows []PanelRow, border Style, terminal Terminal) string {
 	var out strings.Builder
 	for _, line := range panelLines(title, rows, border) {
 		out.WriteString(renderSegments(line, terminal))
@@ -105,7 +150,7 @@ func renderPanel(title string, rows []PanelRow, border Style, terminal Terminal)
 
 // panelLines is the box as lines of segments, before any terminal has been
 // consulted.
-func panelLines(title string, rows []PanelRow, border Style) [][]Segment {
+func panelLines(title Text, rows []PanelRow, border Style) [][]Segment {
 	width := ConsoleWidth()
 
 	// The inner width is the panel minus the two borders and their padding
@@ -122,10 +167,6 @@ func panelLines(title string, rows []PanelRow, border Style) [][]Segment {
 	}
 
 	for _, row := range rows {
-		body := row.Mark + " " + pad(row.Timing, timingWidth) + pad(row.Label, labelWidth) + row.Value
-		if row.IsText || row.Text != "" {
-			body = row.Text
-		}
 		// **A newline inside a row is a hard break**, not a character: Rich's
 		// `Text` splits on it before it wraps, so each segment gets its own
 		// bordered line. `new "$(printf 'a\nb')"` reaches this — the file name
@@ -136,17 +177,23 @@ func panelLines(title string, rows []PanelRow, border Style) [][]Segment {
 		// **A row wider than the panel wraps**, and its continuation is not
 		// indented — measured on `theme_classic`, whose two PNG paths do not fit
 		// on one line and whose second line starts at the panel's first column.
-		for _, segment := range strings.Split(body, "\n") {
-			for _, line := range wrap(segment, inner) {
+		for _, piece := range row.body().SplitLines() {
+			for _, line := range wrapText(piece, inner) {
 				// **The padding either side of the body is unstyled**, and only
 				// the two border characters carry the style — measured on the
 				// `Error` panel, whose row is
-				// `S(│)` + the text and its padding + `S(│)`.
-				lines = append(lines, []Segment{
-					{Text: "│", Style: border},
-					{Text: " " + pad(line, inner) + " "},
-					{Text: "│", Style: border},
-				})
+				// `S(│)` + the text and its padding + `S(│)`, and again on the
+				// progress panel, where the padding that follows a `purple`
+				// path is outside the run.
+				body := line.Segments()
+				segments := make([]Segment, 0, len(body)+4)
+				segments = append(segments, Segment{Text: "│", Style: border}, Segment{Text: " "})
+				segments = append(segments, body...)
+				segments = append(segments,
+					Segment{Text: strings.Repeat(" ", max(inner-cellLen(line.Plain), 0)) + " "},
+					Segment{Text: "│", Style: border},
+				)
+				lines = append(lines, segments)
 			}
 		}
 	}
@@ -169,12 +216,15 @@ func panelLines(title string, rows []PanelRow, border Style) [][]Segment {
 // a negative count once the title no longer fits: `COLUMNS=30 rendercv-go
 // render CV.yaml` on a document with any validation error died with `panic:
 // strings: negative Repeat count` rather than printing upstream's panel.
-// The line is **six segments** where a single string would do, because that is
-// how many runs Rich opens: `╭─`, the title's leading pad, the title, its
-// trailing pad, the fill, and `─╮` (§2.4.1, measured). Concatenated they are the
-// string this function used to return, which is what keeps every plain golden
-// unmoved.
-func panelTop(title string, width int, border Style) []Segment {
+// **How many runs the line is depends on the title's own markup**, which is why
+// the title arrives as a `Text`. `[bold red]Error[/bold red]` is six —
+// `╭─`, the leading pad, the word, the trailing pad, the fill and `─╮` — because
+// the markup's span ends where the padding begins and Rich opens a run per span
+// boundary. A title with no markup is four, its band a single run: measured,
+// `ESC[90m╭─ESC[0mESC[90m Your CV is ready ESC[0m…`. Concatenated either way they
+// are the string this function used to return, which is what keeps every plain
+// golden unmoved.
+func panelTop(title Text, width int, border Style) []Segment {
 	// `title_text is None or width <= 4` (`:234`): no title, just the box's own
 	// top edge.
 	if width <= 4 {
@@ -183,18 +233,18 @@ func panelTop(title string, width int, border Style) []Segment {
 
 	// `title_text.pad(1)` (`rich/panel.py:121`): one space either side, added
 	// before the crop, so a title cropped to nothing still leaves its leading
-	// space.
-	band := []Segment{
-		{Text: " ", Style: border},
-		{Text: title, Style: border},
-		{Text: " ", Style: border},
-	}
+	// space. The border style then goes **underneath** the title's own
+	// (`stylize_before`, `:205-206`), over the padding as well.
+	padded := PlainText(" ").Append(title).Append(PlainText(" "))
+	padded = padded.StylizeBefore(0, len([]rune(padded.Plain)), border)
+
 	inner := width - 4
-	if cellLen(" "+title+" ") > inner {
-		band = cropSegments(band, inner)
-	} else {
-		fill := strings.Repeat("─", inner-cellLen(" "+title+" "))
-		band = append(band, Segment{Text: fill, Style: border})
+	band := padded.Truncate(inner).Segments()
+	if excess := inner - cellLen(padded.Plain); excess > 0 {
+		// `Text.assemble(text, (character * excess_space, style))`
+		// (`rich/panel.py:181-186`): the fill is a span of its own, and
+		// therefore a run of its own.
+		band = append(band, Segment{Text: strings.Repeat("─", excess), Style: border})
 	}
 
 	line := make([]Segment, 0, len(band)+2)
@@ -221,6 +271,37 @@ func panelRule(left, right string, width int) string {
 // It always returns at least one line, so a blank separator row survives.
 func wrap(text string, width int) []string {
 	return fold(text, width, true)
+}
+
+// wrapText is wrap over styled text: **the same breaks, at the same offsets,
+// with every span sliced to the line it fell in.**
+//
+// It re-uses `divideLine` rather than re-deriving anything, which is the whole
+// reason the styled panel needs no wrapping logic of its own (spec 012 delta
+// §7.1.3). `rstripEnd` and the fold crop only ever trim from the end of a line,
+// so the surviving runes still start at the break offset and `Slice` places the
+// spans without a second measurement.
+func wrapText(text Text, width int) []Text {
+	// `Text.wrap` expands tabs before it measures (`rich/text.py:1231-1233`),
+	// and the spans have to follow the widening or every offset after the tab
+	// points at the wrong rune.
+	text = text.ExpandTabs()
+
+	if width <= 0 || cellLen(text.Plain) <= width {
+		return []Text{text}
+	}
+
+	runes := []rune(text.Plain)
+	breaks := divideLine(runes, width, true)
+
+	lines := make([]Text, 0, len(breaks)+1)
+	previous := 0
+	for _, offset := range append(breaks, len(runes)) {
+		trimmed := rstripEnd(runes[previous:offset], width)
+		lines = append(lines, text.Slice(previous, previous+len([]rune(trimmed))).Truncate(width))
+		previous = offset
+	}
+	return lines
 }
 
 // wrapKeepingWords is wrap without the hard split: a word too long for a line
