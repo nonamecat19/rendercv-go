@@ -78,24 +78,47 @@ const timingWidth = 9
 // "Ольга Ковальчук 李雷"` is enough to break that, and the two wide characters
 // pushed the row two columns past the border it was drawn inside.
 func Panel(title string, rows []PanelRow) string {
-	var out strings.Builder
+	return renderPanel(title, rows, Style{}, Terminal{})
+}
 
+// StyledPanel is Panel with a border style, written for one terminal — the
+// `border_style` argument every `rich.panel.Panel` in RenderCV passes
+// (`cli/error_handler.py:46`, `cli/render_command/progress_panel.py:132`).
+//
+// **It is a separate entry point rather than two more parameters on `Panel`.**
+// `Panel` is called from the surfaces whose styling has not landed yet, and its
+// callers' tests assert whole panels as plain strings; a styled panel on a
+// terminal that has no colour is byte-identical to a plain one, so the two
+// converge exactly where they must.
+func StyledPanel(title string, rows []PanelRow, border Style, terminal Terminal) string {
+	return renderPanel(title, rows, border, terminal)
+}
+
+func renderPanel(title string, rows []PanelRow, border Style, terminal Terminal) string {
+	var out strings.Builder
+	for _, line := range panelLines(title, rows, border) {
+		out.WriteString(renderSegments(line, terminal))
+		out.WriteString("\n")
+	}
+	return out.String()
+}
+
+// panelLines is the box as lines of segments, before any terminal has been
+// consulted.
+func panelLines(title string, rows []PanelRow, border Style) [][]Segment {
 	width := ConsoleWidth()
 
 	// The inner width is the panel minus the two borders and their padding
 	// spaces.
 	inner := width - 4
 
-	out.WriteString(panelTop(title, width))
-	out.WriteString("\n")
+	lines := [][]Segment{panelTop(title, width, border)}
 
 	// **At four columns or fewer there is no body at all.** The child renders
 	// at `width - 4`, and Rich yields no lines for a width of zero
 	// (`rich/panel.py:225`), so the box is its two borders and nothing else.
 	if inner <= 0 {
-		out.WriteString(panelRule("╰", "╯", width))
-		out.WriteString("\n")
-		return out.String()
+		return append(lines, []Segment{{Text: panelRule("╰", "╯", width), Style: border}})
 	}
 
 	for _, row := range rows {
@@ -115,16 +138,22 @@ func Panel(title string, rows []PanelRow) string {
 		// on one line and whose second line starts at the panel's first column.
 		for _, segment := range strings.Split(body, "\n") {
 			for _, line := range wrap(segment, inner) {
-				out.WriteString("│ ")
-				out.WriteString(pad(line, inner))
-				out.WriteString(" │\n")
+				// **The padding either side of the body is unstyled**, and only
+				// the two border characters carry the style — measured on the
+				// `Error` panel, whose row is
+				// `S(│)` + the text and its padding + `S(│)`.
+				lines = append(lines, []Segment{
+					{Text: "│", Style: border},
+					{Text: " " + pad(line, inner) + " "},
+					{Text: "│", Style: border},
+				})
 			}
 		}
 	}
 
-	out.WriteString(panelRule("╰", "╯", width))
-	out.WriteString("\n")
-	return out.String()
+	// The closing border is **one** segment, corners included
+	// (`rich/panel.py:250-256`).
+	return append(lines, []Segment{{Text: panelRule("╰", "╯", width), Style: border}})
 }
 
 // panelTop draws the bordered line the title sits in
@@ -140,24 +169,38 @@ func Panel(title string, rows []PanelRow) string {
 // a negative count once the title no longer fits: `COLUMNS=30 rendercv-go
 // render CV.yaml` on a document with any validation error died with `panic:
 // strings: negative Repeat count` rather than printing upstream's panel.
-func panelTop(title string, width int) string {
+// The line is **six segments** where a single string would do, because that is
+// how many runs Rich opens: `╭─`, the title's leading pad, the title, its
+// trailing pad, the fill, and `─╮` (§2.4.1, measured). Concatenated they are the
+// string this function used to return, which is what keeps every plain golden
+// unmoved.
+func panelTop(title string, width int, border Style) []Segment {
 	// `title_text is None or width <= 4` (`:234`): no title, just the box's own
 	// top edge.
 	if width <= 4 {
-		return panelRule("╭", "╮", width)
+		return []Segment{{Text: panelRule("╭", "╮", width), Style: border}}
 	}
 
 	// `title_text.pad(1)` (`rich/panel.py:121`): one space either side, added
 	// before the crop, so a title cropped to nothing still leaves its leading
 	// space.
-	band := " " + title + " "
-	inner := width - 4
-	if cellLen(band) > inner {
-		band, _ = cutCells(band, inner)
-	} else {
-		band += strings.Repeat("─", inner-cellLen(band))
+	band := []Segment{
+		{Text: " ", Style: border},
+		{Text: title, Style: border},
+		{Text: " ", Style: border},
 	}
-	return "╭─" + band + "─╮"
+	inner := width - 4
+	if cellLen(" "+title+" ") > inner {
+		band = cropSegments(band, inner)
+	} else {
+		fill := strings.Repeat("─", inner-cellLen(" "+title+" "))
+		band = append(band, Segment{Text: fill, Style: border})
+	}
+
+	line := make([]Segment, 0, len(band)+2)
+	line = append(line, Segment{Text: "╭─", Style: border})
+	line = append(line, band...)
+	return append(line, Segment{Text: "─╮", Style: border})
 }
 
 // panelRule draws a titleless border. The fill is `width - 2` columns, and the
