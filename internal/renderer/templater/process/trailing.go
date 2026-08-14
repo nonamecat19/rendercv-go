@@ -41,6 +41,15 @@ func (r blockRenderer) render(
 	if !entering {
 		r.writer.Write(w, trailingSpace(source, node))
 	}
+	// A paragraph that is nothing but one block-level raw tag loses its
+	// wrapper, and keeps the newline the wrapper would have carried —
+	// `postprocessors.go`.
+	if unwrapsParagraph(source, node) {
+		if !entering {
+			_ = w.WriteByte('\n')
+		}
+		return ast.WalkContinue, nil
+	}
 	return r.inner[node.Kind()](w, source, node, entering)
 }
 
