@@ -5,11 +5,98 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"unicode/utf8"
 )
 
 // commentCloseRe is `htmlparser.py:37`'s `commentclose`, the only terminator
 // python-markdown accepts for a comment.
 var commentCloseRe = regexp.MustCompile(`--!?>`)
+
+// charRefPattern is CPython's `html.parser.charref` (`html/parser.py:25`),
+// anchored because the scan below already stands on the `&`.
+//
+// **The trailing `[^0-9a-fA-F]` is a terminator, not part of the reference**, and
+// it need not be a `;`: `&#35 b`, `&#35.` and `&#35\n` all match, while `&#35a`
+// and `&#35f` do not, because `a` and `f` are hex digits the digit run could
+// have continued into.
+var charRefPattern = regexp.MustCompile(`^&#(?:[0-9]+|[xX][0-9a-fA-F]+)[^0-9a-fA-F]`)
+
+// normalizeCharRefs is `HTMLExtractor.handle_charref`
+// (`markdown/htmlparser.py:291-292`) and the `&#` branch of the scan that feeds
+// it (`html/parser.py:279-293`), run as part of `HtmlBlockPreprocessor`.
+//
+// **A character reference is re-emitted, not passed through.** The handler
+// writes `'&#{};'.format(name)` from the digits alone, so a reference the author
+// left unterminated gains the `;` the parser's own pattern did not require:
+// `&#35` is `&#35;` before any other stage sees it. That matters here because
+// `ENTITY_RE` (`inlinepatterns.py:170`, the stashing processor at priority 80)
+// **does** require the `;` — so without this the `#` reached
+// `escape_typst_characters` and `&#35` came out `&\#35` against upstream's
+// `&#35;`. It is the same stash the raw-HTML passthrough uses, reached one stage
+// earlier.
+//
+// The rewrite is uniform: the handler runs inside a raw block too (`:265-267`
+// caches the normalized text), so `<div>a &#35 b</div>` is normalized as much as
+// bare prose is, and an indented code block is normalized before `code_escape`
+// escapes its `&`.
+//
+// Named references need nothing: python-markdown narrows `entityref` to require
+// a closing `;` (`htmlparser.py:55`), and `handle_entityref` then re-emits the
+// exact text it matched, so `&copy` stays `&copy` and `&amp;` stays `&amp;`.
+//
+// # Two edges of the scan, both observable
+//
+//   - `&#` that matches nothing **stops the scan** when no `;` follows anywhere
+//     in the document (`html/parser.py:290-293` breaks out of `goahead`), so
+//     `&#35a &#38` keeps both references raw while `&#35a &#38 x;` normalizes
+//     the second one.
+//   - the terminator is given back. `k` is walked back past it unless it is the
+//     `;` itself (`:285-286`), which is what keeps the space in `&#35 b` and
+//     lets `&#35&#38` normalize both halves.
+func normalizeCharRefs(source string) string {
+	if !strings.Contains(source, "&#") {
+		return source
+	}
+	// `NormalizeWhitespace` appends `"\n\n"` to the document before this
+	// preprocessor runs (`preprocessors.py:71`), so a reference at the very end
+	// of the input always has a terminator. This port does not carry those two
+	// newlines, so one is lent to the scan and taken back at the end.
+	data := source + "\n"
+
+	var out strings.Builder
+	written := 0
+	for i := 0; ; {
+		next := strings.Index(data[i:], "&#")
+		if next < 0 {
+			break
+		}
+		i += next
+
+		match := charRefPattern.FindString(data[i:])
+		if match == "" {
+			if !strings.Contains(data[i:], ";") {
+				break // `goahead` gives up on the rest of the document.
+			}
+			i += len("&#") // consumed as data, and the scan goes on
+			continue
+		}
+
+		_, size := utf8.DecodeLastRuneInString(match)
+		out.WriteString(data[written:i])
+		out.WriteString("&#" + match[len("&#"):len(match)-size] + ";")
+		i += len(match)
+		if match[len(match)-size:] != ";" {
+			i -= size
+		}
+		written = i
+	}
+
+	if written == 0 {
+		return source
+	}
+	out.WriteString(data[written : len(data)-1])
+	return out.String()
+}
 
 // rawBlockEnd is `HTMLExtractor`'s tag stack (`htmlparser.py:209-253`): the
 // offset just past the closing tag that empties it, or -1 if nothing closes the

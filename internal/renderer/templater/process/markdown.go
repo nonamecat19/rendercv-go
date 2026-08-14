@@ -161,7 +161,8 @@ func normalizeChunk(chunk string) []string {
 	// (`preprocessors.py:40-41`), so the raw-HTML pass sees the normalized text —
 	// which is what makes `<div>a</div>\t t` an indented code block, the tab
 	// having become the fourth column before the tail is a line of its own.
-	lines := strings.Split(splitRawBlockTails(normalizeWhitespace(chunk), typstTailStyle), "\n")
+	lines := strings.Split(splitRawBlockTails(
+		normalizeCharRefs(normalizeWhitespace(chunk)), typstTailStyle), "\n")
 	for i := 1; i < len(lines); i++ {
 		if isRawTailLine(lines[i]) {
 			// A whitespace-only tail four columns wide or more, which upstream
