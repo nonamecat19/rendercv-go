@@ -35,12 +35,14 @@ clean:
 
 check: fmt-check vet lint
 
+# Only tracked .go files of this checkout: `gofumpt .` would also walk the
+# agent worktrees under .claude/worktrees/, which are other checkouts.
 fmt:
-    gofumpt -w .
+    git ls-files -z '*.go' | xargs -0 gofumpt -w
 
 fmt-check:
     @command -v gofumpt >/dev/null || { echo "gofumpt not installed; run 'just setup'"; exit 1; }
-    @out=$(gofumpt -l .); if [ -n "$out" ]; then echo "gofumpt would reformat:"; echo "$out"; exit 1; fi
+    @out=$(git ls-files -z '*.go' | xargs -0 gofumpt -l); if [ -n "$out" ]; then echo "gofumpt would reformat:"; echo "$out"; exit 1; fi
 
 vet:
     go vet ./...
