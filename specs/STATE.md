@@ -48,6 +48,8 @@ report. Two porters were resumed after the harness dropped them mid-run.
 | 22 locales × `.typ`/`.md`/`.html` | **byte-identical, all 22** |
 | 14 entry/date shapes × 4 themes | **byte-identical, 56/56** |
 | a scripted custom theme, `create-theme` then `render` | artifacts **byte-identical**; only D-002's `init.lua` vs `__init__.py` line differs |
+| PDF, 4 themes (`classic`, `moderncv`, `ink`, `harvard`) | page count, extracted text and page geometry **all identical** |
+| PNG, 3 themes, 7 pages total | **byte-identical** — stronger than axis 1 requires |
 
 ### The headline: five defects the whole suite was blind to, four of them axis-1 or axis-2
 
