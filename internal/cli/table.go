@@ -358,11 +358,32 @@ func renderCell(text string, width int, noWrap bool) []string {
 		return []string{""}
 	}
 	if noWrap {
-		// **`no_wrap` skips the wrapping, not the tab expansion**: `Text.wrap`
-		// expands each line before it looks at the flag (`rich/text.py:1231`),
-		// so a tab in a `Location` or `Input Value` cell becomes spaces here
-		// too. `fold` does it for the wrappable branch below.
-		return []string{truncate(expandTabs(text), width)}
+		// **`no_wrap` skips the wrapping, not the newline split.** `Text.wrap`
+		// iterates `self.split(allow_blank=True)` *before* it looks at the flag
+		// (`rich/text.py:1230-1237`), and `no_wrap` only replaces the fold with
+		// `Lines([line])` — one output line per source line. So an embedded
+		// newline still starts a new line in a `Location` or `Input Value` cell;
+		// what `no_wrap` suppresses is folding a single long line.
+		//
+		// Collapsing the whole cell to one line instead did not merely truncate
+		// a multi-line value: with the newline left inside the string, `truncate`
+		// measured the lot as one run, and any value short enough to escape the
+		// cut emitted its newline straight into the frame, tearing the table
+		// open mid-row. The long-value case looked like first-line truncation
+		// only because the cut landed before the newline.
+		//
+		// Splitting keeps Rich's blank-line rule with it: `allow_blank=True`
+		// keeps the empty line a trailing separator produces
+		// (`rich/text.py:1101-1102`), which is exactly `strings.Split`, so
+		// `"a\nb\n"` is three lines and the last is blank.
+		//
+		// **The tab expansion is per line**, as it always was — `expand_tabs`
+		// runs inside the same loop (`rich/text.py:1231-1232`).
+		lines := make([]string, 0, strings.Count(text, "\n")+1)
+		for line := range strings.SplitSeq(text, "\n") {
+			lines = append(lines, truncate(expandTabs(line), width))
+		}
+		return lines
 	}
 
 	var lines []string
