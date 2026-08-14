@@ -1493,7 +1493,12 @@ approximating it would be a test that cannot fail.
   extracted text, page count and page geometry. Note the parity contract deliberately asks only for
   text/page/geometry on PDF and PNG (raw bytes were expected to differ by embedded timestamps and
   IDs), so this exceeds axis 1 rather than merely satisfying it
-- [ ] Public `pkg/rendercv` API frozen and semver'd
+- [x] Public `pkg/rendercv` API frozen and semver'd. **Met 2026-08-14**, tagged `v1.0.0`:
+  `pkg/rendercv/doc.go`'s stability note now states the freeze instead of disclaiming it, and
+  `CHANGELOG.md` records the versioned surface (the seven functions, `Model`, `BuildOptions` and
+  the four error types) and the semver guarantee going forward. All 17 ledger rows were green
+  first — nothing in `pkg/rendercv` changed to make this true, only the declaration that it now
+  holds
 - [ ] Cross-compiled release artifacts (linux/darwin/windows × amd64/arm64)
 
 ## Cut scope
