@@ -108,22 +108,40 @@ func TestFontsResolveWithoutAnyHostFonts(t *testing.T) {
 	}
 }
 
-// TestOutputMustLiveBesideTheInput pins the mount boundary. Only the document's
-// own directory is visible to the compiler, so an output elsewhere is refused
-// here rather than failing inside WASI with an unreadable error.
-func TestOutputMustLiveBesideTheInput(t *testing.T) {
-	dir := t.TempDir()
-	input := write(t, dir, "doc.typ", "hello\n")
+// TestOutputMayLiveElsewhere matches upstream: `settings.render_command.pdf_path`
+// and `-pdf`/`-png` both allow an output outside the input's directory, and
+// upstream compiles it there. The compiler mounts the output's directory
+// separately when it is not already under the input's.
+func TestOutputMayLiveElsewhere(t *testing.T) {
+	inDir := t.TempDir()
+	outDir := t.TempDir()
+	input := write(t, inDir, "doc.typ", "hello\n")
+	output := filepath.Join(outDir, "elsewhere.pdf")
+
+	if _, err := typstc.Compile(context.Background(), typstc.Request{
+		InputPath:  input,
+		OutputPath: output,
+	}); err != nil {
+		t.Fatalf("Compile: %v", err)
+	}
+	if _, err := os.Stat(output); err != nil {
+		t.Errorf("output was not written: %v", err)
+	}
+}
+
+// TestOutputDirectoryMustExist matches upstream: the caller creates the
+// output's directory before compiling (`path_resolver.py:109`); the compiler
+// itself does not create one, so a missing directory fails.
+func TestOutputDirectoryMustExist(t *testing.T) {
+	inDir := t.TempDir()
+	input := write(t, inDir, "doc.typ", "hello\n")
 
 	_, err := typstc.Compile(context.Background(), typstc.Request{
 		InputPath:  input,
-		OutputPath: filepath.Join(t.TempDir(), "elsewhere.pdf"),
+		OutputPath: filepath.Join(inDir, "missing", "elsewhere.pdf"),
 	})
 	if err == nil {
-		t.Fatal("Compile accepted an output path outside the document's directory")
-	}
-	if !strings.Contains(err.Error(), "outside the document's directory") {
-		t.Errorf("error = %v, want the boundary message", err)
+		t.Fatal("Compile accepted an output directory that does not exist")
 	}
 }
 

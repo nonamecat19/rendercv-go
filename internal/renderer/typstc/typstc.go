@@ -5,10 +5,13 @@
 // compiler built for `wasm32-wasip1` and executed on wazero — no CGO, no
 // external binary, no network. `specs/divergences.md` D-006 and D-007.
 //
-// The compiler sees exactly three things, mirroring `get_typst_compiler`
+// The compiler sees these things, mirroring `get_typst_compiler`
 // (`pdf_png.py:154-186`):
 //
-//	/work    the document's own directory, read-write — the only host path
+//	/work    the input document's own directory, read-write
+//	/out     the output's directory, read-write, mounted only when it is not
+//	         already under /work — upstream has the whole filesystem and
+//	         writes the PDF/PNG wherever settings.render_command points
 //	/fonts   the vendored font tree, plus any font folder the caller adds
 //	/pkg     the Typst package cache, laid out preview/<name>/<version>/
 package typstc
@@ -56,7 +59,7 @@ type Request struct {
 	InputPath string
 
 	// OutputPath is the PDF file to write, or for FormatPNG the prefix each
-	// page name is built from. It must sit in the input's directory.
+	// page name is built from. Its directory must already exist.
 	OutputPath string
 
 	// Format defaults to FormatPDF.
@@ -118,18 +121,30 @@ func Compile(ctx context.Context, req Request) (Result, error) {
 		return Result{}, fmt.Errorf("typstc: resolving the output path: %w", err)
 	}
 
-	// One host directory is mounted, and both paths must live under it. Upstream
-	// has the whole filesystem; this port deliberately does not, so a document
-	// that escapes the root fails here rather than reading something it should
-	// not.
+	// Upstream has the whole filesystem; this port mounts only the two
+	// directories the request actually names. The input's directory is always
+	// `/work`, matching a photo referenced by base name (`pdf_png.py:93-111`).
+	// The output may sit elsewhere — `settings.render_command.pdf_path` and the
+	// CLI's `-pdf`/`-png` flags both allow a path outside the input's
+	// directory, and upstream renders it there — so a second directory is
+	// mounted at `/out` only when the output does not already live under
+	// `/work`. The caller (`generate.PDF`/`generate.PNG`) has already created
+	// that directory, mirroring `path_resolver.py:109`'s `mkdir`.
 	root := filepath.Dir(input)
-	guestIn, err := underRoot(root, input)
+	guestIn, err := underRoot(root, workMount, input)
 	if err != nil {
 		return Result{}, err
 	}
-	guestOut, err := underRoot(root, output)
+	outRoot := root
+	outMount := workMount
+	guestOut, err := underRoot(root, workMount, output)
 	if err != nil {
-		return Result{}, err
+		outRoot = filepath.Dir(output)
+		outMount = outAltMount
+		guestOut, err = underRoot(outRoot, outMount, output)
+		if err != nil {
+			return Result{}, err
+		}
 	}
 
 	argv := []string{
@@ -166,8 +181,13 @@ func Compile(ctx context.Context, req Request) (Result, error) {
 		argv = append(argv, "--today", req.Today.Format("2006-01-02"))
 	}
 
+	dirMounts := map[string]string{workMount: root}
+	if outMount != workMount {
+		dirMounts[outMount] = outRoot
+	}
+
 	var stdout, stderr strings.Builder
-	code, err := run(ctx, argv, root, fontMounts, &stdout, &stderr)
+	code, err := run(ctx, argv, dirMounts, fontMounts, &stdout, &stderr)
 	if err != nil {
 		return Result{}, err
 	}
@@ -182,16 +202,17 @@ func Compile(ctx context.Context, req Request) (Result, error) {
 }
 
 const (
-	workMount  = "/work"
-	pkgMount   = "/pkg"
-	fontsMount = "/fonts"
+	workMount   = "/work"
+	outAltMount = "/out"
+	pkgMount    = "/pkg"
+	fontsMount  = "/fonts"
 )
 
 // run instantiates the compiler and executes it once.
 func run(
 	ctx context.Context,
 	argv []string,
-	root string,
+	dirMounts map[string]string,
 	fontMounts map[string]fs.FS,
 	stdout, stderr io.Writer,
 ) (uint32, error) {
@@ -200,11 +221,13 @@ func run(
 		return 0, err
 	}
 
+	// Read-write, because the compiler writes the PDF and the PNGs itself.
 	fsConfig := wazero.NewFSConfig().
-		// Read-write, because the compiler writes the PDF and the PNGs itself.
-		WithDirMount(root, workMount).
 		WithFSMount(assets.Packages(), pkgMount).
 		WithFSMount(assets.Fonts(), fontsMount)
+	for mount, dir := range dirMounts {
+		fsConfig = fsConfig.WithDirMount(dir, mount)
+	}
 	for mount, tree := range fontMounts {
 		fsConfig = fsConfig.WithFSMount(tree, mount)
 	}
@@ -259,13 +282,14 @@ var shared = sync.OnceValues(func() (engine, error) {
 	return engine{runtime: runtime, module: module}, nil
 })
 
-// underRoot maps a host path to its guest path under /work.
-func underRoot(root, path string) (string, error) {
+// underRoot maps a host path to its guest path under the given mount, or
+// fails if path does not live under root.
+func underRoot(root, mount, path string) (string, error) {
 	rel, err := filepath.Rel(root, path)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("typstc: %q is outside the document's directory", path)
+		return "", fmt.Errorf("typstc: %q is outside %q", path, root)
 	}
-	return workMount + "/" + filepath.ToSlash(rel), nil
+	return mount + "/" + filepath.ToSlash(rel), nil
 }
 
 // parsePages reads the shim's `pages <n>` line. A malformed line reports zero
