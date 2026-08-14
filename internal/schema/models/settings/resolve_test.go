@@ -54,6 +54,17 @@ func TestADeclaredDateWins(t *testing.T) {
 	}
 }
 
+// A midnight-exact Unix timestamp resolves the same way `datetime.
+// fromtimestamp` reads it upstream (spec 006 delta §5.4, mechanism E2). Only a
+// validated document reaches this shape, so the value is always exact here.
+func TestEpochCurrentDateResolves(t *testing.T) {
+	got := resolve(t, "current_date: 86400\n")
+	want := time.Date(1970, 1, 2, 0, 0, 0, 0, time.UTC)
+	if !got.CurrentDate.Equal(want) {
+		t.Errorf("current date = %v, want %v", got.CurrentDate, want)
+	}
+}
+
 // Duplicates are removed. The order is this port's — see uniqueKeywords for why
 // upstream has none to reproduce.
 func TestBoldKeywordsAreDeduplicated(t *testing.T) {
