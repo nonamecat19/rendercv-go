@@ -68,6 +68,21 @@ func FieldNames() []string {
 	return names
 }
 
+// Default is the `cv` an absent `cv:` key produces — upstream's
+// `default_factory=Cv` (`schema/models/rendercv_model.py:19-23`) calling `Cv()`
+// with no arguments, which leaves every one of the ten fields at its `None`
+// default (`schema/models/cv/cv.py:31-...`).
+//
+// **It is a real model, not nil.** Upstream's `rendercv_model.cv` is never
+// `None`, so every reader — the header, the sections, the path placeholders —
+// is written against a `Cv` that exists and is empty. Handing those readers a
+// nil instead moved the absent-`cv` case out of "empty CV" and into "nil
+// dereference", which is what it did: a document with no `cv:` key panicked in
+// the renderer while upstream rendered it at exit 0.
+func Default() *Cv {
+	return &Cv{}
+}
+
 // KeyOrder reports the recorded key order (spec §3.50). The returned slice is a
 // copy, so a caller cannot disturb the record — spec §3.51 requires an already
 // validated object to keep its order untouched.

@@ -50,9 +50,13 @@ type RenderCVModel struct {
 	Locale   *yamldoc.Node
 	Settings *yamldoc.Node
 
-	// CvModel is the bound `cv`, nil when the key is absent. The raw node stays
-	// beside it because later iterations read spans and unnormalized text from it
-	// (spec 003 §6.5).
+	// CvModel is the bound `cv`, and `cv.Default()` when the key is absent —
+	// spec §3.28's "an empty `cv`" (rendercv_model.py:19-23). A validated model
+	// therefore always has one, matching upstream, where `rendercv_model.cv` is
+	// never `None`. The raw node stays beside it because later iterations read
+	// spans and unnormalized text from it (spec 003 §6.5), and *that* node is
+	// still nil when the key is absent — it is the record of what the document
+	// said, not of what the model defaulted to.
 	CvModel *cv.Cv
 
 	// inputFilePath is recorded out-of-band after validation, not as a document
@@ -109,7 +113,18 @@ func Validate(
 	// the JSON-schema `required` list deliberately omits `cv` (spec §3.30) so that
 	// a standalone design, locale or settings file validates. A present-but-null
 	// `cv` is a non-mapping, and the binder's own model-type branch reports it.
-	if model.Cv != nil {
+	//
+	// **An absent `cv` binds the default model, not nil** — spec §3.28's "an
+	// empty `cv`", which is `default_factory=Cv` (rendercv_model.py:19-23). The
+	// model used to be left nil here on the theory that a caller wants to tell
+	// "not supplied" from "supplied and empty"; no caller ever wanted that, and
+	// upstream cannot express it, because `rendercv_model.cv` is never `None`.
+	// What the nil actually bought was a panic: `locale: {language: english}`
+	// with no `cv:` key dereferenced nil in the renderer's bridge and exited 2,
+	// where upstream writes `NAME_IN_SNAKE_CASE_CV.typ` and exits 0.
+	if model.Cv == nil {
+		model.CvModel = cv.Default()
+	} else {
 		cvModel, cvErrs := cv.Validate(
 			model.Cv,
 			[]string{"cv"},
