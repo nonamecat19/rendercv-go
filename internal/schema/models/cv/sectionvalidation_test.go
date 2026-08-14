@@ -502,3 +502,142 @@ func TestSummaryOnlyEntryMatchesNoType(t *testing.T) {
 		t.Errorf("code = %q, want %q", errs[0].Code, cv.CodeSection)
 	}
 }
+
+// Spec §3.59, §3.61 — a section that mixes a bare string with a mapping entry is
+// refused **in both orders**, and the type it is refused against depends on the
+// order.
+//
+// Found by a randomised differential fuzzer, reduced to
+// `[Just text, {institution: Princeton}]`: upstream exits 1, the port exited 0.
+// The mechanism is that a text section's `entries: list[str]`
+// (`section.py:106-118`) type-checks every element, which the port's entry
+// dispatcher was not doing — so a mapping in a string-first section was accepted
+// by nobody in particular. The reverse order never had the defect, because there
+// the decided type is a real model whose binder rejects a non-mapping.
+//
+// Every row's expectation is upstream's, measured whole-panel through the
+// vendored Python at `render CV.yaml -nopdf -nopng -nomd -nohtml`.
+func TestMixedTextAndMappingSectionsAreRefusedInBothOrders(t *testing.T) {
+	tests := []struct {
+		name     string
+		src      string
+		wantType entries.TypeName
+		want     []string
+	}{
+		{
+			name:     "string first, then a mapping",
+			src:      "  - Just text\n  - institution: Princeton\n",
+			wantType: cv.TextEntry,
+			want:     []string{"entries.1 string_type"},
+		},
+		{
+			name:     "mapping first, then a string",
+			src:      "  - institution: Princeton\n  - Just text\n",
+			wantType: "EducationEntry",
+			want:     []string{"entries.0.area missing", "entries.1 model_type"},
+		},
+		{
+			name:     "string first, then two mappings of different types",
+			src:      "  - Just text\n  - institution: P\n  - company: C\n",
+			wantType: cv.TextEntry,
+			want:     []string{"entries.1 string_type", "entries.2 string_type"},
+		},
+		{
+			name:     "a mapping between two strings",
+			src:      "  - one\n  - institution: P\n  - two\n",
+			wantType: cv.TextEntry,
+			want:     []string{"entries.1 string_type"},
+		},
+		{
+			name:     "a string between two mappings",
+			src:      "  - institution: P\n  - one\n  - institution: Q\n",
+			wantType: "EducationEntry",
+			want: []string{
+				"entries.0.area missing",
+				"entries.1 model_type",
+				"entries.2.area missing",
+			},
+		},
+		{
+			name:     "null in a text section",
+			src:      "  - Just text\n  - ~\n",
+			wantType: cv.TextEntry,
+			want:     []string{"entries.1 string_type"},
+		},
+		{
+			name:     "an integer in a text section is not coerced",
+			src:      "  - Just text\n  - 2020\n",
+			wantType: cv.TextEntry,
+			want:     []string{"entries.1 string_type"},
+		},
+		{
+			name:     "a boolean in a text section",
+			src:      "  - Just text\n  - true\n",
+			wantType: cv.TextEntry,
+			want:     []string{"entries.1 string_type"},
+		},
+		{
+			name:     "a nested list in a text section",
+			src:      "  - Just text\n  - [a, b]\n",
+			wantType: cv.TextEntry,
+			want:     []string{"entries.1 string_type"},
+		},
+		{
+			name:     "a quoted number is a string and passes",
+			src:      "  - Just text\n  - '2020'\n",
+			wantType: cv.TextEntry,
+			want:     nil,
+		},
+		{
+			name:     "an all-strings section still renders",
+			src:      "  - one\n  - two\n  - three\n",
+			wantType: cv.TextEntry,
+			want:     nil,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			entryType, errs := cv.ValidateSection(
+				section(t, test.src), fixtureRegistry(),
+				[]string{"cv", "sections", "s"}, schemaerr.SourceMain, sectionReference,
+			)
+			if entryType != test.wantType {
+				t.Errorf("entry type = %q, want %q", entryType, test.wantType)
+			}
+
+			if test.want == nil {
+				if len(errs) != 0 {
+					t.Fatalf("errs = %+v, want none", errs)
+				}
+				return
+			}
+
+			if len(errs) != 1 {
+				t.Fatalf("errs = %+v, want exactly the entry-problems wrapper", errs)
+			}
+			if errs[0].Code != cv.CodeEntryProblems {
+				t.Errorf("code = %q, want %q", errs[0].Code, cv.CodeEntryProblems)
+			}
+			wantMessage := "There are problems with the entries. RenderCV detected the entry" +
+				" type of this section to be " + string(test.wantType) +
+				". The problems are shown below."
+			if errs[0].Message != wantMessage {
+				t.Errorf("message = %q, want %q", errs[0].Message, wantMessage)
+			}
+
+			var got []string
+			for _, child := range errs[0].Children {
+				got = append(got, strings.Join(child.SchemaLocation, ".")+" "+string(child.Code))
+			}
+			if len(got) != len(test.want) {
+				t.Fatalf("children = %v, want %v", got, test.want)
+			}
+			for i := range test.want {
+				if got[i] != test.want[i] {
+					t.Fatalf("children = %v, want %v", got, test.want)
+				}
+			}
+		})
+	}
+}

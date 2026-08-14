@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/nonamecat19/rendercv-go/internal/schema/binder"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
 )
@@ -12,9 +13,10 @@ import (
 // pydantic does when `validate_section` hands the whole entries list to the
 // chosen section model (section.py:219-235).
 //
-// The name must be one the registry knows. TextEntry is the identity case: it is
-// a bare `str` upstream with no model (section.py:23-24), so a string node is
-// always valid and there is nothing to bind.
+// The name must be one the registry knows. TextEntry is the near-identity case:
+// it is a bare `str` upstream with no model (section.py:23-24), so there is
+// nothing to bind — but the section model still declares `entries: list[str]`
+// (section.py:116), so the element is type-checked. See validateTextEntry.
 //
 // An unregistered name is a programming error, not user input — the caller
 // discriminates before dispatching — so it returns an InternalError rather than a
@@ -52,15 +54,55 @@ func Validate(
 		_, errs := ValidateReversedNumberedEntry(node, location, source, reference)
 		return errs, nil
 	case TextEntryName:
-		// A string is always a valid TextEntry (plan §3.2). Its own type check —
-		// that the node is a string at all — belongs to the caller, which
-		// discriminated it as text in the first place.
-		return nil, nil
+		return validateTextEntry(node, location, source), nil
 	default:
 		return nil, &schemaerr.InternalError{
 			Message: fmt.Sprintf("no validator registered for entry type %q", name),
 		}
 	}
+}
+
+// validateTextEntry is a `TextEntry`'s whole validation: the node must be a
+// string.
+//
+// A text entry has no model and no fields (spec 003 §3.14 behavior 27), which is
+// why this looks like nothing — but "no model" is not "no check". Upstream's
+// section model for text entries declares `entries: list[str]`
+// (`section.py:106-118`), so pydantic type-checks every element against `str`
+// exactly as it does for a modelled type, and a non-string element reports
+// `string_type` at its own index.
+//
+// Skipping the check made the port render a document upstream refuses, and only
+// in one order: a section is typed from its first resolvable entry
+// (`section.py:199-210`, spec 002 §3.59), so `[<string>, {institution: ...}]` is
+// a `TextEntry` section holding a mapping, while the reverse order is an
+// `EducationEntry` section holding a string and was rejected by the education
+// binder all along.
+//
+// KindString and nothing else, mirroring the binder's own `str` test: pydantic
+// rejects `int`, `float` and `bool` for a `str` field with strict mode off
+// (`binder.go:631-640`), so `- 2020` in a text section is a failure and not a
+// coercion.
+func validateTextEntry(
+	node *yamldoc.Node,
+	location []string,
+	source schemaerr.YamlSource,
+) []schemaerr.ValidationError {
+	if node != nil && node.Kind == yamldoc.KindString {
+		return nil
+	}
+	err := schemaerr.ValidationError{
+		Code:           binder.CodeStringType,
+		SchemaLocation: append([]string(nil), location...),
+		YamlSource:     source,
+		Message:        binder.MessageStringType,
+		Input:          schemaerr.RenderInput(node),
+	}
+	if node != nil {
+		span := node.Span
+		err.YamlLocation = &span
+	}
+	return []schemaerr.ValidationError{err}
 }
 
 // TextEntryName is the ninth entry type's name. It is a literal appended after
