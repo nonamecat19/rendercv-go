@@ -1378,7 +1378,13 @@ approximating it would be a test that cannot fail.
 
 ## Stretch goals (not gates)
 
-- [ ] PNG pixel-level comparison (depends on the WASI typst font set — see D-006)
+- [x] PNG pixel-level comparison (depended on the WASI typst font set — see D-006). **Met, and more
+  strongly than the goal asked: measured 2026-08-14, all 23 PNGs of a `new`-generated CV across all
+  nine built-in themes are BYTE-identical to the vendored Python's, not merely pixel-identical.**
+  The font set is therefore right, not approximately right. PDFs over four themes also match on
+  extracted text, page count and page geometry. Note the parity contract deliberately asks only for
+  text/page/geometry on PDF and PNG (raw bytes were expected to differ by embedded timestamps and
+  IDs), so this exceeds axis 1 rather than merely satisfying it
 - [ ] Public `pkg/rendercv` API frozen and semver'd
 - [ ] Cross-compiled release artifacts (linux/darwin/windows × amd64/arm64)
 
