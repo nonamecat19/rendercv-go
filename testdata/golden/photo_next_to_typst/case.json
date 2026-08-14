@@ -1,0 +1,10 @@
+{
+  "args": [
+    "render",
+    "cv.yaml",
+    "--settings.current_date",
+    "2025-03-05"
+  ],
+  "axis": "artifacts",
+  "name": "photo_next_to_typst"
+}
