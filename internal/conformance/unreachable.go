@@ -70,6 +70,15 @@ var unreachableCases = []Unreachable{
 	// model-layer record §3.3's footnote measured directly.
 	{Case: "err_settings_design_list", Divergence: "D-014", Why: "the golden is a Python traceback with absolute paths"},
 
+	// D-014 — a Typst compiler failure (`typst.TypstError`) is neither
+	// `RenderCVUserError` nor `OSError`, so upstream's `except` chain never
+	// catches it: it propagates past `with ProgressPanel(...)` unhandled and
+	// `Live` leaves its last frame — the progress panel, not the `Error` box —
+	// on stdout, then a Rich traceback with this machine's absolute paths on
+	// stderr. The port's stdout now matches (`failStep`, `internal/cli/render.go`);
+	// only stderr, the traceback, differs, and that is D-014's own class.
+	{Case: "err_typst_compile_failure", Divergence: "D-014", Why: "the golden's stderr is a Python traceback with absolute paths"},
+
 	// D-018 — `%YAML 1.1` switches ruamel to its 1.1 scalar resolver, so
 	// upstream reads `cv.name: yes` as the bool `True` and reports a type
 	// error against it. The port has no 1.1 resolver and refuses the directive

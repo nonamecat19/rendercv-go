@@ -1094,6 +1094,27 @@
         "--settings.current_date",
         "2025-03-05"
       ]
+    },
+    {
+      "name": "err_typst_compile_failure",
+      "axis": "errors",
+      "inline_files": [
+        {
+          "dst": "cv.yaml",
+          "content": "cv:\n  name: John Doe\n  photo: photo.jpg\n  sections:\n    s:\n    - text\n"
+        },
+        {
+          "dst": "photo.jpg",
+          "content": "not an image at all\n"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ],
+      "expect_exit": 1
     }
   ]
 }
