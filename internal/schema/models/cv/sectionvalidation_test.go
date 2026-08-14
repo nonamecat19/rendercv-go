@@ -49,6 +49,64 @@ func TestSectionMustBeAList(t *testing.T) {
 	}
 }
 
+// Spec §4.15 — the Input Value column echoes `str()` of the offending value and
+// falls back to `...` only for a mapping or a sequence
+// (`pydantic_error_handling.py:122-126`). A section error carried the `...`
+// unconditionally, so the commonest section failure of all — `a:` with a scalar
+// or an empty value under it — showed `...` where upstream shows `None`,
+// `hello` or `1.5`.
+//
+// Every row was measured against the vendored Python with
+// `render CV.yaml -nopdf -nopng -nomd -nohtml` under
+// `NO_COLOR=1 TERM=dumb COLUMNS=200`, reading the cell verbatim.
+func TestSectionErrorEchoesItsInput(t *testing.T) {
+	tests := []struct {
+		name string
+		src  string
+		want string
+	}{
+		// Not-a-list: the value itself reaches the column.
+		{name: "null", src: "  null\n", want: "None"},
+		{name: "empty value", src: "\n", want: "None"},
+		{name: "string", src: "  hello\n", want: "hello"},
+		{name: "empty string", src: `  ""` + "\n", want: ""},
+		{name: "apostrophe string", src: `  "it's"` + "\n", want: "it's"},
+		{name: "int", src: "  5\n", want: "5"},
+		{name: "float", src: "  1.50\n", want: "1.5"},
+		{name: "bool", src: "  true\n", want: "True"},
+		{
+			name: "long string",
+			src:  "  " + strings.Repeat("x", 140) + "\n",
+			want: strings.Repeat("x", 140),
+		},
+		// A mapping is the one not-a-list shape that keeps the ellipsis.
+		{name: "mapping", src: "  k: v\n", want: "..."},
+		// The three list-valued section errors keep it too, because their
+		// input is the sequence.
+		{name: "no entry types", src: "  - null\n", want: "..."},
+		{name: "no characteristic field", src: "  - zzz: 1\n", want: "..."},
+		{name: "entry problems", src: "  - institution: X\n    start_date: bogus\n", want: "..."},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, errs := cv.ValidateSection(
+				section(t, tc.src),
+				fixtureRegistry(),
+				[]string{"cv", "sections", "a"},
+				schemaerr.SourceMain,
+				sectionReference,
+			)
+			if len(errs) != 1 {
+				t.Fatalf("errs = %+v, want exactly one", errs)
+			}
+			if errs[0].Input != tc.want {
+				t.Errorf("input = %q, want %q", errs[0].Input, tc.want)
+			}
+		})
+	}
+}
+
 // Spec §3.54 — an empty list infers nothing and produces no error.
 func TestEmptySection(t *testing.T) {
 	entryType, errs := cv.ValidateSection(section(t, "  []\n"), fixtureRegistry(), nil, schemaerr.SourceMain, sectionReference)
