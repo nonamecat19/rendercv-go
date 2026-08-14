@@ -70,7 +70,11 @@ import (
 // `RawHtmlPostprocessor`'s `<p>`-stripping (`postprocessors.py:84-86`), which is
 // `postprocessors.go`.
 //
-// Measured after that work: 2 rows differ in `knownRemainder` and 3 in
+// A tenth took spec 011 §9.3's declined class, a destination spanning a line
+// break, which the inline reader can reach after all — `link.go`'s
+// `readBlockTail`.
+//
+// Measured after that work: 1 row differs in `knownRemainder` and 3 in
 // `containerBlockTag`, checked by running `MarkdownToHTML` over every `In` and
 // diffing against the fixture's `Out` — not read off a commit message.
 //
@@ -113,25 +117,32 @@ func TestMarkdownToHTMLMatchesPython(t *testing.T) {
 }
 
 // knownRemainder is what still differs after Wave C (spec 011 §7-8, T8-T12):
-// one shape spec §9.3 declines on purpose, and one class nobody has taken.
-// Each is pinned by an **inverted** assertion above —
+// one class nobody has taken.
+// It is pinned by an **inverted** assertion above —
 // the case still runs, still has to produce output, and still has to differ —
 // for the same reason `conformance.AssertUnreachable` is: a list of tolerated
 // mismatches that cannot notice being fixed is a mute button.
 //
-// Neither is recorded in `specs/divergences.md`; spec 011 §9.4 argues neither is parity-impossible.
+// It is not recorded in `specs/divergences.md`; spec 011 §9.4 argues it is not parity-impossible.
 //
-//  1. **A destination spanning a line break.** `getLink` scans the block's
-//     whole text, so `[t](a\nb)` upstream is one link with a literal newline
-//     in its `href`; matching that needs a block-level scanner. Spec 011 §9.3.
-//  2. **A tag name with a dot in it.** `<stdio.h>` is raw inline HTML to
-//     python-markdown's `HTMLExtractor` and is passed through; CommonMark 0.31
-//     §6.6 spells a tag name `[A-Za-z][A-Za-z0-9-]*`, so goldmark reads the
-//     `.` as ordinary text and escapes the angle brackets. **Nothing to do with
-//     headings** — `a <stdio.h> b`, `<stdio.h>` and `a <b.c> d` differ the same
-//     way in a plain paragraph, measured. The row below is the ATX shape of it
-//     that spec-delta-atx §3.2 pinned, and the class has no owner yet.
+// **A destination spanning a line break was the other**, declined by spec 011
+// §9.3 as needing a block-level scanner. It needed no scanner goldmark does not
+// already offer: the inline reader is a block reader, so `linkParser` reads the
+// block's remaining lines, scans them as one text — which is what
+// python-markdown's block text is — and maps the end back to a source offset.
+// `[t](a\nb)` is `href="a\nb"` on both sides now, with 72 rows of the class in
+// the fixture.
+//
+// **A tag name with a dot in it** is what is left. `<stdio.h>` is raw inline HTML to
+// python-markdown's `HTMLExtractor` and is passed through; CommonMark 0.31
+// §6.6 spells a tag name `[A-Za-z][A-Za-z0-9-]*`, so goldmark reads the
+// `.` as ordinary text and escapes the angle brackets. **Nothing to do with
+// headings** — `a <stdio.h> b`, `<stdio.h>` and `a <b.c> d` differ the same
+// way in a plain paragraph, measured. The row below is the ATX shape of it
+// that spec-delta-atx §3.2 pinned, and the class has no owner yet. `</ div>`
+// and `</div attr>` are the same class seen from the block side, and
+// `htmlblock.go`'s `commonMarkCloseTag` keeps the closing-tag rule clear of
+// them.
 var knownRemainder = map[string]string{
-	"[t](a\nb)":          "spec 011 §9.3: a destination spanning a line break is out of scope, declined permanently",
 	"#include <stdio.h>": "a dotted tag name is raw HTML upstream and text in CommonMark; not the ATX rule",
 }
