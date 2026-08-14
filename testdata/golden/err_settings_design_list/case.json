@@ -1,0 +1,10 @@
+{
+  "args": [
+    "render",
+    "cv.yaml",
+    "--settings.current_date",
+    "2025-03-05"
+  ],
+  "axis": "errors",
+  "name": "err_settings_design_list"
+}

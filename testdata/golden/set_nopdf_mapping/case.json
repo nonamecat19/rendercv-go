@@ -1,0 +1,12 @@
+{
+  "args": [
+    "render",
+    "cv.yaml",
+    "--settings.current_date",
+    "2025-03-05",
+    "-nopdf",
+    "-nopng"
+  ],
+  "axis": "render",
+  "name": "set_nopdf_mapping"
+}

@@ -1,0 +1,3 @@
+rendercv_output/John_Doe_CV.html
+rendercv_output/John_Doe_CV.md
+rendercv_output/John_Doe_CV.typ
