@@ -29,14 +29,14 @@ var noGeneration = []string{
 // refused NEL, a tab or an astral emoji would refuse documents upstream
 // renders.
 //
-// `U+000D` is deliberately absent. Upstream reads the input through
-// `pathlib.Path.read_text` (`cli/render_command/run_rendercv.py:115,140`),
-// whose universal-newline translation turns a lone `\r` into `\n` before ruamel
-// sees it, and the port reads bytes; the two therefore disagree on the *span*
-// of a later parser error for that document. CR is permitted by both — the unit
-// table in `internal/schema/yamlreader/printable_test.go` pins that — and the
-// remaining disagreement is a newline-translation defect this rule does not
-// touch (spec delta 002-P §6).
+// `U+000D` is deliberately absent, and stays absent now that it agrees. Upstream
+// reads the input through `pathlib.Path.read_text`
+// (`cli/render_command/run_rendercv.py:115,140`), whose universal-newline
+// translation turns a lone `\r` into `\n` before ruamel sees it; the port does
+// the same since spec delta 002-N, so the document is a *newline* vector and is
+// measured as one in `newline_test.go`. CR is permitted by both printable rules
+// — the unit table in `internal/schema/yamlreader/printable_test.go` pins that —
+// which is exactly why nothing here has anything left to say about it.
 func TestPrintableCharacterRule(t *testing.T) {
 	// document is spec delta 002-P §4's probe.
 	document := func(ch rune) string { return fmt.Sprintf("cv:\n  name: %cA\n", ch) }

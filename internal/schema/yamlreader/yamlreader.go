@@ -2,8 +2,8 @@ package yamlreader
 
 import (
 	"fmt"
-	"os"
 
+	"github.com/nonamecat19/rendercv-go/internal/readtext"
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
 )
@@ -24,7 +24,10 @@ import (
 // port stricter than upstream (spec 013 §3.6 behavior 43, §4.11);
 // `internal/cli/reachability_test.go` asserts neither string is in the source.
 func ReadFile(path string) (*yamldoc.Node, error) {
-	raw, err := os.ReadFile(path)
+	// `read_yaml`'s own `Path` branch reads with `read_text`
+	// (`yaml_reader.py:49`), so this unreachable twin translates line endings
+	// like the reachable boundary in `internal/cli` does.
+	raw, err := readtext.File(path)
 	if err != nil {
 		return nil, fmt.Errorf("reading %s: %w", path, err)
 	}
