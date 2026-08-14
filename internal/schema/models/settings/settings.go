@@ -118,6 +118,18 @@ func unknownKey(item yamldoc.Item, location []string) schemaerr.ValidationError 
 		YamlLocation:   &span,
 		YamlSource:     source(item),
 		Message:        messageExtraForbidden,
+		// **The Input Value column was blank on every settings unknown key.**
+		// The record left `Input` at its zero value, and a zero `Input` is an
+		// empty cell, not an absent one — so the column rendered nothing where
+		// upstream prints the offending value. Pydantic's `input` for
+		// `extra_forbidden` is the *value* of the unknown key, not the model
+		// that rejected it (verified against pydantic directly, on all nine
+		// value shapes), and `pydantic_error_handling.py:122-126` renders it
+		// `str(value)` unless it is a `dict` or a `list`, in which case `...`.
+		// That is exactly `RenderInput`, which the binder's own
+		// `extra_forbidden` on `cv` and `design` already used — which is why
+		// those two blocks matched while `settings` did not.
+		Input: schemaerr.RenderInput(item.Value),
 	}
 }
 
