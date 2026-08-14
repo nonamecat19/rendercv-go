@@ -271,7 +271,12 @@ type engine struct {
 // a PDF and its PNGs would otherwise pay it twice.
 var shared = sync.OnceValues(func() (engine, error) {
 	ctx := context.Background()
-	runtime := wazero.NewRuntime(ctx)
+	// WithCloseOnContextDone makes a canceled or timed-out ctx passed to
+	// InstantiateModule actually abort that call's execution — without it the
+	// ctx parameter Compile takes is decorative, since wazero otherwise runs a
+	// module to completion regardless of the context's state. It closes only
+	// the module tied to the offending context, not this shared runtime.
+	runtime := wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfig().WithCloseOnContextDone(true))
 	if _, err := wasi_snapshot_preview1.Instantiate(ctx, runtime); err != nil {
 		return engine{}, fmt.Errorf("typstc: instantiating WASI: %w", err)
 	}

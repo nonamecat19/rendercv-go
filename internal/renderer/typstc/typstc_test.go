@@ -108,6 +108,31 @@ func TestFontsResolveWithoutAnyHostFonts(t *testing.T) {
 	}
 }
 
+// TestCompileHonorsContextCancellation proves ctx is not decorative: a
+// context canceled before the call aborts the compile rather than running it
+// to completion. wazero only checks the condition at its own safepoints, so
+// the assertion is "did not produce a PDF", not a race on exactly when the
+// abort happens.
+func TestCompileHonorsContextCancellation(t *testing.T) {
+	dir := t.TempDir()
+	input := write(t, dir, "doc.typ", "#set page(width: 100pt, height: 50pt)\nhello\n")
+	output := filepath.Join(dir, "doc.pdf")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := typstc.Compile(ctx, typstc.Request{
+		InputPath:  input,
+		OutputPath: output,
+	})
+	if err == nil {
+		t.Fatal("Compile succeeded despite an already-canceled context")
+	}
+	if _, statErr := os.Stat(output); statErr == nil {
+		t.Error("Compile wrote a PDF despite an already-canceled context")
+	}
+}
+
 // TestOutputMayLiveElsewhere matches upstream: `settings.render_command.pdf_path`
 // and `-pdf`/`-png` both allow an output outside the input's directory, and
 // upstream compiles it there. The compiler mounts the output's directory
