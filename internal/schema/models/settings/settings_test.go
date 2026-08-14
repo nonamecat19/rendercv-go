@@ -84,3 +84,81 @@ func TestCurrentDateMessageComesFromTheOverride(t *testing.T) {
 		t.Errorf("input = %q, want the value as written", final[0].Input)
 	}
 }
+
+func settingsNode(t *testing.T, document string) *yamldoc.Node {
+	t.Helper()
+	doc, err := yamlreader.ReadString(document)
+	if err != nil {
+		t.Fatalf("ReadString: %v", err)
+	}
+	return doc
+}
+
+// Spec 004 §4.15 and its acceptance criterion, for the unknown-key record.
+//
+// **The Input Value column was empty on every settings unknown key.** The
+// record left `Input` at its zero value, so the column rendered blank where
+// upstream prints the offending value. Pydantic's `input` for `extra_forbidden`
+// is the *value* of the unknown key — not the containing model — and
+// `pydantic_error_handling.py:122-126` renders it `str(value)` unless it is a
+// `dict` or a `list`, in which case `...`. Measured through upstream's own CLI
+// on all nine value shapes below; eight of the nine disagreed.
+func TestUnknownKeyEchoesItsValue(t *testing.T) {
+	tests := []struct {
+		name     string
+		document string
+		want     string
+	}{
+		{name: "a string", document: "bogus: hello\n", want: "hello"},
+		{name: "an integer", document: "bogus: 7\n", want: "7"},
+		{name: "a float", document: "bogus: 1.50\n", want: "1.5"},
+		{name: "a bool", document: "bogus: true\n", want: "True"},
+		{name: "a null", document: "bogus: null\n", want: "None"},
+		{name: "an absent value", document: "bogus:\n", want: "None"},
+		{name: "a sequence", document: "bogus:\n  - 1\n  - 2\n", want: "..."},
+		{name: "a mapping", document: "bogus:\n  a: 1\n", want: "..."},
+		{name: "an empty string", document: "bogus: ''\n", want: ""},
+		{
+			name:     "a long string",
+			document: "bogus: '" + strings.Repeat("y", 90) + "'\n",
+			want:     strings.Repeat("y", 90),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			errs := settings.ValidateUnknownKeys(
+				settingsNode(t, test.document), []string{"settings"}, schemaerr.SourceMain,
+			)
+			if len(errs) != 1 {
+				t.Fatalf("errs = %+v, want exactly one", errs)
+			}
+			if got := strings.Join(errs[0].SchemaLocation, "."); got != "settings.bogus" {
+				t.Errorf("location = %q, want settings.bogus", got)
+			}
+			if errs[0].Input != test.want {
+				t.Errorf("input = %q, want %q", errs[0].Input, test.want)
+			}
+		})
+	}
+}
+
+// The nested `render_command` mapping reaches the same record through a second
+// call site, so the value echo is asserted there too.
+func TestUnknownRenderCommandKeyEchoesItsValue(t *testing.T) {
+	document := "render_command:\n  output_folder_name: out\n"
+	errs := settings.ValidateUnknownKeys(
+		settingsNode(t, document), []string{"settings"}, schemaerr.SourceMain,
+	)
+	if len(errs) != 1 {
+		t.Fatalf("errs = %+v, want exactly one", errs)
+	}
+
+	const wantLocation = "settings.render_command.output_folder_name"
+	if got := strings.Join(errs[0].SchemaLocation, "."); got != wantLocation {
+		t.Errorf("location = %q, want %s", got, wantLocation)
+	}
+	if errs[0].Input != "out" {
+		t.Errorf("input = %q, want the value as written", errs[0].Input)
+	}
+}
