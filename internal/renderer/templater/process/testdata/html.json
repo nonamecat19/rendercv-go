@@ -4638,5 +4638,293 @@
   {
     "In": "text\n</section>\ntail",
     "Out": "<p>text\n</section>\ntail</p>"
+  },
+  {
+    "In": "[t](a\nb c)",
+    "Out": "<p><a href=\"a\nb c\">t</a></p>"
+  },
+  {
+    "In": "[t](a\nb \"ti\")",
+    "Out": "<p><a href=\"a\nb\" title=\"ti\">t</a></p>"
+  },
+  {
+    "In": "[t](a\nb\nc)",
+    "Out": "<p><a href=\"a\nb\nc\">t</a></p>"
+  },
+  {
+    "In": "[t](\na)",
+    "Out": "<p><a href=\"a\">t</a></p>"
+  },
+  {
+    "In": "[t](a\n)",
+    "Out": "<p><a href=\"a\">t</a></p>"
+  },
+  {
+    "In": "> [t](a\n> b)",
+    "Out": "<blockquote>\n<p><a href=\"a\nb\">t</a></p>\n</blockquote>"
+  },
+  {
+    "In": "- [t](a\n  b)",
+    "Out": "<ul>\n<li><a href=\"a\n  b\">t</a></li>\n</ul>"
+  },
+  {
+    "In": "[t](a(\nb)c)",
+    "Out": "<p><a href=\"a(\nb)c\">t</a></p>"
+  },
+  {
+    "In": "![a](b\nc)",
+    "Out": "<p><img alt=\"a\" src=\"b\nc\" /></p>"
+  },
+  {
+    "In": "[t](a\n\nb)",
+    "Out": "<p>[t](a</p>\n<p>b)</p>"
+  },
+  {
+    "In": "[a\nb](u)",
+    "Out": "<p><a href=\"u\">a\nb</a></p>"
+  },
+  {
+    "In": "[t](<a\nb>)",
+    "Out": "<p><a href=\"a\nb\">t</a></p>"
+  },
+  {
+    "In": "[t](a\nb 'ti')",
+    "Out": "<p><a href=\"a\nb\" title=\"ti\">t</a></p>"
+  },
+  {
+    "In": "[t](a\"b\nc)",
+    "Out": "<p><a href=\"a&quot;b\nc\">t</a></p>"
+  },
+  {
+    "In": "text [t](a\nb) tail",
+    "Out": "<p>text <a href=\"a\nb\">t</a> tail</p>"
+  },
+  {
+    "In": "[t](a\nb) [u](c\nd)",
+    "Out": "<p><a href=\"a\nb\">t</a> <a href=\"c\nd\">u</a></p>"
+  },
+  {
+    "In": "[t](a\nb\nc \"x\ny\")",
+    "Out": "<p><a href=\"a\nb\nc\" title=\"x y\">t</a></p>"
+  },
+  {
+    "In": "# [t](a\nb)",
+    "Out": "<h1>[t](a</h1>\n<p>b)</p>"
+  },
+  {
+    "In": "[t](a\nb",
+    "Out": "<p>[t](a\nb</p>"
+  },
+  {
+    "In": "[t](a\n*b*)",
+    "Out": "<p><a href=\"a\n*b*\">t</a></p>"
+  },
+  {
+    "In": "*[t](a\nb)*",
+    "Out": "<p><em><a href=\"a\nb\">t</a></em></p>"
+  },
+  {
+    "In": "[t](a\n](b)",
+    "Out": "<p>[t](a\n](b)</p>"
+  },
+  {
+    "In": "- [t](a\nb)\n- second",
+    "Out": "<ul>\n<li><a href=\"a\nb\">t</a></li>\n<li>second</li>\n</ul>"
+  },
+  {
+    "In": "[t](a\nb)\nafter",
+    "Out": "<p><a href=\"a\nb\">t</a>\nafter</p>"
+  },
+  {
+    "In": "para\n\n[t](a\nb)",
+    "Out": "<p>para</p>\n<p><a href=\"a\nb\">t</a></p>"
+  },
+  {
+    "In": "[t](a \nb)",
+    "Out": "<p><a href=\"a \nb\">t</a></p>"
+  },
+  {
+    "In": "[t](a\n  b)",
+    "Out": "<p><a href=\"a\n  b\">t</a></p>"
+  },
+  {
+    "In": "[t](a\nb)c",
+    "Out": "<p><a href=\"a\nb\">t</a>c</p>"
+  },
+  {
+    "In": "[**x**](a\nb)",
+    "Out": "<p><a href=\"a\nb\"><strong>x</strong></a></p>"
+  },
+  {
+    "In": "> [t](a\n>   b)",
+    "Out": "<blockquote>\n<p><a href=\"a\n  b\">t</a></p>\n</blockquote>"
+  },
+  {
+    "In": "- [t](a\n    b)",
+    "Out": "<ul>\n<li><a href=\"a\n    b\">t</a></li>\n</ul>"
+  },
+  {
+    "In": "[t](a\n\tb)",
+    "Out": "<p><a href=\"a\n    b\">t</a></p>"
+  },
+  {
+    "In": "[t](a\n b)",
+    "Out": "<p><a href=\"a\n b\">t</a></p>"
+  },
+  {
+    "In": "[t](a\nb) and [u](c d)",
+    "Out": "<p><a href=\"a\nb\">t</a> and <a href=\"c d\">u</a></p>"
+  },
+  {
+    "In": "[t](a\nb 'x\ny')",
+    "Out": "<p><a href=\"a\nb\" title=\"x y\">t</a></p>"
+  },
+  {
+    "In": "[t](a\nb(c\nd)e)",
+    "Out": "<p><a href=\"a\nb(c\nd)e\">t</a></p>"
+  },
+  {
+    "In": "[![i](p.png)](a\nb)",
+    "Out": "<p><a href=\"a\nb\"><img alt=\"i\" src=\"p.png\" /></a></p>"
+  },
+  {
+    "In": "[t](a\\\nb)",
+    "Out": "<p><a href=\"a\\\nb\">t</a></p>"
+  },
+  {
+    "In": "[t](a\n<b>)",
+    "Out": "<p><a href=\"a\n&lt;b&gt;\">t</a></p>"
+  },
+  {
+    "In": "1. [t](a\n   b)",
+    "Out": "<ol>\n<li><a href=\"a\n   b\">t</a></li>\n</ol>"
+  },
+  {
+    "In": "[t](a\nb\n\nc)",
+    "Out": "<p>[t](a\nb</p>\n<p>c)</p>"
+  },
+  {
+    "In": "[t]( \na )",
+    "Out": "<p><a href=\"a\">t</a></p>"
+  },
+  {
+    "In": "[t](\n)",
+    "Out": "<p><a href=\"\">t</a></p>"
+  },
+  {
+    "In": "[t](a\nb) *em\nph*",
+    "Out": "<p><a href=\"a\nb\">t</a> <em>em\nph</em></p>"
+  },
+  {
+    "In": "*em [t](a\nb) ph*",
+    "Out": "<p><em>em <a href=\"a\nb\">t</a> ph</em></p>"
+  },
+  {
+    "In": "> - [t](a\n>   b)",
+    "Out": "<blockquote>\n<ul>\n<li><a href=\"a\n  b\">t</a></li>\n</ul>\n</blockquote>"
+  },
+  {
+    "In": "[t](a\nb)  ",
+    "Out": "<p><a href=\"a\nb\">t</a>  </p>"
+  },
+  {
+    "In": "text\n[t](a\nb)\ntext",
+    "Out": "<p>text\n<a href=\"a\nb\">t</a>\ntext</p>"
+  },
+  {
+    "In": "[t](a\nb\"c)",
+    "Out": "<p><a href=\"a\nb&quot;c\">t</a></p>"
+  },
+  {
+    "In": "[t](a\nb) [t2](c\nd) [t3](e\nf)",
+    "Out": "<p><a href=\"a\nb\">t</a> <a href=\"c\nd\">t2</a> <a href=\"e\nf\">t3</a></p>"
+  },
+  {
+    "In": "![t](a\nb)",
+    "Out": "<p><img alt=\"t\" src=\"a\nb\" /></p>"
+  },
+  {
+    "In": "[t](a\n b\n  c)",
+    "Out": "<p><a href=\"a\n b\n  c\">t</a></p>"
+  },
+  {
+    "In": "[a] [b] [c]",
+    "Out": "<p>[a] [b] [c]</p>"
+  },
+  {
+    "In": "[x](y) [z](w)",
+    "Out": "<p><a href=\"y\">x</a> <a href=\"w\">z</a></p>"
+  },
+  {
+    "In": "[a][ref]\n\n[ref]: u",
+    "Out": "<p><a href=\"u\">a</a></p>"
+  },
+  {
+    "In": "[a](u)\n[b](v)\n[c](w)",
+    "Out": "<p><a href=\"u\">a</a>\n<a href=\"v\">b</a>\n<a href=\"w\">c</a></p>"
+  },
+  {
+    "In": "*[a](u)\nand [b](v)*",
+    "Out": "<p><em><a href=\"u\">a</a>\nand <a href=\"v\">b</a></em></p>"
+  },
+  {
+    "In": "[a\nb](u) tail",
+    "Out": "<p><a href=\"u\">a\nb</a> tail</p>"
+  },
+  {
+    "In": "[](x)\n[](y)",
+    "Out": "<p><a href=\"x\"></a>\n<a href=\"y\"></a></p>"
+  },
+  {
+    "In": "[]()\n\n[]()",
+    "Out": "<p><a href=\"\"></a></p>\n<p><a href=\"\"></a></p>"
+  },
+  {
+    "In": "[a](u \"t\")\nnext [b](v 't')",
+    "Out": "<p><a href=\"u\" title=\"t\">a</a>\nnext <a href=\"v\" title=\"t\">b</a></p>"
+  },
+  {
+    "In": "- [a](u)\n- [b](v)",
+    "Out": "<ul>\n<li><a href=\"u\">a</a></li>\n<li><a href=\"v\">b</a></li>\n</ul>"
+  },
+  {
+    "In": "[a](u)text\n[b](v)text",
+    "Out": "<p><a href=\"u\">a</a>text\n<a href=\"v\">b</a>text</p>"
+  },
+  {
+    "In": "text [notalink] more\nand [x](y)",
+    "Out": "<p>text [notalink] more\nand <a href=\"y\">x</a></p>"
+  },
+  {
+    "In": "[t](a b)\n[t2](c d)",
+    "Out": "<p><a href=\"a b\">t</a>\n<a href=\"c d\">t2</a></p>"
+  },
+  {
+    "In": "[](\n)",
+    "Out": "<p><a href=\"\"></a></p>"
+  },
+  {
+    "In": "[a](b)\n\n[c](d)",
+    "Out": "<p><a href=\"b\">a</a></p>\n<p><a href=\"d\">c</a></p>"
+  },
+  {
+    "In": "> [a](u)\n> [b](v)",
+    "Out": "<blockquote>\n<p><a href=\"u\">a</a>\n<a href=\"v\">b</a></p>\n</blockquote>"
+  },
+  {
+    "In": "# [a](u)\n\n[b](v)",
+    "Out": "<h1><a href=\"u\">a</a></h1>\n<p><a href=\"v\">b</a></p>"
+  },
+  {
+    "In": "[a\\](u)\nb",
+    "Out": "<p>[a](u)\nb</p>"
+  },
+  {
+    "In": "[t](a\nb) *x* `y` <c>",
+    "Out": "<p><a href=\"a\nb\">t</a> <em>x</em> <code>y</code> <c></p>"
+  },
+  {
+    "In": "[t](a)b)\nc)",
+    "Out": "<p><a href=\"a\">t</a>b)\nc)</p>"
   }
 ]
