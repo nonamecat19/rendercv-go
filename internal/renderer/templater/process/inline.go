@@ -15,18 +15,37 @@ import (
 // children — so composing it into the parse loses nothing. The HTML path, which
 // iteration 11 owns, does need a tree and keeps goldmark.
 type inlineParser struct {
-	// linkDepth is non-zero while a link's own label is being parsed.
+	// linkFloor is the highest link-family priority still available.
 	// Upstream reprocesses a built element's text from `patternIndex + 1`
 	// (`treeprocessors.py:315`), one below the pattern that built it, so
 	// `link` (160) cannot be reached from inside a link and
-	// `[a [b](c) d](u)` keeps its inner brackets literal.
-	linkDepth int
+	// `[a [b](c) d](u)` keeps its inner brackets literal — while
+	// `short_reference` (130) can be, and `[[t]](v)` really does nest one
+	// resolved reference inside a link.
+	//
+	// It was a `linkDepth` counter while `link` was the only pattern cut off.
+	linkFloor int
+
+	// refBarrier is the index just past the last bracketed span the reference
+	// patterns declined, and it is the one place where upstream's
+	// pattern-at-a-time scan cannot be collapsed into a position-at-a-time one.
+	//
+	// `if node is None: return data, True, end` (`treeprocessors.py:337-338`)
+	// leaves the text **unchanged** but restarts that pattern past the span, so
+	// an undefined `[a[b]c]` shields the `[b]` inside it from the reference
+	// patterns — and only from those, since every other pattern still gets its
+	// own full pass over the same unchanged text. `[a[b]c]` with `b` defined is
+	// entirely literal upstream, and a single scan that simply stepped one byte
+	// on resolved the inner one.
+	//
+	// It indexes the string the current `parseFrom` is scanning, so `parseFrom`
+	// saves and clears it around a nested one.
+	refBarrier int
 }
 
 // The patterns that run **before** emphasis, in upstream's registry order
-// (markdown/inlinepatterns.py:73-95). References are the one entry still
-// missing: they need the link-definition map the block pass builds, which the
-// line-at-a-time Typst path never has.
+// (markdown/inlinepatterns.py:73-95). The four reference forms live in
+// `reference.go`, whose block half builds the link-definition map they read.
 var (
 	// AUTOLINK_RE (`inlinepatterns.py:155`), registered at 120. Only `http`,
 	// `https`, `ftp` and `ftps` are spelled out there, and the scheme match is
@@ -57,7 +76,7 @@ var (
 // EscapeTypstCharacters — which is where `#`, `%` and the rest are handled and
 // where `*` becomes `#sym.ast.basic`.
 func ParseInline(line string) string {
-	var parser inlineParser
+	parser := inlineParser{linkFloor: prioReference}
 	return parser.parseFrom(line, -1, 0)
 }
 
@@ -75,6 +94,10 @@ func ParseInline(line string) string {
 //
 // Text between matches is escaped and emitted as it goes.
 func (p *inlineParser) parseFrom(data string, from int, fromDelim byte) string {
+	outerBarrier := p.refBarrier
+	p.refBarrier = 0
+	defer func() { p.refBarrier = outerBarrier }()
+
 	var out strings.Builder
 	pending := 0
 	pos := 0
@@ -156,6 +179,13 @@ func (p *inlineParser) matchPrefix(data string, pos, pending int) (int, string, 
 		}
 		return pos + 2, EscapeTypstCharacters(rest[1:2]), true
 	}
+	// `reference` (170) is **above** `link` (160), which is why `[t](u)` is an
+	// inline link to `u` even when `t` is a defined reference id, and why
+	// `[t][1]` never reaches the direct-paren scanner. The other three
+	// reference forms are below `image_link` and are dispatched after it.
+	if end, typst, ok := p.matchReference(data, pos, pending, prioReference); ok {
+		return end, typst, true
+	}
 	if end, ok := matchImage(rest); ok {
 		// `IMAGE_LINK_RE` builds an `img`, and `to_typst_string` has no branch
 		// for one (`markdown_parser.py:60-63`): the default branch recurses into
@@ -171,7 +201,7 @@ func (p *inlineParser) matchPrefix(data string, pos, pending int) (int, string, 
 	// `[t](<a b> "t")` and `[![i](p.png)](u)` were all mis-scanned here long
 	// after the HTML path had been fixed. That asymmetry is what let a Typst
 	// divergence sit undeclared while the HTML differential was green.
-	if len(rest) > 0 && rest[0] == '[' && p.linkDepth == 0 && !precededByBang(data, pos, pending) {
+	if len(rest) > 0 && rest[0] == '[' && p.linkFloor >= prioLink && !precededByBang(data, pos, pending) {
 		scan := []byte(maskAbove(rest, prioLink))
 		if _, after := matchBracketed(scan, 1, '[', ']'); after > 0 && after < len(scan) && scan[after] == '(' {
 			if href, _, _, end, ok := getLink(scan, []byte(rest), after); ok {
@@ -182,12 +212,18 @@ func (p *inlineParser) matchPrefix(data string, pos, pending int) (int, string, 
 					// the example, not an empty link.
 					dest = "https://example.com"
 				}
-				p.linkDepth++
+				outer := p.linkFloor
+				p.linkFloor = prioImage
 				label := p.parseFrom(rest[1:after-1], -1, 0)
-				p.linkDepth--
+				p.linkFloor = outer
 				return pos + end, `#link("` + dest + `")[` + label + `]`, true
 			}
 		}
+	}
+	// `image_reference` (140), `short_reference` (130) and `short_image_ref`
+	// (125), all of them below the direct forms above.
+	if end, typst, ok := p.matchReference(data, pos, pending, 0); ok {
+		return end, typst, true
 	}
 	if end, typst, ok := matchAutolink(rest); ok {
 		return pos + end, typst, true

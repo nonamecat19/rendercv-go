@@ -235,6 +235,14 @@ func convertBlock(lines []string) []string {
 		return append(out, convertBlock(lines[i+1:])...)
 	}
 
+	// `ReferenceProcessor` (`blockprocessors.py:577-604`) at priority 15, the
+	// last processor above `paragraph`. It records the definition and emits
+	// **nothing**, which is why the definition line of a reference-style link is
+	// a blank line in upstream's `.typ`.
+	if before, after, ok := collectReference(lines); ok {
+		return append(convertBlock(before), convertBlock(after)...)
+	}
+
 	// `ParagraphProcessor` (`:612-640`) lstrips the block — the whole block, not
 	// each line, which is why `  a\r  b` keeps the second line's two spaces.
 	text := lineBreakPattern.ReplaceAllString(strings.Join(lines, "\n"), "\n")

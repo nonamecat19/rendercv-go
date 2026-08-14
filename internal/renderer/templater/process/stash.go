@@ -3,14 +3,24 @@ package process
 import "strings"
 
 // The inline pattern priorities of `build_inlinepatterns`
-// (`markdown/inlinepatterns.py:73-95`). Only the ones this file resolves are
-// named; `reference` (170) and the three shortcut/reference forms need the
-// link-definition map, which neither path builds.
+// (`markdown/inlinepatterns.py:73-95`).
+//
+// The four reference forms are named but are **not** masked by `maskAbove`.
+// Their link-definition map is the Typst path's process-wide `typstReferences`
+// (`reference.go`), and this file is shared with the HTML path, whose
+// references are per-document because `markdown_to_html` builds a fresh
+// `Markdown` each call. Masking them here would leak one path's state into the
+// other; no measured shape needs it.
 const (
-	prioBacktick  = 190
-	prioEscape    = 180
-	prioLink      = 160
-	prioImage     = 150
+	prioBacktick      = 190
+	prioEscape        = 180
+	prioReference     = 170
+	prioLink          = 160
+	prioImage         = 150
+	prioImageRef      = 140
+	prioShortRef      = 130
+	prioShortImageRef = 125
+
 	prioAutolink  = 120
 	prioAutomail  = 110
 	prioHTML      = 90
