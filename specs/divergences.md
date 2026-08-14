@@ -60,26 +60,41 @@ Each entry: what differs · upstream citation · why parity is impossible or und
     `return {}` — is dropped rather than merged (leak prevention, `effective.go`'s
     `withoutTreeConflicts`).
   - **Closed, corrected**: this paragraph used to claim a document setting an unknown key on a
-    scripted custom theme is silently accepted. Measured against the vendored binary and against
-    the port (`internal/schema/models/design/scriptextra_test.go`,
-    `TestValidateScriptedThemeUnknownKeys`), both are exit 1/1 — an unrecognised key is rejected the
-    same way upstream's `extra="forbid"` rejects it, over the union of the built-in tree's fields
-    and the script's own declared keys. The script is now loaded during validation, not only at
-    render time. Fixed since the 2026-08-10 finding; the claim was stale, found false by pass 24's
-    fresh-context verifier (`specs/STATE.md`).
+    scripted custom theme is silently accepted. It is not. An unrecognised key is rejected the same
+    way upstream's `extra="forbid"` rejects it, over the union of the built-in tree's fields and the
+    script's own declared keys; the script is loaded during validation, not only at render time
+    (`internal/schema/models/design/scriptextra_test.go`, `TestValidateScriptedThemeUnknownKeys`).
+    **Re-measured end-to-end 2026-08-14**, not taken from the ledger: a `create-theme mytheme`
+    folder on each side (upstream's 857-line `__init__.py`, the port's `return {}` `init.lua`), a
+    generated CV with `design: {theme: mytheme, unknown_key_xyz: 5}`, rendered at `COLUMNS=80` with
+    the vendored `third_party/rendercv/.venv/bin/rendercv` and with `bin/rendercv-go`. Both are
+    **exit 1**, both write **1411 B to stdout and 0 B to stderr**, and the two stdouts are
+    **byte-identical** (`cmp` clean): one row, `design` / `5` / `This field is unknown for this
+    object. Please remove it.` Neither side creates `rendercv_output/`. Fixed since the 2026-08-10
+    finding; the stale claim was found false by pass 24's fresh-context verifier and is now
+    confirmed false by measurement.
   - Upstream's other custom-theme rules are preserved unchanged: lowercase-alphanumeric theme
     name, folder beside the input file, folder must contain ≥1 `*.j2.typ`.
   - **Sandboxed.** The Lua state is opened without `io`, `os`, `package`, `debug` or `dofile`.
     A theme describes a design; it has no business touching the filesystem or the network.
     Upstream's `__init__.py` had no such limit — this divergence is strictly safer.
-  - Error parity where it can be kept: **not landed yet.** The intent is a Lua syntax error and a
-    missing theme table producing the upstream messages with `__init__.py` replaced by `init.lua`;
-    the actual behavior today (`internal/renderer/bridge/model.go:84-86`, `:99-101`) is that every
-    script failure — a parse error, a non-table return, a shape conflict — is swallowed and the
-    theme silently falls back as though no script existed at all, at exit 0 with no message.
-    Upstream exits 1 and names the theme. Found by the same 2026-08-10 verifier pass; open.
-    Upstream's `ImportError` branch has no analogue and would stay dropped even once the rest is
-    fixed, since `package`/`require` are unavailable.
+  - Error parity for a **broken** script: **landed, and recorded in D-013** — this bullet used to
+    say every script failure was swallowed at exit 0. It is not. Re-measured 2026-08-14 with a
+    truncated `return {` in a `create-theme` folder's `init.lua`: the port exits **1**, writes
+    **1411 B to stdout, 0 B to stderr**, and prints the validation panel with `design` / `...` /
+    `The custom theme mytheme's init.lua file could not be run: <string> at EOF:   syntax error.`
+    What still differs is the *reason string*, Lua's rather than Python's, which is D-013's subject
+    and is not restated here. Upstream's `ImportError` branch has no analogue and stays dropped,
+    since `package`/`require` are unavailable (D-013 again).
+  - The **panel-vs-traceback** shape reached from this entry — `create-theme`'s two refusals are a
+    stdout panel here and a stderr Rich traceback upstream — is **D-011's class**, generalised and
+    bounded by **D-014**, which already names these two messages and the stream inversion. Not a
+    D-002 item; see those entries rather than a second description here. (Spot-checked 2026-08-14:
+    `create-theme "My Theme"` is exit 1 on both sides — port 637 B stdout / 0 B stderr, vendored
+    upstream 0 B stdout / 2369 B stderr ending `RenderCVUserError: …`.)
+  - **Not this entry's, filed where it belongs**: `specs/STATE.md`'s iteration-14 row attributes a
+    `!!binary` contradiction to D-002. It is not in D-002 — the line numbers it cites are D-012's,
+    and the sentence has been corrected there.
 - **User notices:** a custom theme written for Python RenderCV needs its `__init__.py` translated
   into `init.lua`. Themes with no `__init__.py` (templates only) work unchanged.
 - **Open:** the exact table shape and the generated `init.lua` are specified in iteration 6.
@@ -393,8 +408,14 @@ exit 0.
 ### What the user notices
 
 Nothing, unless they write an explicit tag — which no example, no template and no generated file in
-either project does. Where the port diverges it is stricter in five of the six cases and laxer in
-one (`!!binary`).
+either project does. Where the port diverges it is **stricter or equally strict in all six cases,
+and laxer in none**. This sentence used to read "laxer in one (`!!binary`)", which contradicted the
+table above it: re-measured 2026-08-14 at `COLUMNS=80` on a generated CV whose `cv.name` is
+`!!binary aGk=`, the vendored `third_party/rendercv/.venv/bin/rendercv` **renders** — exit 0, 965 B
+success panel, `rendercv_output/hi_CV.pdf` and five siblings — while `bin/rendercv-go` **refuses**:
+exit 1, 1318 B stdout, 0 B stderr, one row reading `cv.name` / `aGk=` / `Input should be a valid
+string.` Upstream renders and the port does not, which is the port being stricter. The measurement
+wins over the old summary; the table's `!!binary` row was right all along.
 
 ### Four upstream internal errors found while measuring this, **not caused by tags**
 
