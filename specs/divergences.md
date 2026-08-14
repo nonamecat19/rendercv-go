@@ -441,9 +441,32 @@ Recorded here because this is where they were measured; each is D-011's class, n
 | `cv: {1: x}`, and any other non-string key | `RenderCVInternalError: Key '1' not found in the YAML file.` | a validation record |
 | `cv: {true: x}` | same | a validation record |
 | `cv: {!!int 1: x}` | same | a validation record |
-| `cv.website: []` | `RenderCVInternalError: website key present but value is None` | renders at exit 0 |
+| `cv.website: []` | `RenderCVInternalError: website key present but value is None` | a validation record carrying that same sentence |
 
-The last is the only case in this entry where the port renders and upstream does not.
+All four now differ only in the **shape** of the refusal — a validation table on stdout here, a
+Rich traceback on stderr there — and agree on the exit code, which is what axis 2 binds. The
+`cv.website: []` row did not: it rendered a complete CV at exit 0 until iteration 15's follow-up.
+The cause is that `parse_connections` tests `website` for **falsiness**
+(`src/rendercv/renderer/templater/connections.py:117-118`, `if not websites:`) where it tests
+`phone`, `social_networks` and `custom_connections` for `is None` (`:95`, `:141`, `:164`), and an
+empty sequence passes every validator while staying in `_key_order` —
+`src/rendercv/schema/models/cv/cv.py:173` drops only the keys whose value **is None**. The port
+now raises there too and reports it the way this class is reported, at `cv.website`, exit 1.
+
+Measured on both sides, `cv:\n  name: A\n  website: <value>\n`, `NO_COLOR=1 TERM=dumb COLUMNS=80`:
+
+| Value | Upstream | `rendercv-go` |
+|---|---|---|
+| `[]` | exit 1, traceback, `RenderCVInternalError: website key present but value is None` | exit 1, validation table, same sentence at `cv.website` |
+| `{}` | exit 1, `URL input should be a string or URL.` | identical bytes |
+| `null` | exit 0, renders — the key never enters `_key_order` | identical |
+| `""` | exit 1, `This is not a valid URL.` | identical bytes |
+| `0` | exit 1, `URL input should be a string or URL.` | identical bytes |
+| `false` | exit 1, `URL input should be a string or URL.` | identical bytes |
+| `https://example.com` | exit 0, renders | identical |
+
+Pinned by `TestWebsiteShapesMatchUpstreamExitCodes` (`internal/cli/websitefalsiness_test.go`) and
+`TestWebsiteFalsinessIsARecordNotARender` (`internal/renderer/bridge/connections_test.go`).
 
 ---
 
