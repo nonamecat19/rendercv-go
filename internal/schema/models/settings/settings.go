@@ -9,6 +9,7 @@ package settings
 
 import (
 	"regexp"
+	"strconv"
 
 	"github.com/nonamecat19/rendercv-go/internal/schema/schemaerr"
 	"github.com/nonamecat19/rendercv-go/internal/schema/yamldoc"
@@ -54,6 +55,92 @@ func ValidateCurrentDate(
 		Message:        "Input should be a valid date or 'today'",
 		Input:          schemaerr.RenderInput(node),
 	}}
+}
+
+// The two pydantic codes `bold_keywords` can raise, repeated here for the same
+// reason `CodeExtraForbidden` is: the binder owns the canonical spellings and
+// this package stays out of its import graph.
+const (
+	// CodeListType is pydantic's `list_type`, raised when the field's value is
+	// not a sequence at all.
+	CodeListType schemaerr.Code = "list_type"
+	// CodeStringType is pydantic's `string_type`, raised per element that is
+	// not a `str`.
+	CodeStringType schemaerr.Code = "string_type"
+)
+
+const (
+	// messageListType is rewritten by `error_dictionary.yaml:13` to "This field
+	// should contain a list of items but it doesn't."
+	messageListType = "Input should be a valid list"
+	// messageStringType is rewritten by no dictionary row; the pipeline only
+	// adds its trailing period, giving "Input should be a valid string."
+	messageStringType = "Input should be a valid string"
+)
+
+// ValidateBoldKeywords checks `settings.bold_keywords`, declared `list[str]`
+// (settings.py:27).
+//
+// **A Python `str` is iterable, so the interesting question is whether pydantic
+// spreads `bold_keywords: 'A'` into `['A']`. It does not.** Pydantic v2's lax
+// mode excludes `str` and `bytes` from the sequence coercions it allows
+// precisely because splitting a string into characters is never what a user
+// meant, so a bare string raises `list_type` like an int or a mapping does —
+// measured against the vendored binary, which refuses the document at exit 1
+// while the port rendered it at exit 0.
+//
+// Element failures carry the element's index as a decimal location component,
+// which is the shape the binder's `ValueStringList` arm already produces and
+// which upstream prints as `settings.bold_keywords.0`. A null is not a list and
+// not a string, so it fails at whichever of the two levels it appears on.
+func ValidateBoldKeywords(
+	node *yamldoc.Node,
+	location []string,
+	source schemaerr.YamlSource,
+) []schemaerr.ValidationError {
+	if node == nil {
+		return nil
+	}
+
+	field := append(append([]string(nil), location...), "bold_keywords")
+	if node.Kind != yamldoc.KindSequence {
+		return []schemaerr.ValidationError{
+			valueError(CodeListType, messageListType, field, node, source),
+		}
+	}
+
+	var errs []schemaerr.ValidationError
+	for index, element := range node.Elems {
+		if element != nil && element.Kind == yamldoc.KindString {
+			continue
+		}
+		at := append(append([]string(nil), field...), strconv.Itoa(index))
+		errs = append(errs, valueError(CodeStringType, messageStringType, at, element, source))
+	}
+	return errs
+}
+
+// valueError builds one record, tolerating a nil node the way the binder's own
+// does: a missing node still has a location, and its Input column is `None`.
+func valueError(
+	code schemaerr.Code,
+	message string,
+	location []string,
+	node *yamldoc.Node,
+	source schemaerr.YamlSource,
+) schemaerr.ValidationError {
+	err := schemaerr.ValidationError{
+		Code:           code,
+		SchemaLocation: location,
+		YamlSource:     source,
+		Message:        message,
+		Input:          schemaerr.RenderInput(node),
+	}
+	if node != nil {
+		span := node.Span
+		err.YamlLocation = &span
+	}
+	return err
 }
 
 // FieldNames is `Settings`' declared field set (settings.py:10-52). The

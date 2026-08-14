@@ -131,6 +131,14 @@ func Validate(
 		if current, ok := mappingValue(model.Settings, "current_date"); ok {
 			errs = append(errs, settings.ValidateCurrentDate(current, []string{"settings"}, source)...)
 		}
+		// `bold_keywords` is `list[str]`, and a wrong-typed value for it used to
+		// render at exit 0 where upstream refuses the document. It sits after
+		// `current_date` because pydantic reports in declaration order
+		// (settings.py:11-31).
+		if keywords, ok := mappingValue(model.Settings, "bold_keywords"); ok {
+			errs = append(errs,
+				settings.ValidateBoldKeywords(keywords, []string{"settings"}, source)...)
+		}
 		// **Unknown keys under `settings` were accepted by nobody's decision**:
 		// two specs each recorded the settings model as the other's work. An
 		// audit measured `settings: {bogus: 1}` rendering at exit 0 where
