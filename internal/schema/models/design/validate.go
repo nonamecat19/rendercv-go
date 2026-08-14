@@ -68,13 +68,26 @@ func pathlibJoin(absolute bool, parts []string) string {
 	return joined
 }
 
-// CodeModelAttributesType is a `design` that is not a mapping. It is the only
-// block-level failure `design` has — and **not** the pair `locale` has, which is
-// the finding below.
-const CodeModelAttributesType schemaerr.Code = "model_attributes_type"
+// The two block-level failures `design` has, which are the pair `locale` has.
+const (
+	// CodeModelAttributesType is a `design` that is not a mapping.
+	CodeModelAttributesType schemaerr.Code = "model_attributes_type"
+	// CodeUnionTagNotFound is a `design` mapping with no `theme` key at all.
+	CodeUnionTagNotFound schemaerr.Code = "union_tag_not_found"
+)
 
 const messageNotAMapping = "Input should be a valid dictionary or object to" +
 	" extract fields from"
+
+// messageTagNotFound is pydantic's own text for the discriminated union
+// `validate_design` tries first (`design.py:36`), measured by calling
+// `built_in_design_adapter.validate_python({})` in the vendored venv:
+//
+//	union_tag_not_found · Unable to extract tag using discriminator 'theme'
+//
+// It is not invented for the port. Upstream *builds* this error, inspects it
+// (`design.py:38-47`) and then throws it away, which is the crash below.
+const messageTagNotFound = "Unable to extract tag using discriminator 'theme'"
 
 // The bool codes, which differ by what failed to coerce.
 const (
@@ -125,23 +138,29 @@ func Validate(
 		}
 	}
 
-	// **A `design` block with no `theme` key crashes upstream.**
-	// `validate_design` runs before the discriminated union and does
-	// `str(design["theme"])` unguarded (design.py:57), so `{design: {page: …}}`
-	// raises `KeyError: 'theme'` — an unhandled exception, not a validation
-	// error. `locale`, whose union pydantic resolves itself, gives
-	// `union_tag_not_found` for the same shape; the two blocks differ because one
-	// has a wrap validator in front of it.
+	// **A `design` mapping with no `theme` key crashes upstream.**
+	// `validate_design` catches the union's own failure, sees the discriminator
+	// in it, decides the block must name a custom theme and then does
+	// `str(design["theme"])` unguarded (`design.py:57`) — so `{design: {page: …}}`
+	// raises `KeyError: 'theme'`: a Rich traceback on stderr, the progress box
+	// alone on stdout, **exit 1**. Measured on `{}`, `{page: …}`, `{bogus: 1}`
+	// and `{page: …, zzz: 1}`, identical for all four.
 	//
-	// Producing a message here would be a divergence: the port would report where
-	// upstream crashes. So this returns nothing and the CLI's unhandled-failure
-	// handling owns it, which is where iteration 4 sent its two crashes
-	// (spec 004 §7.8).
+	// The port reports the record and exits 1, which is D-011/D-014's class and
+	// D-012's stated precedent for it: "The port keeps the forced kind and
+	// reports an ordinary validation record at exit 1, which is deliberately the
+	// closest available behavior." Exit-code parity (contract axis 2) is
+	// achievable here and was violated — the port used to *render five artifacts
+	// at exit 0*. The traceback's text is D-011's declared, permanent divergence.
+	//
+	// The record is upstream's own: `union_tag_not_found` with pydantic's message
+	// for the very union `design.py:36` tried, which `locale` — whose union has no
+	// wrap validator in front of it — shows the user for exactly this shape.
 	theme, present := mappingValue(node, "theme")
 	if !present {
-		// TODO(iteration-12): upstream raises KeyError here; match whatever the
-		// CLI prints for an unhandled exception.
-		return nil
+		return []schemaerr.ValidationError{
+			blockError(node, CodeUnionTagNotFound, messageTagNotFound, location, source),
+		}
 	}
 
 	if errs := ValidateTheme(theme, location, source); len(errs) > 0 {
