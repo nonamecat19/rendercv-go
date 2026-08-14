@@ -32,7 +32,7 @@ type Unreachable struct {
 	Why string
 }
 
-// unreachableCases is the whole list. Nine cases, four divergences.
+// unreachableCases is the whole list. Twelve cases, five divergences.
 //
 // It is deliberately a Go literal rather than a field in `corpus.json`: the
 // corpus is generated from the vendored upstream by `tools/gengolden`, and what
@@ -56,6 +56,19 @@ var unreachableCases = []Unreachable{
 	// generating machine's absolute paths and CPython frames.
 	{Case: "err_missing_file", Divergence: "D-011", Why: "the golden is a Python traceback with absolute paths"},
 	{Case: "err_bad_override_key", Divergence: "D-011", Why: "the golden is a Python traceback with absolute paths"},
+
+	// D-014 — spec 006 delta §3.6 mechanism F: upstream's CLI crashes at
+	// `render_command.py:205` on a non-mapping `settings`/`render_command`
+	// before validation runs, printing a Rich traceback with this machine's
+	// absolute paths. The port reaches the record upstream's own model would
+	// have produced and reports it as an ordinary validation panel.
+	{Case: "err_settings_not_a_mapping", Divergence: "D-014", Why: "the golden is a Python traceback with absolute paths"},
+	{Case: "err_settings_render_command_null", Divergence: "D-014", Why: "the golden is a Python traceback with absolute paths"},
+	// Mechanism F3: a list-valued `render_command.design` crashes the same
+	// `render_command.py:205` call before validation runs (spec 006 delta
+	// §3.6 table, row F3), so this golden is also a traceback rather than the
+	// model-layer record §3.3's footnote measured directly.
+	{Case: "err_settings_design_list", Divergence: "D-014", Why: "the golden is a Python traceback with absolute paths"},
 
 	// D-018 — `%YAML 1.1` switches ruamel to its 1.1 scalar resolver, so
 	// upstream reads `cv.name: yes` as the bool `True` and reports a type
