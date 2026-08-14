@@ -632,7 +632,15 @@ Pinned by `TestWebsiteShapesMatchUpstreamExitCodes` (`internal/cli/websitefalsin
   | Folded plain scalar, **block** context | `k: 1⏎  - item⏎ q` → `{"k": "1 - item q"}` | renders | rejects |
   | Empty block scalar, blank line, comment | `k: >⏎⏎# c` → `{"k": ""}` | renders | rejects |
   | Collection tags on a scalar | `!!merge`, `!!seq`, `!!map`, `!!set`, `!!omap` | node exists | refused at parse |
-  | Sequence keys | a sequence used as a mapping key | renders | skipped rows |
+  | Sequence keys | a sequence used as a mapping key | loads, then RenderCV raises | refused at parse |
+
+  **The sequence-key row is not an axis-1 loss, re-measured 2026-08-14.** ruamel *loads* a container
+  key — `{[1]: a}` becomes `{(1,): 'a'}` — but nothing downstream can consume it, so upstream exits 1
+  with an unhandled traceback. Measured on five shapes (`{[1]: a}`, `? [1]`, `? []`, `? {a: 1}`,
+  `? [[1]]`): **both sides exit 1 on all five**, upstream printing a Python traceback and the port a
+  one-row panel — which is D-011's class, not a document the user loses. So no CV is renderable
+  upstream and unrenderable here on account of a container key, and this row costs the user nothing
+  beyond the message shape. The other four classes above are the real axis-1 exposure.
 
   The flow and block folded-scalar classes share one mechanism — goccy's lexer already performs the
   fold correctly, but carries it forward with two narrow, crisply reproducible defects: the fold
