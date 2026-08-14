@@ -74,6 +74,12 @@ const (
 	// `dict_type` text, which is CodeModelType's without a model name — the two
 	// codes differ but the sentence does not.
 	MessageDictType = messageModelType
+	// MessageStringType is the same for a `TextEntry`, whose whole model is the
+	// bare `str` of `SectionWithTextEntries.entries: list[str]`
+	// (`section.py:106-118`). There is no Spec to declare it in — a text entry
+	// has no fields — so the check lives in the entry dispatcher and borrows
+	// pydantic's text from here.
+	MessageStringType = messageStringType
 
 	// pydantic's own text for a non-string key, which no dictionary row
 	// rewrites — the pipeline only adds its trailing period.
