@@ -1072,6 +1072,28 @@
       ],
       "expect_exit": 0,
       "no_current_date_pin": true
+    },
+    {
+      "name": "photo_next_to_typst",
+      "axis": "artifacts",
+      "inline_files": [
+        {
+          "dst": "cv.yaml",
+          "content": "cv:\n  name: John Doe\n  photo: photo.jpg\n  sections:\n    s:\n    - text\n"
+        }
+      ],
+      "files": [
+        {
+          "src": "tests/renderer/testdata/profile_picture.jpg",
+          "dst": "photo.jpg"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml",
+        "--settings.current_date",
+        "2025-03-05"
+      ]
     }
   ]
 }
