@@ -956,6 +956,38 @@
       "expect_exit": 1
     },
     {
+      "name": "err_settings_current_date_null",
+      "axis": "errors",
+      "inline_files": [
+        {
+          "dst": "cv.yaml",
+          "content": "cv:\n  name: John Doe\n  sections:\n    s:\n    - text\nsettings:\n  current_date: null\n"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml"
+      ],
+      "expect_exit": 1,
+      "no_current_date_pin": true
+    },
+    {
+      "name": "err_settings_current_date_epoch_inexact",
+      "axis": "errors",
+      "inline_files": [
+        {
+          "dst": "cv.yaml",
+          "content": "cv:\n  name: John Doe\n  sections:\n    s:\n    - text\nsettings:\n  current_date: 42\n"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml"
+      ],
+      "expect_exit": 1,
+      "no_current_date_pin": true
+    },
+    {
       "name": "err_settings_not_a_mapping",
       "axis": "errors",
       "inline_files": [
@@ -1024,6 +1056,22 @@
         "-nopng"
       ],
       "expect_exit": 0
+    },
+    {
+      "name": "set_current_date_epoch",
+      "axis": "artifacts",
+      "inline_files": [
+        {
+          "dst": "cv.yaml",
+          "content": "cv:\n  name: John Doe\n  sections:\n    s:\n    - text\nsettings:\n  current_date: 0\n"
+        }
+      ],
+      "args": [
+        "render",
+        "cv.yaml"
+      ],
+      "expect_exit": 0,
+      "no_current_date_pin": true
     }
   ]
 }
