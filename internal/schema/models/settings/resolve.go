@@ -131,9 +131,12 @@ func uniqueKeywords(node *yamldoc.Node) []string {
 	return out
 }
 
-// resolveRenderCommand reads the five generation switches. Anything that is not
-// the boolean `true` leaves its switch off, which is upstream's truthiness rule
-// for this block (spec 004 §3.20).
+// resolveRenderCommand reads the five generation switches. A value is only
+// reached here when it has already validated (mechanism D, spec 006 delta
+// §3.4), so `ParseLaxBool`'s `ok` is always true for a `dont_generate_*` key —
+// but `Resolve` is also called on documents that were never validated (spec
+// 004 §7.9's thin slice, still the shape unit tests build), so an unparseable
+// value is read as off rather than assumed impossible.
 func resolveRenderCommand(node *yamldoc.Node) RenderCommand {
 	var out RenderCommand
 	if node == nil || node.Kind != yamldoc.KindMapping {
@@ -147,7 +150,8 @@ func resolveRenderCommand(node *yamldoc.Node) RenderCommand {
 		if item.Value.Kind == yamldoc.KindString {
 			text = item.Value.Raw
 		}
-		on := item.Value.Kind == yamldoc.KindBool && yamldoc.BoolIsTrue(item.Value.Raw)
+		on, ok, _ := ParseLaxBool(item.Value)
+		on = on && ok
 		switch item.Key {
 		case "output_folder":
 			out.OutputFolder = text
