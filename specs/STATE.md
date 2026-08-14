@@ -126,8 +126,18 @@ cv:
 ```
 
 upstream exit 1, the port **exit 0** — but reverse the two entries and both exit 1, and mixing two
-*mapping* entry types is also fine. A section mixing a bare-string TextEntry with a mapping entry is
-mishandled only when the string comes first. Under repair.
+*mapping* entry types is also fine. **Fixed** (`a89d185`), and the widening was worth more than the
+reduction: the one fuzzer document was **10 exit-code mismatches**, one per entry type paired after
+a string, plus 9 more scalar shapes (`- 2020`, `- true`, `- ~`, a nested list, a mapping…).
+
+The cause is a false premise written into a comment. Upstream decides a section's entry type
+**per-section, from the first *resolvable* entry** (`section.py:199-210` breaks on the first that
+does not raise), then validates **every** entry against that one type — for `str` the model is
+`entries=(list[str], ...)` (`:116`), so each mapping is a `string_type` failure at its own index.
+The port's dispatcher returned `nil, nil` for a text entry with the comment "its own type check …
+belongs to the caller, which discriminated it as text in the first place". The caller discriminated
+*one* entry as text and then applied that verdict to all of them. 22 of 22 pairings now agree on
+exit code and on the whole panel; the all-strings and quoted-number sections still render at 0.
 
 The lesson is the same one as the stale rows, from the other direction: the hand-written sweeps in
 this pass were organised by *field* and by *type*, and this defect is a property of neither.
