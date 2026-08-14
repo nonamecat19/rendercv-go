@@ -15,6 +15,12 @@ import (
 )
 
 func parse(src string) (*yamldoc.Node, error) {
+	// First, as it is upstream: ruamel's reader checks the whole document when
+	// the stream is assigned, before its scanner sees a token — so this beats
+	// the directive and tab rules below. See printable.go.
+	if err := checkPrintable(src); err != nil {
+		return nil, err
+	}
 	// The directive block is line 1, so ruamel's scanner reaches a malformed
 	// `%YAML` version before any other failure in the file — the tab check
 	// included. See MalformedDirectiveError for why goccy cannot answer this.

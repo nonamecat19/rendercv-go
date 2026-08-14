@@ -29,6 +29,23 @@ func ReadYamlWithValidationErrors(
 		return node, nil
 	}
 
+	// A forbidden character is ruamel's *reader* failure, raised before any
+	// scanning and carrying neither mark, so `get_yaml_error_location`
+	// (`rendercv_model_builder.py:42-62`) returns `None` and the Location
+	// column is the bare source name — see yamlreader.NonPrintableError.
+	var nonPrintable *yamlreader.NonPrintableError
+	if errors.As(err, &nonPrintable) {
+		return nil, &schemaerr.UserValidationError{
+			Errors: []schemaerr.ValidationError{{
+				SchemaLocation: nil,
+				YamlLocation:   nil,
+				YamlSource:     source,
+				Message:        fmt.Sprintf("This is not a valid YAML file. %s.", nonPrintable.Error()),
+				Input:          schemaerr.InputEllipsis,
+			}},
+		}
+	}
+
 	// A multi-document stream is ruamel's *composer* failure rather than its
 	// parser's, so it carries marks of its own instead of a failing token —
 	// see yamlreader.MultiDocumentError.
